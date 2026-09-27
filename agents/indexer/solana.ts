@@ -14,6 +14,7 @@
 import { loadAgentKeypair } from "../../lib/solana/keypair";
 import { MimirSolanaClient } from "../../lib/solana/client";
 import { isIndexEnabled, upsertClaim } from "../../lib/server/solana-index";
+import { reportingPoll } from "../../lib/ops/heartbeat";
 
 const POLL_INTERVAL_MS = Number(process.env.INDEXER_POLL_INTERVAL_MS ?? "30000");
 // Small pause between getClaim calls to stay within public RPC rate limits.
@@ -85,13 +86,9 @@ async function main(): Promise<void> {
   console.log(`  Cadence : every ${POLL_INTERVAL_MS / 1000}s`);
   console.log("═══════════════════════════════════════════════\n");
 
-  const safe = async () => {
-    try {
-      await cycle(client);
-    } catch (err) {
-      console.error("[indexer] cycle failed, retrying next interval:", err);
-    }
-  };
+  // Heartbeat + no overlapping cycles (a full sweep can outlast the interval
+  // on a slow public RPC).
+  const safe = reportingPoll("indexer", POLL_INTERVAL_MS, () => cycle(client));
   await safe();
   setInterval(safe, POLL_INTERVAL_MS);
 }

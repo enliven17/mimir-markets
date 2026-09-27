@@ -13,7 +13,8 @@
  * Env: SOLANA_KEYPAIR (defaults to ~/.config/solana/talos-deploy.json)
  *      SOLANA_USDC_MINT, NEXT_PUBLIC_MIMIR_PROGRAM_ID
  *      GEMINI_API_KEY or ANTHROPIC_API_KEY
- *      AUTO_CHALLENGE=1, CHALLENGE_STAKE_USDC, CHALLENGE_CONFIDENCE
+ *      AUTO_CHALLENGE=1 (or MIMIR_FEATURE_AUTO_CHALLENGE=1), CHALLENGE_STAKE_USDC, CHALLENGE_CONFIDENCE
+ *      MIMIR_PAUSE_ORACLE_SETTLEMENT=1 / MIMIR_PAUSE_AUTO_CHALLENGE=1 (pause switches)
  *      HEDGE_MODE=dry|live|off   (Flash Trade hedge, default dry)
  *      ORACLE_POLL_INTERVAL_MS   (default 30000)
  */
@@ -27,6 +28,8 @@ import { createHash } from "node:crypto";
 import { loadAgentKeypair } from "../../lib/solana/keypair";
 import { callLLM, activeLLMProvider, activeLLMModel } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
+import { isFeatureEnabled, isPaused } from "../../lib/ops/flags";
+import { reportingPoll } from "../../lib/ops/heartbeat";
 import {
   fetchEvidence as fetchEvidenceShared,
   EvidenceFetchError,
@@ -52,7 +55,7 @@ import {
 // ── Config ────────────────────────────────────────────────────────────────
 const POLL_INTERVAL_MS = Number(process.env.ORACLE_POLL_INTERVAL_MS ?? "30000");
 const MAX_CONTENT_CHARS = 8_000;
-const AUTO_CHALLENGE = process.env.AUTO_CHALLENGE === "1";
+const AUTO_CHALLENGE = process.env.AUTO_CHALLENGE === "1" || isFeatureEnabled("auto_challenge");
 const CHALLENGE_STAKE_USDC = Number(process.env.CHALLENGE_STAKE_USDC ?? "2");
 const CHALLENGE_CONFIDENCE = Number(process.env.CHALLENGE_CONFIDENCE ?? "80");
 const HEDGE_MODE = (process.env.HEDGE_MODE ?? "dry") as "dry" | "live" | "off";
@@ -209,8 +212,63 @@ function applyFetcherTrust(
 }
 
 // ── ROLE 1: settle ────────────────────────────────────────────────────────
+interface SettlementDecision {
+  verdict: OracleVerdict;
+  evidenceHash: Buffer;
+}
+
+/**
+ * The decision for a claim whose resolve write failed. A retry re-submits the
+ * same verdict instead of re-fetching evidence and re-rolling a
+ * non-deterministic LLM that might now answer differently.
+ */
+const decidedVerdicts = new Map<string, SettlementDecision>();
+/** Claims whose resolve write failed recently, keyed by id → retry-after ms. */
+const settleBackoff = new Map<string, number>();
+const SETTLE_RETRY_BACKOFF_MS = Number(process.env.ORACLE_SETTLE_RETRY_BACKOFF_MS ?? "120000");
+
+/** Evidence + verdict for one claim. Null when settlement should wait (LLM unavailable). */
+async function decide(claim: OnchainClaim): Promise<SettlementDecision | null> {
+  // If no evidence could be fetched, the LLM can only return UNRESOLVABLE
+  // anyway — skip the call entirely so we don't burn the (rate-limited) LLM
+  // quota on un-decidable claims. This also stops the expired-claim backlog
+  // from re-hammering the API every poll.
+  const evidence = await fetchEvidence(claim.resolutionUrl);
+  console.log(`[settle] Evidence fetcher: ${evidence.fetcher}`);
+  const evidenceHash = createHash("sha256").update(evidence.text).digest();
+
+  if (evidence.fetcher === "none") {
+    console.log("[settle] No evidence — settling UNRESOLVABLE (refund), LLM skipped");
+    return {
+      evidenceHash,
+      verdict: {
+        verdict: "UNRESOLVABLE",
+        confidence: 0,
+        explanation: "No evidence could be fetched from the resolution source — refunded.",
+      },
+    };
+  }
+
+  let rawVerdict: OracleVerdict;
+  try {
+    rawVerdict = await evaluateClaim(claim, evidence.text);
+  } catch (err: any) {
+    // LLM rate-limited / cooling down — leave the claim ACTIVE and retry on
+    // a later poll once the quota recovers, instead of spamming stack traces.
+    console.log(
+      `[settle] Claim #${claim.id}: LLM unavailable (${String(err?.message ?? err).slice(0, 50)}) — retry next poll`
+    );
+    return null;
+  }
+  const trusted = applyFetcherTrust(rawVerdict, evidence.fetcher, claim.resolutionUrl);
+  const verdict = tierVerdict(trusted);
+  console.log(`[settle] Verdict: ${verdict.verdict} (${verdict.confidence}%)`);
+  return { verdict, evidenceHash };
+}
+
 async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<void> {
   console.log(`\n[settle] Claim #${claim.id}: "${claim.question.slice(0, 60)}..."`);
+  const key = claim.id.toString();
 
   // Step 1: if the claim still lives in the ER, commit + undelegate it
   if (await client.isDelegated(claim.id)) {
@@ -223,40 +281,26 @@ async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<v
     console.log("[settle] Claim is back on the base layer");
   }
 
-  // Step 2: evidence + verdict. If no evidence could be fetched, the LLM can
-  // only return UNRESOLVABLE anyway — skip the call entirely so we don't burn
-  // the (rate-limited) LLM quota on un-decidable claims. This also stops the
-  // expired-claim backlog from re-hammering the API every poll.
-  const evidence = await fetchEvidence(claim.resolutionUrl);
-  console.log(`[settle] Evidence fetcher: ${evidence.fetcher}`);
-  const evidenceHash = createHash("sha256").update(evidence.text).digest();
-
-  let verdict: OracleVerdict;
-  if (evidence.fetcher === "none") {
-    verdict = {
-      verdict: "UNRESOLVABLE",
-      confidence: 0,
-      explanation: "No evidence could be fetched from the resolution source — refunded.",
-    };
-    console.log("[settle] No evidence — settling UNRESOLVABLE (refund), LLM skipped");
+  // Step 2: evidence + verdict, or the one decided on a failed earlier attempt.
+  let decision = decidedVerdicts.get(key) ?? null;
+  if (decision) {
+    console.log("[settle] Re-submitting the verdict decided on an earlier attempt.");
   } else {
-    let rawVerdict: OracleVerdict;
-    try {
-      rawVerdict = await evaluateClaim(claim, evidence.text);
-    } catch (err: any) {
-      // LLM rate-limited / cooling down — leave the claim ACTIVE and retry on
-      // a later poll once the quota recovers, instead of spamming stack traces.
-      console.log(
-        `[settle] Claim #${claim.id}: LLM unavailable (${String(err?.message ?? err).slice(0, 50)}) — retry next poll`
-      );
-      return;
-    }
-    const trusted = applyFetcherTrust(rawVerdict, evidence.fetcher, claim.resolutionUrl);
-    verdict = tierVerdict(trusted);
-    console.log(`[settle] Verdict: ${verdict.verdict} (${verdict.confidence}%)`);
+    decision = await decide(claim);
+    if (!decision) return;
+    decidedVerdicts.set(key, decision);
   }
+  const { verdict, evidenceHash } = decision;
 
-  // Step 3: resolve on base layer
+  // Step 3: resolve on base layer. The claim may have been resolved since the
+  // scan (an earlier attempt that timed out but still landed, or another
+  // oracle instance), so re-read the base layer right before signing.
+  const fresh = await client.getBaseClaim(claim.id);
+  if (!fresh || fresh.state !== ST_ACTIVE) {
+    console.log(`[settle] Claim #${claim.id} is no longer ACTIVE on the base layer — nothing to write.`);
+    decidedVerdicts.delete(key);
+    return;
+  }
   const sig = await client.resolveClaim(
     claim.id,
     verdictToSide(verdict.verdict),
@@ -264,21 +308,22 @@ async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<v
     verdict.confidence,
     evidenceHash
   );
+  decidedVerdicts.delete(key);
   console.log(`[settle] ✓ Resolved — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
 
   // Step 4: crank payouts (permissionless, oracle does it as a service)
   const side = verdictToSide(verdict.verdict);
   try {
     if (side === SIDE_CREATOR || side === SIDE_DRAW || side === SIDE_UNRESOLVABLE) {
-      await client.payoutCreator(claim.id, claim.creator);
+      await client.payoutCreator(claim.id, fresh.creator);
       console.log("[settle] ✓ Creator paid");
     }
     if (side === SIDE_CHALLENGERS || side === SIDE_DRAW || side === SIDE_UNRESOLVABLE) {
-      for (let i = 0; i < claim.challengers.length; i++) {
-        await client.payoutChallenger(claim.id, i, claim.challengers[i].addr);
+      for (let i = 0; i < fresh.challengers.length; i++) {
+        await client.payoutChallenger(claim.id, i, fresh.challengers[i].addr);
       }
-      if (claim.challengers.length) {
-        console.log(`[settle] ✓ ${claim.challengers.length} challenger(s) paid`);
+      if (fresh.challengers.length) {
+        console.log(`[settle] ✓ ${fresh.challengers.length} challenger(s) paid`);
       }
     }
   } catch (err: any) {
@@ -305,7 +350,7 @@ async function ensureErStake(client: MimirSolanaClient): Promise<boolean> {
 }
 
 async function challengeIfMispriced(client: MimirSolanaClient, claim: OnchainClaim): Promise<void> {
-  if (!AUTO_CHALLENGE) return;
+  if (!AUTO_CHALLENGE || isPaused("auto_challenge") || isPaused("stake")) return;
   const key = claim.id.toString();
   if (challengedClaimIds.has(key) || evaluatedClaimIds.has(key)) return;
   if (claim.creator.equals(client.publicKey)) return;
@@ -409,19 +454,36 @@ async function poll(client: MimirSolanaClient): Promise<void> {
   }
   console.log(`\n[oracle] ── Poll at ${new Date().toISOString()} ── ${cfg.claimCount} claims`);
 
+  const settlementPaused = isPaused("oracle_settlement");
+  let waiting = 0;
   for (let id = 1n; id <= cfg.claimCount; id++) {
     const claim = await client.getClaim(id);
     if (!claim) continue;
+    const key = id.toString();
+    const expired = claim.state === ST_ACTIVE && claim.deadline <= now;
     try {
-      if (claim.state === ST_ACTIVE && claim.deadline <= now) {
-        await settle(client, claim);
+      if (expired) {
+        if (settlementPaused) {
+          waiting++;
+        } else if ((settleBackoff.get(key) ?? 0) <= Date.now()) {
+          await settle(client, claim);
+          settleBackoff.delete(key);
+        }
       }
       if ((claim.state === ST_OPEN || claim.state === ST_ACTIVE) && claim.deadline > now) {
         await challengeIfMispriced(client, claim);
       }
     } catch (err) {
+      if (expired) {
+        // A resolve that timed out can still land. Give it time before the
+        // next attempt; settle() then re-reads the base layer and sees it.
+        settleBackoff.set(key, Date.now() + SETTLE_RETRY_BACKOFF_MS);
+      }
       console.error(`[oracle] Error on claim ${id}:`, err);
     }
+  }
+  if (waiting > 0) {
+    console.log(`[oracle] Settlement paused (MIMIR_PAUSE_ORACLE_SETTLEMENT): ${waiting} claim(s) waiting.`);
   }
 }
 
@@ -443,15 +505,11 @@ async function main(): Promise<void> {
   console.log(`  Flash hedge: ${HEDGE_MODE}`);
   console.log("═══════════════════════════════════════════════\n");
 
-  const safePoll = async () => {
-    try {
-      await poll(client);
-    } catch (err) {
-      console.error("[oracle] Poll failed, will retry next interval:", err);
-    }
-  };
-  await safePoll();
-  setInterval(safePoll, POLL_INTERVAL_MS);
+  // Heartbeat + in-flight guard: a slow poll (slow RPC, slow LLM) is never
+  // overlapped by the next tick, so no claim is settled twice.
+  const tick = reportingPoll("oracle", POLL_INTERVAL_MS, () => poll(client));
+  await tick();
+  setInterval(tick, POLL_INTERVAL_MS);
 }
 
 main().catch((err) => {

@@ -57,6 +57,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     hits         INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (bucket_key, window_start)
   )`,
+  // Small key/value state: worker heartbeats (lib/ops/heartbeat.ts), cursors.
+  `CREATE TABLE IF NOT EXISTS app_meta (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at BIGINT NOT NULL DEFAULT 0
+  )`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
@@ -127,4 +133,17 @@ export async function query<T = Record<string, unknown>>(
   const pool = await getDb();
   const res = await pool.query(sql, args as unknown[]);
   return res.rows as T[];
+}
+
+export async function getMeta(key: string): Promise<string | null> {
+  const rows = await query<{ value: string }>("SELECT value FROM app_meta WHERE key = $1", [key]);
+  return rows[0]?.value ?? null;
+}
+
+export async function setMeta(key: string, value: string, now = Date.now()): Promise<void> {
+  await query(
+    `INSERT INTO app_meta (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [key, value, now],
+  );
 }

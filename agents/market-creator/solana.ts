@@ -29,6 +29,8 @@ import {
   getFlashPrice,
 } from "../../lib/solana/flashtrade";
 import { draftWorldCupClaims } from "../../lib/solana/worldcup";
+import { isPaused } from "../../lib/ops/flags";
+import { reportingPoll } from "../../lib/ops/heartbeat";
 
 const INTERVAL_MS = Number(process.env.CREATOR_INTERVAL_MS ?? "3600000");
 const CRYPTO_PER_RUN = Number(process.env.CREATOR_CRYPTO_PER_RUN ?? "2");
@@ -122,6 +124,12 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
   // Clean up dead expired claims first (frees the arena + refunds stake).
   await cancelExpiredEmpty(client);
 
+  // Cancelling above returns stake, so it runs even while creation is paused.
+  if (isPaused("create_market")) {
+    console.log("[creator] Market creation paused (MIMIR_PAUSE_CREATE_MARKET) — skipping drafts.");
+    return;
+  }
+
   const [crypto, worldCup] = await Promise.all([
     draftCryptoClaims(CRYPTO_PER_RUN),
     Promise.resolve(draftWorldCupClaims(WORLDCUP_PER_RUN)),
@@ -197,15 +205,10 @@ async function main(): Promise<void> {
   console.log(`  Stake    : ${STAKE_USDC} USDC · horizon ${HORIZON_MIN} min`);
   console.log("═══════════════════════════════════════════════\n");
 
-  const safeCycle = async () => {
-    try {
-      await runCycle(client);
-    } catch (err) {
-      console.error("[creator] Cycle failed, will retry next interval:", err);
-    }
-  };
-  await safeCycle();
-  setInterval(safeCycle, INTERVAL_MS);
+  // Heartbeat + MIMIR_PAUSE_MARKET_CREATOR_WORKER + no overlapping cycles.
+  const tick = reportingPoll("market_creator", INTERVAL_MS, () => runCycle(client));
+  await tick();
+  setInterval(tick, INTERVAL_MS);
 }
 
 main().catch((err) => {

@@ -43,6 +43,8 @@ import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { loadAgentKeypair, loadPersonaKeypair } from "../../lib/solana/keypair";
 import { callLLM } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
+import { isPaused } from "../../lib/ops/flags";
+import { reportingPoll } from "../../lib/ops/heartbeat";
 import { COUNCIL_PERSONAS, type PersonaSpec } from "./personas";
 import { MimirSolanaClient, type OnchainClaim } from "../../lib/solana/client";
 import {
@@ -247,6 +249,10 @@ You may ONLY bet on Side B (challenger side) or abstain. Return JSON only:
 
 // ── Cycle ─────────────────────────────────────────────────────────────────
 async function cycle(members: CouncilMember[], oracleReader: MimirSolanaClient) {
+  if (isPaused("stake")) {
+    console.log("[council] Staking paused (MIMIR_PAUSE_STAKE) — skipping the sweep.");
+    return;
+  }
   evidenceCache.clear();
   const now = Math.floor(Date.now() / 1000);
   const cfg = await oracleReader.getConfig();
@@ -344,25 +350,23 @@ async function main() {
   }
 
   const reader = new MimirSolanaClient(admin);
-  const safeCycle = async () => {
-    try {
-      // Run fundPersona for everyone every cycle (not just unfunded ones):
-      // a persona that wins drains its ER balance to zero over time while
-      // winnings pile up in its ATA, so fundPersona rebalances (undelegate →
-      // deposit → delegate). It returns cheaply when the ER balance is fine.
-      for (const member of members) {
-        try {
-          await fundPersona(connection, admin, member);
-        } catch (err: any) {
-          console.warn(`[fund] ${member.spec.slug} retry failed:`, err?.message ?? err);
-        }
-        await new Promise((r) => setTimeout(r, 1000));
+  // Heartbeat + MIMIR_PAUSE_COUNCIL_WORKER + no overlapping cycles: funding
+  // every persona plus a sweep can outlast the interval.
+  const safeCycle = reportingPoll("council", POLL_INTERVAL_MS, async () => {
+    // Run fundPersona for everyone every cycle (not just unfunded ones):
+    // a persona that wins drains its ER balance to zero over time while
+    // winnings pile up in its ATA, so fundPersona rebalances (undelegate →
+    // deposit → delegate). It returns cheaply when the ER balance is fine.
+    for (const member of members) {
+      try {
+        await fundPersona(connection, admin, member);
+      } catch (err: any) {
+        console.warn(`[fund] ${member.spec.slug} retry failed:`, err?.message ?? err);
       }
-      await cycle(members, reader);
-    } catch (err) {
-      console.error("[council] Cycle failed:", err);
+      await new Promise((r) => setTimeout(r, 1000));
     }
-  };
+    await cycle(members, reader);
+  });
   await safeCycle();
   setInterval(safeCycle, POLL_INTERVAL_MS);
 }

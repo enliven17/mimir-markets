@@ -334,6 +334,16 @@ export class MimirSolanaClient {
     return null;
   }
 
+  /**
+   * The claim as the base layer holds it, ignoring any ER copy. Use it for a
+   * check right before a base-layer write: after undelegation the ER can still
+   * serve a stale snapshot. Null when absent; throws on RPC failure.
+   */
+  async getBaseClaim(claimId: bigint): Promise<OnchainClaim | null> {
+    const c: any = await (this.base.account as any).claim.fetchNullable(claimPda(claimId));
+    return c ? normalizeClaim(c) : null;
+  }
+
   async getConfig(): Promise<{
     admin: PublicKey;
     oracle: PublicKey;
