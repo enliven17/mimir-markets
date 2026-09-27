@@ -25,6 +25,7 @@ import { callLLM, activeLLMProvider, activeLLMModel, geminiKeyFor } from "../../
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { isFeatureEnabled, isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
+import { kellyFraction } from "../../lib/kelly";
 import {
   fetchEvidence as fetchEvidenceShared,
   EvidenceFetchError,
@@ -170,11 +171,8 @@ function verdictToSide(verdict: OracleVerdict["verdict"]): number {
   }
 }
 
-function kellyFraction(confidencePct: number, netOdds = 1.0): number {
-  const p = confidencePct / 100;
-  const f = (p * netOdds - (1 - p)) / netOdds;
-  return Math.max(0, Math.min(0.25, f));
-}
+/** The oracle never bets more than a quarter of its bankroll on one claim. */
+const ORACLE_KELLY_CAP = 0.25;
 
 const CONFIDENCE_HIGH_MIN = 80;
 const CONFIDENCE_MED_MIN = 60;
@@ -381,7 +379,7 @@ async function challengeIfMispriced(client: MimirSolanaClient, claim: OnchainCla
   }
 
   const bankroll = fromUsdcUnits(await client.getBalance());
-  const kelly = kellyFraction(verdict.confidence);
+  const kelly = kellyFraction(verdict.confidence, ORACLE_KELLY_CAP);
   const stakeUsdc =
     Math.round(Math.max(CHALLENGE_STAKE_USDC, Math.min(bankroll * kelly, bankroll * 0.1)) * 100) / 100;
 

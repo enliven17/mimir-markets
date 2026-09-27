@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 interface Challenger {
   addr: string;
@@ -51,13 +52,6 @@ interface ClaimsResponse {
   success: boolean;
   source: string;
   data: ClaimsData;
-}
-
-/** USDC is an SPL token with 6 decimals; APIs send base-unit strings. */
-function usdc(s: string): string {
-  return (Number(s) / 1e6).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
 }
 
 const SIDE_LABEL: Record<number, { label: string; color: string }> = {

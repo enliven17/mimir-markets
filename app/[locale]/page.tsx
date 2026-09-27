@@ -12,6 +12,7 @@ import { Link } from "@/i18n/navigation";
 import PageTransition, { AnimatedItem } from "@/components/PageTransition";
 import { Button } from "@/components/ui";
 import { kineticContainer, kineticLetter } from "@/lib/animations/rituals";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 /* ───────────────────────────────────────────────────────────────────────────
  * Mimir landing — 100% Solana.
@@ -43,12 +44,6 @@ interface ArenaFeed {
 }
 
 /** USDC base units (6 decimals) → human string. */
-function usdc(units: string | number): string {
-  return (Number(units) / 1e6).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
-}
-
 const STATE_LABELS = ["OPEN", "ACTIVE", "RESOLVED", "CANCELLED"] as const;
 
 /* ── Animated count-up for hero/strip stats ──────────────────────────────── */

@@ -28,6 +28,8 @@ import {
   getVirtualBalance,
 } from "@/lib/solana/browser-client";
 import CouncilVotes from "@/components/arena/CouncilVotes";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
+import { txErrorMessage } from "@/lib/tx-errors";
 
 interface ArenaClaim {
   id: number;
@@ -53,10 +55,6 @@ const SIDE_LABELS = ["—", "Creator wins", "Challengers win", "Draw — refunde
 
 /** Phase nav steps — mirrors the original Created/Accepted/Verifying/Proven bar. */
 const PHASE_STEPS = ["Created", "Accepted", "Verifying", "Proven"];
-
-function usdc(units: string | number): string {
-  return (Number(units) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 });
-}
 
 function shorten(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : addr;
@@ -229,7 +227,7 @@ export default function ArenaClaimPage() {
       pushLog(`⚡ Challenge landed in ${Date.now() - t0}ms — zero fee, on-chain`);
       await refresh();
     } catch (err: any) {
-      pushLog(`✗ ${err?.message ?? err}`);
+      pushLog(`✗ ${txErrorMessage(err)}`);
     } finally {
       setBusy(null);
     }

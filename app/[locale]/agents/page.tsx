@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 interface Persona {
   slug: string;
@@ -52,13 +53,6 @@ interface AgentsData {
 interface AgentsResponse {
   success: boolean;
   data: AgentsData;
-}
-
-/** USDC is an SPL token with 6 decimals; APIs send base-unit strings. */
-function usdc(s: string): string {
-  return (Number(s) / 1e6).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
 }
 
 /** Solana base58 pubkeys: first4…last4. */

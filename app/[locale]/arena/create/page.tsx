@@ -40,6 +40,7 @@ import {
   MIN_STAKE,
   normalizeCategoryId,
 } from "@/lib/constants";
+import { txErrorMessage } from "@/lib/tx-errors";
 
 const STAKE_PRESET_AMOUNTS = [MIN_STAKE, 5, 10, 25] as const;
 
@@ -183,7 +184,7 @@ export default function CreateMarketPage() {
       setCreatedId(claimId);
       setBusy(null);
     } catch (err: any) {
-      setError(err?.message ?? t("errorCreating"));
+      setError(txErrorMessage(err, t("errorCreating")));
       setBusy(null);
     }
   }, [mimir, question, creatorPos, opponentPos, url, category, stake, customDeadline, t]);

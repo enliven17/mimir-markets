@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { UserRound } from "lucide-react";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 export interface SolanaClaim {
   id: number;
@@ -33,12 +34,6 @@ interface ClaimCardProps {
 
 const ARENA_STAT_CELL =
   "rounded border border-black/[0.1] bg-black/[0.03] px-3 py-2.5 sm:px-3.5 sm:py-3";
-
-function usdc(units: string): string {
-  return (Number(units) / 1e6).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
-}
 
 function formatArenaIdCode(id: number): string {
   const n = Math.abs(id) % 100000;

@@ -23,6 +23,7 @@ import { ArenaCardSkeleton } from "@/components/ui";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
+import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 const filterPillBase =
   "shrink-0 rounded border px-4 py-2 font-display text-xs font-bold uppercase tracking-tight transition-[color,border-color,background-color] focus-ring";
@@ -43,12 +44,6 @@ interface ArenaData {
   claimCount: number;
   totalResolved: number;
   openPool: string;
-}
-
-function usdc(units: string): string {
-  return (Number(units) / 1e6).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
 }
 
 function poolUnits(claim: SolanaClaim): number {
