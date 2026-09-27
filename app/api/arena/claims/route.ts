@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error("[api/arena/claims] failed:", error);
     return NextResponse.json(
-      { success: false, error: error?.message ?? "arena read failed" },
+      { success: false, error: "arena read failed" },
       { status: 500 }
     );
   }

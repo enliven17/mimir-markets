@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error("[api/arena/agents] failed:", error);
     return NextResponse.json(
-      { success: false, error: error?.message ?? "agents read failed" },
+      { success: false, error: "agents read failed" },
       { status: 500 }
     );
   }

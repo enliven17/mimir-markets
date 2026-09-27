@@ -161,7 +161,7 @@ async function callAnthropic(
   opts: { maxTokens: number; temperature: number; jsonOnly: boolean },
 ): Promise<string> {
   if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY!.trim() });
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY!.trim(), timeout: 60_000 });
   }
   const message = await anthropicClient.messages.create({
     model:       DEFAULT_ANTHROPIC_MODEL,

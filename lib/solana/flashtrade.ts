@@ -37,6 +37,7 @@ async function flashFetch(path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(`${FLASH_API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

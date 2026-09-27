@@ -165,7 +165,11 @@ export async function handleClaimModerationPost(args: {
     if (isRateLimited) {
       headers["Retry-After"] = "35";
     }
-    return NextResponse.json(createApiError("claim_moderation_error", message), {
+    if (status === 500) console.error("[claim-moderation] failed:", error);
+    // Only the messages this module writes itself reach the client.
+    const clientMessage =
+      status === 500 ? "Unable to moderate claim right now" : message;
+    return NextResponse.json(createApiError("claim_moderation_error", clientMessage), {
       status,
       headers,
     });

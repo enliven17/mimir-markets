@@ -49,8 +49,14 @@ export async function POST(request: Request) {
           ? 400
           : 500;
 
+    if (status === 500) console.error("[api/claim-draft] failed:", error);
+    // 400/503 messages are our own validation text; anything else may carry
+    // upstream or network detail and stays in the log.
     return NextResponse.json(
-      createApiError("claim_draft_error", message),
+      createApiError(
+        "claim_draft_error",
+        status === 500 ? "Unable to draft claim suggestions right now" : message
+      ),
       { status }
     );
   }

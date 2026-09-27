@@ -13,6 +13,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
   Connection,
+  type FetchMiddleware,
   Keypair,
   PublicKey,
   Transaction,
@@ -87,6 +88,15 @@ export class KeypairWallet {
   }
 }
 
+/**
+ * web3.js sets no timeout on JSON-RPC calls, so a stalled RPC node would hang
+ * an API route or a worker poll indefinitely. Every request gets a deadline.
+ */
+const RPC_TIMEOUT_MS = Number(process.env.SOLANA_RPC_TIMEOUT_MS ?? "20000");
+const rpcTimeoutMiddleware: FetchMiddleware = (info, init, next) => {
+  next(info, { ...init, signal: AbortSignal.timeout(RPC_TIMEOUT_MS) } as typeof init);
+};
+
 export class MimirSolanaClient {
   readonly base: Program;
   readonly er: Program;
@@ -96,10 +106,14 @@ export class MimirSolanaClient {
 
   constructor(signer: Keypair) {
     this.wallet = new KeypairWallet(signer);
-    this.baseConnection = new Connection(SOLANA_RPC, "confirmed");
+    this.baseConnection = new Connection(SOLANA_RPC, {
+      commitment: "confirmed",
+      fetchMiddleware: rpcTimeoutMiddleware,
+    });
     this.erConnection = new Connection(MAGICBLOCK_ER_RPC, {
       wsEndpoint: MAGICBLOCK_ER_WS,
       commitment: "confirmed",
+      fetchMiddleware: rpcTimeoutMiddleware,
     });
     const baseProvider = new AnchorProvider(this.baseConnection, this.wallet, {
       commitment: "confirmed",
