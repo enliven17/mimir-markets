@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "Mimir — Claims, settled in USDC on Arc.",
+    "title": "Mimir — Claims, settled in USDC on Solana.",
     "description": "1v1 prediction challenges settled by AI. No referees. No arguments. Mimir decides."
   },
   "common": {
@@ -60,7 +60,7 @@
     "mobileNavAria": "Main navigation"
   },
   "footer": {
-    "creditLine": "© 2026 Mimir. All rights reserved. Powered by Mimir oracle on Arc",
+    "creditLine": "© 2026 Mimir. All rights reserved. Powered by the Mimir oracle on Solana",
     "linkNetworkProtocol": "Network protocol",
     "linkPrivacy": "Privacy",
     "linkSecurity": "Security",
@@ -103,7 +103,7 @@
     "genStaked": "Total Staked",
     "statsSectionTitle": "STATS",
     "marketExplorerTeaser": "MARKET EXPLORER",
-    "archiveEyebrow": "Protocol live // Arc settlement",
+    "archiveEyebrow": "Protocol live // Solana settlement",
     "archiveTitle": "THE LEDGER",
     "archiveLead": "A live index of claims settling on Mimir — staked terms, challenger liquidity, and AI-assisted resolution anchored to verifiable evidence. Precision without the noise.",
     "archiveStatTotalPool": "Total at stake",
@@ -830,7 +830,7 @@
     "retryResolveVS": "Retry Resolve",
     "proven": "Settled.",
     "errorResolving": "Error resolving",
-    "resolveFinalizing": "Finalizing on-chain. Please confirm in MetaMask...",
+    "resolveFinalizing": "Finalizing on-chain. Please confirm in your wallet...",
     "resolveLeaderTimeoutRetry": "Bradbury leader timed out while resolving this VS. The claim is still unresolved, so you can try again.",
     "resolveValidatorsTimeoutRetry": "Bradbury validators timed out while resolving this VS. The claim is still unresolved, so you can try again.",
     "resolveExecutionFailed": "Bradbury accepted the resolve transaction, but contract execution failed.",
@@ -920,7 +920,7 @@
     "cancelled": "Cancelled"
   },
   "wallet": {
-    "noWallet": "No wallet found. Install MetaMask.",
+    "noWallet": "No wallet found. Install Phantom or Solflare.",
     "rejected": "Connection rejected",
     "error": "Connection error"
   },
