@@ -17,6 +17,7 @@ import {
   readStats,
   type SolanaClaimRow,
 } from "@/lib/server/solana-index";
+import { cachedFor } from "@/lib/server/ttl-cache";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,60 @@ function getReader(): MimirSolanaClient {
   if (!reader) reader = new MimirSolanaClient(Keypair.generate());
   return reader;
 }
+
+type ApiClaim = ReturnType<typeof rowToApi>;
+
+/**
+ * Every claim read straight from chain, newest first. Cached per instance for
+ * a poll interval, so concurrent viewers (and every state/category filter)
+ * share one scan instead of each paying one RPC round-trip per claim.
+ */
+const scanChain = cachedFor(async (): Promise<{
+  claims: ApiClaim[];
+  claimCount: number;
+  totalResolved: number;
+}> => {
+  const client = getReader();
+  const cfg = await client.getConfig();
+  if (!cfg) return { claims: [], claimCount: 0, totalResolved: 0 };
+  const claims: ApiClaim[] = [];
+  for (let id = 1n; id <= cfg.claimCount; id++) {
+    const [claim, delegated] = await Promise.all([
+      client.getClaim(id),
+      client.isDelegated(id),
+    ]);
+    if (!claim) continue;
+    claims.push({
+      id: Number(claim.id),
+      creator: claim.creator.toBase58(),
+      question: claim.question,
+      creatorPosition: claim.creatorPosition,
+      counterPosition: claim.counterPosition,
+      resolutionUrl: claim.resolutionUrl,
+      category: claim.category,
+      creatorStake: claim.creatorStake.toString(),
+      totalChallengerStake: claim.totalChallengerStake.toString(),
+      deadline: claim.deadline,
+      state: claim.state,
+      winnerSide: claim.winnerSide,
+      resolutionSummary: claim.resolutionSummary,
+      confidence: claim.confidence,
+      createdAt: claim.createdAt,
+      maxChallengers: claim.maxChallengers,
+      delegated,
+      challengers: claim.challengers.map((c) => ({
+        addr: c.addr.toBase58(),
+        stake: c.stake.toString(),
+        paid: c.paid,
+      })),
+    });
+  }
+  return {
+    claims: claims.reverse(),
+    claimCount: Number(cfg.claimCount),
+    totalResolved: Number(cfg.totalResolved),
+  };
+}, 4_000);
 
 function rowToApi(c: SolanaClaimRow) {
   return {
@@ -90,56 +145,17 @@ export async function GET(req: NextRequest) {
     if (!(await allowRequest("arena-claims-scan", clientIp(req), 30, 60_000))) {
       return tooManyRequests(60);
     }
-    const client = getReader();
-    const cfg = await client.getConfig();
-    if (!cfg) {
-      return NextResponse.json({
-        success: true,
-        source: "chain",
-        data: { claims: [], claimCount: 0, totalResolved: 0, openPool: "0" },
-      });
-    }
-    const claims = [];
-    for (let id = 1n; id <= cfg.claimCount; id++) {
-      const [claim, delegated] = await Promise.all([
-        client.getClaim(id),
-        client.isDelegated(id),
-      ]);
-      if (!claim) continue;
-      if (states && !states.includes(claim.state)) continue;
-      if (category && claim.category !== category) continue;
-      claims.push({
-        id: Number(claim.id),
-        creator: claim.creator.toBase58(),
-        question: claim.question,
-        creatorPosition: claim.creatorPosition,
-        counterPosition: claim.counterPosition,
-        resolutionUrl: claim.resolutionUrl,
-        category: claim.category,
-        creatorStake: claim.creatorStake.toString(),
-        totalChallengerStake: claim.totalChallengerStake.toString(),
-        deadline: claim.deadline,
-        state: claim.state,
-        winnerSide: claim.winnerSide,
-        resolutionSummary: claim.resolutionSummary,
-        confidence: claim.confidence,
-        createdAt: claim.createdAt,
-        maxChallengers: claim.maxChallengers,
-        delegated,
-        challengers: claim.challengers.map((c) => ({
-          addr: c.addr.toBase58(),
-          stake: c.stake.toString(),
-          paid: c.paid,
-        })),
-      });
-    }
+    const scan = await scanChain();
+    const claims = scan.claims.filter(
+      (c) => (!states || states.includes(c.state)) && (!category || c.category === category)
+    );
     return NextResponse.json({
       success: true,
       source: "chain",
       data: {
-        claims: claims.reverse(),
-        claimCount: Number(cfg.claimCount),
-        totalResolved: Number(cfg.totalResolved),
+        claims,
+        claimCount: scan.claimCount,
+        totalResolved: scan.totalResolved,
         openPool: "0",
       },
     });
