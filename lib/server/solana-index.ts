@@ -1,8 +1,7 @@
 // Shared by the Next.js API route (server) and the indexer worker (Node).
 // No "server-only" guard — that throws outside the Next bundler. DATABASE_URL
 // is never NEXT_PUBLIC_, so it can't leak to the client regardless.
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import { getDb, isDbEnabled } from "./db";
 
 /**
  * Solana read-index — a denormalized cache of on-chain claim state in Neon
@@ -15,20 +14,8 @@ import ws from "ws";
  * the feed reads one SQL query.
  */
 
-if (typeof globalThis.WebSocket === "undefined") {
-  neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket;
-}
-
-let pool: Pool | null = null;
-function getPool(): Pool | null {
-  const url = process.env.DATABASE_URL;
-  if (!url) return null;
-  if (!pool) pool = new Pool({ connectionString: url });
-  return pool;
-}
-
 export function isIndexEnabled(): boolean {
-  return Boolean(process.env.DATABASE_URL);
+  return isDbEnabled();
 }
 
 export interface SolanaClaimRow {
@@ -53,43 +40,10 @@ export interface SolanaClaimRow {
   updated_at: number;
 }
 
-let schemaReady = false;
-async function ensureSchema(p: Pool): Promise<void> {
-  if (schemaReady) return;
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS solana_claims (
-      id                      INTEGER PRIMARY KEY,
-      creator                 TEXT NOT NULL,
-      question                TEXT NOT NULL DEFAULT '',
-      creator_position        TEXT NOT NULL DEFAULT '',
-      counter_position        TEXT NOT NULL DEFAULT '',
-      resolution_url          TEXT NOT NULL DEFAULT '',
-      category                TEXT NOT NULL DEFAULT '',
-      creator_stake           TEXT NOT NULL DEFAULT '0',
-      total_challenger_stake  TEXT NOT NULL DEFAULT '0',
-      deadline                BIGINT NOT NULL DEFAULT 0,
-      state                   SMALLINT NOT NULL DEFAULT 0,
-      winner_side             SMALLINT NOT NULL DEFAULT 0,
-      resolution_summary      TEXT NOT NULL DEFAULT '',
-      confidence              SMALLINT NOT NULL DEFAULT 0,
-      created_at              BIGINT NOT NULL DEFAULT 0,
-      max_challengers         SMALLINT NOT NULL DEFAULT 0,
-      delegated               BOOLEAN NOT NULL DEFAULT FALSE,
-      challengers             JSONB NOT NULL DEFAULT '[]'::jsonb,
-      updated_at              BIGINT NOT NULL DEFAULT 0
-    );
-    CREATE INDEX IF NOT EXISTS solana_claims_state_idx ON solana_claims (state);
-    CREATE INDEX IF NOT EXISTS solana_claims_deadline_idx ON solana_claims (deadline);
-    CREATE INDEX IF NOT EXISTS solana_claims_category_idx ON solana_claims (category);
-  `);
-  schemaReady = true;
-}
-
 /** Upsert one claim snapshot. Called by the indexer worker. */
 export async function upsertClaim(row: SolanaClaimRow): Promise<void> {
-  const p = getPool();
-  if (!p) return;
-  await ensureSchema(p);
+  if (!isDbEnabled()) return;
+  const p = await getDb();
   await p.query(
     `INSERT INTO solana_claims (
         id, creator, question, creator_position, counter_position,
@@ -121,9 +75,8 @@ export interface FeedFilters {
 
 /** Read the claim feed for /api/arena/claims. Newest first. */
 export async function readClaims(filters: FeedFilters = {}): Promise<SolanaClaimRow[]> {
-  const p = getPool();
-  if (!p) return [];
-  await ensureSchema(p);
+  if (!isDbEnabled()) return [];
+  const p = await getDb();
 
   const where: string[] = [];
   const params: any[] = [];
@@ -159,9 +112,8 @@ export interface IndexStats {
 }
 
 export async function readStats(): Promise<IndexStats> {
-  const p = getPool();
-  if (!p) return { claimCount: 0, totalResolved: 0, openPool: "0" };
-  await ensureSchema(p);
+  if (!isDbEnabled()) return { claimCount: 0, totalResolved: 0, openPool: "0" };
+  const p = await getDb();
   const res = await p.query(`
     SELECT
       COUNT(*)::int AS claim_count,
