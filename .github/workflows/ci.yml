@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Committed secrets fail the build, across the whole history.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Critical advisories block; the remaining highs sit in the Solana stack
+      # (@solana/web3.js, spl-token, anchor) with no non-breaking fix yet and
+      # are reported without blocking.
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+      - run: npm run typecheck
+      - run: npm run test:smoke
+      # The program ID, RPC and USDC mint fall back to devnet defaults in
+      # lib/solana/config.ts, so the build needs no secrets.
+      - run: npm run build
