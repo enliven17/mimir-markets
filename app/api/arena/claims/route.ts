@@ -17,6 +17,7 @@ import {
   readStats,
   type SolanaClaimRow,
 } from "@/lib/server/solana-index";
+import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,11 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Fallback: read directly from chain ───────────────────────────────
+    // One RPC read per claim: the feed polls every 4s (15/min per tab), so
+    // this leaves room for two tabs while capping a scripted scan.
+    if (!(await allowRequest("arena-claims-scan", clientIp(req), 30, 60_000))) {
+      return tooManyRequests(60);
+    }
     const client = getReader();
     const cfg = await client.getConfig();
     if (!cfg) {

@@ -11,6 +11,7 @@ import { MimirSolanaClient } from "@/lib/solana/client";
 import { councilRoster, personaByAddress } from "@/lib/server/council-roster";
 import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
 import { loadAgentKeypair } from "@/lib/solana/keypair";
+import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,12 @@ function getReader(): MimirSolanaClient {
   return reader;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Every call reads each persona's ER balance (and, without the index, every
+  // claim). The page polls every 5s, 12/min per tab.
+  if (!(await allowRequest("arena-agents", clientIp(req), 30, 60_000))) {
+    return tooManyRequests(60);
+  }
   try {
     const roster = councilRoster();
     const byAddr = personaByAddress();

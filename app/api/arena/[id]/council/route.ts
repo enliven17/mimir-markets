@@ -8,6 +8,7 @@ import { Keypair } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
 import { councilRoster } from "@/lib/server/council-roster";
 import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
+import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,12 @@ function getReader(): MimirSolanaClient {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await allowRequest("arena-council", clientIp(req), 30, 60_000))) {
+    return tooManyRequests(60);
+  }
   try {
     const { id } = await params;
     const claimId = Number(id);
