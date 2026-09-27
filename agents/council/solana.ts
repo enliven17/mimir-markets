@@ -23,12 +23,6 @@
  *      COUNCIL_LLM_THROTTLE_MS  (default 4500)
  *      COUNCIL_PERSONA_LIMIT    (default all)
  */
-// Worker-scoped Gemini key: each worker (oracle / council) gets its own
-// free-tier bucket so they don't starve each other's RPM quota.
-{
-  const k = process.env.COUNCIL_GEMINI_API_KEY?.trim();
-  if (k) process.env.GEMINI_API_KEY = k;
-}
 
 import {
   Connection,
@@ -188,7 +182,10 @@ async function throttledLLM(prompt: string): Promise<string> {
   const wait = LLM_THROTTLE_MS - (Date.now() - lastLlmCallAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastLlmCallAt = Date.now();
-  return callLLM(prompt, { maxTokens: 256, jsonOnly: true });
+  // Worker-scoped Gemini key: COUNCIL_GEMINI_API_KEY gets its own free-tier
+  // bucket so the council doesn't starve the oracle's RPM quota. Passed per
+  // call rather than written to process.env, which the oracle shares.
+  return callLLM(prompt, { maxTokens: 256, jsonOnly: true, keyEnv: "COUNCIL_GEMINI_API_KEY" });
 }
 
 /** Rule-based personas never call the LLM. Returns stake decision or null. */

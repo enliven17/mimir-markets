@@ -8,6 +8,11 @@
  *   - ANTHROPIC_API_KEY
  *
  * The provider can also be forced via LLM_PROVIDER=gemini|anthropic.
+ *
+ * Per-worker Gemini keys: a worker passes `keyEnv` (e.g. ORACLE_GEMINI_API_KEY)
+ * and its calls use that key when set, else GEMINI_API_KEY. Nothing mutates
+ * process.env, so several workers in one process (agents/all.ts) each keep
+ * their own key and their own 429 cooldown.
  * Each provider uses its own default model unless ORACLE_LLM_MODEL is set.
  *
  *   import { callLLM } from "@/lib/llm";
@@ -25,6 +30,8 @@ export interface CallLLMOptions {
   temperature?: number;
   /** Ask the model for JSON output. Gemini uses responseMimeType; Claude is prompt-hinted. */
   jsonOnly?: boolean;
+  /** Env var holding this caller's own Gemini key; falls back to GEMINI_API_KEY. */
+  keyEnv?: string;
 }
 
 const DEFAULT_GEMINI_MODEL    = process.env.ORACLE_LLM_MODEL || "gemini-2.5-flash";
@@ -36,39 +43,44 @@ let anthropicClient: Anthropic | null = null;
 // When Gemini returns 429 (RESOURCE_EXHAUSTED) we set a cooldown timestamp.
 // Until it expires, callLLM short-circuits with a thrown error instead of
 // hammering the API with retries — gives the rolling-minute quota window
-// time to actually reset. Per-process (module-scoped), so each worker
-// (oracle / council / creator) tracks its own bucket independently.
+// time to actually reset. Tracked per API key (a quota is per key), so a
+// worker with its own key is not silenced by another worker's 429.
 const QUOTA_COOLDOWN_MS = Number(process.env.LLM_QUOTA_COOLDOWN_MS ?? "300000"); // 5 min default
-let quotaCooldownUntil = 0;
+const quotaCooldownUntil = new Map<string, number>();
 
-function inQuotaCooldown(): number {
-  const remaining = quotaCooldownUntil - Date.now();
+function inQuotaCooldown(key: string): number {
+  const remaining = (quotaCooldownUntil.get(key) ?? 0) - Date.now();
   return remaining > 0 ? remaining : 0;
 }
 
-function tripQuotaCooldown(): void {
-  quotaCooldownUntil = Date.now() + QUOTA_COOLDOWN_MS;
+function tripQuotaCooldown(key: string): void {
+  quotaCooldownUntil.set(key, Date.now() + QUOTA_COOLDOWN_MS);
 }
 
-export function activeLLMProvider(): LLMProvider {
+/** The Gemini key a caller uses: its own `keyEnv` when set, else GEMINI_API_KEY. */
+export function geminiKeyFor(keyEnv?: string): string {
+  return (keyEnv ? process.env[keyEnv]?.trim() : "") || process.env.GEMINI_API_KEY?.trim() || "";
+}
+
+export function activeLLMProvider(keyEnv?: string): LLMProvider {
   const forced = process.env.LLM_PROVIDER?.toLowerCase();
   if (forced === "gemini" || forced === "anthropic") return forced;
-  if (process.env.GEMINI_API_KEY?.trim())    return "gemini";
+  if (geminiKeyFor(keyEnv))                  return "gemini";
   if (process.env.ANTHROPIC_API_KEY?.trim()) return "anthropic";
   throw new Error("No LLM API key configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY.");
 }
 
-export function activeLLMModel(): string {
-  return activeLLMProvider() === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_ANTHROPIC_MODEL;
+export function activeLLMModel(keyEnv?: string): string {
+  return activeLLMProvider(keyEnv) === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_ANTHROPIC_MODEL;
 }
 
 /** Redacted fingerprint of the active API key. Use in startup logs to verify
  *  that per-worker overrides are landing — different workers should print
  *  different suffixes. Format: `…XXXXXX (len=N)`. */
-export function activeLLMKeyFingerprint(): string {
-  const provider = activeLLMProvider();
+export function activeLLMKeyFingerprint(keyEnv?: string): string {
+  const provider = activeLLMProvider(keyEnv);
   const raw = provider === "gemini"
-    ? process.env.GEMINI_API_KEY
+    ? geminiKeyFor(keyEnv)
     : process.env.ANTHROPIC_API_KEY;
   const key = raw?.trim() ?? "";
   if (!key) return "(missing)";
@@ -76,27 +88,30 @@ export function activeLLMKeyFingerprint(): string {
 }
 
 export async function callLLM(prompt: string, opts: CallLLMOptions = {}): Promise<string> {
-  const cooldown = inQuotaCooldown();
+  const provider = activeLLMProvider(opts.keyEnv);
+  const cooldownKey = provider === "gemini" ? geminiKeyFor(opts.keyEnv) : "anthropic";
+  const cooldown = inQuotaCooldown(cooldownKey);
   if (cooldown > 0) {
     const secs = Math.ceil(cooldown / 1000);
     throw new Error(`LLM quota cooldown — ${secs}s remaining (set by prior 429)`);
   }
 
-  const provider = activeLLMProvider();
   const maxTokens   = opts.maxTokens   ?? 1024;
   const temperature = opts.temperature ?? 0.2;
   const jsonOnly    = opts.jsonOnly    ?? false;
 
-  if (provider === "gemini") return callGemini(prompt, { maxTokens, temperature, jsonOnly });
+  if (provider === "gemini") {
+    return callGemini(prompt, { maxTokens, temperature, jsonOnly, apiKey: geminiKeyFor(opts.keyEnv) });
+  }
   return callAnthropic(prompt, { maxTokens, temperature, jsonOnly });
 }
 
 // ── Gemini ────────────────────────────────────────────────────────────────────
 async function callGemini(
   prompt: string,
-  opts: { maxTokens: number; temperature: number; jsonOnly: boolean },
+  opts: { maxTokens: number; temperature: number; jsonOnly: boolean; apiKey: string },
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY!.trim();
+  const apiKey = opts.apiKey;
   const model  = DEFAULT_GEMINI_MODEL;
   const url    = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
@@ -110,7 +125,7 @@ async function callGemini(
   };
   if (opts.jsonOnly) generationConfig.responseMimeType = "application/json";
 
-  // 429 trips the module-wide cooldown and throws on the first hit — retrying
+  // 429 trips this key's cooldown and throws on the first hit — retrying
   // inside the rolling-minute window just wastes attempts. Other transient
   // codes still get exponential backoff.
   const TRANSIENT = new Set([408, 500, 502, 503, 504]);
@@ -130,7 +145,7 @@ async function callGemini(
     if (res.ok) break;
     lastBody = (await res.text()).slice(0, 500);
     if (res.status === 429) {
-      tripQuotaCooldown();
+      tripQuotaCooldown(apiKey);
       console.warn(`[llm] Gemini 429 — entering ${Math.round(QUOTA_COOLDOWN_MS / 1000)}s cooldown, skipping further calls`);
       throw new Error(`Gemini 429: ${lastBody}`);
     }

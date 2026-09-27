@@ -17,7 +17,7 @@
     "oracle:solana": "tsx --env-file-if-exists=.env.local agents/oracle/solana.ts",
     "market-creator:solana": "tsx --env-file-if-exists=.env.local agents/market-creator/solana.ts",
     "council:solana": "tsx --env-file-if-exists=.env.local agents/council/solana.ts",
-    "workers:solana": "concurrently --names oracle,creator,council,indexer --kill-others-on-fail -c blue,magenta,green,yellow \"npm:oracle:solana\" \"npm:market-creator:solana\" \"npm:council:solana\" \"npm:indexer:solana\"",
+    "workers:solana": "tsx --env-file-if-exists=.env.local agents/all.ts",
     "demo:solana": "tsx --env-file-if-exists=.env.local scripts/solana/demo-full-cycle.ts",
     "fund:agent": "tsx --env-file-if-exists=.env.local scripts/solana/agent-fund.ts",
     "test:smoke": "node scripts/run-node-tests.mjs",
@@ -26,7 +26,7 @@
     "system:fund": "tsx --env-file-if-exists=.env.local scripts/solana/system-status.ts --fund",
     "init:solana": "tsx --env-file-if-exists=.env.local scripts/solana/initialize.ts",
     "indexer:solana": "tsx --env-file-if-exists=.env.local agents/indexer/solana.ts",
-    "start:all": "concurrently -n web,workers -c cyan,green \"next start -p $PORT\" \"npm run workers:solana\""
+    "start:all": "node scripts/start-all.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -41,7 +41,6 @@
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.100.10",
     "@types/ws": "^8.18.1",
-    "concurrently": "^9.2.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.383.0",
     "next": "^16.2.1",

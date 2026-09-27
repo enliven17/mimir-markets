@@ -155,7 +155,7 @@ npm run council
 To run the oracle, market-creator, and council together in one shell:
 
 ```bash
-npm run workers   # concurrently boots all three
+npm run workers:solana   # oracle, market-creator, council and indexer in one process
 ```
 
 ---

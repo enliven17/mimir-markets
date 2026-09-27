@@ -12,21 +12,16 @@
  * Run: npx tsx --env-file-if-exists=.env.local agents/oracle/solana.ts
  * Env: SOLANA_KEYPAIR (defaults to ~/.config/solana/talos-deploy.json)
  *      SOLANA_USDC_MINT, NEXT_PUBLIC_MIMIR_PROGRAM_ID
- *      GEMINI_API_KEY or ANTHROPIC_API_KEY
+ *      ORACLE_GEMINI_API_KEY (own quota bucket) or GEMINI_API_KEY, or ANTHROPIC_API_KEY
  *      AUTO_CHALLENGE=1 (or MIMIR_FEATURE_AUTO_CHALLENGE=1), CHALLENGE_STAKE_USDC, CHALLENGE_CONFIDENCE
  *      MIMIR_PAUSE_ORACLE_SETTLEMENT=1 / MIMIR_PAUSE_AUTO_CHALLENGE=1 (pause switches)
  *      HEDGE_MODE=dry|live|off   (Flash Trade hedge, default dry)
  *      ORACLE_POLL_INTERVAL_MS   (default 30000)
  */
-{
-  const k = process.env.ORACLE_GEMINI_API_KEY?.trim();
-  if (k) process.env.GEMINI_API_KEY = k;
-}
-
 import { Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { createHash } from "node:crypto";
 import { loadAgentKeypair } from "../../lib/solana/keypair";
-import { callLLM, activeLLMProvider, activeLLMModel } from "../../lib/llm";
+import { callLLM, activeLLMProvider, activeLLMModel, geminiKeyFor } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { isFeatureEnabled, isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
@@ -61,19 +56,23 @@ const CHALLENGE_CONFIDENCE = Number(process.env.CHALLENGE_CONFIDENCE ?? "80");
 const HEDGE_MODE = (process.env.HEDGE_MODE ?? "dry") as "dry" | "live" | "off";
 const LLM_THROTTLE_MS = Number(process.env.ORACLE_LLM_THROTTLE_MS ?? "0");
 
-if (!process.env.GEMINI_API_KEY?.trim() && !process.env.ANTHROPIC_API_KEY?.trim()) {
+// This worker's own Gemini key (falls back to GEMINI_API_KEY), passed per call
+// so it survives sharing a process with the council (agents/all.ts).
+const LLM_KEY_ENV = "ORACLE_GEMINI_API_KEY";
+
+if (!geminiKeyFor(LLM_KEY_ENV) && !process.env.ANTHROPIC_API_KEY?.trim()) {
   console.error("GEMINI_API_KEY or ANTHROPIC_API_KEY env var is required");
   process.exit(1);
 }
 
 let lastLlmCallAt = 0;
-async function throttledLLM(...args: Parameters<typeof callLLM>): Promise<string> {
+async function throttledLLM(prompt: string, opts: Parameters<typeof callLLM>[1] = {}): Promise<string> {
   if (LLM_THROTTLE_MS > 0) {
     const wait = LLM_THROTTLE_MS - (Date.now() - lastLlmCallAt);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   }
   lastLlmCallAt = Date.now();
-  return callLLM(...args);
+  return callLLM(prompt, { ...opts, keyEnv: LLM_KEY_ENV });
 }
 
 const challengedClaimIds = new Set<string>();
@@ -500,7 +499,7 @@ async function main(): Promise<void> {
   console.log(`  Base RPC   : ${client.baseConnection.rpcEndpoint}`);
   console.log(`  ER RPC     : ${client.erConnection.rpcEndpoint}`);
   console.log(`  Claims     : ${cfg?.claimCount ?? "config missing!"}`);
-  console.log(`  LLM        : ${activeLLMProvider()} / ${activeLLMModel()}`);
+  console.log(`  LLM        : ${activeLLMProvider(LLM_KEY_ENV)} / ${activeLLMModel(LLM_KEY_ENV)}`);
   console.log(`  Auto-challenge: ${AUTO_CHALLENGE ? `YES (≥${CHALLENGE_CONFIDENCE}%)` : "OFF"}`);
   console.log(`  Flash hedge: ${HEDGE_MODE}`);
   console.log("═══════════════════════════════════════════════\n");

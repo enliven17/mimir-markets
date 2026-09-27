@@ -107,7 +107,7 @@ flowchart LR
 Three independent runtime tiers:
 
 1. **Web tier** — Next.js App Router. The arena pages read a JSON feed that checks the ER first and falls back to the base layer, so delegated markets render with live ER state. Challenges are signed in the browser through `@solana/wallet-adapter`.
-2. **Worker tier** — three long-lived Node processes (`npm run workers:solana`). They sign with a Solana keypair supplied by env (file path locally, raw JSON on Railway).
+2. **Worker tier** — one long-lived Node process running the oracle, market-creator, council and indexer (`npm run workers:solana`, entrypoint `agents/all.ts`). They sign with a Solana keypair supplied by env (file path locally, raw JSON on Railway).
 3. **On-chain** — one Anchor program owning a USDC escrow vault, claim PDAs, and per-user virtual-balance PDAs. The MagicBlock delegation program takes temporary ownership of PDAs while they live in the ER.
 
 ---
@@ -345,7 +345,7 @@ cp .env.example .env.local
 
 ```bash
 npm run demo:solana            # first run creates a 6dp test-USDC mint + config
-npm run workers:solana         # oracle + market-creator + council
+npm run workers:solana         # oracle + market-creator + council + indexer, one process
 npm run dev                    # → http://localhost:3000/en/arena
 ```
 
