@@ -10,8 +10,8 @@
  * stay fresh while the council settles markets.
  */
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
+import { BlueprintHeading } from "@/components/BlueprintGrid";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 interface Challenger {
@@ -59,7 +59,7 @@ const SIDE_LABEL: Record<number, { label: string; color: string }> = {
   1: { label: "Creator won", color: "text-pv-emerald" },
   2: { label: "Challengers won", color: "text-pv-fuch" },
   3: { label: "Draw · refunded", color: "text-pv-muted" },
-  4: { label: "Unresolvable · refunded", color: "text-amber-600" },
+  4: { label: "Unresolvable · refunded", color: "text-pv-gold" },
 };
 
 function tierLabel(c: number): { label: string; cls: string } {
@@ -75,7 +75,7 @@ function tierLabel(c: number): { label: string; cls: string } {
     };
   return {
     label: "LOW",
-    cls: "border-amber-400/40 bg-amber-400/[0.10] text-amber-700",
+    cls: "border-pv-gold/40 bg-pv-gold/[0.08] text-pv-gold",
   };
 }
 
@@ -92,11 +92,7 @@ function Kpi({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 ${
-        tone === "accent"
-          ? "border-pv-emerald/35 bg-pv-emerald/[0.06]"
-          : "border-pv-border/25 bg-pv-surface/70"
-      }`}
+      className={`p-4 sm:p-5 ${tone === "accent" ? "bg-pv-emerald/[0.08]" : "bg-pv-bg"}`}
     >
       <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-pv-muted">
         {label}
@@ -137,9 +133,9 @@ function ConfidenceBar({
           {count} · {pct}%
         </span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-pv-surface2/60">
+      <div className="h-2.5 overflow-hidden bg-pv-border/[0.08]">
         <div
-          className="h-full rounded-full transition-[width] duration-500"
+          className="h-full transition-[width] duration-500"
           style={{ width: `${pct}%`, background: color }}
         />
       </div>
@@ -148,7 +144,6 @@ function ConfidenceBar({
 }
 
 export default function StatsPage() {
-  const { locale } = useParams<{ locale: string }>();
   const [data, setData] = useState<ClaimsData | null>(null);
 
   useEffect(() => {
@@ -215,26 +210,24 @@ export default function StatsPage() {
     settledCount > 0 ? Math.round((refunds / settledCount) * 100) : 0;
 
   return (
-    <main className="mx-auto max-w-[1100px] px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-8 space-y-1.5">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-pv-emerald">
-          Oracle Analytics
-        </p>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-pv-text sm:text-4xl">
-          Live on-chain stats <span className="text-pv-emerald">· Solana</span>
-        </h1>
-        <p className="text-sm text-pv-muted">
-          Every number is read from the Mimir program on Solana. Claims
-          delegated to the{" "}
-          <span className="font-medium text-pv-emerald">
-            MagicBlock Ephemeral Rollup
-          </span>{" "}
-          settle in ~30ms. This page polls every 5 seconds.
-        </p>
-      </header>
+    <div>
+      <BlueprintHeading
+        as="h1"
+        eyebrow="Oracle analytics · Solana"
+        subtitle={
+          <>
+            Every number is read from the Mimir program on Solana. Claims
+            delegated to the{" "}
+            <span className="font-medium text-pv-emerald">MagicBlock Ephemeral Rollup</span>{" "}
+            settle in ~30ms. This page polls every 5 seconds.
+          </>
+        }
+      >
+        Live on-chain stats
+      </BlueprintHeading>
 
       {/* Headline KPIs */}
-      <section className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <section className="bp-cells grid-cols-2 border-b border-pv-border/25 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi
           tone="accent"
           label="Open pool"
@@ -264,8 +257,8 @@ export default function StatsPage() {
       </section>
 
       {/* Confidence distribution + decided split */}
-      <section className="mb-10 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5 sm:p-6">
+      <section className="grid gap-4 px-4 py-8 sm:px-6 lg:grid-cols-[1.2fr_1fr] lg:px-8">
+        <div className="border border-pv-border/25 bg-pv-surface p-5 sm:p-6">
           <h2 className="mb-1 font-display text-base font-bold tracking-tight text-pv-text">
             Oracle confidence distribution
           </h2>
@@ -279,24 +272,24 @@ export default function StatsPage() {
               label="FIRM · ≥ 80%"
               count={firm}
               total={settledCount}
-              color="#34d399"
+              color="rgb(var(--pv-gold))"
             />
             <ConfidenceBar
               label="CONTESTED · 60-79"
               count={contested}
               total={settledCount}
-              color="#a3e635"
+              color="rgb(var(--pv-accent))"
             />
             <ConfidenceBar
               label="LOW · refunded"
               count={low}
               total={settledCount}
-              color="#E8C46C"
+              color="rgb(var(--pv-muted))"
             />
           </div>
         </div>
 
-        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5 sm:p-6">
+        <div className="border border-pv-border/25 bg-pv-surface p-5 sm:p-6">
           <h2 className="mb-1 font-display text-base font-bold tracking-tight text-pv-text">
             Decided settlements · who won
           </h2>
@@ -305,7 +298,7 @@ export default function StatsPage() {
           </p>
           {decided > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-pv-emerald/30 bg-pv-emerald/[0.05] p-4">
+              <div className="border border-pv-emerald/30 bg-pv-emerald/[0.05] p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-pv-emerald">
                   Creator wins
                 </div>
@@ -318,7 +311,7 @@ export default function StatsPage() {
                   </span>
                 </div>
               </div>
-              <div className="rounded-xl border border-pv-border/25 bg-pv-surface2/40 p-4">
+              <div className="border border-pv-border/25 bg-pv-surface2/40 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-pv-fuch">
                   Challenger wins
                 </div>
@@ -339,21 +332,20 @@ export default function StatsPage() {
       </section>
 
       {/* Recent settlements feed */}
-      <section className="mb-10">
-        <h2 className="mb-4 font-display text-xl font-bold tracking-tight text-pv-text">
-          Recent settlements
-        </h2>
+      <section>
+        <BlueprintHeading>Recent settlements</BlueprintHeading>
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
         {!data ? (
-          <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
+          <div className="border border-pv-border/25 bg-pv-surface p-8 text-center text-sm text-pv-muted">
             Loading on-chain settlements…
           </div>
         ) : settlements.length === 0 ? (
-          <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
+          <div className="border border-pv-border/25 bg-pv-surface p-8 text-center text-sm text-pv-muted">
             No settlements yet. Once the oracle resolves a claim, it appears
             here.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {settlements.map((s) => {
               const side = SIDE_LABEL[s.winnerSide] ?? {
                 label: "Unknown",
@@ -363,8 +355,8 @@ export default function StatsPage() {
               return (
                 <Link
                   key={s.id}
-                  href={`/${locale}/arena/${s.id}`}
-                  className="group block rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-4 transition-colors hover:border-pv-emerald/40"
+                  href={`/arena/${s.id}`}
+                  className="group block border border-pv-border/25 bg-pv-bg p-4 transition-colors hover:border-pv-emerald/40 hover:bg-pv-surface"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -372,14 +364,14 @@ export default function StatsPage() {
                         <span className="font-mono text-pv-muted">
                           Claim #{s.id}
                         </span>
-                        <span className="rounded-full bg-pv-surface2/60 px-2 py-0.5 font-medium uppercase tracking-wide text-pv-muted">
+                        <span className="border border-pv-border/25 px-2 py-0.5 font-medium uppercase tracking-wide text-pv-muted">
                           {s.category}
                         </span>
                         <span className={`font-bold ${side.color}`}>
                           {side.label}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 font-bold uppercase tracking-[0.14em] ${tier.cls}`}
+                          className={`inline-flex items-center border px-2 py-0.5 font-bold uppercase tracking-[0.14em] ${tier.cls}`}
                         >
                           {tier.label} · {s.confidence}%
                         </span>
@@ -397,7 +389,7 @@ export default function StatsPage() {
                           <span className="font-mono text-[10px] uppercase tracking-wide text-pv-muted">
                             Evidence:
                           </span>
-                          <span className="max-w-[320px] truncate font-mono text-[10px] text-pv-emerald/85">
+                          <span className="max-w-[320px] truncate font-mono text-[10px] text-pv-emerald">
                             {s.resolutionUrl}
                           </span>
                         </div>
@@ -412,16 +404,17 @@ export default function StatsPage() {
             })}
           </div>
         )}
+        </div>
       </section>
 
-      <div className="text-center">
+      <div className="border-t border-pv-border/25 pt-6 text-center">
         <Link
-          href={`/${locale}/arena`}
+          href="/arena"
           className="text-sm text-pv-muted transition-colors hover:text-pv-text"
         >
           ← Back to the Arena
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
