@@ -335,7 +335,8 @@ async function main() {
   console.log(`  Cadence  : every ${POLL_INTERVAL_MS / 1000}s (ER bets are free + instant)`);
   console.log("═══════════════════════════════════════════════\n");
 
-  for (const member of members) {
+  // A paused council moves no money at all, startup top-ups included.
+  for (const member of isPaused("council_worker") ? [] : members) {
     try {
       await fundPersona(connection, admin, member);
     } catch (err: any) {
