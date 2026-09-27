@@ -1,5 +1,5 @@
 {
-  "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR",
+  "address": "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE",
   "metadata": {
     "name": "mimir",
     "version": "0.1.0",
@@ -8,10 +8,46 @@
   },
   "instructions": [
     {
-      "name": "cancel_claim",
-      "docs": [
-        "Cancel an OPEN claim (no challengers yet). Base layer only."
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
       ],
+      "accounts": [
+        {
+          "name": "new_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_claim",
       "discriminator": [
         179,
         1,
@@ -101,12 +137,93 @@
       "args": []
     },
     {
+      "name": "cancel_fee_policy",
+      "discriminator": [
+        159,
+        56,
+        226,
+        79,
+        134,
+        48,
+        26,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_oracle",
+      "discriminator": [
+        247,
+        248,
+        0,
+        71,
+        2,
+        229,
+        113,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "challenge_claim",
       "docs": [
-        "Challenge a claim by staking from the virtual balance.",
-        "Designed to run inside the Ephemeral Rollup: both the claim PDA and",
-        "the challenger's balance PDA are delegated, so this is a zero-fee,",
-        "~30ms transaction. It also works on the base layer pre-delegation."
+        "Works on BOTH layers (zero-fee inside the ER)."
       ],
       "discriminator": [
         231,
@@ -122,6 +239,24 @@
         {
           "name": "challenger",
           "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "claim",
@@ -175,15 +310,105 @@
         {
           "name": "stake_amount",
           "type": "u64"
+        },
+        {
+          "name": "agent",
+          "type": {
+            "option": "pubkey"
+          }
         }
       ]
     },
     {
-      "name": "create_claim",
-      "docs": [
-        "Create a claim. Creator stake moves straight from the creator's",
-        "token account into the vault (no virtual balance needed on this side)."
+      "name": "claim_agent_fees",
+      "discriminator": [
+        21,
+        71,
+        234,
+        142,
+        96,
+        73,
+        242,
+        44
       ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "fee_balance"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "to_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_claim",
       "discriminator": [
         71,
         122,
@@ -267,10 +492,6 @@
     },
     {
       "name": "delegate_balance",
-      "docs": [
-        "Delegate the caller's balance PDA into the Ephemeral Rollup so they",
-        "can challenge claims inside the ER."
-      ],
       "discriminator": [
         199,
         112,
@@ -311,38 +532,38 @@
             "program": {
               "kind": "const",
               "value": [
-                254,
-                186,
-                147,
-                66,
-                143,
-                116,
-                185,
-                114,
-                158,
-                245,
-                108,
-                63,
-                175,
-                185,
-                71,
-                127,
-                80,
-                242,
-                106,
-                217,
-                49,
-                89,
-                57,
-                96,
-                179,
-                173,
-                205,
-                135,
-                195,
                 204,
-                226,
-                236
+                197,
+                166,
+                2,
+                243,
+                100,
+                111,
+                21,
+                37,
+                206,
+                144,
+                206,
+                225,
+                140,
+                103,
+                179,
+                144,
+                0,
+                227,
+                23,
+                168,
+                6,
+                88,
+                128,
+                235,
+                191,
+                53,
+                68,
+                14,
+                230,
+                189,
+                135
               ]
             }
           }
@@ -444,7 +665,7 @@
         },
         {
           "name": "owner_program",
-          "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR"
+          "address": "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE"
         },
         {
           "name": "delegation_program",
@@ -459,10 +680,6 @@
     },
     {
       "name": "delegate_claim",
-      "docs": [
-        "Delegate a claim PDA into the Ephemeral Rollup. From this point on,",
-        "challenges against it run in real time with zero fees."
-      ],
       "discriminator": [
         154,
         51,
@@ -503,38 +720,38 @@
             "program": {
               "kind": "const",
               "value": [
-                254,
-                186,
-                147,
-                66,
-                143,
-                116,
-                185,
-                114,
-                158,
-                245,
-                108,
-                63,
-                175,
-                185,
-                71,
-                127,
-                80,
-                242,
-                106,
-                217,
-                49,
-                89,
-                57,
-                96,
-                179,
-                173,
-                205,
-                135,
-                195,
                 204,
-                226,
-                236
+                197,
+                166,
+                2,
+                243,
+                100,
+                111,
+                21,
+                37,
+                206,
+                144,
+                206,
+                225,
+                140,
+                103,
+                179,
+                144,
+                0,
+                227,
+                23,
+                168,
+                6,
+                88,
+                128,
+                235,
+                191,
+                53,
+                68,
+                14,
+                230,
+                189,
+                135
               ]
             }
           }
@@ -634,7 +851,7 @@
         },
         {
           "name": "owner_program",
-          "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR"
+          "address": "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE"
         },
         {
           "name": "delegation_program",
@@ -654,10 +871,6 @@
     },
     {
       "name": "deposit",
-      "docs": [
-        "Deposit USDC into the vault; credits the caller's virtual balance.",
-        "The balance PDA is what gets delegated into the Ephemeral Rollup."
-      ],
       "discriminator": [
         242,
         35,
@@ -755,6 +968,221 @@
       ]
     },
     {
+      "name": "dispute_resolution",
+      "discriminator": [
+        89,
+        169,
+        106,
+        71,
+        131,
+        77,
+        122,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "disputer",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "disputer_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_fee_policy",
+      "discriminator": [
+        219,
+        91,
+        175,
+        12,
+        94,
+        7,
+        221,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_oracle",
+      "discriminator": [
+        28,
+        165,
+        169,
+        39,
+        124,
+        127,
+        189,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_resolution",
+      "discriminator": [
+        191,
+        74,
+        94,
+        214,
+        45,
+        150,
+        152,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize",
       "discriminator": [
         175,
@@ -823,17 +1251,68 @@
       ],
       "args": [
         {
-          "name": "oracle",
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "InitArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "open_fee_account",
+      "discriminator": [
+        53,
+        210,
+        253,
+        161,
+        27,
+        3,
+        100,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "fee_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  115
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "owner",
           "type": "pubkey"
         }
       ]
     },
     {
       "name": "payout_challenger",
-      "docs": [
-        "Pay out one challenger by index. Pool odds: stake + proportional",
-        "share of the creator stake. Permissionless crank."
-      ],
       "discriminator": [
         209,
         3,
@@ -847,6 +1326,7 @@
       "accounts": [
         {
           "name": "config",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -909,6 +1389,14 @@
           }
         },
         {
+          "name": "agent_fees",
+          "docs": [
+            "FeeBalance of the challenger's agent. Required only when an agent fee is due."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -922,10 +1410,6 @@
     },
     {
       "name": "payout_creator",
-      "docs": [
-        "Pay out the creator's share after resolution. Permissionless crank —",
-        "anyone can run it, USDC always goes to the creator's token account."
-      ],
       "discriminator": [
         205,
         253,
@@ -939,6 +1423,7 @@
       "accounts": [
         {
           "name": "config",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1001,6 +1486,14 @@
           }
         },
         {
+          "name": "agent_fees",
+          "docs": [
+            "FeeBalance of claim.creator_agent. Required only when an agent fee is due."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -1045,16 +1538,63 @@
       ]
     },
     {
-      "name": "resolve_claim",
+      "name": "propose_admin",
       "discriminator": [
-        63,
-        99,
-        216,
-        44,
-        183,
-        52,
-        190,
-        140
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "next",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "propose_resolution",
+      "discriminator": [
+        19,
+        68,
+        181,
+        23,
+        194,
+        146,
+        152,
+        252
       ],
       "accounts": [
         {
@@ -1132,16 +1672,16 @@
       ]
     },
     {
-      "name": "set_oracle",
+      "name": "queue_fee_policy",
       "discriminator": [
+        55,
+        41,
+        47,
+        92,
         186,
-        128,
-        81,
-        104,
-        74,
-        79,
-        18,
-        224
+        165,
+        25,
+        105
       ],
       "accounts": [
         {
@@ -1173,16 +1713,398 @@
       ],
       "args": [
         {
-          "name": "oracle",
+          "name": "platform_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "agent_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "fee_recipient",
           "type": "pubkey"
         }
       ]
     },
     {
-      "name": "undelegate_balance",
-      "docs": [
-        "Commit + undelegate the caller's balance PDA (needed before withdraw)."
+      "name": "queue_oracle",
+      "discriminator": [
+        4,
+        130,
+        217,
+        95,
+        231,
+        152,
+        204,
+        170
       ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "next",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "refund_bond",
+      "discriminator": [
+        109,
+        18,
+        121,
+        67,
+        25,
+        121,
+        130,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "disputer_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund_expired",
+      "discriminator": [
+        118,
+        153,
+        164,
+        244,
+        40,
+        128,
+        242,
+        250
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_paused",
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_windows",
+      "discriminator": [
+        88,
+        201,
+        247,
+        202,
+        5,
+        85,
+        239,
+        5
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "dispute_window",
+          "type": "i64"
+        },
+        {
+          "name": "resolution_grace",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "settle_dispute",
+      "discriminator": [
+        155,
+        147,
+        5,
+        44,
+        20,
+        204,
+        146,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "winner_side",
+          "type": "u8"
+        },
+        {
+          "name": "summary",
+          "type": "string"
+        },
+        {
+          "name": "confidence",
+          "type": "u8"
+        },
+        {
+          "name": "evidence_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "undelegate_balance",
       "discriminator": [
         7,
         32,
@@ -1237,10 +2159,6 @@
     },
     {
       "name": "undelegate_claim",
-      "docs": [
-        "Commit + undelegate a claim from the ER back to the base layer.",
-        "Run by the oracle once the deadline passes, right before resolution."
-      ],
       "discriminator": [
         251,
         118,
@@ -1294,10 +2212,6 @@
     },
     {
       "name": "withdraw",
-      "docs": [
-        "Withdraw free (unstaked) balance back to the user's token account.",
-        "Only possible while the balance PDA is NOT delegated."
-      ],
       "discriminator": [
         183,
         18,
@@ -1394,6 +2308,76 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdraw_fees",
+      "discriminator": [
+        198,
+        212,
+        171,
+        109,
+        144,
+        215,
+        174,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1424,6 +2408,19 @@
       ]
     },
     {
+      "name": "FeeBalance",
+      "discriminator": [
+        155,
+        49,
+        139,
+        208,
+        104,
+        135,
+        212,
+        22
+      ]
+    },
+    {
       "name": "UserBalance",
       "discriminator": [
         187,
@@ -1434,6 +2431,333 @@
         132,
         29,
         191
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdminTransferStarted",
+      "discriminator": [
+        31,
+        82,
+        117,
+        177,
+        147,
+        168,
+        210,
+        177
+      ]
+    },
+    {
+      "name": "AdminTransferred",
+      "discriminator": [
+        255,
+        147,
+        182,
+        5,
+        199,
+        217,
+        38,
+        179
+      ]
+    },
+    {
+      "name": "AgentFeesClaimed",
+      "discriminator": [
+        127,
+        244,
+        182,
+        5,
+        87,
+        220,
+        39,
+        183
+      ]
+    },
+    {
+      "name": "BondRefunded",
+      "discriminator": [
+        52,
+        32,
+        75,
+        36,
+        37,
+        139,
+        123,
+        17
+      ]
+    },
+    {
+      "name": "ClaimCancelled",
+      "discriminator": [
+        219,
+        39,
+        67,
+        208,
+        89,
+        48,
+        164,
+        167
+      ]
+    },
+    {
+      "name": "ClaimChallenged",
+      "discriminator": [
+        82,
+        127,
+        145,
+        225,
+        85,
+        227,
+        167,
+        233
+      ]
+    },
+    {
+      "name": "ClaimCreated",
+      "discriminator": [
+        12,
+        137,
+        189,
+        74,
+        127,
+        86,
+        118,
+        130
+      ]
+    },
+    {
+      "name": "ClaimExpiredRefund",
+      "discriminator": [
+        200,
+        206,
+        109,
+        161,
+        87,
+        118,
+        60,
+        67
+      ]
+    },
+    {
+      "name": "ClaimResolved",
+      "discriminator": [
+        122,
+        96,
+        69,
+        207,
+        25,
+        50,
+        43,
+        204
+      ]
+    },
+    {
+      "name": "Deposited",
+      "discriminator": [
+        111,
+        141,
+        26,
+        45,
+        161,
+        35,
+        100,
+        57
+      ]
+    },
+    {
+      "name": "DisputeSettled",
+      "discriminator": [
+        254,
+        31,
+        147,
+        164,
+        50,
+        13,
+        223,
+        158
+      ]
+    },
+    {
+      "name": "FeePolicyCancelled",
+      "discriminator": [
+        171,
+        215,
+        99,
+        10,
+        228,
+        219,
+        175,
+        18
+      ]
+    },
+    {
+      "name": "FeePolicyQueued",
+      "discriminator": [
+        232,
+        249,
+        69,
+        98,
+        242,
+        184,
+        128,
+        4
+      ]
+    },
+    {
+      "name": "FeePolicyUpdated",
+      "discriminator": [
+        98,
+        89,
+        107,
+        189,
+        161,
+        89,
+        231,
+        243
+      ]
+    },
+    {
+      "name": "FeesWithdrawn",
+      "discriminator": [
+        234,
+        15,
+        0,
+        119,
+        148,
+        241,
+        40,
+        21
+      ]
+    },
+    {
+      "name": "Initialized",
+      "discriminator": [
+        208,
+        213,
+        115,
+        98,
+        115,
+        82,
+        201,
+        209
+      ]
+    },
+    {
+      "name": "OracleChangeCancelled",
+      "discriminator": [
+        200,
+        44,
+        104,
+        43,
+        174,
+        109,
+        128,
+        213
+      ]
+    },
+    {
+      "name": "OracleChangeQueued",
+      "discriminator": [
+        93,
+        183,
+        168,
+        56,
+        58,
+        67,
+        55,
+        20
+      ]
+    },
+    {
+      "name": "OracleChanged",
+      "discriminator": [
+        151,
+        212,
+        213,
+        104,
+        49,
+        131,
+        55,
+        23
+      ]
+    },
+    {
+      "name": "PausedSet",
+      "discriminator": [
+        171,
+        125,
+        127,
+        156,
+        233,
+        81,
+        68,
+        66
+      ]
+    },
+    {
+      "name": "PayoutSent",
+      "discriminator": [
+        118,
+        83,
+        220,
+        84,
+        61,
+        77,
+        124,
+        10
+      ]
+    },
+    {
+      "name": "ResolutionDisputed",
+      "discriminator": [
+        209,
+        249,
+        106,
+        201,
+        166,
+        82,
+        67,
+        14
+      ]
+    },
+    {
+      "name": "ResolutionProposed",
+      "discriminator": [
+        209,
+        21,
+        193,
+        193,
+        218,
+        234,
+        131,
+        108
+      ]
+    },
+    {
+      "name": "WindowsUpdated",
+      "discriminator": [
+        46,
+        193,
+        218,
+        1,
+        243,
+        193,
+        225,
+        113
+      ]
+    },
+    {
+      "name": "Withdrawn",
+      "discriminator": [
+        20,
+        89,
+        223,
+        198,
+        194,
+        124,
+        219,
+        13
       ]
     }
   ],
@@ -1552,9 +2876,196 @@
       "code": 6022,
       "name": "SummaryTooLong",
       "msg": "Mimir: summary too long"
+    },
+    {
+      "code": 6023,
+      "name": "Paused",
+      "msg": "Mimir: paused"
+    },
+    {
+      "code": 6024,
+      "name": "NotAdmin",
+      "msg": "Mimir: not the admin"
+    },
+    {
+      "code": 6025,
+      "name": "NotPendingAdmin",
+      "msg": "Mimir: not the pending admin"
+    },
+    {
+      "code": 6026,
+      "name": "ZeroKey",
+      "msg": "Mimir: zero key"
+    },
+    {
+      "code": 6027,
+      "name": "NothingQueued",
+      "msg": "Mimir: nothing queued"
+    },
+    {
+      "code": 6028,
+      "name": "Timelocked",
+      "msg": "Mimir: timelocked"
+    },
+    {
+      "code": 6029,
+      "name": "FeeTooHigh",
+      "msg": "Mimir: fee too high"
+    },
+    {
+      "code": 6030,
+      "name": "NoFeeRecipient",
+      "msg": "Mimir: no fee recipient"
+    },
+    {
+      "code": 6031,
+      "name": "DisputeWindowTooLong",
+      "msg": "Mimir: dispute window too long"
+    },
+    {
+      "code": 6032,
+      "name": "GraceOutOfRange",
+      "msg": "Mimir: resolution grace out of range"
+    },
+    {
+      "code": 6033,
+      "name": "NotProposed",
+      "msg": "Mimir: nothing to dispute"
+    },
+    {
+      "code": 6034,
+      "name": "DisputeWindowClosed",
+      "msg": "Mimir: dispute window closed"
+    },
+    {
+      "code": 6035,
+      "name": "DisputeWindowOpen",
+      "msg": "Mimir: dispute window open"
+    },
+    {
+      "code": 6036,
+      "name": "NotParticipant",
+      "msg": "Mimir: not a participant"
+    },
+    {
+      "code": 6037,
+      "name": "NotDisputed",
+      "msg": "Mimir: not disputed"
+    },
+    {
+      "code": 6038,
+      "name": "GraceNotOver",
+      "msg": "Mimir: oracle grace not over"
+    },
+    {
+      "code": 6039,
+      "name": "FeeAccountMissing",
+      "msg": "Mimir: agent fee account missing"
+    },
+    {
+      "code": 6040,
+      "name": "WrongFeeAccount",
+      "msg": "Mimir: wrong agent fee account"
+    },
+    {
+      "code": 6041,
+      "name": "NoBondDue",
+      "msg": "Mimir: no bond due"
+    },
+    {
+      "code": 6042,
+      "name": "NoFees",
+      "msg": "Mimir: no fees"
+    },
+    {
+      "code": 6043,
+      "name": "StringTooLong",
+      "msg": "Mimir: string too long"
+    },
+    {
+      "code": 6044,
+      "name": "CannotDelegate",
+      "msg": "Mimir: claim cannot be delegated in this state"
+    },
+    {
+      "code": 6045,
+      "name": "NotFeeAuthority",
+      "msg": "Mimir: not the fee authority"
     }
   ],
   "types": [
+    {
+      "name": "AdminTransferStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previous",
+            "type": "pubkey"
+          },
+          {
+            "name": "next",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdminTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previous",
+            "type": "pubkey"
+          },
+          {
+            "name": "next",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentFeesClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BondRefunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
     {
       "name": "Challenger",
       "type": {
@@ -1571,6 +3082,13 @@
           {
             "name": "paid",
             "type": "bool"
+          },
+          {
+            "name": "agent",
+            "docs": [
+              "Agent owner credited for this position (Pubkey::default() = none)."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -1634,6 +3152,9 @@
           },
           {
             "name": "resolution_summary",
+            "docs": [
+              "Proposal summary while PROPOSED/DISPUTED, final summary once RESOLVED."
+            ],
             "type": "string"
           },
           {
@@ -1670,6 +3191,175 @@
                 }
               }
             }
+          },
+          {
+            "name": "creator_agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "total_fees",
+            "type": "u64"
+          },
+          {
+            "name": "dispute_window",
+            "type": "i64"
+          },
+          {
+            "name": "resolution_grace",
+            "type": "i64"
+          },
+          {
+            "name": "proposed_side",
+            "type": "u8"
+          },
+          {
+            "name": "proposed_at",
+            "type": "i64"
+          },
+          {
+            "name": "disputable_until",
+            "type": "i64"
+          },
+          {
+            "name": "disputer",
+            "type": "pubkey"
+          },
+          {
+            "name": "disputed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bond",
+            "type": "u64"
+          },
+          {
+            "name": "bond_state",
+            "type": "u8"
+          },
+          {
+            "name": "resolved_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimChallenged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "challenger",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimExpiredRefund",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner_side",
+            "type": "u8"
+          },
+          {
+            "name": "confidence",
+            "type": "u8"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -1684,8 +3374,29 @@
             "type": "pubkey"
           },
           {
+            "name": "pending_admin",
+            "docs": [
+              "Two-step admin transfer: set by propose_admin, cleared by accept_admin."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "oracle",
             "type": "pubkey"
+          },
+          {
+            "name": "pending_oracle",
+            "docs": [
+              "Timelocked oracle rotation (queue_oracle → execute_oracle)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_oracle_eta",
+            "docs": [
+              "0 = nothing queued."
+            ],
+            "type": "i64"
           },
           {
             "name": "usdc_mint",
@@ -1702,6 +3413,85 @@
           {
             "name": "vault_bump",
             "type": "u8"
+          },
+          {
+            "name": "paused",
+            "docs": [
+              "Stops create/challenge/propose. Never stops withdraw, payouts, refunds, disputes."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "dispute_window",
+            "docs": [
+              "Seconds a proposed verdict stays disputable (snapshotted per claim). 0 = settle instantly."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "resolution_grace",
+            "docs": [
+              "Seconds after the deadline an unresolved claim becomes refundable (snapshotted per claim)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_fee_eta",
+            "docs": [
+              "0 = nothing queued."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "fees_accrued",
+            "docs": [
+              "Outstanding platform fees + forfeited bonds held in the vault, withdrawable via withdraw_fees."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "lifetime_fees_accrued",
+            "type": "u64"
+          },
+          {
+            "name": "lifetime_fees_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Room for future fields without a migration."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -1742,6 +3532,355 @@
           {
             "name": "max_challengers",
             "type": "u8"
+          },
+          {
+            "name": "agent",
+            "docs": [
+              "Owner of the agent that opened this position; earns agent_fee_bps of the creator's profit."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Deposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DisputeSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner_side",
+            "type": "u8"
+          },
+          {
+            "name": "disputer_right",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeBalance",
+      "docs": [
+        "Agent-owner fee accrual for one recipient. Never pushed: the owner pulls",
+        "it with claim_agent_fees, so a recipient can never block a payout."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lifetime",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeePolicyCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": []
+      }
+    },
+    {
+      "name": "FeePolicyQueued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeePolicyUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeesWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "to",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "dispute_window",
+            "type": "i64"
+          },
+          {
+            "name": "resolution_grace",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Initialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "agent_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "dispute_window",
+            "type": "i64"
+          },
+          {
+            "name": "resolution_grace",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleChangeCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "next",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleChangeQueued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "next",
+            "type": "pubkey"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previous",
+            "type": "pubkey"
+          },
+          {
+            "name": "next",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PausedSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutSent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "platform_fee",
+            "type": "u64"
+          },
+          {
+            "name": "agent_fee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ResolutionDisputed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "disputer",
+            "type": "pubkey"
+          },
+          {
+            "name": "bond",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ResolutionProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner_side",
+            "type": "u8"
+          },
+          {
+            "name": "confidence",
+            "type": "u8"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "disputable_until",
+            "type": "i64"
           }
         ]
       }
@@ -1753,6 +3892,38 @@
         "fields": [
           {
             "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WindowsUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dispute_window",
+            "type": "i64"
+          },
+          {
+            "name": "resolution_grace",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Withdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
             "type": "pubkey"
           },
           {
