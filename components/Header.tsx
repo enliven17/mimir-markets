@@ -98,7 +98,9 @@ export default function Header() {
             <Link
               href={NAV_CTA.href}
               aria-current={ctaActive ? "page" : undefined}
-              className="flex items-center gap-1.5 whitespace-nowrap border border-pv-emerald bg-pv-emerald px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg transition-[filter] hover:brightness-110 focus-ring"
+              className={`flex items-center gap-1.5 whitespace-nowrap border border-pv-emerald bg-pv-emerald px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg transition-[filter] hover:brightness-110 focus-ring ${
+                ctaActive ? "ring-2 ring-pv-emerald/40 ring-offset-2 ring-offset-pv-bg" : ""
+              }`}
             >
               <Plus size={13} aria-hidden />
               {NAV_CTA.label}

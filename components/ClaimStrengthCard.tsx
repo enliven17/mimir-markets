@@ -255,7 +255,7 @@ export default function ClaimStrengthCard({
                       {moderationCodeChips.map((chip) => (
                         <span
                           key={chip.code}
-                          className="rounded-full border border-pv-border/25 bg-pv-border/[0.04] px-2 py-0.5 text-[10px] font-medium text-pv-text/80"
+                          className="border border-pv-border/25 bg-pv-border/[0.04] px-2 py-0.5 text-[10px] font-medium text-pv-text/80"
                         >
                           {chip.label}
                         </span>

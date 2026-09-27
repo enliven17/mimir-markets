@@ -6,12 +6,13 @@ import { usePathname } from "@/i18n/navigation";
 // every page except home (which draws its own per-section borders). The
 // negative top margin cancels the layout's navbar offset so the rails run all
 // the way up under the navbar; the padding then pushes the page content
-// clear of it.
+// clear of it, so a page-opening BlueprintHeading's top rule lands on the
+// navbar's bottom border (one line, not two).
 export default function PageFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname === "/") return <>{children}</>;
   return (
-    <div className="bp-page -mt-[calc(3.5rem+env(safe-area-inset-top))] min-h-screen min-w-0 border-x border-pv-border/25 pb-10 pt-[calc(5rem+env(safe-area-inset-top))]">
+    <div className="bp-page -mt-[calc(3.5rem+env(safe-area-inset-top))] min-h-screen min-w-0 border-x border-pv-border/25 pb-10 pt-[calc(3.5rem-1px+env(safe-area-inset-top))]">
       {children}
     </div>
   );

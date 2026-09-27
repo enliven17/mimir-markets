@@ -548,7 +548,7 @@ export default function CreateMarketPage() {
                           key={example}
                           type="button"
                           onClick={() => setUrl(`https://${example}`)}
-                          className="rounded-full border border-pv-border/25 bg-pv-border/[0.03] px-3 py-1.5 font-mono text-[10px] font-medium text-pv-muted/70 transition-colors hover:border-pv-border/25 hover:text-pv-muted"
+                          className="border border-pv-border/25 bg-pv-border/[0.03] px-3 py-1.5 font-mono text-[10px] font-medium text-pv-muted/70 transition-colors hover:border-pv-border/25 hover:text-pv-muted"
                         >
                           {example}
                         </button>

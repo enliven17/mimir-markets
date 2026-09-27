@@ -237,7 +237,7 @@ const STEPS: {
     title: "Create",
     description:
       "Stake USDC on one side of a verifiable question. The claim is escrowed in the program vault and delegated to the Ephemeral Rollup — the market goes live.",
-    span: "md:col-span-2",
+    span: "sm:col-span-2 lg:col-span-2",
     foot: ["Base layer · Solana", "Escrowed"],
   },
   {
@@ -246,7 +246,7 @@ const STEPS: {
     title: "Challenge",
     description:
       "Anyone stakes the other side from their virtual balance. Inside the ER, every bet is zero-fee and lands in ~30ms.",
-    span: "md:col-span-1",
+    span: "lg:col-span-1",
   },
   {
     iconSrc: "/icons/check-circle-logo.svg",
@@ -254,7 +254,7 @@ const STEPS: {
     title: "Resolve",
     description:
       "At the deadline the oracle commits ER state to Solana, fetches the Flash Trade evidence, and an LLM returns a verdict with a confidence tier.",
-    span: "md:col-span-1",
+    span: "lg:col-span-1",
   },
   {
     iconSrc: "/icons/verified.svg",
@@ -262,7 +262,7 @@ const STEPS: {
     title: "Payout",
     description:
       "The evidence hash lands on-chain and winners pull USDC from the vault. FIRM pays out, ambiguous claims refund.",
-    span: "md:col-span-4",
+    span: "sm:col-span-2 lg:col-span-4",
     foot: ["Settlement", "Vault payout"],
   },
 ];
@@ -417,7 +417,7 @@ export default function HomePage() {
       <AnimatedItem>
         <section>
           <BlueprintHeading>The protocol</BlueprintHeading>
-          <div className="bp-grid grid-cols-1 border-x border-pv-border/25 md:auto-rows-[minmax(240px,auto)] md:grid-cols-4">
+          <div className="bp-grid grid-cols-1 border-x border-pv-border/25 sm:grid-cols-2 lg:auto-rows-[minmax(240px,auto)] lg:grid-cols-4">
             {STEPS.map((step, index) => {
               const stepLabel = `STEP ${String(index + 1).padStart(2, "0")}`;
               const wide = index === 3;
@@ -425,7 +425,7 @@ export default function HomePage() {
                 <div
                   key={step.title}
                   className={`bp-cell group relative flex flex-col justify-between gap-6 overflow-hidden p-6 transition-colors duration-200 hover:bg-pv-surface sm:p-8 ${step.span} ${
-                    wide ? "md:flex-row md:items-center md:gap-10" : ""
+                    wide ? "lg:flex-row lg:items-center lg:gap-10" : ""
                   }`}
                 >
                   <div className="pointer-events-none absolute -right-8 -top-8 opacity-[0.06] transition-opacity group-hover:opacity-[0.1]">
@@ -448,7 +448,7 @@ export default function HomePage() {
                   {step.foot ? (
                     <div
                       className={`relative z-10 flex items-center justify-between gap-3 border-t border-pv-border/25 pt-4 ${
-                        wide ? "md:flex-col md:items-end md:border-l md:border-t-0 md:pl-10 md:pt-0" : ""
+                        wide ? "lg:flex-col lg:items-end lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0" : ""
                       }`}
                     >
                       <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
@@ -597,7 +597,7 @@ export default function HomePage() {
                   <Link
                     key={c.id}
                     href={`/arena/${c.id}`}
-                    className="group flex items-center justify-between gap-4 bg-pv-bg px-5 py-4 transition-colors hover:bg-pv-surface focus-ring sm:px-6"
+                    className="group flex min-w-0 items-center justify-between gap-4 bg-pv-bg px-5 py-4 transition-colors hover:bg-pv-surface focus-ring sm:px-6"
                   >
                     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                       <span className="w-10 shrink-0 font-mono text-[11px] text-pv-muted">#{c.id}</span>

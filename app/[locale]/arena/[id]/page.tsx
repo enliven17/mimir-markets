@@ -270,7 +270,7 @@ export default function ArenaClaimPage() {
 
   /** Fuchsia status pill that mirrors the original "{addr} challenges you" / "Accepted" duel pill. */
   const duelPill = (text: string) => (
-    <div className="inline-flex max-w-full min-w-0 items-center rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.08] px-2.5 py-1 text-left text-[11px] font-semibold leading-tight text-pv-fuch sm:px-3 sm:py-1.5 sm:text-xs">
+    <div className="inline-flex max-w-full min-w-0 items-center border border-pv-fuch/35 bg-pv-fuch/[0.08] px-2.5 py-1 text-left text-[11px] font-semibold leading-tight text-pv-fuch sm:px-3 sm:py-1.5 sm:text-xs">
       {text}
     </div>
   );
@@ -418,20 +418,20 @@ export default function ArenaClaimPage() {
                       {isOpen ? (
                         duelPill(`${shorten(claim.creator)} challenges you`)
                       ) : isCancelled ? (
-                        <span className="rounded-full border border-pv-border/25 bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                        <span className="border border-pv-border/25 bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                           Cancelled
                         </span>
                       ) : (
                         duelPill("Accepted")
                       )}
                       {claim.delegated && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch">
+                        <span className="inline-flex items-center gap-1.5 border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
                           Live on MagicBlock ER
                         </span>
                       )}
                       {isFlashOracle && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-pv-gold/35 bg-pv-gold/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-gold">
+                        <span className="inline-flex items-center gap-1 border border-pv-gold/35 bg-pv-gold/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-gold">
                           ⚡ Flash Trade oracle
                         </span>
                       )}
@@ -818,7 +818,7 @@ export default function ArenaClaimPage() {
                       <div className="min-w-0 text-[11px] font-bold uppercase tracking-[0.18em] text-pv-emerald">
                         Challengers
                       </div>
-                      <span className="inline-flex shrink-0 items-center rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.12] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch sm:tracking-[0.16em]">
+                      <span className="inline-flex shrink-0 items-center border border-pv-fuch/35 bg-pv-fuch/[0.12] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch sm:tracking-[0.16em]">
                         {challengerCount}/{maxChallengers} filled
                       </span>
                     </div>

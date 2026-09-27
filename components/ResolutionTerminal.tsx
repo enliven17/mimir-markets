@@ -265,8 +265,8 @@ export default function ResolutionTerminal({
         <div className="mb-3 flex items-center justify-between border-b border-pv-border/25 pb-2">
           <div className="flex items-center gap-2" aria-hidden>
             <span className="h-2.5 w-2.5 rounded-full border border-pv-danger/25 bg-pv-danger/[0.08]" />
-            <span className="h-2.5 w-2.5 rounded-full border border-pv-gold/25 bg-pv-gold/[0.08]" />
-            <span className="h-2.5 w-2.5 rounded-full border border-pv-emerald/25 bg-pv-emerald/[0.08]" />
+            <span className="h-2.5 w-2.5 border border-pv-gold/25 bg-pv-gold/[0.08]" />
+            <span className="h-2.5 w-2.5 border border-pv-emerald/25 bg-pv-emerald/[0.08]" />
           </div>
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-pv-muted">
             resolve console
