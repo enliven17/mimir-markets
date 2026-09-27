@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { PeepStack } from "@/components/ui/PeepAvatar";
 
@@ -29,7 +29,8 @@ export interface SolanaClaim {
 
 interface ClaimCardProps {
   claim: SolanaClaim;
-  locale: string;
+  /** Kept for callers; links are locale-aware via i18n/navigation. */
+  locale?: string;
 }
 
 const ARENA_STAT_CELL =
@@ -54,7 +55,7 @@ function getStatusPresentation(state: number): {
   return { label: "PENDING", variant: "muted" };
 }
 
-export default function ClaimCard({ claim, locale }: ClaimCardProps) {
+export default function ClaimCard({ claim }: ClaimCardProps) {
   const activeChallengers = claim.challengers.length;
   const maxChallengers =
     typeof claim.maxChallengers === "number" && claim.maxChallengers > 0
@@ -165,7 +166,7 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
           </div>
 
           <Link
-            href={`/${locale}/arena/${claim.id}`}
+            href={`/arena/${claim.id}`}
             className={
               isArchived
                 ? "inline-flex shrink-0 items-center justify-center rounded-md border border-pv-border/[0.15] bg-transparent px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted shadow-none transition-[color,border-color,transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:border-pv-border/[0.28] hover:bg-transparent hover:text-pv-text hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-border/30 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"

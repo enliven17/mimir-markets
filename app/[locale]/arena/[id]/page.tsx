@@ -17,7 +17,7 @@
  */
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import {
@@ -28,6 +28,8 @@ import {
   getVirtualBalance,
 } from "@/lib/solana/browser-client";
 import CouncilVotes from "@/components/arena/CouncilVotes";
+import { BlueprintHeading } from "@/components/BlueprintGrid";
+import PeepAvatar from "@/components/ui/PeepAvatar";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 
@@ -71,7 +73,7 @@ function confidenceTone(c: number): { label: string; cls: string; dot: string; t
   if (c >= 60)
     return {
       label: "CONTESTED · medium confidence",
-      cls: "border-pv-border/[0.14] bg-pv-surface2/60 text-pv-text/80",
+      cls: "border-pv-border/25 bg-pv-surface2/60 text-pv-text/80",
       dot: "bg-pv-cyan",
       text: "text-pv-cyan",
     };
@@ -99,7 +101,7 @@ function PhaseProgress({ state, expired }: { state: number; expired: boolean }) 
 
   return (
     <nav className="mb-8 sm:mb-10" aria-label="Claim lifecycle progress">
-      <div className="rounded-2xl border border-pv-border/[0.08] bg-pv-surface/80 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-6">
+      <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/80 p-5 sm:p-6">
         <div
           className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full"
           role="progressbar"
@@ -139,7 +141,7 @@ function PhaseProgress({ state, expired }: { state: number; expired: boolean }) 
                       ? "border-pv-emerald/40 bg-pv-emerald/[0.07] shadow-glow-emerald"
                       : isDone
                         ? "border-pv-emerald/20 bg-pv-emerald/[0.04]"
-                        : "border-pv-border/[0.06] bg-pv-bg/40"
+                        : "border-pv-border/25 bg-pv-bg/40"
                   }`}
                 >
                   <span className="font-mono text-[11px] font-medium tabular-nums tracking-[0.12em] text-pv-muted/70 sm:text-[12px]">
@@ -268,38 +270,29 @@ export default function ArenaClaimPage() {
 
   /** Fuchsia status pill that mirrors the original "{addr} challenges you" / "Accepted" duel pill. */
   const duelPill = (text: string) => (
-    <div className="inline-flex max-w-full min-w-0 items-center rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.08] px-2.5 py-1 text-left text-[11px] font-semibold leading-tight text-pv-fuch shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] sm:px-3 sm:py-1.5 sm:text-xs">
+    <div className="inline-flex max-w-full min-w-0 items-center rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.08] px-2.5 py-1 text-left text-[11px] font-semibold leading-tight text-pv-fuch sm:px-3 sm:py-1.5 sm:text-xs">
       {text}
     </div>
   );
 
   return (
-    <div className="relative z-[1] mx-auto w-full max-w-[1280px] px-4 pb-16 pt-2 sm:px-6 sm:pb-20 sm:pt-4">
-      <div className="mx-auto w-full min-w-0">
+    <div className="relative z-[1] w-full">
+      <BlueprintHeading
+        as="h1"
+        eyebrow="Real-time stakes settled on MagicBlock · zero-fee challenges"
+      >
+        Mimir VS
+      </BlueprintHeading>
+      <div className="mx-auto w-full min-w-0 px-4 pb-6 pt-6 sm:px-6 lg:px-8">
         {/* ── Top bar: back link + wallet ── */}
-        <div className="mb-6 flex items-center justify-between gap-4 sm:mb-8">
+        <div className="-mx-4 -mt-6 mb-6 flex items-center justify-between gap-4 border-b border-pv-border/25 px-4 py-3 sm:-mx-6 sm:mb-8 sm:px-6 lg:-mx-8 lg:px-8">
           <Link
-            href={`/${params.locale}/arena`}
-            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-pv-border/[0.1] hover:bg-pv-border/[0.04] hover:text-pv-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/30 sm:px-3 sm:text-[11px]"
+            href="/arena"
+            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-pv-border/25 hover:bg-pv-border/[0.04] hover:text-pv-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/30 sm:px-3 sm:text-[11px]"
           >
             ← Arena
           </Link>
           <WalletMultiButton />
-        </div>
-
-        {/* ── Hero lead ── */}
-        <div className="mb-6 sm:mb-8">
-          <div className="mb-4 flex flex-wrap items-center gap-4 sm:gap-6">
-            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
-              <h1 className="min-w-0 max-w-4xl font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl">
-                Mimir VS
-              </h1>
-              <div className="h-px min-w-[2rem] flex-1 bg-pv-border/[0.12]" aria-hidden />
-            </div>
-          </div>
-          <span className="block max-w-2xl font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-pv-emerald sm:text-xs">
-            Real-time stakes settled on MagicBlock · zero-fee challenges
-          </span>
         </div>
 
         {/* ── Phase progress ── */}
@@ -310,7 +303,7 @@ export default function ArenaClaimPage() {
           <div className="min-w-0 lg:col-span-8">
             {/* ── Settlement receipt (resolved) ── */}
             {isResolved && (
-              <div className="card mb-6 border-pv-border/[0.12] bg-pv-surface sm:mb-8">
+              <div className="card mb-6 border-pv-border/25 bg-pv-surface sm:mb-8">
                 <div className="p-5 sm:p-6">
                   <div className="space-y-5">
                     <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
@@ -339,8 +332,8 @@ export default function ArenaClaimPage() {
 
                     <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
-                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald/80">
+                        <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
+                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald">
                             ⚖ Verdict
                           </div>
                           <div className="text-lg font-semibold text-pv-text">{SIDE_LABELS[claim.winnerSide]}</div>
@@ -349,8 +342,8 @@ export default function ArenaClaimPage() {
                           </p>
                         </div>
 
-                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
-                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan/80">
+                        <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
+                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan">
                             ⌁ Pool settled
                           </div>
                           <p className="font-mono text-sm font-bold tabular-nums text-pv-text">${usdc(pool)} USDC</p>
@@ -362,8 +355,8 @@ export default function ArenaClaimPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
-                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-fuch/80">
+                        <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
+                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-fuch">
                             ▤ Evidence
                           </div>
                           <div className="break-words text-sm font-semibold text-pv-text">{sourceHost}</div>
@@ -382,8 +375,8 @@ export default function ArenaClaimPage() {
                           )}
                         </div>
 
-                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
-                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-gold/80">
+                        <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
+                          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-gold">
                             ⛨ Confidence
                           </div>
                           <div className="flex items-end justify-between gap-3">
@@ -399,7 +392,7 @@ export default function ArenaClaimPage() {
                               aria-hidden
                             />
                           </div>
-                          <div className="mt-3 border-t border-pv-border/[0.08] pt-3">
+                          <div className="mt-3 border-t border-pv-border/25 pt-3">
                             <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] ${conf.text}`}>
                               <span className={`h-2 w-2 rounded-full ${conf.dot}`} aria-hidden />
                               {claim.confidence >= 80 ? "High confidence" : claim.confidence >= 60 ? "Medium confidence" : "Low confidence"}
@@ -415,7 +408,7 @@ export default function ArenaClaimPage() {
 
             {/* ── Duel card (the Stage) — shown when not resolved ── */}
             {!isResolved && (
-              <div className="card mb-6 border-pv-border/[0.10] bg-pv-surface sm:mb-8">
+              <div className="card mb-6 border-pv-border/25 bg-pv-surface sm:mb-8">
                 <div className="p-5 sm:p-8">
                   <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -425,14 +418,14 @@ export default function ArenaClaimPage() {
                       {isOpen ? (
                         duelPill(`${shorten(claim.creator)} challenges you`)
                       ) : isCancelled ? (
-                        <span className="rounded-full border border-pv-border/[0.12] bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                        <span className="rounded-full border border-pv-border/25 bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                           Cancelled
                         </span>
                       ) : (
                         duelPill("Accepted")
                       )}
                       {claim.delegated && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
                           Live on MagicBlock ER
                         </span>
@@ -451,13 +444,11 @@ export default function ArenaClaimPage() {
                   </h2>
 
                   {/* Opposing positions */}
-                  <div className="mb-6 flex flex-col overflow-hidden rounded-xl border border-pv-border/[0.12] sm:flex-row">
+                  <div className="mb-6 flex flex-col overflow-hidden rounded-xl border border-pv-border/25 sm:flex-row">
                     <div className="flex-1 bg-pv-cyan/[0.04] p-4">
                       <div className="mb-2 flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-pv-cyan/30 bg-pv-cyan/[0.08] font-mono text-[10px] font-bold text-pv-cyan">
-                          A
-                        </span>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-pv-cyan/60 sm:text-[11px]">
+                        <PeepAvatar seed={`creator-${claim.creator}`} size={32} tone="accent" />
+                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-pv-cyan sm:text-[11px]">
                           Creator
                         </div>
                       </div>
@@ -476,7 +467,7 @@ export default function ArenaClaimPage() {
                     <div className="flex-1 bg-pv-fuch/[0.04] p-4">
                       {isOpen && challengerCount === 0 ? (
                         <div className="py-2 text-center">
-                          <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center border-2 border-dashed border-pv-border/[0.2] text-xs font-bold text-pv-muted">
+                          <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center border-2 border-dashed border-pv-border/25 text-xs font-bold text-pv-muted">
                             ?
                           </div>
                           <div className="text-xs italic text-pv-muted">Waiting for a rival to challenge…</div>
@@ -484,10 +475,8 @@ export default function ArenaClaimPage() {
                       ) : challengerCount === 1 ? (
                         <>
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-pv-fuch/30 bg-pv-fuch/[0.08] font-mono text-[10px] font-bold text-pv-fuch">
-                              B
-                            </span>
-                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-pv-fuch/60 sm:text-[11px]">
+                            <PeepAvatar seed={`challenger-${claim.challengers[0].addr}`} size={32} />
+                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-pv-fuch sm:text-[11px]">
                               Rival
                             </div>
                           </div>
@@ -500,7 +489,7 @@ export default function ArenaClaimPage() {
                       ) : (
                         <>
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-pv-fuch/30 bg-pv-fuch/[0.08] font-mono text-[10px] font-bold text-pv-fuch">
+                            <span className="flex h-7 w-7 items-center justify-center border border-pv-fuch/40 bg-pv-fuch/[0.08] font-mono text-[10px] font-bold text-pv-fuch">
                               B
                             </span>
                             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-pv-fuch/60 sm:text-[11px]">
@@ -525,7 +514,7 @@ export default function ArenaClaimPage() {
                       <span className="text-pv-cyan">Creator ${usdc(claim.creatorStake)}</span>
                       <span className="text-pv-fuch">${usdc(claim.totalChallengerStake)} Challengers</span>
                     </div>
-                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-pv-border/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-pv-border/[0.07]">
                       <div
                         className="h-full bg-pv-cyan/70 transition-[width] duration-500 ease-out"
                         style={{ width: `${100 - challengerFillPct}%` }}
@@ -540,7 +529,7 @@ export default function ArenaClaimPage() {
                   </div>
 
                   {/* Metric strip */}
-                  <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-pv-border/[0.1] bg-pv-border/[0.07] p-px shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-pv-border/25 bg-pv-border/[0.07] p-px sm:grid-cols-2 lg:grid-cols-4">
                     <div className="flex min-h-[5.75rem] min-w-0 flex-col bg-pv-bg/55 px-4 py-3.5 sm:min-h-[6rem]">
                       <p className="shrink-0 text-[10px] font-bold uppercase leading-snug tracking-[0.16em] text-pv-muted/90 sm:text-[11px] sm:tracking-[0.18em]">
                         Pool
@@ -577,7 +566,7 @@ export default function ArenaClaimPage() {
                 </div>
 
                 {/* Footer: oracle note + evidence link */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-pv-border/[0.08] px-5 py-3 sm:px-8">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-pv-border/25 px-5 py-3 sm:px-8">
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-pv-emerald shadow-[0_0_8px_rgba(153,69,255,0.6)]" />
                     <span className="text-xs text-pv-muted">
@@ -599,7 +588,7 @@ export default function ArenaClaimPage() {
             )}
 
             {/* ── Market terms (collapsible) ── */}
-            <div className="card mb-6 w-full overflow-hidden border-pv-border/[0.12] sm:mb-8">
+            <div className="card mb-6 w-full overflow-hidden border-pv-border/25 sm:mb-8">
               <button
                 type="button"
                 onClick={() => setTermsOpen((open) => !open)}
@@ -644,20 +633,20 @@ export default function ArenaClaimPage() {
                   id={termsPanelId}
                   role="region"
                   aria-labelledby={termsHeadingId}
-                  className="border-t border-pv-border/[0.08] px-5 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-6"
+                  className="border-t border-pv-border/25 px-5 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-6"
                 >
                   <div className="grid grid-cols-1 gap-2.5 text-sm sm:grid-cols-2 sm:gap-3">
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Category</div>
                       <div className="font-semibold text-pv-text">{claim.category}</div>
                     </div>
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Format</div>
                       <div className="font-semibold text-pv-text">
                         {maxChallengers === 1 ? "Head to head (1v1)" : `Open challenge (up to ${maxChallengers})`}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                         Challenger capacity
                       </div>
@@ -665,13 +654,13 @@ export default function ArenaClaimPage() {
                         {challengerCount}/{maxChallengers} filled
                       </div>
                     </div>
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Settlement</div>
                       <div className="font-semibold text-pv-text">
                         {isFlashOracle ? "Flash Trade oracle" : "Mimir AI oracle"}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4 sm:col-span-2">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4 sm:col-span-2">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                         Resolution source
                       </div>
@@ -685,7 +674,7 @@ export default function ArenaClaimPage() {
             {/* ── Action panel ── */}
             <div className="flex flex-col gap-3 sm:gap-4">
               {isCancelled ? (
-                <div className="card border-pv-border/[0.12] bg-pv-surface p-5 text-center sm:p-6">
+                <div className="card border-pv-border/25 bg-pv-surface p-5 text-center sm:p-6">
                   <p className="text-sm text-pv-muted">This claim was cancelled — all stakes were refunded.</p>
                 </div>
               ) : isResolved ? null : expired ? (
@@ -697,7 +686,7 @@ export default function ArenaClaimPage() {
                   </p>
                 </div>
               ) : (
-                <div className="card border-pv-border/[0.12] bg-pv-surface">
+                <div className="card border-pv-border/25 bg-pv-surface">
                   <div className="p-5 sm:p-6">
                     <div className="mb-1 flex items-center gap-2">
                       <h2 className="font-display text-xs font-bold uppercase tracking-[0.18em] text-pv-text sm:tracking-[0.2em]">
@@ -713,7 +702,7 @@ export default function ArenaClaimPage() {
                       <p className="mt-4 text-sm text-pv-muted">Connect a wallet to challenge.</p>
                     ) : (
                       <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <div className="flex items-center overflow-hidden rounded-lg border border-pv-border/[0.15] bg-pv-bg/40">
+                        <div className="flex items-center overflow-hidden rounded-lg border border-pv-border/25 bg-pv-bg/40">
                           <input
                             type="number"
                             min={2}
@@ -744,7 +733,7 @@ export default function ArenaClaimPage() {
                       </div>
                     )}
                     {log.length > 0 && (
-                      <ul className="mt-4 space-y-1.5 rounded-lg border border-pv-border/[0.08] bg-pv-bg/40 p-3 font-mono text-[11px] leading-relaxed text-pv-text/90">
+                      <ul className="mt-4 space-y-1.5 rounded-lg border border-pv-border/25 bg-pv-bg/40 p-3 font-mono text-[11px] leading-relaxed text-pv-text/90">
                         {log.map((l, i) => (
                           <li key={i} className="break-words">
                             {l}
@@ -788,7 +777,7 @@ export default function ArenaClaimPage() {
             <div className="flex flex-col gap-6 lg:sticky lg:top-24">
               {/* Claim strength card (live, pre-settlement) */}
               {!isResolved && !isCancelled && (
-                <div className="card border-pv-border/[0.12] bg-pv-surface">
+                <div className="card border-pv-border/25 bg-pv-surface">
                   <div className="space-y-4 p-5 sm:p-6">
                     <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
                       <span
@@ -806,8 +795,8 @@ export default function ArenaClaimPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
-                      <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan/80">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/40 p-4">
+                      <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan">
                         ▤ Evidence source
                       </div>
                       <div className="break-words text-sm font-semibold text-pv-text">{sourceHost}</div>
@@ -822,11 +811,11 @@ export default function ArenaClaimPage() {
               )}
 
               {/* Challengers list */}
-              <div className="card border-pv-border/[0.12] bg-pv-surface">
+              <div className="card border-pv-border/25 bg-pv-surface">
                 <div className="space-y-4 p-5 sm:p-6">
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0 text-[11px] font-bold uppercase tracking-[0.18em] text-pv-emerald/85">
+                      <div className="min-w-0 text-[11px] font-bold uppercase tracking-[0.18em] text-pv-emerald">
                         Challengers
                       </div>
                       <span className="inline-flex shrink-0 items-center rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.12] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch sm:tracking-[0.16em]">
@@ -839,23 +828,26 @@ export default function ArenaClaimPage() {
                   </div>
 
                   {challengerCount === 0 ? (
-                    <div className="rounded-xl border border-dashed border-pv-border/[0.14] bg-pv-bg/30 px-4 py-9 text-center sm:py-11" role="status">
+                    <div className="rounded-xl border border-dashed border-pv-border/25 bg-pv-bg/30 px-4 py-9 text-center sm:py-11" role="status">
                       <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full border-2 border-pv-fuch/35 text-pv-fuch/35 sm:size-11">
                         ◇
                       </div>
                       <p className="text-sm leading-relaxed text-pv-muted">No challengers yet — be the first to stake.</p>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-pv-border/[0.1] bg-pv-bg/25 p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-3.5">
+                    <div className="rounded-xl border border-pv-border/25 bg-pv-bg/25 p-2.5 sm:p-3.5">
                       <ul className="space-y-2 sm:space-y-2.5" role="list">
                         {claim.challengers.map((c, i) => {
                           const isYou = wallet.publicKey?.toBase58() === c.addr;
                           return (
                             <li key={`${c.addr}-${i}`}>
-                              <div className="rounded-lg border border-pv-border/[0.08] bg-gradient-to-br from-pv-fuch/[0.04] via-transparent to-transparent p-2.5 transition-[border-color,background-color] duration-200 hover:border-pv-border/[0.14] sm:p-3">
+                              <div className="rounded-lg border border-pv-border/25 bg-gradient-to-br from-pv-fuch/[0.04] via-transparent to-transparent p-2.5 transition-[border-color,background-color] duration-200 hover:border-pv-border/25 sm:p-3">
                                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 sm:gap-2.5 md:gap-3">
-                                  <div className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-pv-fuch/[0.28] bg-pv-fuch/[0.08] font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:size-8 sm:text-[10px]">
-                                    #{i + 1}
+                                  <div className="relative shrink-0">
+                                    <PeepAvatar seed={`challenger-${c.addr}`} size={36} />
+                                    <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-pv-bg bg-pv-fuch px-1 font-mono text-[8px] font-bold tabular-nums leading-none text-white">
+                                      {i + 1}
+                                    </span>
                                   </div>
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
@@ -880,7 +872,7 @@ export default function ArenaClaimPage() {
                                     )}
                                   </div>
                                   <div className="min-w-0 justify-self-end sm:justify-self-start">
-                                    <div className="flex h-7 min-w-[4rem] items-center justify-center rounded-md border border-pv-border/[0.1] bg-pv-bg/55 px-2 font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:h-8 sm:min-w-[4.5rem] sm:text-[10px]">
+                                    <div className="flex h-7 min-w-[4rem] items-center justify-center rounded-md border border-pv-border/25 bg-pv-bg/55 px-2 font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:h-8 sm:min-w-[4.5rem] sm:text-[10px]">
                                       ${usdc(c.stake)}
                                     </div>
                                   </div>

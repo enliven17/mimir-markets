@@ -352,7 +352,7 @@ export default function ArenaPage() {
             title="The oracle hasn't closed any claims here"
             description="Settled claims appear once the deadline passes and the oracle posts a verdict on chain."
             ctaLabel="HOW IT WORKS"
-            ctaHref={`/${locale}/docs`}
+            ctaHref="/docs"
           />
         );
       }

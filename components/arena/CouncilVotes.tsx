@@ -5,6 +5,7 @@
  * For resolved claims also shows won/lost/refunded outcome per persona.
  */
 import { useEffect, useState } from "react";
+import PeepAvatar from "@/components/ui/PeepAvatar";
 
 interface PersonaVote {
   slug: string;
@@ -29,7 +30,7 @@ interface CouncilResponse {
 function outcomeTag(v: PersonaVote, winnerSide: number): { label: string; cls: string } | null {
   if (!v.staked) return null;
   if (winnerSide === 2) return { label: v.paid ? "WON · PAID" : "WON", cls: "text-pv-emerald border-pv-emerald/40 bg-pv-emerald/[0.08]" };
-  if (winnerSide === 1) return { label: "LOST", cls: "text-red-400 border-red-400/30 bg-red-500/[0.06]" };
+  if (winnerSide === 1) return { label: "LOST", cls: "text-pv-danger border-pv-danger/40 bg-pv-danger/[0.06]" };
   if (winnerSide === 3 || winnerSide === 4) return { label: v.paid ? "REFUNDED" : "REFUNDING", cls: "text-pv-gold border-pv-gold/40 bg-pv-gold/[0.08]" };
   return null;
 }
@@ -68,7 +69,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
 
   if (loading) {
     return (
-      <section className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
+      <section className="border border-pv-border/25 bg-pv-surface p-5">
         <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-muted">Council verdict</div>
         <div className="mt-2 text-sm text-pv-muted">Reading on-chain stakes…</div>
       </section>
@@ -81,7 +82,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
   const isResolved = claimState === 2;
 
   return (
-    <section className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
+    <section className="border border-pv-border/25 bg-pv-surface p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-emerald">
@@ -98,22 +99,18 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
         </div>
       </div>
 
-      <ul className="grid gap-1.5 sm:grid-cols-2">
+      <ul className="bp-cells grid-cols-1 border border-pv-border/25 sm:grid-cols-2">
         {data.votes.map((v) => {
           const outcome = isResolved ? outcomeTag(v, winnerSide) : null;
           return (
             <li
               key={v.slug}
-              className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${
-                v.staked
-                  ? outcome?.cls
-                    ? `border-current/20 bg-current/5 ${outcome.cls}`
-                    : "border-pv-emerald/35 bg-pv-emerald/[0.05]"
-                  : "border-pv-border/25 bg-pv-surface2/20"
+              className={`flex items-center justify-between gap-2 px-3 py-2 ${
+                v.staked ? "bg-pv-emerald/[0.06]" : "bg-pv-surface"
               }`}
             >
               <div className="flex min-w-0 items-center gap-2">
-                <span className="text-base leading-none grayscale opacity-75">{v.emoji}</span>
+                <PeepAvatar seed={`council-${v.slug}`} size={28} tone={v.staked ? "accent" : "neutral"} />
                 <span className={`truncate text-[12px] font-semibold ${v.staked ? "text-pv-text" : "text-pv-muted"}`}>
                   {v.displayName}
                 </span>
