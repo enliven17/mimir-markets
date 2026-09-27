@@ -22,7 +22,7 @@ utility accepts opacity (`bg-pv-emerald/10`).
 | `pv-emerald` / `pv-cyan` | `#7B2FE8` | `#B47DFF` | accent (Solana purple, AA-tuned) — text, lines, buttons |
 | `pv-fuch` | `#9945FF` | `#9945FF` | Solana purple for fills / glows |
 | `pv-gold` | `#036B4B` | `#14F195` | Solana green — money / payout figures only, use sparingly |
-| `pv-danger` | `#C81E1E` | `#FF6B72` | errors, losses |
+| `pv-danger` | `#B41A1A` | `#FF6B72` | errors, losses |
 | `--pv-rule` | `#C5BDD9` | `#4A455B` | opaque ink/25 over bg (used by `.bp-cells`) |
 
 The legacy names `emerald`, `cyan`, `fuch` all map to the purple family, so old
@@ -30,8 +30,7 @@ classes keep working. Never hardcode `black/…` or `white/…` for lines — us
 `pv-border/…` so the line flips with the theme.
 
 Contrast (WCAG AA, ≥ 4.5:1 for normal text) against `bg`, `surface` and
-`surface2`: text 14.5–19.5, muted 5.9–8.7, accent 4.7–6.8, gold 5.0–13, danger 4.4–7.1 (light
-danger on `surface2` is 4.4 — keep error text on `bg`/`surface`). Buttons: `text-pv-bg` on `bg-pv-emerald` is 5.7 (light) / 6.8 (dark).
+`surface2`: text 14.5–19.5, muted 5.9–8.7, accent 4.7–6.8, gold 5.0–13, danger 5.3–7.1. Buttons: `text-pv-bg` on `bg-pv-emerald` is 5.7 (light) / 6.8 (dark).
 Faded variants (`text-pv-muted/60`) are for decoration only.
 
 Radius: every `rounded*` step is `0` (sharp corners). `rounded-full` stays

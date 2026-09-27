@@ -28,7 +28,7 @@
   --pv-accent:   123 47 232;   /* #7B2FE8 — Solana purple, darkened for AA */
   --pv-accent2:  153 69 255;   /* #9945FF — Solana purple (fills/glows) */
   --pv-gold:     3 107 75;     /* #036B4B — Solana green, darkened for AA */
-  --pv-danger:   200 30 30;    /* #C81E1E */
+  --pv-danger:   180 26 26;    /* #B41A1A */
   --pv-rule:     197 189 217;  /* #C5BDD9 — opaque ink/25 over bg */
   color-scheme: light;
 }
