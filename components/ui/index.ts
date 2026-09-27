@@ -21,3 +21,4 @@ export { default as ControlPanel, SegmentedSwitch, DataBadge } from "../ControlP
 export { default as OppositionLayout, DirectionalGlow } from "../OppositionLayout";
 export { default as LiveDeadline } from "../LiveDeadline";
 export { default as LiveStat } from "../LiveStat";
+export { default as PeepAvatar, PeepStack } from "./PeepAvatar";
