@@ -68,7 +68,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
 
   if (loading) {
     return (
-      <section className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-5">
+      <section className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
         <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-muted">Council verdict</div>
         <div className="mt-2 text-sm text-pv-muted">Reading on-chain stakes…</div>
       </section>
@@ -81,7 +81,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
   const isResolved = claimState === 2;
 
   return (
-    <section className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-5">
+    <section className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-emerald">
@@ -109,7 +109,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
                   ? outcome?.cls
                     ? `border-current/20 bg-current/5 ${outcome.cls}`
                     : "border-pv-emerald/35 bg-pv-emerald/[0.05]"
-                  : "border-pv-border/30 bg-pv-surface2/20"
+                  : "border-pv-border/25 bg-pv-surface2/20"
               }`}
             >
               <div className="flex min-w-0 items-center gap-2">

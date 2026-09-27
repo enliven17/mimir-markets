@@ -71,7 +71,7 @@ function tierLabel(c: number): { label: string; cls: string } {
   if (c >= 60)
     return {
       label: "CONTESTED",
-      cls: "border-pv-border/60 bg-pv-surface2/60 text-pv-text/80",
+      cls: "border-pv-border/40 bg-pv-surface2/60 text-pv-text/80",
     };
   return {
     label: "LOW",
@@ -95,7 +95,7 @@ function Kpi({
       className={`rounded-2xl border p-4 ${
         tone === "accent"
           ? "border-pv-emerald/35 bg-pv-emerald/[0.06]"
-          : "border-pv-border/30 bg-pv-surface/70"
+          : "border-pv-border/25 bg-pv-surface/70"
       }`}
     >
       <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-pv-muted">
@@ -265,7 +265,7 @@ export default function StatsPage() {
 
       {/* Confidence distribution + decided split */}
       <section className="mb-10 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-5 sm:p-6">
+        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5 sm:p-6">
           <h2 className="mb-1 font-display text-base font-bold tracking-tight text-pv-text">
             Oracle confidence distribution
           </h2>
@@ -296,7 +296,7 @@ export default function StatsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-5 sm:p-6">
+        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5 sm:p-6">
           <h2 className="mb-1 font-display text-base font-bold tracking-tight text-pv-text">
             Decided settlements · who won
           </h2>
@@ -318,7 +318,7 @@ export default function StatsPage() {
                   </span>
                 </div>
               </div>
-              <div className="rounded-xl border border-pv-border/40 bg-pv-surface2/40 p-4">
+              <div className="rounded-xl border border-pv-border/25 bg-pv-surface2/40 p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-pv-fuch">
                   Challenger wins
                 </div>
@@ -344,11 +344,11 @@ export default function StatsPage() {
           Recent settlements
         </h2>
         {!data ? (
-          <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
+          <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
             Loading on-chain settlements…
           </div>
         ) : settlements.length === 0 ? (
-          <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
+          <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-8 text-center text-sm text-pv-muted">
             No settlements yet. Once the oracle resolves a claim, it appears
             here.
           </div>
@@ -364,7 +364,7 @@ export default function StatsPage() {
                 <Link
                   key={s.id}
                   href={`/${locale}/arena/${s.id}`}
-                  className="group block rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-4 transition-colors hover:border-pv-emerald/40"
+                  className="group block rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-4 transition-colors hover:border-pv-emerald/40"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -403,7 +403,7 @@ export default function StatsPage() {
                         </div>
                       )}
                     </div>
-                    <span className="shrink-0 self-start rounded-lg border border-pv-border/40 px-2 py-1 text-[11px] text-pv-muted transition-colors group-hover:border-pv-emerald group-hover:text-pv-emerald">
+                    <span className="shrink-0 self-start rounded-lg border border-pv-border/25 px-2 py-1 text-[11px] text-pv-muted transition-colors group-hover:border-pv-emerald group-hover:text-pv-emerald">
                       View →
                     </span>
                   </div>

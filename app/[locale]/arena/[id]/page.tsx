@@ -71,7 +71,7 @@ function confidenceTone(c: number): { label: string; cls: string; dot: string; t
   if (c >= 60)
     return {
       label: "CONTESTED · medium confidence",
-      cls: "border-black/[0.14] bg-pv-surface2/60 text-pv-text/80",
+      cls: "border-pv-border/[0.14] bg-pv-surface2/60 text-pv-text/80",
       dot: "bg-pv-cyan",
       text: "text-pv-cyan",
     };
@@ -99,7 +99,7 @@ function PhaseProgress({ state, expired }: { state: number; expired: boolean }) 
 
   return (
     <nav className="mb-8 sm:mb-10" aria-label="Claim lifecycle progress">
-      <div className="rounded-2xl border border-black/[0.08] bg-pv-surface/80 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-6">
+      <div className="rounded-2xl border border-pv-border/[0.08] bg-pv-surface/80 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-6">
         <div
           className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full"
           role="progressbar"
@@ -112,7 +112,7 @@ function PhaseProgress({ state, expired }: { state: number; expired: boolean }) 
             const isCurrent = !isResolved && i === stepIndex;
             const shouldFill = isDone || isCurrent;
             return (
-              <div key={i} className="relative h-full flex-1 overflow-hidden rounded-full bg-black/[0.06]">
+              <div key={i} className="relative h-full flex-1 overflow-hidden rounded-full bg-pv-border/[0.06]">
                 <div
                   className={`absolute inset-0 origin-left rounded-full transition-transform duration-500 ease-out ${
                     isDone ? "bg-pv-emerald" : isCurrent ? "bg-pv-emerald animate-phase-glow" : ""
@@ -139,7 +139,7 @@ function PhaseProgress({ state, expired }: { state: number; expired: boolean }) 
                       ? "border-pv-emerald/40 bg-pv-emerald/[0.07] shadow-glow-emerald"
                       : isDone
                         ? "border-pv-emerald/20 bg-pv-emerald/[0.04]"
-                        : "border-black/[0.06] bg-pv-bg/40"
+                        : "border-pv-border/[0.06] bg-pv-bg/40"
                   }`}
                 >
                   <span className="font-mono text-[11px] font-medium tabular-nums tracking-[0.12em] text-pv-muted/70 sm:text-[12px]">
@@ -280,7 +280,7 @@ export default function ArenaClaimPage() {
         <div className="mb-6 flex items-center justify-between gap-4 sm:mb-8">
           <Link
             href={`/${params.locale}/arena`}
-            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-black/[0.1] hover:bg-black/[0.04] hover:text-pv-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/30 sm:px-3 sm:text-[11px]"
+            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-pv-border/[0.1] hover:bg-pv-border/[0.04] hover:text-pv-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/30 sm:px-3 sm:text-[11px]"
           >
             ← Arena
           </Link>
@@ -294,7 +294,7 @@ export default function ArenaClaimPage() {
               <h1 className="min-w-0 max-w-4xl font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl">
                 Mimir VS
               </h1>
-              <div className="h-px min-w-[2rem] flex-1 bg-black/[0.12]" aria-hidden />
+              <div className="h-px min-w-[2rem] flex-1 bg-pv-border/[0.12]" aria-hidden />
             </div>
           </div>
           <span className="block max-w-2xl font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-pv-emerald sm:text-xs">
@@ -310,7 +310,7 @@ export default function ArenaClaimPage() {
           <div className="min-w-0 lg:col-span-8">
             {/* ── Settlement receipt (resolved) ── */}
             {isResolved && (
-              <div className="card mb-6 border-black/[0.12] bg-pv-surface sm:mb-8">
+              <div className="card mb-6 border-pv-border/[0.12] bg-pv-surface sm:mb-8">
                 <div className="p-5 sm:p-6">
                   <div className="space-y-5">
                     <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
@@ -339,7 +339,7 @@ export default function ArenaClaimPage() {
 
                     <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald/80">
                             ⚖ Verdict
                           </div>
@@ -349,7 +349,7 @@ export default function ArenaClaimPage() {
                           </p>
                         </div>
 
-                        <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan/80">
                             ⌁ Pool settled
                           </div>
@@ -362,7 +362,7 @@ export default function ArenaClaimPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-fuch/80">
                             ▤ Evidence
                           </div>
@@ -382,7 +382,7 @@ export default function ArenaClaimPage() {
                           )}
                         </div>
 
-                        <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                        <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-gold/80">
                             ⛨ Confidence
                           </div>
@@ -392,14 +392,14 @@ export default function ArenaClaimPage() {
                             </div>
                             <div className="text-right text-[11px] text-pv-muted">/ 100</div>
                           </div>
-                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/[0.08]">
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-pv-border/[0.08]">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-pv-gold via-pv-fuch to-pv-emerald transition-[width] duration-300"
                               style={{ width: `${Math.max(0, Math.min(100, claim.confidence))}%` }}
                               aria-hidden
                             />
                           </div>
-                          <div className="mt-3 border-t border-black/[0.08] pt-3">
+                          <div className="mt-3 border-t border-pv-border/[0.08] pt-3">
                             <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] ${conf.text}`}>
                               <span className={`h-2 w-2 rounded-full ${conf.dot}`} aria-hidden />
                               {claim.confidence >= 80 ? "High confidence" : claim.confidence >= 60 ? "Medium confidence" : "Low confidence"}
@@ -415,17 +415,17 @@ export default function ArenaClaimPage() {
 
             {/* ── Duel card (the Stage) — shown when not resolved ── */}
             {!isResolved && (
-              <div className="card mb-6 border-black/[0.10] bg-pv-surface sm:mb-8">
+              <div className="card mb-6 border-pv-border/[0.10] bg-pv-surface sm:mb-8">
                 <div className="p-5 sm:p-8">
                   <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <span className="rounded bg-black/[0.03] px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted ring-1 ring-black/[0.1]">
+                      <span className="rounded bg-pv-border/[0.03] px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted ring-1 ring-pv-border/[0.1]">
                         {claim.category}
                       </span>
                       {isOpen ? (
                         duelPill(`${shorten(claim.creator)} challenges you`)
                       ) : isCancelled ? (
-                        <span className="rounded-full border border-black/[0.12] bg-black/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                        <span className="rounded-full border border-pv-border/[0.12] bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                           Cancelled
                         </span>
                       ) : (
@@ -433,7 +433,7 @@ export default function ArenaClaimPage() {
                       )}
                       {claim.delegated && (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(200,71,71,0.7)]" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
                           Live on MagicBlock ER
                         </span>
                       )}
@@ -451,7 +451,7 @@ export default function ArenaClaimPage() {
                   </h2>
 
                   {/* Opposing positions */}
-                  <div className="mb-6 flex flex-col overflow-hidden rounded-xl border border-black/[0.12] sm:flex-row">
+                  <div className="mb-6 flex flex-col overflow-hidden rounded-xl border border-pv-border/[0.12] sm:flex-row">
                     <div className="flex-1 bg-pv-cyan/[0.04] p-4">
                       <div className="mb-2 flex items-center gap-2">
                         <span className="flex h-7 w-7 items-center justify-center rounded-full border border-pv-cyan/30 bg-pv-cyan/[0.08] font-mono text-[10px] font-bold text-pv-cyan">
@@ -469,14 +469,14 @@ export default function ArenaClaimPage() {
                     </div>
 
                     <div
-                      className="h-px w-full shrink-0 bg-black/[0.06] sm:h-auto sm:w-px sm:self-stretch"
+                      className="h-px w-full shrink-0 bg-pv-border/[0.06] sm:h-auto sm:w-px sm:self-stretch"
                       aria-hidden
                     />
 
                     <div className="flex-1 bg-pv-fuch/[0.04] p-4">
                       {isOpen && challengerCount === 0 ? (
                         <div className="py-2 text-center">
-                          <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center border-2 border-dashed border-black/[0.2] text-xs font-bold text-pv-muted">
+                          <div className="mx-auto mb-2 flex h-7 w-7 items-center justify-center border-2 border-dashed border-pv-border/[0.2] text-xs font-bold text-pv-muted">
                             ?
                           </div>
                           <div className="text-xs italic text-pv-muted">Waiting for a rival to challenge…</div>
@@ -525,7 +525,7 @@ export default function ArenaClaimPage() {
                       <span className="text-pv-cyan">Creator ${usdc(claim.creatorStake)}</span>
                       <span className="text-pv-fuch">${usdc(claim.totalChallengerStake)} Challengers</span>
                     </div>
-                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-black/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-pv-border/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
                       <div
                         className="h-full bg-pv-cyan/70 transition-[width] duration-500 ease-out"
                         style={{ width: `${100 - challengerFillPct}%` }}
@@ -540,7 +540,7 @@ export default function ArenaClaimPage() {
                   </div>
 
                   {/* Metric strip */}
-                  <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-black/[0.1] bg-black/[0.07] p-px shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-pv-border/[0.1] bg-pv-border/[0.07] p-px shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] sm:grid-cols-2 lg:grid-cols-4">
                     <div className="flex min-h-[5.75rem] min-w-0 flex-col bg-pv-bg/55 px-4 py-3.5 sm:min-h-[6rem]">
                       <p className="shrink-0 text-[10px] font-bold uppercase leading-snug tracking-[0.16em] text-pv-muted/90 sm:text-[11px] sm:tracking-[0.18em]">
                         Pool
@@ -577,7 +577,7 @@ export default function ArenaClaimPage() {
                 </div>
 
                 {/* Footer: oracle note + evidence link */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/[0.08] px-5 py-3 sm:px-8">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-pv-border/[0.08] px-5 py-3 sm:px-8">
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-pv-emerald shadow-[0_0_8px_rgba(153,69,255,0.6)]" />
                     <span className="text-xs text-pv-muted">
@@ -599,13 +599,13 @@ export default function ArenaClaimPage() {
             )}
 
             {/* ── Market terms (collapsible) ── */}
-            <div className="card mb-6 w-full overflow-hidden border-black/[0.12] sm:mb-8">
+            <div className="card mb-6 w-full overflow-hidden border-pv-border/[0.12] sm:mb-8">
               <button
                 type="button"
                 onClick={() => setTermsOpen((open) => !open)}
                 aria-expanded={termsOpen}
                 aria-controls={termsPanelId}
-                className="flex min-h-[3.25rem] w-full items-start justify-between gap-3 px-5 py-5 text-left transition-colors hover:bg-black/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-pv-emerald/35 sm:min-h-0 sm:gap-4 sm:px-8 sm:py-6"
+                className="flex min-h-[3.25rem] w-full items-start justify-between gap-3 px-5 py-5 text-left transition-colors hover:bg-pv-border/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-pv-emerald/35 sm:min-h-0 sm:gap-4 sm:px-8 sm:py-6"
               >
                 <div className="flex min-w-0 gap-3 sm:gap-3.5">
                   <span
@@ -644,20 +644,20 @@ export default function ArenaClaimPage() {
                   id={termsPanelId}
                   role="region"
                   aria-labelledby={termsHeadingId}
-                  className="border-t border-black/[0.08] px-5 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-6"
+                  className="border-t border-pv-border/[0.08] px-5 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-6"
                 >
                   <div className="grid grid-cols-1 gap-2.5 text-sm sm:grid-cols-2 sm:gap-3">
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Category</div>
                       <div className="font-semibold text-pv-text">{claim.category}</div>
                     </div>
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Format</div>
                       <div className="font-semibold text-pv-text">
                         {maxChallengers === 1 ? "Head to head (1v1)" : `Open challenge (up to ${maxChallengers})`}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                         Challenger capacity
                       </div>
@@ -665,13 +665,13 @@ export default function ArenaClaimPage() {
                         {challengerCount}/{maxChallengers} filled
                       </div>
                     </div>
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">Settlement</div>
                       <div className="font-semibold text-pv-text">
                         {isFlashOracle ? "Flash Trade oracle" : "Mimir AI oracle"}
                       </div>
                     </div>
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4 sm:col-span-2">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4 sm:col-span-2">
                       <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                         Resolution source
                       </div>
@@ -685,7 +685,7 @@ export default function ArenaClaimPage() {
             {/* ── Action panel ── */}
             <div className="flex flex-col gap-3 sm:gap-4">
               {isCancelled ? (
-                <div className="card border-black/[0.12] bg-pv-surface p-5 text-center sm:p-6">
+                <div className="card border-pv-border/[0.12] bg-pv-surface p-5 text-center sm:p-6">
                   <p className="text-sm text-pv-muted">This claim was cancelled — all stakes were refunded.</p>
                 </div>
               ) : isResolved ? null : expired ? (
@@ -697,7 +697,7 @@ export default function ArenaClaimPage() {
                   </p>
                 </div>
               ) : (
-                <div className="card border-black/[0.12] bg-pv-surface">
+                <div className="card border-pv-border/[0.12] bg-pv-surface">
                   <div className="p-5 sm:p-6">
                     <div className="mb-1 flex items-center gap-2">
                       <h2 className="font-display text-xs font-bold uppercase tracking-[0.18em] text-pv-text sm:tracking-[0.2em]">
@@ -713,7 +713,7 @@ export default function ArenaClaimPage() {
                       <p className="mt-4 text-sm text-pv-muted">Connect a wallet to challenge.</p>
                     ) : (
                       <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <div className="flex items-center overflow-hidden rounded-lg border border-black/[0.15] bg-pv-bg/40">
+                        <div className="flex items-center overflow-hidden rounded-lg border border-pv-border/[0.15] bg-pv-bg/40">
                           <input
                             type="number"
                             min={2}
@@ -729,7 +729,7 @@ export default function ArenaClaimPage() {
                         <button
                           onClick={onChallenge}
                           disabled={!!busy || Number(stake) < 2}
-                          className="inline-flex items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg transition-[transform,box-shadow,background-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(200,71,71,0.4)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-pv-text"
+                          className="inline-flex items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg transition-[transform,box-shadow,background-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(124,58,237,0.4)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-pv-text"
                         >
                           {busy ? "Working…" : "⚡ Challenge in the ER"}
                         </button>
@@ -744,7 +744,7 @@ export default function ArenaClaimPage() {
                       </div>
                     )}
                     {log.length > 0 && (
-                      <ul className="mt-4 space-y-1.5 rounded-lg border border-black/[0.08] bg-pv-bg/40 p-3 font-mono text-[11px] leading-relaxed text-pv-text/90">
+                      <ul className="mt-4 space-y-1.5 rounded-lg border border-pv-border/[0.08] bg-pv-bg/40 p-3 font-mono text-[11px] leading-relaxed text-pv-text/90">
                         {log.map((l, i) => (
                           <li key={i} className="break-words">
                             {l}
@@ -788,7 +788,7 @@ export default function ArenaClaimPage() {
             <div className="flex flex-col gap-6 lg:sticky lg:top-24">
               {/* Claim strength card (live, pre-settlement) */}
               {!isResolved && !isCancelled && (
-                <div className="card border-black/[0.12] bg-pv-surface">
+                <div className="card border-pv-border/[0.12] bg-pv-surface">
                   <div className="space-y-4 p-5 sm:p-6">
                     <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
                       <span
@@ -806,7 +806,7 @@ export default function ArenaClaimPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="rounded-xl border border-black/[0.08] bg-pv-bg/40 p-4">
+                    <div className="rounded-xl border border-pv-border/[0.08] bg-pv-bg/40 p-4">
                       <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-cyan/80">
                         ▤ Evidence source
                       </div>
@@ -822,7 +822,7 @@ export default function ArenaClaimPage() {
               )}
 
               {/* Challengers list */}
-              <div className="card border-black/[0.12] bg-pv-surface">
+              <div className="card border-pv-border/[0.12] bg-pv-surface">
                 <div className="space-y-4 p-5 sm:p-6">
                   <div>
                     <div className="flex items-center justify-between gap-3">
@@ -839,20 +839,20 @@ export default function ArenaClaimPage() {
                   </div>
 
                   {challengerCount === 0 ? (
-                    <div className="rounded-xl border border-dashed border-black/[0.14] bg-pv-bg/30 px-4 py-9 text-center sm:py-11" role="status">
+                    <div className="rounded-xl border border-dashed border-pv-border/[0.14] bg-pv-bg/30 px-4 py-9 text-center sm:py-11" role="status">
                       <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full border-2 border-pv-fuch/35 text-pv-fuch/35 sm:size-11">
                         ◇
                       </div>
                       <p className="text-sm leading-relaxed text-pv-muted">No challengers yet — be the first to stake.</p>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-black/[0.1] bg-pv-bg/25 p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-3.5">
+                    <div className="rounded-xl border border-pv-border/[0.1] bg-pv-bg/25 p-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] sm:p-3.5">
                       <ul className="space-y-2 sm:space-y-2.5" role="list">
                         {claim.challengers.map((c, i) => {
                           const isYou = wallet.publicKey?.toBase58() === c.addr;
                           return (
                             <li key={`${c.addr}-${i}`}>
-                              <div className="rounded-lg border border-black/[0.08] bg-gradient-to-br from-pv-fuch/[0.04] via-transparent to-transparent p-2.5 transition-[border-color,background-color] duration-200 hover:border-black/[0.14] sm:p-3">
+                              <div className="rounded-lg border border-pv-border/[0.08] bg-gradient-to-br from-pv-fuch/[0.04] via-transparent to-transparent p-2.5 transition-[border-color,background-color] duration-200 hover:border-pv-border/[0.14] sm:p-3">
                                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 sm:gap-2.5 md:gap-3">
                                   <div className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-pv-fuch/[0.28] bg-pv-fuch/[0.08] font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:size-8 sm:text-[10px]">
                                     #{i + 1}
@@ -880,7 +880,7 @@ export default function ArenaClaimPage() {
                                     )}
                                   </div>
                                   <div className="min-w-0 justify-self-end sm:justify-self-start">
-                                    <div className="flex h-7 min-w-[4rem] items-center justify-center rounded-md border border-black/[0.1] bg-pv-bg/55 px-2 font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:h-8 sm:min-w-[4.5rem] sm:text-[10px]">
+                                    <div className="flex h-7 min-w-[4rem] items-center justify-center rounded-md border border-pv-border/[0.1] bg-pv-bg/55 px-2 font-mono text-[9px] font-bold leading-none tabular-nums text-pv-fuch sm:h-8 sm:min-w-[4.5rem] sm:text-[10px]">
                                       ${usdc(c.stake)}
                                     </div>
                                   </div>

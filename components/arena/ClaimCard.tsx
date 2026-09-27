@@ -33,7 +33,7 @@ interface ClaimCardProps {
 }
 
 const ARENA_STAT_CELL =
-  "rounded border border-black/[0.1] bg-black/[0.03] px-3 py-2.5 sm:px-3.5 sm:py-3";
+  "rounded border border-pv-border/[0.1] bg-pv-border/[0.03] px-3 py-2.5 sm:px-3.5 sm:py-3";
 
 function formatArenaIdCode(id: number): string {
   const n = Math.abs(id) % 100000;
@@ -74,10 +74,10 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
   const statusPillClass =
     statusVariant === "live"
       ? "font-display text-xs font-semibold uppercase tracking-wide text-pv-emerald bg-pv-emerald/10 px-2 py-1"
-      : "font-display text-xs font-semibold uppercase tracking-wide text-pv-muted bg-black/[0.06] px-2 py-1 ring-1 ring-black/[0.08]";
+      : "font-display text-xs font-semibold uppercase tracking-wide text-pv-muted bg-pv-border/[0.06] px-2 py-1 ring-1 ring-pv-border/[0.08]";
 
   return (
-    <article className="card group relative flex h-full flex-col gap-6 overflow-hidden border-black/[0.12] bg-pv-surface p-6 transition-all duration-300 hover:border-pv-emerald/30 hover:bg-pv-surface2 sm:gap-8 sm:p-8">
+    <article className="card group relative flex h-full flex-col gap-6 overflow-hidden border-pv-border/[0.12] bg-pv-surface p-6 transition-all duration-300 hover:border-pv-emerald/30 hover:bg-pv-surface2 sm:gap-8 sm:p-8">
       <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className={statusPillClass}>{statusLabel}</span>
@@ -93,7 +93,7 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
             </span>
           ) : null}
         </div>
-        <span className="rounded px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-pv-muted ring-1 ring-black/[0.1] bg-black/[0.03] backdrop-blur-sm">
+        <span className="rounded px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-pv-muted ring-1 ring-pv-border/[0.1] bg-pv-border/[0.03] backdrop-blur-sm">
           {formatArenaIdCode(claim.id)}
         </span>
       </div>
@@ -145,7 +145,7 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
         </div>
       </div>
 
-      <div className="relative z-10 mt-auto border-t border-black/[0.1] pt-6">
+      <div className="relative z-10 mt-auto border-t border-pv-border/[0.1] pt-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <span className="mb-2 block font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-pv-muted">
@@ -157,7 +157,7 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
                   (color, i) => (
                     <span
                       key={`${claim.id}-avatar-${i}`}
-                      className={`flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.15] ${color} ${
+                      className={`flex h-8 w-8 items-center justify-center rounded-full border border-pv-border/[0.15] ${color} ${
                         i > 0 ? "-ml-2.5" : ""
                       }`}
                       style={{ zIndex: 10 - i }}
@@ -177,7 +177,7 @@ export default function ClaimCard({ claim, locale }: ClaimCardProps) {
             href={`/${locale}/arena/${claim.id}`}
             className={
               isArchived
-                ? "inline-flex shrink-0 items-center justify-center rounded-md border border-black/[0.15] bg-transparent px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted shadow-none transition-[color,border-color,transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:border-black/[0.28] hover:bg-transparent hover:text-pv-text hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"
+                ? "inline-flex shrink-0 items-center justify-center rounded-md border border-pv-border/[0.15] bg-transparent px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted shadow-none transition-[color,border-color,transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:border-pv-border/[0.28] hover:bg-transparent hover:text-pv-text hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"
                 : "inline-flex shrink-0 items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg shadow-none transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-emerald hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(153,69,255,0.35)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/40 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"
             }
           >

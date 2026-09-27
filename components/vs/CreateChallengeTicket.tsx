@@ -50,10 +50,10 @@ export default function CreateChallengeTicket({
   const showQuoted = body.length > 0;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-black/[0.12] bg-pv-surface/70 shadow-glow-emerald backdrop-blur-[20px] transition-all duration-200">
+    <div className="relative overflow-hidden rounded-2xl border border-pv-border/[0.12] bg-pv-surface/70 shadow-glow-emerald backdrop-blur-[20px] transition-all duration-200">
       {/* Watermark — transitions from UNSIGNED to SIGNED based on wallet */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
-        <span className="font-display text-[72px] sm:text-[96px] font-bold uppercase tracking-[0.15em] text-black/[0.02] rotate-[-12deg]">
+        <span className="font-display text-[72px] sm:text-[96px] font-bold uppercase tracking-[0.15em] text-pv-border/[0.02] rotate-[-12deg]">
           {walletAddress ? "SIGNED" : "UNSIGNED"}
         </span>
       </div>
@@ -115,7 +115,7 @@ export default function CreateChallengeTicket({
             </div>
           </div>
 
-          <div className="space-y-2 border-t border-black/[0.08] pt-6">
+          <div className="space-y-2 border-t border-pv-border/[0.08] pt-6">
             <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
               {t("settlementRule")}
             </div>
@@ -137,7 +137,7 @@ export default function CreateChallengeTicket({
           </div>
         </div>
 
-        <div className="space-y-4 border-t border-dashed border-black/[0.08] pt-6">
+        <div className="space-y-4 border-t border-dashed border-pv-border/[0.08] pt-6">
           <div className="flex items-end justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-[0.12em] text-pv-muted">
               {t("ticketYourCommitment")}
@@ -149,7 +149,7 @@ export default function CreateChallengeTicket({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-pv-border/30 bg-pv-surface2/60 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-t border-pv-border/25 bg-pv-surface2/60 px-4 py-3">
         <div className="flex min-w-0 shrink gap-px" aria-hidden>
           {[1, 2, 2, 3, 2, 1, 2, 1, 2, 1].map((w, i) => (
             <div

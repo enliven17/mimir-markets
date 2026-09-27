@@ -8,34 +8,41 @@
 @tailwind utilities;
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Solana purple theme tokens (RGB triplets consumed by tailwind `pv-*`).
-   :root = light, .dark = dark. Brand purple #9945FF, brand green #14F195.
+   Purple blueprint tokens (RGB triplets consumed by tailwind `pv-*`).
+   The blueprint look: a deep violet "drafting sheet" ruled with thin ink
+   lines (`pv-border` at /25), sharp corners, framed sections. `pv-border` is
+   the INK colour — white on dark, deep violet on light — so every hairline
+   (`border-pv-border/25`, `bg-pv-border/[0.04]`) works in both themes.
+   Accent = Solana purple (#9945FF family); `gold` = Solana green (#14F195),
+   used sparingly for money/payout figures. All text pairs meet WCAG AA
+   (>= 4.5:1) against bg/surface/surface2 — see docs/DESIGN.md.
+   :root = light, .dark = dark (default; set before paint in app/layout.tsx).
    ────────────────────────────────────────────────────────────────────────── */
 :root {
-  --pv-bg:       250 247 255;  /* #FAF7FF */
-  --pv-surface:  243 237 255;  /* #F3EDFF */
-  --pv-surface2: 231 219 255;  /* #E7DBFF */
-  --pv-border:   201 179 255;  /* #C9B3FF */
-  --pv-text:     26 17 38;     /* #1A1126 */
-  --pv-muted:    107 91 138;   /* #6B5B8A */
-  --pv-accent:   153 69 255;   /* #9945FF — Solana purple */
-  --pv-accent2:  124 58 237;   /* #7C3AED */
-  --pv-gold:     16 185 129;   /* #10B981 — green, readable on light */
-  --pv-danger:   220 38 38;    /* #DC2626 */
+  --pv-bg:       248 245 255;  /* #F8F5FF — lavender drafting paper */
+  --pv-surface:  241 235 255;  /* #F1EBFF */
+  --pv-surface2: 231 221 255;  /* #E7DDFF */
+  --pv-border:   42 20 102;    /* #2A1466 — violet ink (use at /25) */
+  --pv-text:     21 10 48;     /* #150A30 */
+  --pv-muted:    90 74 130;    /* #5A4A82 */
+  --pv-accent:   123 47 232;   /* #7B2FE8 — Solana purple, darkened for AA */
+  --pv-accent2:  153 69 255;   /* #9945FF — Solana purple (fills/glows) */
+  --pv-gold:     3 107 75;     /* #036B4B — Solana green, darkened for AA */
+  --pv-danger:   200 30 30;    /* #C81E1E */
   color-scheme: light;
 }
 
 .dark {
-  --pv-bg:       7 7 9;        /* #070709 — near-black */
-  --pv-surface:  17 17 21;     /* #111115 */
-  --pv-surface2: 27 27 33;     /* #1B1B21 */
-  --pv-border:   48 48 56;     /* #303038 */
-  --pv-text:     244 244 248;  /* #F4F4F8 */
-  --pv-muted:    150 150 162;  /* #9696A2 */
-  --pv-accent:   169 112 255;  /* #A970FF — purple accent (text/borders/buttons) */
-  --pv-accent2:  153 69 255;   /* #9945FF */
+  --pv-bg:       14 7 36;      /* #0E0724 — deep violet night */
+  --pv-surface:  20 11 48;     /* #140B30 */
+  --pv-surface2: 27 16 62;     /* #1B103E */
+  --pv-border:   255 255 255;  /* white ink (use at /25) */
+  --pv-text:     255 255 255;  /* #FFFFFF */
+  --pv-muted:    180 165 218;  /* #B4A5DA */
+  --pv-accent:   180 125 255;  /* #B47DFF — purple, lifted for AA on dark */
+  --pv-accent2:  153 69 255;   /* #9945FF — Solana purple */
   --pv-gold:     20 241 149;   /* #14F195 — Solana green */
-  --pv-danger:   255 97 102;   /* #FF6166 */
+  --pv-danger:   255 107 114;  /* #FF6B72 */
   color-scheme: dark;
 }
 
@@ -79,7 +86,7 @@
     background: radial-gradient(
       ellipse at 50% 50%,
       transparent 60%,
-      rgb(var(--pv-accent) / 0.18) 100%
+      rgb(var(--pv-accent2) / 0.12) 100%
     );
   }
 
@@ -114,9 +121,9 @@
 
   .btn-ghost {
     @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-transparent text-pv-muted border border-black/[0.15]
+           bg-transparent text-pv-muted border border-pv-border/[0.15]
            transition-[transform,box-shadow,border-color,color,background-color] duration-200 ease-out
-           hover:-translate-y-px hover:border-black/[0.28] hover:text-pv-text
+           hover:-translate-y-px hover:border-pv-border/[0.28] hover:text-pv-text
            hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)]
            active:translate-y-0 active:scale-[0.98]
            disabled:cursor-not-allowed disabled:opacity-40;
@@ -137,7 +144,7 @@
            bg-transparent text-pv-fuch border border-pv-fuch/[0.3]
            transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out
            hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:border-pv-fuch
-           hover:shadow-[0_6px_20px_-4px_rgba(200,71,71,0.2)]
+           hover:shadow-[0_6px_20px_-4px_rgba(153,69,255,0.2)]
            active:translate-y-0 active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
@@ -187,17 +194,52 @@
 
   /* ── Card ── */
   .card {
-    @apply bg-pv-surface border border-black/[0.15] rounded overflow-hidden relative
+    @apply bg-pv-surface border border-pv-border/25 overflow-hidden relative
            transition-all duration-200;
   }
 
   .card-hover {
-    @apply hover:border-black/[0.25] hover:bg-pv-surface/80;
+    @apply hover:border-pv-border/45 hover:bg-pv-surface/80;
+  }
+
+  /* ── Blueprint frame system (see docs/DESIGN.md) ──
+     .bp-frame  framed surface: ink hairline, page bg, sharp corners
+     .bp-rails  left/right column rails only
+     .bp-grid   cells separated by 1px ink rules (gap-px on an ink bg);
+                children should be .bp-cell so they paint the page bg
+     .bp-label  mono eyebrow label above figures / blocks
+     .bp-paper  faint graph-paper ruling for hero / CTA surfaces */
+  .bp-frame {
+    @apply border border-pv-border/25 bg-pv-bg;
+  }
+  .bp-rails {
+    @apply border-x border-pv-border/25;
+  }
+  .bp-grid {
+    @apply grid gap-px bg-pv-border/25;
+  }
+  .bp-cell {
+    @apply bg-pv-bg;
+  }
+  .bp-label {
+    @apply font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-pv-muted;
+  }
+  /* Inside PageFrame the frame already draws the rails — drop the inner
+     rails of headings/sections so the column line stays single. */
+  .bp-page [data-bp-rails] {
+    border-left-width: 0;
+    border-right-width: 0;
+  }
+  .bp-paper {
+    background-image:
+      linear-gradient(rgb(var(--pv-border) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--pv-border) / 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
 
   /* ── Form elements ── */
   .input {
-    @apply w-full px-4 py-3.5 rounded bg-pv-surface2 border border-black/[0.1]
+    @apply w-full px-4 py-3.5 rounded bg-pv-surface2 border border-pv-border/[0.1]
            text-pv-text placeholder:text-pv-muted font-body text-[15px]
            focus:border-pv-emerald/60 focus:border
            transition-colors duration-150 outline-none;
@@ -218,13 +260,12 @@
    * Selects de Market type / Odds mode: mismo sistema que `.form-field-pv` + chevron + altura táctil y hover suave.
    */
   .select-field-pv {
-    @apply w-full min-h-[3.25rem] cursor-pointer appearance-none rounded-xl border border-black/[0.12]
+    @apply w-full min-h-[3.25rem] cursor-pointer appearance-none rounded-xl border border-pv-border/[0.12]
            bg-pv-bg/90 bg-no-repeat px-4 py-3 pr-11 font-body text-sm font-medium tracking-tight
            text-pv-text antialiased outline-none transition-[border-color,box-shadow,background-color]
-           duration-200 hover:border-black/[0.22] hover:bg-pv-surface/[0.4]
+           duration-200 hover:border-pv-border/[0.22] hover:bg-pv-surface/[0.4]
            focus-visible:border-pv-emerald/50 focus-visible:ring-1 focus-visible:ring-pv-emerald/25
            focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
-    color-scheme: light;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath stroke='%23A8A4B8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 0.75rem center;
     background-size: 1.125rem 1.125rem;
@@ -235,7 +276,7 @@
    * `rounded-xl`, borde blanco suave, foco con anillo fino (sin duplicar borde verde grueso de `.input`).
    */
   .form-field-pv {
-    @apply w-full rounded-xl border border-black/[0.12] bg-pv-bg/90 px-4 py-3.5
+    @apply w-full rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3.5
            font-body text-sm text-pv-text
            placeholder:text-pv-muted/50
            outline-none transition-[border-color,box-shadow]
@@ -248,21 +289,21 @@
   }
 
   .chip {
-    @apply px-3.5 py-1.5 rounded border border-black/[0.15] bg-transparent
+    @apply px-3.5 py-1.5 rounded border border-pv-border/[0.15] bg-transparent
            text-sm font-semibold cursor-pointer transition-all duration-150;
   }
 
   /* ── Ambient rivalry glow (VS detail) — soft blush, light theme ── */
   .rivalry-bg {
     background:
-      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.35) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(180,140,255,0.55) 0%, transparent 70%);
+      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.18) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(153,69,255,0.22) 0%, transparent 70%);
   }
 
   .rivalry-card-ambient {
     background:
-      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.30) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(180,140,255,0.45) 0%, transparent 70%);
+      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.16) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(153,69,255,0.18) 0%, transparent 70%);
   }
 
   /* ── Glow utilities (re-tinted to the blush palette) ── */
@@ -277,7 +318,7 @@
   .glow-fuch {
     background: radial-gradient(
       ellipse at 100% 50%,
-      rgba(180, 140, 255, 0.32),
+      rgba(153, 69, 255, 0.22),
       transparent 65%
     );
   }
@@ -293,7 +334,7 @@
   .glow-gold {
     background: radial-gradient(
       ellipse at 50% 50%,
-      rgba(251, 239, 239, 0.4),
+      rgba(20, 241, 149, 0.14),
       transparent 65%
     );
   }
@@ -316,7 +357,7 @@
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgb(var(--pv-accent) / 0.55); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--pv-accent) / 0.55); border-radius: 0; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--pv-accent)); }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -330,7 +371,7 @@
   color: #ffffff;
   height: auto;
   padding: 0.55rem 1.1rem;
-  border-radius: 8px;
+  border-radius: 0;
   font-family: "Maple Mono", var(--font-display), ui-monospace, monospace;
   font-size: 12px;
   font-weight: 700;
@@ -356,14 +397,14 @@
 }
 .wallet-adapter-button .wallet-adapter-button-start-icon,
 .wallet-adapter-button .wallet-adapter-button-end-icon {
-  display: none; /* drop the default wallet glyph for a cleaner pill */
+  display: none; /* drop the default wallet glyph for a cleaner chip */
 }
 
 /* Wallet selection modal — themed surface for light/dark. */
 .wallet-adapter-modal-wrapper {
   background: rgb(var(--pv-surface));
   border: 1px solid rgb(var(--pv-border));
-  border-radius: 16px;
+  border-radius: 0;
   color: rgb(var(--pv-text));
 }
 .wallet-adapter-modal-title { color: rgb(var(--pv-text)); }

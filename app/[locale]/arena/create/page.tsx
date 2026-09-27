@@ -212,7 +212,7 @@ export default function CreateMarketPage() {
               </div>
 
               {/* On-chain transaction proof */}
-              <div className="rounded-xl border border-black/[0.1] bg-pv-bg/60 p-4 space-y-3">
+              <div className="rounded-xl border border-pv-border/[0.1] bg-pv-bg/60 p-4 space-y-3">
                 <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-emerald/80">
                   On-chain proof
                 </p>
@@ -275,7 +275,7 @@ export default function CreateMarketPage() {
         <div className="mb-4 flex flex-wrap items-center gap-4 sm:gap-6">
           <Link
             href="/arena"
-            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-black/[0.1] hover:bg-black/[0.04] hover:text-pv-text"
+            className="inline-flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted transition-[color,border-color,background-color] hover:border-pv-border/[0.1] hover:bg-pv-border/[0.04] hover:text-pv-text"
           >
             ← Arena
           </Link>
@@ -290,7 +290,7 @@ export default function CreateMarketPage() {
 
       {!wallet.connected ? (
         <AnimatedItem>
-          <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12]">
+          <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12]">
             <div className="flex flex-col items-center gap-4 p-8 text-center sm:p-12">
               <p className="text-sm text-pv-muted">Connect your wallet to publish a challenge.</p>
               <WalletMultiButton />
@@ -304,7 +304,7 @@ export default function CreateMarketPage() {
 
             {/* Challenge section */}
             <AnimatedItem>
-              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12] w-full">
+              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12] w-full">
                 <div className="space-y-6 p-6 sm:p-8">
                   <div className="mb-2 flex items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-pv-emerald/10 text-pv-emerald" aria-hidden>
@@ -321,7 +321,7 @@ export default function CreateMarketPage() {
                     <textarea
                       id={`create-q-${challengeFieldUid}`}
                       rows={5}
-                      className="min-h-[160px] w-full resize-none rounded-2xl border border-black/[0.12] bg-pv-bg/40 p-6 sm:p-8 font-display text-xl leading-snug tracking-tight text-pv-text outline-none transition-all placeholder:text-pv-muted/30 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/30 sm:text-2xl md:text-[26px]"
+                      className="min-h-[160px] w-full resize-none rounded-2xl border border-pv-border/[0.12] bg-pv-bg/40 p-6 sm:p-8 font-display text-xl leading-snug tracking-tight text-pv-text outline-none transition-all placeholder:text-pv-muted/30 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/30 sm:text-2xl md:text-[26px]"
                       placeholder="Will Bitcoin trade above $70,000 at the deadline?"
                       aria-labelledby={challengeHeadingId}
                       value={question}
@@ -340,7 +340,7 @@ export default function CreateMarketPage() {
                         if (d) { setCreatorPos(d.creator); setOpponentPos(d.opponent); }
                       }}
                       disabled={question.trim().length === 0}
-                      className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-black/[0.1] bg-black/[0.04] px-2.5 py-1.5 text-left text-[11px] font-medium leading-snug text-pv-text/90 transition-colors hover:border-black/[0.16] hover:bg-black/[0.07] disabled:cursor-not-allowed disabled:opacity-40 sm:max-w-[min(100%,15rem)]"
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-pv-border/[0.1] bg-pv-border/[0.04] px-2.5 py-1.5 text-left text-[11px] font-medium leading-snug text-pv-text/90 transition-colors hover:border-pv-border/[0.16] hover:bg-pv-border/[0.07] disabled:cursor-not-allowed disabled:opacity-40 sm:max-w-[min(100%,15rem)]"
                       title={t("outcomeAutofillHint")}
                     >
                       <Wand2 className="size-3.5 shrink-0 text-pv-emerald/90" aria-hidden />
@@ -350,7 +350,7 @@ export default function CreateMarketPage() {
 
                   {/* Side A / Side B */}
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-0">
-                    <div className="relative flex flex-col gap-4 md:pr-4 md:border-r md:border-black/[0.06]">
+                    <div className="relative flex flex-col gap-4 md:pr-4 md:border-r md:border-pv-border/[0.06]">
                       <div className="relative flex items-center gap-2.5">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pv-cyan/10 text-pv-cyan" aria-hidden>
                           <User size={16} strokeWidth={2} />
@@ -395,7 +395,7 @@ export default function CreateMarketPage() {
 
             {/* Stake section */}
             <AnimatedItem>
-              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12] w-full">
+              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12] w-full">
                 <div className="space-y-3 p-6 sm:p-8">
                   <h3 className="flex items-center gap-2.5 font-display text-xs font-bold uppercase tracking-[0.18em] text-pv-text sm:tracking-[0.2em]">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pv-emerald/10 text-pv-emerald" aria-hidden>
@@ -413,8 +413,8 @@ export default function CreateMarketPage() {
                         aria-pressed={stake === amount && presetStakeHighlight}
                         className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                           stake === amount && presetStakeHighlight
-                            ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(52,211,153,0.3)]"
-                            : "border border-black/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
+                            ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                            : "border border-pv-border/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                         }`}
                       >
                         {amount} USDC
@@ -422,8 +422,8 @@ export default function CreateMarketPage() {
                     ))}
                     <div className={`flex min-h-[2.75rem] w-full min-w-0 items-center justify-center rounded-lg border px-1.5 py-1.5 transition-[border-color,background-color,color,box-shadow] sm:min-h-[3.25rem] sm:px-2 sm:py-2 ${
                       customStakeFocused || !isPresetStakeAmount(stake)
-                        ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(52,211,153,0.3)]"
-                        : "border border-black/[0.12] bg-pv-surface text-pv-muted"
+                        ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                        : "border border-pv-border/[0.12] bg-pv-surface text-pv-muted"
                     }`}>
                       <div className="inline-flex max-w-full items-center justify-center gap-0.5 sm:gap-1">
                         <input
@@ -459,7 +459,7 @@ export default function CreateMarketPage() {
 
             {/* Deadline section */}
             <AnimatedItem>
-              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12] w-full" role="group" aria-label={t("deadline")}>
+              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12] w-full" role="group" aria-label={t("deadline")}>
                 <div className="space-y-4 p-6 sm:p-8">
                   <h3 className="flex items-center gap-2.5 font-display text-xs font-bold uppercase tracking-[0.18em] text-pv-text sm:tracking-[0.2em]">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pv-emerald/10 text-pv-emerald" aria-hidden>
@@ -480,8 +480,8 @@ export default function CreateMarketPage() {
                           aria-pressed={selected}
                           className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                             selected
-                              ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(52,211,153,0.3)]"
-                              : "border border-black/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
+                              ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                              : "border border-pv-border/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                           }`}
                         >
                           {t(`presets.${id}` as any)}
@@ -499,7 +499,7 @@ export default function CreateMarketPage() {
                           min={customDateInputMin}
                           value={customDeadlineDate}
                           onChange={(e) => { setDeadlinePreset(null); setCustomDeadlineDate(e.target.value); }}
-                          className="w-full rounded-xl border border-black/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 [color-scheme:dark]"
+                          className="w-full rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 [color-scheme:dark]"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -509,7 +509,7 @@ export default function CreateMarketPage() {
                           value={customDeadlineTime}
                           onChange={(e) => { setDeadlinePreset(null); setCustomDeadlineTime(e.target.value); }}
                           disabled={!customDeadlineDate}
-                          className="w-full rounded-xl border border-black/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 disabled:cursor-not-allowed disabled:opacity-50 [color-scheme:dark]"
+                          className="w-full rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 disabled:cursor-not-allowed disabled:opacity-50 [color-scheme:dark]"
                         />
                       </div>
                     </div>
@@ -520,7 +520,7 @@ export default function CreateMarketPage() {
 
             {/* Resolution source section */}
             <AnimatedItem>
-              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12] w-full" role="group" aria-label={t("verificationSourceSectionTitle")}>
+              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12] w-full" role="group" aria-label={t("verificationSourceSectionTitle")}>
                 <div className="space-y-4 p-6 sm:p-8">
                   <h3 className="flex items-center gap-2.5 font-display text-xs font-bold uppercase tracking-[0.18em] text-pv-text sm:tracking-[0.2em]">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pv-emerald/10 text-pv-emerald" aria-hidden>
@@ -535,12 +535,12 @@ export default function CreateMarketPage() {
                     placeholder={t("verificationUrlPlaceholder")}
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    className="w-full rounded-xl border border-black/[0.12] bg-pv-bg/90 px-4 py-3 font-mono text-xs text-pv-text outline-none transition-all placeholder:text-pv-muted/40 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20"
+                    className="w-full rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3 font-mono text-xs text-pv-text outline-none transition-all placeholder:text-pv-muted/40 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20"
                   />
                   <p className={`text-xs leading-relaxed ${sourceNeedsWork ? "text-amber-300" : "text-pv-muted"}`}>
                     {sourceNeedsWork ? t("qualitySource") : t("sourceStrengthHint")}
                   </p>
-                  <div className="space-y-3 rounded-xl border border-black/[0.08] bg-pv-bg/70 p-4 sm:p-5">
+                  <div className="space-y-3 rounded-xl border border-pv-border/[0.08] bg-pv-bg/70 p-4 sm:p-5">
                     <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-pv-emerald/85">{t("verificationGuidanceTitle")}</h4>
                     <p className="text-sm leading-relaxed text-pv-muted">{categoryGuidance.sourceHint}</p>
                     <div className="flex flex-wrap gap-2">
@@ -549,7 +549,7 @@ export default function CreateMarketPage() {
                           key={example}
                           type="button"
                           onClick={() => setUrl(`https://${example}`)}
-                          className="rounded-full border border-black/[0.08] bg-black/[0.03] px-3 py-1.5 font-mono text-[10px] font-medium text-pv-muted/70 transition-colors hover:border-black/[0.14] hover:text-pv-muted"
+                          className="rounded-full border border-pv-border/[0.08] bg-pv-border/[0.03] px-3 py-1.5 font-mono text-[10px] font-medium text-pv-muted/70 transition-colors hover:border-pv-border/[0.14] hover:text-pv-muted"
                         >
                           {example}
                         </button>
@@ -562,13 +562,13 @@ export default function CreateMarketPage() {
 
             {/* Advanced section (collapsible) */}
             <AnimatedItem>
-              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-black/[0.12] w-full overflow-hidden">
+              <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/[0.12] w-full overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setAdvancedOpen((v) => !v)}
                   aria-expanded={advancedOpen}
                   aria-controls={termsPanelId}
-                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-black/[0.02] sm:px-8 sm:py-6"
+                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-pv-border/[0.02] sm:px-8 sm:py-6"
                 >
                   <div className="flex min-w-0 gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pv-emerald/10 text-pv-emerald" aria-hidden>
@@ -588,7 +588,7 @@ export default function CreateMarketPage() {
                   className={`overflow-hidden ${!advancedOpen ? "pointer-events-none" : ""}`}
                   aria-hidden={!advancedOpen}
                 >
-                  <div id={termsPanelId} className="space-y-8 border-t border-black/[0.08] px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
+                  <div id={termsPanelId} className="space-y-8 border-t border-pv-border/[0.08] px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
                     {/* Category */}
                     <div className="space-y-3">
                       <label className="block text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted">{t("category")}</label>
@@ -603,8 +603,8 @@ export default function CreateMarketPage() {
                               aria-pressed={selected}
                               className={`rounded-lg border px-3 py-2.5 text-left font-display text-[11px] font-bold capitalize transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 sm:text-xs ${
                                 selected
-                                  ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(52,211,153,0.3)]"
-                                  : "border border-black/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
+                                  ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                                  : "border border-pv-border/[0.12] bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                               }`}
                             >
                               {cat.label}
@@ -622,7 +622,7 @@ export default function CreateMarketPage() {
                       <textarea
                         id="settlement-rule"
                         rows={4}
-                        className="w-full resize-none rounded-xl border border-black/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all placeholder:text-pv-muted/40 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20"
+                        className="w-full resize-none rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all placeholder:text-pv-muted/40 focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20"
                         placeholder={t("settlementPlaceholder")}
                         value={settlementRule}
                         onChange={(e) => setSettlementRule(e.target.value)}
@@ -632,7 +632,7 @@ export default function CreateMarketPage() {
                         <button
                           type="button"
                           onClick={() => setSettlementRule(recommendedSettlementTemplate)}
-                          className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-black/[0.1] bg-black/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-pv-text/90 transition-colors hover:border-black/[0.16] hover:bg-black/[0.07] sm:self-auto"
+                          className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-pv-border/[0.1] bg-pv-border/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-pv-text/90 transition-colors hover:border-pv-border/[0.16] hover:bg-pv-border/[0.07] sm:self-auto"
                         >
                           <Wand2 className="size-3.5 shrink-0 text-pv-emerald/90" aria-hidden />
                           <span>{t("useRecommendedRule")}</span>

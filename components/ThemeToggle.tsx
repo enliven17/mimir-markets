@@ -34,7 +34,7 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       title={dark ? "Light mode" : "Dark mode"}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-pv-border/40 bg-pv-surface/60 text-pv-text/80 transition-colors hover:border-pv-emerald/40 hover:text-pv-emerald focus-ring"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-pv-border/25 bg-pv-surface/60 text-pv-text/80 transition-colors hover:border-pv-emerald/40 hover:text-pv-emerald focus-ring"
     >
       {/* Avoid an icon mismatch before mount: render the moon as a neutral default */}
       {mounted && dark ? <Sun size={16} /> : <Moon size={16} />}

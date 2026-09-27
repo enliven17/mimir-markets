@@ -44,7 +44,7 @@ export default function Header() {
       <nav
         className={`mx-auto flex h-14 max-w-[1100px] items-center justify-between px-4 transition-all duration-300 ease-out sm:px-6 ${
           scrolled || mobileOpen
-            ? "mt-2 rounded-2xl border border-pv-border/40 bg-pv-surface/70 shadow-[0_10px_40px_-12px_rgba(153,69,255,0.18)] backdrop-blur-[18px] sm:mt-3"
+            ? "mt-2 rounded-2xl border border-pv-border/25 bg-pv-surface/70 shadow-[0_10px_40px_-12px_rgba(153,69,255,0.18)] backdrop-blur-[18px] sm:mt-3"
             : "mt-0 border border-transparent bg-transparent"
         }`}
       >
@@ -98,7 +98,7 @@ export default function Header() {
       </nav>
 
       {mobileOpen && (
-        <div className="mx-auto mt-2 max-w-[1100px] rounded-2xl border border-pv-border/40 bg-pv-surface/90 p-4 backdrop-blur-[18px] md:hidden">
+        <div className="mx-auto mt-2 max-w-[1100px] rounded-2xl border border-pv-border/25 bg-pv-surface/90 p-4 backdrop-blur-[18px] md:hidden">
           <div className="flex flex-col gap-3">
             {NAV.map((item) => (
               <Link

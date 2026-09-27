@@ -189,7 +189,7 @@ function StatTile({
   const valueColor =
     color === "gold" ? "text-pv-gold" : "text-pv-emerald";
   return (
-    <div className="p-5 sm:p-6 text-center border border-black/[0.06] rounded-xl bg-pv-surface/30">
+    <div className="p-5 sm:p-6 text-center border border-pv-border/[0.06] rounded-xl bg-pv-surface/30">
       <div
         className={`font-display text-3xl font-bold tracking-tight sm:text-4xl ${valueColor}`}
       >
@@ -328,14 +328,14 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.54, duration: 0.5 }}
               >
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/40 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/25 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                   <span className="h-1.5 w-1.5 rounded-full bg-pv-emerald" />
                   Solana devnet
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/40 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/25 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                   Ephemeral Rollup · ~30ms
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/40 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-pv-border/25 bg-pv-surface/50 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                   USDC · zero-fee bets
                 </span>
               </motion.div>
@@ -349,7 +349,7 @@ export default function HomePage() {
                 {/* Secondary CTA — Docs */}
                 <Link
                   href="/docs"
-                  className="group relative flex items-center justify-center overflow-hidden rounded-lg border border-pv-fuch/30 bg-transparent px-7 py-3.5 font-display text-[13px] font-bold uppercase tracking-[0.14em] text-pv-fuch/80 transition-all duration-300 hover:border-pv-fuch/60 hover:bg-pv-fuch/[0.1] hover:text-pv-fuch hover:shadow-[0_0_28px_-4px_rgba(200,71,71,0.45),inset_0_0_20px_-8px_rgba(200,71,71,0.12)]"
+                  className="group relative flex items-center justify-center overflow-hidden rounded-lg border border-pv-fuch/30 bg-transparent px-7 py-3.5 font-display text-[13px] font-bold uppercase tracking-[0.14em] text-pv-fuch/80 transition-all duration-300 hover:border-pv-fuch/60 hover:bg-pv-fuch/[0.1] hover:text-pv-fuch hover:shadow-[0_0_28px_-4px_rgba(124,58,237,0.45),inset_0_0_20px_-8px_rgba(124,58,237,0.12)]"
                 >
                   <span className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-r from-pv-fuch/[0.1] via-transparent to-pv-fuch/[0.05]" />
                   <span className="relative">How it works</span>
@@ -376,7 +376,7 @@ export default function HomePage() {
             <h2 className="font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl">
               ON-CHAIN, RIGHT NOW
             </h2>
-            <div className="h-px flex-1 bg-black/[0.12]" aria-hidden />
+            <div className="h-px flex-1 bg-pv-border/[0.12]" aria-hidden />
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -395,7 +395,7 @@ export default function HomePage() {
             <h2 className="font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl">
               THE PROTOCOL
             </h2>
-            <div className="h-px flex-1 bg-black/[0.12]" aria-hidden />
+            <div className="h-px flex-1 bg-pv-border/[0.12]" aria-hidden />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:auto-rows-[minmax(240px,auto)]">
@@ -423,7 +423,7 @@ export default function HomePage() {
                 return (
                   <div
                     key={title}
-                    className="card group relative col-span-1 flex flex-col justify-between overflow-hidden border-black/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-2 md:min-h-[280px]"
+                    className="card group relative col-span-1 flex flex-col justify-between overflow-hidden border-pv-border/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-2 md:min-h-[280px]"
                   >
                     <div className="pointer-events-none absolute -right-6 -top-6 opacity-[0.06] transition-opacity group-hover:opacity-[0.1] sm:-right-10 sm:-top-10">
                       <span
@@ -472,7 +472,7 @@ export default function HomePage() {
                 return (
                   <div
                     key={title}
-                    className="card group relative overflow-hidden flex flex-col justify-between border-black/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-1 md:min-h-[280px]"
+                    className="card group relative overflow-hidden flex flex-col justify-between border-pv-border/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-1 md:min-h-[280px]"
                   >
                     <div className="pointer-events-none absolute -right-9 -top-6 z-0 opacity-[0.06] transition-opacity group-hover:opacity-[0.1] sm:-right-13 sm:-top-10">
                       <span
@@ -514,7 +514,7 @@ export default function HomePage() {
               return (
                 <div
                   key={title}
-                  className="card group relative col-span-1 overflow-hidden flex flex-col gap-6 border-black/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-4 md:flex-row md:items-center md:justify-between md:gap-10"
+                  className="card group relative col-span-1 overflow-hidden flex flex-col gap-6 border-pv-border/[0.12] p-6 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald sm:p-8 md:col-span-4 md:flex-row md:items-center md:justify-between md:gap-10"
                 >
                   <div className="pointer-events-none absolute -right-9 -top-6 z-0 opacity-[0.06] transition-opacity group-hover:opacity-[0.1] sm:-right-13 sm:-top-10">
                     <span
@@ -546,7 +546,7 @@ export default function HomePage() {
                       </p>
                     </div>
                   </div>
-                  <div className="relative z-10 hidden h-12 w-px shrink-0 bg-black/[0.1] md:block" aria-hidden />
+                  <div className="relative z-10 hidden h-12 w-px shrink-0 bg-pv-border/[0.1] md:block" aria-hidden />
                   <div className="relative z-10 flex shrink-0 flex-col items-start gap-1 md:items-end md:text-right">
                     <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
                       Settlement
@@ -570,7 +570,7 @@ export default function HomePage() {
               <h2 className="font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl">
                 LIVE ARENA
               </h2>
-              <div className="h-px flex-1 bg-black/[0.12]" aria-hidden />
+              <div className="h-px flex-1 bg-pv-border/[0.12]" aria-hidden />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -584,7 +584,7 @@ export default function HomePage() {
                   <Link
                     key={c.id}
                     href={`/arena/${c.id}`}
-                    className="card group relative flex flex-col gap-3 overflow-hidden border-black/[0.12] p-5 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald"
+                    className="card group relative flex flex-col gap-3 overflow-hidden border-pv-border/[0.12] p-5 transition-all duration-200 hover:border-pv-emerald/[0.45] hover:shadow-glow-emerald"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-pv-surface/60 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
@@ -603,7 +603,7 @@ export default function HomePage() {
                     <h3 className="line-clamp-3 font-display text-base font-semibold leading-snug tracking-tight text-pv-text group-hover:text-pv-emerald">
                       {c.question}
                     </h3>
-                    <div className="mt-auto flex items-center justify-between border-t border-black/[0.06] pt-3">
+                    <div className="mt-auto flex items-center justify-between border-t border-pv-border/[0.06] pt-3">
                       <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-pv-muted">
                         {c.challengers.length} challenger
                         {c.challengers.length === 1 ? "" : "s"}
@@ -630,7 +630,7 @@ export default function HomePage() {
       {/* READY TO PLAY CTA */}
       <AnimatedItem>
         <div className="mt-16 sm:mt-20 mb-12">
-          <div className="group relative w-full overflow-hidden rounded-lg border border-black/[0.12] bg-pv-surface/80 px-6 py-10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:p-10 md:p-12 lg:p-14">
+          <div className="group relative w-full overflow-hidden rounded-lg border border-pv-border/[0.12] bg-pv-surface/80 px-6 py-10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:p-10 md:p-12 lg:p-14">
             <div
               className="pointer-events-none absolute inset-y-0 right-0 w-1/2 opacity-[0.14] transition-opacity duration-700 group-hover:opacity-[0.2]"
               aria-hidden
@@ -707,7 +707,7 @@ export default function HomePage() {
                   <Link key={c.id} href={`/arena/${c.id}`} className="group block">
                     <motion.div
                       whileHover={{ x: 4 }}
-                      className="flex items-center justify-between rounded border border-black/[0.06] bg-black/[0.02] p-3 transition-colors group-hover:border-pv-emerald/[0.25]"
+                      className="flex items-center justify-between rounded border border-pv-border/[0.06] bg-pv-border/[0.02] p-3 transition-colors group-hover:border-pv-emerald/[0.25]"
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className="w-8 shrink-0 font-mono text-[10px] text-pv-muted/40">

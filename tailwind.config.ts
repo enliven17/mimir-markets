@@ -1,9 +1,9 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  // Opt-in dark mode only: never auto-trigger `dark:` from the OS preference.
-  // The app is a light blush theme; stray `dark:` utilities stay inert unless
-  // we explicitly add the `dark` class to <html>.
+  // Class-based dark mode: the `dark` class on <html> is set before paint by
+  // the inline script in app/layout.tsx (dark is the default) and flipped by
+  // ThemeToggle. Never auto-triggered from the OS preference.
   darkMode: "class",
   content: [
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,10 +13,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Solana purple theme, driven by CSS variables (RGB triplets) so the
-        // same `pv-*` utilities switch between light and dark via the `dark`
-        // class on <html>. The legacy accent names (cyan/fuch/emerald) all
-        // resolve to the Solana purple family; `gold` is the Solana green.
+        // Purple blueprint palette, driven by CSS variables (RGB triplets in
+        // app/globals.css) so the same `pv-*` utilities switch between light
+        // and dark via the `dark` class on <html>. `border` is the ink colour
+        // (white on dark, violet on light) — use it at /25 for hairlines.
+        // Legacy accent names (cyan/fuch/emerald) resolve to the Solana
+        // purple family; `gold` is the Solana green (money figures only).
         pv: {
           bg:       "rgb(var(--pv-bg) / <alpha-value>)",
           surface:  "rgb(var(--pv-surface) / <alpha-value>)",
@@ -36,22 +38,25 @@ const config: Config = {
         body:    ["'Maple Mono'", "var(--font-body)",    "ui-monospace", "monospace"],
         mono:    ["'Maple Mono'", "var(--font-mono)",    "ui-monospace", "monospace"],
       },
+      // Blueprint look: sharp corners everywhere. Pills/dots/avatars keep
+      // their roundness via `rounded-full`.
       borderRadius: {
-        DEFAULT: "8px",
-        sm:    "4px",
-        md:    "8px",
-        lg:    "10px",
-        xl:    "12px",
-        "2xl": "14px",
-        "3xl": "16px",
-        "4xl": "20px",
+        DEFAULT: "0px",
+        none:  "0px",
+        sm:    "0px",
+        md:    "0px",
+        lg:    "0px",
+        xl:    "0px",
+        "2xl": "0px",
+        "3xl": "0px",
+        "4xl": "0px",
         full:  "9999px",
       },
       boxShadow: {
         glow:           "0 0 40px rgba(153,69,255,0.32)",
         "glow-fuch":    "0 0 40px rgba(153,69,255,0.28)",
         "glow-emerald": "0 0 40px rgba(153, 69, 255,0.18)",
-        "glow-gold":    "0 0 40px rgba(176,115,0,0.12)",
+        "glow-gold":    "0 0 40px rgba(20,241,149,0.12)",
         "glow-lg":      "0 0 60px rgba(153,69,255,0.36)",
         "glow-fuch-lg": "0 0 60px rgba(153,69,255,0.32)",
         "glow-emerald-lg": "0 0 60px rgba(153, 69, 255,0.22)",

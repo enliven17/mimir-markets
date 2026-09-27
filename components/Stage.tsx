@@ -13,8 +13,8 @@ interface StageProps extends Omit<HTMLMotionProps<"section">, "children"> {
 
 const glowMap: Record<string, string> = {
   cyan: "radial-gradient(ellipse 70% 50% at 0% 50%, rgba(153,69,255,0.08), transparent 70%)",
-  fuch: "radial-gradient(ellipse 70% 50% at 100% 50%, rgba(200,71,71,0.08), transparent 70%)",
-  both: "radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.08), transparent 70%), radial-gradient(ellipse 60% 40% at 100% 70%, rgba(200,71,71,0.08), transparent 70%)",
+  fuch: "radial-gradient(ellipse 70% 50% at 100% 50%, rgba(124,58,237,0.08), transparent 70%)",
+  both: "radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.08), transparent 70%), radial-gradient(ellipse 60% 40% at 100% 70%, rgba(124,58,237,0.08), transparent 70%)",
   emerald: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(153,69,255,0.06), transparent 70%)",
   none: "none",
 };

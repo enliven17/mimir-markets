@@ -86,7 +86,7 @@ function PersonaCard({
   const active = persona.stakes > 0;
 
   return (
-    <article className="flex h-full flex-col gap-4 rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-5 transition-colors hover:border-pv-border/60">
+    <article className="flex h-full flex-col gap-4 rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5 transition-colors hover:border-pv-border/40">
       <header className="flex items-start gap-3">
         <span className="text-2xl leading-none grayscale opacity-75">{persona.emoji}</span>
         <div className="min-w-0 flex-1">
@@ -104,12 +104,12 @@ function PersonaCard({
       {persona.categoryFilter && persona.categoryFilter.length > 0 && (
         <div className="flex flex-wrap gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
           {persona.categoryFilter.map((c) => (
-            <span key={c} className="rounded border border-pv-border/40 px-1.5 py-0.5">{c}</span>
+            <span key={c} className="rounded border border-pv-border/25 px-1.5 py-0.5">{c}</span>
           ))}
         </div>
       )}
 
-      <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-pv-border/30 pt-3 text-center">
+      <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-pv-border/25 pt-3 text-center">
         <div>
           <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-pv-muted">balance</dt>
           <dd className="mt-0.5 font-display text-sm font-bold tabular-nums text-pv-text">
@@ -131,7 +131,7 @@ function PersonaCard({
       </dl>
 
       {recentBets.length > 0 ? (
-        <ul className="space-y-1.5 border-t border-pv-border/30 pt-3">
+        <ul className="space-y-1.5 border-t border-pv-border/25 pt-3">
           {recentBets.map((b, i) => (
             <li key={`${b.claimId}-${i}`} className="flex items-baseline justify-between gap-2 font-mono text-[10px]">
               <Link href={`/${locale}/arena/${b.claimId}`} className="text-pv-emerald hover:underline">
@@ -142,7 +142,7 @@ function PersonaCard({
           ))}
         </ul>
       ) : (
-        <p className="border-t border-pv-border/30 pt-3 text-center font-mono text-[10px] italic text-pv-muted">
+        <p className="border-t border-pv-border/25 pt-3 text-center font-mono text-[10px] italic text-pv-muted">
           no bets yet — waiting for an in-character market
         </p>
       )}
@@ -223,16 +223,16 @@ export default function AgentsPage() {
         </p>
         {data && personas.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2 font-mono text-[11px] uppercase tracking-[0.16em]">
-            <span className="rounded-md border border-pv-border/40 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
+            <span className="rounded-md border border-pv-border/25 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
               {activeCount} active
             </span>
-            <span className="rounded-md border border-pv-border/40 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
+            <span className="rounded-md border border-pv-border/25 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
               {totalStakes} stakes
             </span>
-            <span className="rounded-md border border-pv-border/40 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
+            <span className="rounded-md border border-pv-border/25 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
               <span className="tabular-nums text-pv-text">{usdc(String(totalAtRisk))}</span> usdc at risk
             </span>
-            <span className="rounded-md border border-pv-border/40 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
+            <span className="rounded-md border border-pv-border/25 bg-pv-surface2/40 px-2 py-1 text-pv-muted">
               bankroll <span className="tabular-nums text-pv-text">{usdc(String(totalBankroll))}</span> usdc
             </span>
           </div>
@@ -289,11 +289,11 @@ export default function AgentsPage() {
       )}
 
       {!data ? (
-        <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-12 text-center">
+        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-12 text-center">
           <p className="text-base text-pv-text">Loading the council…</p>
         </div>
       ) : personas.length === 0 ? (
-        <div className="rounded-2xl border border-pv-border/30 bg-pv-surface/70 p-12 text-center">
+        <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-12 text-center">
           <p className="text-base text-pv-text">No agent activity yet.</p>
           <p className="mt-2 text-sm text-pv-muted">
             Once the council stakes or the oracle settles, the roster fills in here.

@@ -274,7 +274,7 @@ function Section({ id, eyebrow, title, children }: { id?: string; eyebrow: strin
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-pv-border/40 bg-pv-surface/70 p-5">
+    <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
       <h3 className="mb-2 font-bold tracking-tight text-pv-text">{title}</h3>
       <div className="text-sm leading-relaxed text-pv-text/80">{children}</div>
     </div>
@@ -283,7 +283,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function DiagramFrame({ children, caption }: { children: React.ReactNode; caption: string }) {
   return (
-    <figure className="my-4 rounded-2xl border border-pv-border/40 bg-pv-surface/40 p-5 sm:p-7">
+    <figure className="my-4 rounded-2xl border border-pv-border/25 bg-pv-surface/40 p-5 sm:p-7">
       <div className="overflow-x-auto">{children}</div>
       <figcaption className="mt-3 text-center text-xs text-pv-muted">{caption}</figcaption>
     </figure>
@@ -294,7 +294,7 @@ function TocLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
-      className="block border-l-2 border-pv-border/40 py-1 pl-3 text-sm text-pv-text/80 transition-colors hover:border-pv-emerald hover:text-pv-text"
+      className="block border-l-2 border-pv-border/25 py-1 pl-3 text-sm text-pv-text/80 transition-colors hover:border-pv-emerald hover:text-pv-text"
     >
       {label}
     </a>
@@ -327,7 +327,7 @@ export default function DocsPage() {
       </header>
 
       {/* TOC */}
-      <nav aria-label="Table of contents" className="rounded-2xl border border-pv-border/30 bg-pv-surface/40 p-5">
+      <nav aria-label="Table of contents" className="rounded-2xl border border-pv-border/25 bg-pv-surface/40 p-5">
         <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">Contents</p>
         <div className="grid gap-1 sm:grid-cols-2">
           <TocLink href="#what" label="1. What a claim is" />
@@ -534,7 +534,7 @@ export default function DocsPage() {
 
       <Section id="terms" eyebrow="07" title="On-chain terms">
         <p>A few terms that show up in the UI and on chain:</p>
-        <div className="overflow-hidden rounded-2xl border border-pv-border/40">
+        <div className="overflow-hidden rounded-2xl border border-pv-border/25">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-pv-surface/60 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-pv-muted">
@@ -542,7 +542,7 @@ export default function DocsPage() {
                 <th className="px-4 py-3">What it means</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-pv-border/30">
+            <tbody className="divide-y divide-pv-border/25">
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">creator</td><td className="px-4 py-3 align-top text-pv-text/85">The wallet that opened the claim and staked side A.</td></tr>
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">vault PDA</td><td className="px-4 py-3 align-top text-pv-text/85">Program-owned SPL token account holding all escrowed USDC (6 decimals).</td></tr>
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">balance PDA</td><td className="px-4 py-3 align-top text-pv-text/85">A user&apos;s virtual betting balance, delegated to the ER so challenges are free.</td></tr>
@@ -632,7 +632,7 @@ export default function DocsPage() {
         </div>
       </Section>
 
-      <footer className="border-t border-pv-border/30 pt-8 text-sm text-pv-muted">
+      <footer className="border-t border-pv-border/25 pt-8 text-sm text-pv-muted">
         Got a question that isn&apos;t answered here?{" "}
         <a className="text-pv-emerald underline" href="https://github.com/enliven17/mimir/issues" target="_blank" rel="noreferrer">
           Open an issue on GitHub

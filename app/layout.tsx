@@ -23,7 +23,7 @@ export default function RootLayout({
       </head>
       <body className="overflow-x-hidden">
         <NextTopLoader
-          color="#22D3EE"
+          color="#9945FF"
           height={2}
           showSpinner={false}
           shadow={false}
@@ -32,13 +32,13 @@ export default function RootLayout({
           {children}
           <Toaster
             position="bottom-center"
-            theme="dark"
             toastOptions={{
+              // Theme tokens, so toasts follow the light/dark toggle.
               style: {
-                background: "#18181B",
-                border: "1px solid #27272A",
-                color: "#FAFAFA",
-                borderRadius: 16,
+                background: "rgb(var(--pv-surface))",
+                border: "1px solid rgb(var(--pv-border) / 0.25)",
+                color: "rgb(var(--pv-text))",
+                borderRadius: 0,
                 fontFamily: "var(--font-body)",
               },
             }}
