@@ -1,27 +1,24 @@
 "use client";
 
 import { Link } from "@/i18n/navigation";
+import { BlueprintHeading } from "@/components/BlueprintGrid";
 
 /* ───────────────────────────────────────────────────────────────────────────
  * Mimir docs — 100% Solana.
  *
- * Inline SVG diagrams hand-drawn in the project's blush palette so they
- * inherit the visual language without pulling in Mermaid. Each is responsive
- * via `viewBox`. No EVM / Arc / Circle-CCTP content anywhere.
- *
- * Palette tokens mirror tailwind.config.ts > theme.extend.colors.pv:
- *   bg #FCF8F8 · surface #FBEFEF · surface2 #F9DFDF · border #F5AFAF
- *   text #2A1818 · muted #7A5050 · accent #D85F5F (the "pv-emerald" alias)
+ * Inline SVG diagrams drawn with the blueprint tokens (CSS variables, so they
+ * follow the light/dark toggle) and sharp corners. Each is responsive via
+ * `viewBox`. No EVM / Arc / Circle-CCTP content anywhere.
  * ───────────────────────────────────────────────────────────────────────── */
 
 const C = {
-  bg: "#FAF7FF",
-  surface: "#F3EDFF",
-  surf2: "#E7DBFF",
-  border: "#C9B3FF",
-  text: "#1A1126",
-  muted: "#6B5B8A",
-  accent: "#9945FF",
+  bg: "rgb(var(--pv-bg))",
+  surface: "rgb(var(--pv-surface))",
+  surf2: "rgb(var(--pv-surface2))",
+  border: "rgb(var(--pv-border) / 0.35)",
+  text: "rgb(var(--pv-text))",
+  muted: "rgb(var(--pv-muted))",
+  accent: "rgb(var(--pv-accent))",
 };
 
 /* ── 1. Architecture diagram ─────────────────────────────────────────────── */
@@ -36,14 +33,14 @@ function ArchitectureDiagram() {
 
       {/* Users */}
       <g>
-        <rect x="20" y="160" width="130" height="64" rx="14" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
+        <rect x="20" y="160" width="130" height="64" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
         <text x="85" y="188" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>Users</text>
         <text x="85" y="206" textAnchor="middle" fontSize="10" fill={C.muted}>Phantom / Solflare</text>
       </g>
 
       {/* Frontend (Web tier) */}
       <g>
-        <rect x="200" y="40" width="230" height="120" rx="16" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
+        <rect x="200" y="40" width="230" height="120" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
         <text x="315" y="68" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.muted} letterSpacing="2">WEB TIER · NEXT.JS 16</text>
         <text x="315" y="96" textAnchor="middle" fontSize="14" fontWeight="700" fill={C.text}>/arena · /arena/[id]</text>
         <text x="315" y="118" textAnchor="middle" fontSize="11" fill={C.muted}>wallet-adapter signing</text>
@@ -52,7 +49,7 @@ function ArchitectureDiagram() {
 
       {/* Workers */}
       <g>
-        <rect x="200" y="210" width="230" height="130" rx="16" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
+        <rect x="200" y="210" width="230" height="130" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
         <text x="315" y="238" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.muted} letterSpacing="2">WORKER TIER · NODE</text>
         <text x="315" y="262" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>oracle · creator · council</text>
         <text x="315" y="282" textAnchor="middle" fontSize="11" fill={C.muted}>11 agents, Solana keypairs</text>
@@ -62,7 +59,7 @@ function ArchitectureDiagram() {
 
       {/* Solana base layer */}
       <g>
-        <rect x="490" y="40" width="220" height="130" rx="16" fill={C.surf2} stroke={C.accent} strokeWidth="1.8" />
+        <rect x="490" y="40" width="220" height="130" fill={C.surf2} stroke={C.accent} strokeWidth="1.8" />
         <text x="600" y="68" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">SOLANA DEVNET</text>
         <text x="600" y="94" textAnchor="middle" fontSize="14" fontWeight="700" fill={C.text}>Mimir Anchor program</text>
         <text x="600" y="116" textAnchor="middle" fontSize="11" fill={C.muted}>USDC vault PDA</text>
@@ -72,7 +69,7 @@ function ArchitectureDiagram() {
 
       {/* Ephemeral Rollup */}
       <g>
-        <rect x="490" y="210" width="220" height="130" rx="16" fill={C.surface} stroke={C.accent} strokeWidth="1.8" strokeDasharray="5 3" />
+        <rect x="490" y="210" width="220" height="130" fill={C.surface} stroke={C.accent} strokeWidth="1.8" strokeDasharray="5 3" />
         <text x="600" y="238" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">MAGICBLOCK ER</text>
         <text x="600" y="264" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>delegated PDAs</text>
         <text x="600" y="284" textAnchor="middle" fontSize="11" fill={C.muted}>zero-fee challenges</text>
@@ -82,10 +79,10 @@ function ArchitectureDiagram() {
 
       {/* Flash Trade + LLM */}
       <g>
-        <rect x="760" y="120" width="120" height="60" rx="12" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
+        <rect x="760" y="120" width="120" height="60" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
         <text x="820" y="144" textAnchor="middle" fontSize="10" fontWeight="700" fill={C.muted} letterSpacing="1.5">FLASH TRADE</text>
         <text x="820" y="162" textAnchor="middle" fontSize="10" fill={C.text}>prices · perps</text>
-        <rect x="760" y="200" width="120" height="60" rx="12" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
+        <rect x="760" y="200" width="120" height="60" fill={C.surface} stroke={C.border} strokeWidth="1.5" />
         <text x="820" y="224" textAnchor="middle" fontSize="10" fontWeight="700" fill={C.muted} letterSpacing="1.5">LLM PROVIDER</text>
         <text x="820" y="242" textAnchor="middle" fontSize="10" fill={C.text}>Gemini · Claude</text>
       </g>
@@ -116,44 +113,44 @@ function TwoLayerDiagram() {
 
       {/* Base layer */}
       <g>
-        <rect x="30" y="30" width="380" height="260" rx="18" fill={C.bg} stroke={C.accent} strokeWidth="1.8" />
+        <rect x="30" y="30" width="380" height="260" fill={C.bg} stroke={C.accent} strokeWidth="1.8" />
         <text x="220" y="58" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">BASE LAYER · SOLANA — OWNS ALL USDC</text>
 
-        <rect x="60" y="80" width="320" height="56" rx="12" fill={C.surf2} stroke={C.border} strokeWidth="1.4" />
+        <rect x="60" y="80" width="320" height="56" fill={C.surf2} stroke={C.border} strokeWidth="1.4" />
         <text x="220" y="104" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>USDC Vault PDA</text>
         <text x="220" y="122" textAnchor="middle" fontSize="11" fill={C.muted}>all escrowed stakes, SPL token (6 decimals)</text>
 
-        <rect x="60" y="150" width="150" height="50" rx="10" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
+        <rect x="60" y="150" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="135" y="170" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>deposit / withdraw</text>
         <text x="135" y="188" textAnchor="middle" fontSize="10" fill={C.muted}>credits virtual balance</text>
 
-        <rect x="230" y="150" width="150" height="50" rx="10" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
+        <rect x="230" y="150" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="305" y="170" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>create_claim</text>
         <text x="305" y="188" textAnchor="middle" fontSize="10" fill={C.muted}>escrow + delegate</text>
 
-        <rect x="60" y="214" width="150" height="50" rx="10" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
+        <rect x="60" y="214" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="135" y="234" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>resolve_claim</text>
         <text x="135" y="252" textAnchor="middle" fontSize="10" fill={C.muted}>verdict + evidence hash</text>
 
-        <rect x="230" y="214" width="150" height="50" rx="10" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
+        <rect x="230" y="214" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="305" y="234" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>payout cranks</text>
         <text x="305" y="252" textAnchor="middle" fontSize="10" fill={C.muted}>pull USDC from vault</text>
       </g>
 
       {/* ER layer */}
       <g>
-        <rect x="490" y="30" width="380" height="260" rx="18" fill={C.bg} stroke={C.accent} strokeWidth="1.8" strokeDasharray="6 3" />
+        <rect x="490" y="30" width="380" height="260" fill={C.bg} stroke={C.accent} strokeWidth="1.8" strokeDasharray="6 3" />
         <text x="680" y="58" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">EPHEMERAL ROLLUP — OWNS GAMEPLAY</text>
 
-        <rect x="520" y="80" width="320" height="56" rx="12" fill={C.surface} stroke={C.border} strokeWidth="1.4" />
+        <rect x="520" y="80" width="320" height="56" fill={C.surface} stroke={C.border} strokeWidth="1.4" />
         <text x="680" y="104" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>Delegated Claim PDAs</text>
         <text x="680" y="122" textAnchor="middle" fontSize="11" fill={C.muted}>question · stakes · challenger wall</text>
 
-        <rect x="520" y="150" width="320" height="50" rx="10" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
+        <rect x="520" y="150" width="320" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="680" y="170" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>Delegated UserBalance PDAs</text>
         <text x="680" y="188" textAnchor="middle" fontSize="10" fill={C.muted}>virtual betting balance</text>
 
-        <rect x="520" y="214" width="320" height="50" rx="10" fill={C.surf2} stroke={C.border} strokeWidth="1.4" />
+        <rect x="520" y="214" width="320" height="50" fill={C.surf2} stroke={C.border} strokeWidth="1.4" />
         <text x="680" y="234" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>challenge_claim ⚡</text>
         <text x="680" y="252" textAnchor="middle" fontSize="10" fill={C.muted}>debit balance, append challenger · zero fee</text>
       </g>
@@ -224,7 +221,7 @@ function AgentLoopDiagram() {
 
       {/* Settler branch */}
       <g>
-        <rect x="380" y="50" width="290" height="120" rx="14" fill={C.surf2} stroke={C.accent} strokeWidth="1.6" />
+        <rect x="380" y="50" width="290" height="120" fill={C.surf2} stroke={C.accent} strokeWidth="1.6" />
         <text x="525" y="76" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">ROLE A · SETTLER</text>
         <text x="525" y="100" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>ACTIVE claim · deadline passed</text>
         <text x="525" y="122" textAnchor="middle" fontSize="11" fill={C.muted}>undelegate → fetch Flash evidence</text>
@@ -233,7 +230,7 @@ function AgentLoopDiagram() {
 
       {/* Challenger branch */}
       <g>
-        <rect x="380" y="200" width="290" height="140" rx="14" fill={C.surface} stroke={C.border} strokeWidth="1.6" />
+        <rect x="380" y="200" width="290" height="140" fill={C.surface} stroke={C.border} strokeWidth="1.6" />
         <text x="525" y="226" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.muted} letterSpacing="2">ROLE B · CHALLENGER (opt-in)</text>
         <text x="525" y="250" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>OPEN / ACTIVE · AUTO_CHALLENGE=1</text>
         <text x="525" y="272" textAnchor="middle" fontSize="11" fill={C.muted}>early LLM read → confidence ≥ 80%</text>
@@ -243,7 +240,7 @@ function AgentLoopDiagram() {
 
       {/* Outcome */}
       <g>
-        <rect x="710" y="120" width="170" height="140" rx="14" fill={C.surface} stroke={C.border} strokeWidth="1.6" />
+        <rect x="710" y="120" width="170" height="140" fill={C.surface} stroke={C.border} strokeWidth="1.6" />
         <text x="795" y="146" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.muted} letterSpacing="2">ON-CHAIN</text>
         <text x="795" y="172" textAnchor="middle" fontSize="14" fontWeight="700" fill={C.text}>USDC payout</text>
         <text x="795" y="194" textAnchor="middle" fontSize="11" fill={C.muted}>sha256 evidence hash</text>
@@ -262,19 +259,18 @@ function AgentLoopDiagram() {
 /* ── Section primitives ──────────────────────────────────────────────────── */
 function Section({ id, eyebrow, title, children }: { id?: string; eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-24 space-y-6">
-      <header className="space-y-1.5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-pv-emerald">{eyebrow}</p>
-        <h2 className="text-2xl font-bold tracking-tight text-pv-text sm:text-3xl">{title}</h2>
-      </header>
-      <div className="space-y-5 text-[15px] leading-relaxed text-pv-text/85">{children}</div>
+    <section id={id} className="scroll-mt-20">
+      <BlueprintHeading eyebrow={eyebrow}>{title}</BlueprintHeading>
+      <div className="mx-auto max-w-4xl space-y-5 px-4 py-10 text-[15px] leading-relaxed text-pv-text/85 sm:px-6">
+        {children}
+      </div>
     </section>
   );
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-pv-border/25 bg-pv-surface/70 p-5">
+    <div className="border border-pv-border/25 bg-pv-surface p-5">
       <h3 className="mb-2 font-bold tracking-tight text-pv-text">{title}</h3>
       <div className="text-sm leading-relaxed text-pv-text/80">{children}</div>
     </div>
@@ -283,7 +279,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function DiagramFrame({ children, caption }: { children: React.ReactNode; caption: string }) {
   return (
-    <figure className="my-4 rounded-2xl border border-pv-border/25 bg-pv-surface/40 p-5 sm:p-7">
+    <figure className="bp-paper my-4 border border-pv-border/25 bg-pv-bg p-5 sm:p-7">
       <div className="overflow-x-auto">{children}</div>
       <figcaption className="mt-3 text-center text-xs text-pv-muted">{caption}</figcaption>
     </figure>
@@ -301,35 +297,25 @@ function TocLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-const code = "rounded bg-pv-surface2 px-1.5 py-0.5 text-xs";
-const codeSm = "rounded bg-pv-surface2 px-1 text-xs";
+const code = "bg-pv-surface2 px-1.5 py-0.5 text-xs";
+const codeSm = "bg-pv-surface2 px-1 text-xs";
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
 export default function DocsPage() {
   return (
-    <article className="mx-auto max-w-4xl space-y-14 py-12">
-      <header className="space-y-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-pv-emerald">
-          MIMIR · DOCUMENTATION
-        </p>
-        <h1 className="text-4xl font-bold leading-tight tracking-tight text-pv-text sm:text-5xl">
-          How Mimir works
-        </h1>
-        <p className="max-w-2xl text-base leading-relaxed text-pv-text/75 sm:text-lg">
-          Mimir is an AI-settled prediction market on Solana. Two sides stake
-          USDC on opposite answers to a verifiable question; the market lives
-          inside a MagicBlock Ephemeral Rollup so every challenge is zero-fee
-          and lands in ~30ms. When the deadline passes, an off-chain AI oracle
-          reads the Flash Trade evidence, an LLM returns a verdict, and the
-          program settles the payout on-chain. No committees, no manual
-          disputes.
-        </p>
-      </header>
+    <article>
+      <BlueprintHeading
+        as="h1"
+        eyebrow="Mimir · documentation"
+        subtitle="Mimir is an AI-settled prediction market on Solana. Two sides stake USDC on opposite answers to a verifiable question; the market lives inside a MagicBlock Ephemeral Rollup so every challenge is zero-fee and lands in ~30ms. When the deadline passes, an off-chain AI oracle reads the Flash Trade evidence, an LLM returns a verdict, and the program settles the payout on-chain."
+      >
+        How Mimir works
+      </BlueprintHeading>
 
       {/* TOC */}
-      <nav aria-label="Table of contents" className="rounded-2xl border border-pv-border/25 bg-pv-surface/40 p-5">
-        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">Contents</p>
-        <div className="grid gap-1 sm:grid-cols-2">
+      <nav aria-label="Table of contents" className="border-b border-pv-border/25 px-4 py-6 sm:px-8">
+        <p className="mx-auto mb-3 max-w-4xl text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">Contents</p>
+        <div className="mx-auto grid max-w-4xl gap-1 sm:grid-cols-3">
           <TocLink href="#what" label="1. What a claim is" />
           <TocLink href="#architecture" label="2. Architecture" />
           <TocLink href="#two-layer" label="3. The two-layer model" />
@@ -534,7 +520,7 @@ export default function DocsPage() {
 
       <Section id="terms" eyebrow="07" title="On-chain terms">
         <p>A few terms that show up in the UI and on chain:</p>
-        <div className="overflow-hidden rounded-2xl border border-pv-border/25">
+        <div className="overflow-x-auto border border-pv-border/25">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-pv-surface/60 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-pv-muted">
@@ -632,7 +618,7 @@ export default function DocsPage() {
         </div>
       </Section>
 
-      <footer className="border-t border-pv-border/25 pt-8 text-sm text-pv-muted">
+      <footer className="border-t border-pv-border/25 px-4 pt-8 text-center text-sm text-pv-muted">
         Got a question that isn&apos;t answered here?{" "}
         <a className="text-pv-emerald underline" href="https://github.com/enliven17/mimir/issues" target="_blank" rel="noreferrer">
           Open an issue on GitHub
