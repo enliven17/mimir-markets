@@ -27,13 +27,13 @@ export default function ControlPanel({
     <motion.div
       className={`relative rounded-xl overflow-hidden ${
         recessed
-          ? "bg-pv-bg/80 border border-pv-border/[0.08] shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"
-          : "bg-pv-surface border border-pv-border/[0.12]"
+          ? "bg-pv-bg/80 border border-pv-border/25 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"
+          : "bg-pv-surface border border-pv-border/25"
       } ${className}`}
       {...props}
     >
       {label && (
-        <div className="px-4 py-2 border-b border-pv-border/[0.06]">
+        <div className="px-4 py-2 border-b border-pv-border/25">
           <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted/50">
             {label}
           </span>
@@ -58,7 +58,7 @@ export function SegmentedSwitch({
 }) {
   return (
     <div
-      className={`inline-flex rounded-lg bg-pv-bg/60 border border-pv-border/[0.08] p-0.5 ${className}`}
+      className={`inline-flex rounded-lg bg-pv-bg/60 border border-pv-border/25 p-0.5 ${className}`}
     >
       {options.map((opt) => (
         <button

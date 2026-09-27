@@ -43,8 +43,8 @@ export default function Artifact({
 
   return (
     <motion.div
-      className={`relative border border-pv-border/[0.12] rounded-lg bg-pv-surface/80 overflow-hidden ${
-        hoverable ? "hover:border-pv-border/[0.22] hover:bg-pv-surface/90 cursor-pointer transition-all duration-200" : ""
+      className={`relative border border-pv-border/25 rounded-lg bg-pv-surface/80 overflow-hidden ${
+        hoverable ? "hover:border-pv-border/25 hover:bg-pv-surface/90 cursor-pointer transition-all duration-200" : ""
       } ${className}`}
       whileHover={hoverable ? { y: -2 } : undefined}
       {...props}
@@ -60,7 +60,7 @@ export default function Artifact({
 
       {/* Top bar — serial + stamp */}
       {(serialNumber || stamp) && (
-        <div className="flex items-center justify-between px-4 py-2 border-b border-pv-border/[0.06] bg-pv-border/[0.02]">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-pv-border/25 bg-pv-border/[0.02]">
           {serialNumber && (
             <span className="font-mono text-[10px] tracking-[0.15em] text-pv-muted/60 uppercase">
               {serialNumber}

@@ -26,7 +26,7 @@ export default function ProvenStamp({
       glass
       glow="both"
       noPad
-      className="animate-pulse-glow mb-6 !rounded-2xl border border-pv-border/[0.12]"
+      className="animate-pulse-glow mb-6 !rounded-2xl border border-pv-border/25"
     >
       <div className="p-5 sm:p-6 text-center">
         <motion.div

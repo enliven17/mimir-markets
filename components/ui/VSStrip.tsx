@@ -23,7 +23,7 @@ export default function VSStrip({
   const t = useTranslations("strip");
 
   return (
-    <div className="flex overflow-hidden rounded border border-pv-border/[0.12]">
+    <div className="flex overflow-hidden rounded border border-pv-border/25">
       <div
         className={`min-w-0 flex-1 bg-pv-emerald/[0.05] ${compact ? "px-3 py-2" : "p-4"}`}
       >

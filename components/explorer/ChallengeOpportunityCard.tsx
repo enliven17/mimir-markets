@@ -148,7 +148,7 @@ export default function ChallengeOpportunityCard({
 
   return (
     <article
-      className="group relative flex h-full flex-col gap-2.5 overflow-hidden rounded-2xl border border-pv-border/[0.1] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[0_10px_28px_-20px_rgba(0,0,0,0.82),0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur-xl transition-[border-color,background-color,transform,box-shadow] duration-300 hover:-translate-y-[2px] hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]"
+      className="group relative flex h-full flex-col gap-2.5 overflow-hidden rounded-2xl border border-pv-border/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[0_10px_28px_-20px_rgba(0,0,0,0.82),0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur-xl transition-[border-color,background-color,transform,box-shadow] duration-300 hover:-translate-y-[2px] hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]"
       style={
         {
           "--op-accent": categoryAccent.accent,
@@ -255,7 +255,7 @@ export default function ChallengeOpportunityCard({
               : t("settlementBasisExpandAria")
           }
           onClick={() => setSettlementExpanded((open) => !open)}
-          className="focus-ring flex w-full flex-col gap-2 rounded-2xl border border-pv-border/[0.08] bg-pv-border/20 px-3 py-2.5 text-left outline-none transition-colors hover:bg-pv-border/[0.04] sm:px-4 sm:py-3"
+          className="focus-ring flex w-full flex-col gap-2 rounded-2xl border border-pv-border/25 bg-pv-border/20 px-3 py-2.5 text-left outline-none transition-colors hover:bg-pv-border/[0.04] sm:px-4 sm:py-3"
         >
           <span className="flex w-full min-h-[44px] items-center justify-between gap-3 sm:min-h-0">
             <span className="min-w-0 font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-pv-muted">
@@ -304,7 +304,7 @@ export default function ChallengeOpportunityCard({
           href={opportunity.sourceUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-pv-border/[0.12] bg-pv-border/20 px-4 py-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-border/[0.24] hover:bg-pv-border/[0.05]"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-pv-border/25 bg-pv-border/20 px-4 py-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-border/25 hover:bg-pv-border/[0.05]"
         >
           {t("challengeOpportunityOpenSource")}
           <ExternalLink size={14} aria-hidden />
