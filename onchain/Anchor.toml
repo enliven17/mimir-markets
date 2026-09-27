@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-mimir = "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR"
+mimir = "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE"
 
 [provider]
 cluster = "devnet"
