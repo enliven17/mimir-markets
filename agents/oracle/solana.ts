@@ -4,7 +4,10 @@
  * Roles:
  *   1. SETTLER    — when a claim's deadline passes: commit + undelegate it
  *                   from the Ephemeral Rollup, fetch evidence, ask the LLM,
- *                   resolve on the base layer, crank the payouts.
+ *                   PROPOSE the verdict on the base layer (V3 optimistic
+ *                   resolution). After the dispute window: finalize, crank
+ *                   payouts; past deadline + grace: refund_expired
+ *                   (agents/oracle/lifecycle.ts). Honors the on-chain pause.
  *   2. CHALLENGER — (AUTO_CHALLENGE=1) evaluate open claims early and stake
  *                   on mispriced ones INSIDE the ER (zero fee, ~30ms),
  *                   Kelly-sized, optionally hedged on Flash Trade perps.
@@ -42,6 +45,8 @@ import {
   SIDE_DRAW,
   SIDE_UNRESOLVABLE,
 } from "../../lib/solana/config";
+import { needsProposal } from "../../lib/solana/lifecycle";
+import { advanceLifecycle } from "./lifecycle";
 import {
   planHedgeForStake,
   buildOpenPositionTx,
@@ -270,10 +275,8 @@ async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<v
   // Step 1: if the claim still lives in the ER, commit + undelegate it
   if (await client.isDelegated(claim.id)) {
     console.log("[settle] Claim is in the ER — committing + undelegating...");
-    await client.undelegateClaim(claim.id);
-    for (let i = 0; i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
-      if (!(await client.isDelegated(claim.id))) break;
+    if (!(await client.ensureClaimOnBase(claim.id))) {
+      throw new Error("claim is still delegated after undelegate — retry later");
     }
     console.log("[settle] Claim is back on the base layer");
   }
@@ -289,7 +292,7 @@ async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<v
   }
   const { verdict, evidenceHash } = decision;
 
-  // Step 3: resolve on base layer. The claim may have been resolved since the
+  // Step 3: propose on the base layer. The claim may have moved on since the
   // scan (an earlier attempt that timed out but still landed, or another
   // oracle instance), so re-read the base layer right before signing.
   const fresh = await client.getBaseClaim(claim.id);
@@ -298,34 +301,23 @@ async function settle(client: MimirSolanaClient, claim: OnchainClaim): Promise<v
     decidedVerdicts.delete(key);
     return;
   }
-  const sig = await client.resolveClaim(
+  const sig = await client.proposeResolution(
     claim.id,
     verdictToSide(verdict.verdict),
-    verdict.explanation,
+    verdict.explanation.slice(0, 300),
     verdict.confidence,
     evidenceHash
   );
   decidedVerdicts.delete(key);
-  console.log(`[settle] ✓ Resolved — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
-
-  // Step 4: crank payouts (permissionless, oracle does it as a service)
-  const side = verdictToSide(verdict.verdict);
-  try {
-    if (side === SIDE_CREATOR || side === SIDE_DRAW || side === SIDE_UNRESOLVABLE) {
-      await client.payoutCreator(claim.id, fresh.creator);
-      console.log("[settle] ✓ Creator paid");
-    }
-    if (side === SIDE_CHALLENGERS || side === SIDE_DRAW || side === SIDE_UNRESOLVABLE) {
-      for (let i = 0; i < fresh.challengers.length; i++) {
-        await client.payoutChallenger(claim.id, i, fresh.challengers[i].addr);
-      }
-      if (fresh.challengers.length) {
-        console.log(`[settle] ✓ ${fresh.challengers.length} challenger(s) paid`);
-      }
-    }
-  } catch (err: any) {
-    console.warn("[settle] Payout crank failed (can be retried):", err?.message ?? err);
+  if (fresh.disputeWindow > 0) {
+    const until = new Date((Math.floor(Date.now() / 1000) + fresh.disputeWindow) * 1000).toISOString();
+    console.log(`[settle] ✓ Proposed (disputable until ~${until}) — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+    return;
   }
+  // Zero dispute window: the proposal settled immediately, crank payouts now.
+  console.log(`[settle] ✓ Resolved (no dispute window) — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+  const { paid, failed } = await client.crankPayouts(claim.id);
+  console.log(`[settle] ✓ ${paid} payout leg(s) cranked${failed.length ? `, ${failed.length} to retry` : ""}`);
 }
 
 // ── ROLE 2: challenge (inside the ER) ─────────────────────────────────────
@@ -451,13 +443,21 @@ async function poll(client: MimirSolanaClient): Promise<void> {
   }
   console.log(`\n[oracle] ── Poll at ${new Date().toISOString()} ── ${cfg.claimCount} claims`);
 
-  const settlementPaused = isPaused("oracle_settlement");
+  // The on-chain pause blocks propose/challenge (the program would reject
+  // them); finalize, refunds and payout cranks keep running.
+  const settlementPaused = isPaused("oracle_settlement") || cfg.paused;
+  if (cfg.paused) console.log("[oracle] Program is PAUSED on-chain — no proposals or challenges this poll.");
+  const ids: bigint[] = [];
+  for (let id = 1n; id <= cfg.claimCount; id++) ids.push(id);
+  const delegated = await client.isDelegatedBatch(ids);
   let waiting = 0;
-  for (let id = 1n; id <= cfg.claimCount; id++) {
-    const claim = await client.getClaim(id);
+  for (const id of ids) {
+    // Undelegated claims are read from the base layer only: the ER can keep
+    // serving a stale snapshot after undelegation.
+    const claim = delegated.get(id) ? await client.getClaim(id) : await client.getBaseClaim(id);
     if (!claim) continue;
     const key = id.toString();
-    const expired = claim.state === ST_ACTIVE && claim.deadline <= now;
+    const expired = needsProposal(claim, now);
     try {
       if (expired) {
         if (settlementPaused) {
@@ -467,7 +467,8 @@ async function poll(client: MimirSolanaClient): Promise<void> {
           settleBackoff.delete(key);
         }
       }
-      if ((claim.state === ST_OPEN || claim.state === ST_ACTIVE) && claim.deadline > now) {
+      await advanceLifecycle(client, claim, now);
+      if (!cfg.paused && (claim.state === ST_OPEN || claim.state === ST_ACTIVE) && claim.deadline > now) {
         await challengeIfMispriced(client, claim);
       }
     } catch (err) {
@@ -480,7 +481,7 @@ async function poll(client: MimirSolanaClient): Promise<void> {
     }
   }
   if (waiting > 0) {
-    console.log(`[oracle] Settlement paused (MIMIR_PAUSE_ORACLE_SETTLEMENT): ${waiting} claim(s) waiting.`);
+    console.log(`[oracle] Settlement paused (MIMIR_PAUSE_ORACLE_SETTLEMENT or on-chain pause): ${waiting} claim(s) waiting.`);
   }
 }
 
