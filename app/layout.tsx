@@ -11,6 +11,7 @@ export default function RootLayout({
 }) {
   return (
     <html
+      suppressHydrationWarning
       className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable}`}
     >
       <head>

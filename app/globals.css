@@ -29,6 +29,7 @@
   --pv-accent2:  153 69 255;   /* #9945FF — Solana purple (fills/glows) */
   --pv-gold:     3 107 75;     /* #036B4B — Solana green, darkened for AA */
   --pv-danger:   200 30 30;    /* #C81E1E */
+  --pv-rule:     197 189 217;  /* #C5BDD9 — opaque ink/25 over bg */
   color-scheme: light;
 }
 
@@ -43,6 +44,7 @@
   --pv-accent2:  153 69 255;   /* #9945FF — Solana purple */
   --pv-gold:     20 241 149;   /* #14F195 — Solana green */
   --pv-danger:   255 107 114;  /* #FF6B72 */
+  --pv-rule:     74 69 91;     /* #4A455B — opaque ink/25 over bg */
   color-scheme: dark;
 }
 
@@ -217,6 +219,16 @@
   }
   .bp-grid {
     @apply grid gap-px bg-pv-border/25;
+  }
+  /* Card grids with a ragged last row: each cell draws a 1px ring in the
+     opaque rule colour into the 1px gaps; the container clips the outer
+     ring (rails + a border-b supply the frame) and a partial last row just
+     shows the page bg instead of an ink block. */
+  .bp-cells {
+    @apply grid gap-px overflow-hidden;
+  }
+  .bp-cells > * {
+    box-shadow: 0 0 0 1px rgb(var(--pv-rule));
   }
   .bp-cell {
     @apply bg-pv-bg;

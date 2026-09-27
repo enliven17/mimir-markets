@@ -20,6 +20,7 @@ import { Link } from "@/i18n/navigation";
 
 import PageTransition, { AnimatedItem } from "@/components/PageTransition";
 import { ArenaCardSkeleton } from "@/components/ui";
+import { BlueprintHeading, BlueprintStat } from "@/components/BlueprintGrid";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
@@ -317,7 +318,7 @@ export default function ArenaPage() {
   ) => {
     if (loading) {
       return (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2 lg:grid-cols-3">
           <ArenaCardSkeleton />
           <ArenaCardSkeleton />
           <ArenaCardSkeleton />
@@ -368,9 +369,10 @@ export default function ArenaPage() {
     }
 
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2 lg:grid-cols-3">
         {list.map((claim) => (
           <motion.div
+            className="bp-cell h-full"
             key={claim.id}
             layout
             initial={{ opacity: 0, y: 12 }}
@@ -393,18 +395,31 @@ export default function ArenaPage() {
 
   return (
     <PageTransition>
-      <h1 className="sr-only">THE ARENA</h1>
+      <AnimatedItem>
+        <BlueprintHeading
+          as="h1"
+          eyebrow="Solana devnet · MagicBlock ER"
+          subtitle="Pick your fight. Accept someone else's stake — every claim settles on-chain against the evidence."
+        >
+          The arena
+        </BlueprintHeading>
+        <div className="bp-grid grid-cols-3 border-b border-pv-border/25">
+          <BlueprintStat value={stats.claimCount} label="Markets" />
+          <BlueprintStat value={stats.totalResolved} label="Resolved" />
+          <BlueprintStat value={`$${usdc(stats.openPool)}`} label="Open pool" tone="gold" />
+        </div>
+      </AnimatedItem>
 
       {/* z-20: filter dropdowns (absolute z-[100]) must stack above
           #arena-content — Framer-motion siblings create stacking contexts. */}
       <AnimatedItem className="relative z-20">
         <section
           id="arena-controls"
-          className="mb-8"
+          className="border-b border-pv-border/25"
           aria-label="Filters: category, minimum stake, and sort order"
         >
-          <div className="rounded-[28px] border border-pv-border/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex flex-col gap-5 border-b border-pv-border/25 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-2">
                 <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">
                   {activeBandCopy.eyebrow}
@@ -419,27 +434,27 @@ export default function ArenaPage() {
                 </div>
               </div>
 
-              <div className="inline-flex w-full flex-col gap-2 rounded-[22px] border border-pv-border/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:w-auto sm:flex-row sm:items-center">
+              <div className="grid w-full grid-cols-1 gap-px border border-pv-border/25 bg-pv-border/25 sm:w-auto sm:grid-cols-3">
                 {tabConfig.map(({ view, count }) => (
                   <button
                     key={view}
                     type="button"
                     onClick={() => switchView(view)}
                     aria-pressed={activeView === view}
-                    className={`flex min-h-[52px] flex-1 items-center justify-between gap-3 rounded-[18px] px-4 py-3 text-left transition-all duration-200 sm:min-w-[200px] ${
+                    className={`flex min-h-[48px] items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-200 focus-ring sm:min-w-[180px] ${
                       activeView === view
-                        ? "border border-pv-emerald/40 bg-pv-emerald/[0.18] shadow-[0_12px_32px_-20px_rgba(153,69,255,0.95)]"
-                        : "border border-transparent bg-transparent hover:border-pv-border/[0.08] hover:bg-pv-border/[0.03]"
+                        ? "bg-pv-emerald/[0.14] shadow-[inset_0_-2px_0_0_rgb(var(--pv-accent))]"
+                        : "bg-pv-bg hover:bg-pv-surface"
                     }`}
                   >
                     <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-pv-text">
                       {tabLabel[view]}
                     </span>
                     <span
-                      className={`rounded-full px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] ${
+                      className={`px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] ${
                         activeView === view
                           ? "bg-pv-emerald text-pv-bg"
-                          : "border border-pv-border/[0.12] bg-pv-border/20 text-pv-muted"
+                          : "border border-pv-border/25 text-pv-muted"
                       }`}
                     >
                       {count}
@@ -449,7 +464,7 @@ export default function ArenaPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-[28px] border border-pv-border/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_60px_-36px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6">
+            <div className="px-4 py-5 sm:px-6">
               <div className="grid grid-cols-2 gap-3 gap-y-4 lg:grid-cols-12 lg:items-end lg:gap-4 xl:gap-5">
                 <div
                   className="relative col-span-1 min-w-0 lg:col-span-2"
@@ -498,7 +513,7 @@ export default function ArenaPage() {
                           duration: 0.16,
                           ease: [0.25, 0.46, 0.45, 0.94],
                         }}
-                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/[0.1] bg-pv-bg py-1 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.85)]"
+                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
                       >
                         {sortOnlyOptions.map(({ key, label }) => (
                           <button
@@ -573,7 +588,7 @@ export default function ArenaPage() {
                           duration: 0.16,
                           ease: [0.25, 0.46, 0.45, 0.94],
                         }}
-                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/[0.1] bg-pv-bg py-1 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.85)]"
+                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
                       >
                         <button
                           type="button"
@@ -652,7 +667,7 @@ export default function ArenaPage() {
                     type="button"
                     onClick={() => setAdvancedOpen((open) => !open)}
                     aria-expanded={advancedOpen}
-                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded border border-pv-border/[0.1] bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] lg:w-auto"
+                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 border border-pv-border/25 bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] lg:w-auto"
                   >
                     <ListFilter
                       size={16}
@@ -668,7 +683,7 @@ export default function ArenaPage() {
                     }}
                     disabled={refreshing}
                     aria-busy={refreshing}
-                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded border border-pv-border/[0.1] bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
+                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 border border-pv-border/25 bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
                   >
                     <RefreshCw
                       size={16}
@@ -771,7 +786,7 @@ export default function ArenaPage() {
       </AnimatedItem>
 
       <AnimatedItem className="relative z-0">
-        <section id="arena-content" className="pb-4">
+        <section id="arena-content">
           <AnimatePresence mode="wait" initial={false}>
             {activeView === "open" && (
               <motion.div

@@ -9,7 +9,7 @@ function SkeletonLine({ className = "" }: { className?: string }) {
       className={`h-4 rounded-lg bg-pv-surface2 animate-shimmer ${className}`}
       style={{
         backgroundImage:
-          "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%)",
+          "linear-gradient(90deg, transparent 0%, rgb(var(--pv-border) / 0.06) 50%, transparent 100%)",
         backgroundSize: "200% 100%",
       }}
     />
@@ -53,7 +53,7 @@ export function VSCardSkeleton() {
 /** Matches ArenaCard layout (LIVE ARENA) for loading grids. */
 export function ArenaCardSkeleton() {
   return (
-    <div className="card relative flex h-full flex-col gap-6 overflow-hidden border-pv-border/[0.12] bg-pv-surface p-6 sm:gap-8 sm:p-8">
+    <div className="bp-cell relative flex h-full flex-col gap-6 overflow-hidden p-6 sm:gap-8 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SkeletonLine className="h-6 w-20" />
         <SkeletonLine className="h-6 w-24" />
@@ -63,7 +63,7 @@ export function ArenaCardSkeleton() {
         <SkeletonLine className="h-7 w-[85%]" />
         <SkeletonLine className="mt-2 h-4 w-full" />
       </div>
-      <div className="mt-auto space-y-4 border-t border-pv-border/[0.1] pt-6">
+      <div className="mt-auto space-y-4 border-t border-pv-border/25 pt-6">
         <SkeletonLine className="h-3 w-28" />
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex -space-x-2.5">
