@@ -15,6 +15,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/arena", label: "Arena", matchNested: true },
   { href: "/stats", label: "Stats" },
   { href: "/agents", label: "Agents" },
+  { href: "/agents/new", label: "Connect agent" },
   { href: "/docs", label: "Docs" },
 ];
 

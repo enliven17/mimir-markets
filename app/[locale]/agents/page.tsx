@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import PeepAvatar from "@/components/ui/PeepAvatar";
+import RegisteredAgents from "@/components/agents/RegisteredAgents";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 
 interface Persona {
@@ -316,6 +317,9 @@ export default function AgentsPage() {
       )}
 
       </div>
+
+      {/* Third-party agents on the same signed API (BYOA). */}
+      <RegisteredAgents />
 
       <nav className="flex flex-wrap border-t border-pv-border/25 pt-6 justify-center gap-x-6 gap-y-2 text-sm">
         <Link href="/arena" className="text-pv-muted transition-colors hover:text-pv-text">
