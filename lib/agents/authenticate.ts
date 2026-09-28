@@ -1,0 +1,109 @@
+import "server-only";
+
+/**
+ * Who is calling, and may they.
+ *
+ * Two credentials exist. A bearer API key identifies the agent for day-to-day
+ * calls and lets the server fill in the nonce and timestamp itself. Owner-gated
+ * actions ignore keys entirely and demand a real signature from the owner
+ * wallet (ed25519, base58-encoded), so a stolen hot key cannot issue itself new
+ * keys, rotate the operator or move the payout address.
+ */
+import {
+  agentRequestMessage,
+  AgentEnvelopeError,
+  OWNER_SIGNED_ACTIONS,
+  type AgentAction,
+  type AgentEnvelope,
+} from "./api";
+import { hashApiKey, parseApiKeyHeader } from "./api-keys";
+import { verifyAgentSignature } from "./signature";
+import { agentIdForKeyHash, getAgent } from "./store";
+import type { AgentRecord } from "./registry";
+
+export type Credential = "owner_signature" | "operator_signature" | "api_key";
+
+export interface Authenticated {
+  agent: AgentRecord;
+  credential: Credential;
+  /** Verified but not yet burned: the route burns it once it knows this is not an idempotent retry. */
+  nonce: string | null;
+}
+
+export function requiresOwnerSignature(action: AgentAction): boolean {
+  return OWNER_SIGNED_ACTIONS.includes(action);
+}
+
+/**
+ * Authenticate an envelope for an agent that already exists.
+ *
+ * `register` is not handled here: there is no record to authenticate against
+ * yet, so the route verifies the owner and operator signatures itself.
+ */
+export async function authenticateAgentRequest(
+  env: AgentEnvelope,
+  authorizationHeader: string | null,
+): Promise<Authenticated> {
+  const agent = await getAgent(env.agentId);
+  if (!agent) {
+    throw new AgentEnvelopeError("unknown agent", 404, "unknown_agent");
+  }
+  if (agent.status === "revoked") {
+    throw new AgentEnvelopeError("this agent has been revoked", 403, "revoked");
+  }
+
+  const ownerGated = requiresOwnerSignature(env.action);
+
+  if (ownerGated) {
+    if (!env.signature) {
+      throw new AgentEnvelopeError(
+        `${env.action} requires an owner signature, not an API key`,
+        401,
+        "owner_signature_required",
+      );
+    }
+    const nonce = await verifySignedEnvelope(env, agent.ownerWallet);
+    return { agent, credential: "owner_signature", nonce };
+  }
+
+  const key = parseApiKeyHeader(authorizationHeader);
+  if (key) {
+    const owner = await agentIdForKeyHash(hashApiKey(key));
+    if (owner !== agent.agentId) {
+      throw new AgentEnvelopeError("invalid API key", 401, "bad_api_key");
+    }
+    return { agent, credential: "api_key", nonce: null };
+  }
+
+  if (!env.signature) {
+    throw new AgentEnvelopeError("no credential presented", 401, "no_credential");
+  }
+  const nonce = await verifySignedEnvelope(env, agent.operatorWallet);
+  return { agent, credential: "operator_signature", nonce };
+}
+
+/**
+ * Verify the signature and return the nonce it carries.
+ *
+ * The nonce is burned by the caller after the idempotency lookup, so a retry of
+ * the same signed envelope replays its stored answer instead of failing on its
+ * own nonce. It is still only burned after the signature checks out, so an
+ * attacker cannot invalidate a legitimate caller's nonce with garbage.
+ */
+export async function verifySignedEnvelope(env: AgentEnvelope, expectedSigner: string): Promise<string> {
+  if (!env.nonce) {
+    throw new AgentEnvelopeError("a signed request needs a nonce", 400, "missing_nonce");
+  }
+  if (env.signedAt === undefined) {
+    throw new AgentEnvelopeError("a signed request needs signedAt", 400, "missing_signed_at");
+  }
+  const ok = verifyAgentSignature({
+    address: expectedSigner,
+    message: agentRequestMessage(env),
+    signature: env.signature ?? "",
+  });
+  if (!ok) {
+    throw new AgentEnvelopeError("signature does not match", 401, "bad_signature");
+  }
+  return env.nonce;
+}

@@ -19,11 +19,17 @@ import "./market-creator/solana";
 import "./council/solana";
 import "./indexer/solana";
 import { pruneRateLimits } from "../lib/server/rate-limit";
+import { pruneAgentTables } from "../lib/agents/store";
+import { isDbEnabled } from "../lib/server/db";
 
-// Old rate-limit windows are dead weight; nothing else deletes them.
+// Old rate-limit windows and agent API nonces, replay answers and audit rows
+// are dead weight; nothing else deletes them.
 const PRUNE_INTERVAL_MS = 60 * 60_000;
 setInterval(() => {
   pruneRateLimits().catch((err) => console.warn("[workers] rate-limit prune failed:", err));
+  if (isDbEnabled()) {
+    pruneAgentTables().catch((err) => console.warn("[workers] agent api prune failed:", err));
+  }
 }, PRUNE_INTERVAL_MS).unref();
 
 const shutdown = (signal: string) => {

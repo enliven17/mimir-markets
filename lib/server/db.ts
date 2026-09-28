@@ -83,6 +83,61 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     value      TEXT NOT NULL,
     updated_at BIGINT NOT NULL DEFAULT 0
   )`,
+  // ── Agent registry and signed agent API (lib/agents/store.ts) ─────────────
+  `CREATE TABLE IF NOT EXISTS agent_registry (
+    agent_id        TEXT PRIMARY KEY,
+    owner_wallet    TEXT NOT NULL,
+    operator_wallet TEXT NOT NULL,
+    payout_wallet   TEXT NOT NULL,
+    display_name    TEXT NOT NULL DEFAULT '',
+    authority_level SMALLINT NOT NULL DEFAULT 0,
+    capabilities    TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'active',
+    limits_json     TEXT NOT NULL DEFAULT '{}',
+    created_at      BIGINT NOT NULL DEFAULT 0,
+    updated_at      BIGINT NOT NULL DEFAULT 0,
+    last_seen_at    BIGINT
+  )`,
+  `CREATE INDEX IF NOT EXISTS agent_registry_owner_idx ON agent_registry (owner_wallet)`,
+  `CREATE INDEX IF NOT EXISTS agent_registry_operator_idx ON agent_registry (operator_wallet)`,
+  // Only the SHA-256 of an API key is stored; the key itself is shown once.
+  `CREATE TABLE IF NOT EXISTS agent_api_keys (
+    key_hash   TEXT PRIMARY KEY,
+    agent_id   TEXT NOT NULL,
+    key_prefix TEXT NOT NULL,
+    label      TEXT NOT NULL DEFAULT '',
+    created_at BIGINT NOT NULL DEFAULT 0,
+    revoked_at BIGINT
+  )`,
+  `CREATE INDEX IF NOT EXISTS agent_api_keys_agent_idx ON agent_api_keys (agent_id)`,
+  // Single-use nonces. A replayed envelope is rejected on the primary key.
+  `CREATE TABLE IF NOT EXISTS agent_api_nonces (
+    nonce    TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    at       BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS agent_api_nonces_at_idx ON agent_api_nonces (at)`,
+  // Stored responses make a retry with the same idempotency key safe.
+  `CREATE TABLE IF NOT EXISTS agent_api_responses (
+    idempotency_key TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    status          SMALLINT NOT NULL DEFAULT 200,
+    response        TEXT NOT NULL,
+    at              BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS agent_api_responses_at_idx ON agent_api_responses (at)`,
+  // Every authenticated call; amount_units feeds the daily USDC cap.
+  `CREATE TABLE IF NOT EXISTS agent_request_audit (
+    id           BIGSERIAL PRIMARY KEY,
+    agent_id     TEXT NOT NULL,
+    action       TEXT NOT NULL,
+    ok           BOOLEAN NOT NULL DEFAULT TRUE,
+    reason       TEXT,
+    amount_units BIGINT NOT NULL DEFAULT 0,
+    at           BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS agent_request_audit_agent_at_idx ON agent_request_audit (agent_id, at DESC)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
