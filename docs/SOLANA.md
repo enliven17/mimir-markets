@@ -8,67 +8,199 @@ deployed artifacts, and the build/deploy mechanics.
 
 | Thing | Value |
 |---|---|
-| Program | `J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR` |
+| Program (V3) | `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` |
+| Legacy program (pre-V3, funds migrated out) | `J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR` — IDL kept at `scripts/solana/idl/mimir-v2.json` |
 | USDC mint (Circle devnet, 6 dp) | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` — fund wallets at faucet.circle.com |
+| Admin = oracle = fee recipient | `J98R1EtNppvAFPXrviBUhFZbxoDpTCL7vjBwDRxVpKyk` |
+| Initial policy | 50 bps platform + 50 bps agent-owner fee on profit, 24h dispute window, 7-day resolution grace |
 | Base RPC | `https://api.devnet.solana.com` |
 | ER RPC | `https://devnet-as.magicblock.app/` (router: `devnet-router.magicblock.app`) |
 | ER validator | `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57` |
-| Program keypair | `onchain/target/deploy/mimir-keypair.json` (gitignored — upgrade authority, don't lose it) |
+| Program keypair | `onchain/target/deploy/mimir-keypair.json` (gitignored — upgrade authority; backups next to it as `mimir-v3-program-keypair.BACKUP.json` and at `~/.config/solana/mimir-v3-program-keypair.json`) |
 
 ## Program design
 
-One Anchor program (`onchain/programs/mimir`) with four account types:
+One Anchor program (`onchain/programs/mimir`, Anchor 1.0.2 +
+ephemeral-rollups-sdk 0.15.3), split into `state.rs`, `math.rs` (pure fee +
+payout arithmetic), `instructions/{admin,escrow,claim,resolution,payout,delegation}.rs`.
+It is a port of the EVM `MimirV3.sol` to Solana's account model.
 
 | Account | Seeds | Purpose |
 |---|---|---|
-| `Config` | `["config"]` | admin, oracle pubkey, USDC mint, claim counter |
+| `Config` | `["config"]` | admin (+pending), oracle (+queued, eta), mint, pause, windows, live + queued fee policy, platform fee pool |
 | `Vault` (token acct) | `["vault"]` | all escrowed USDC; authority = itself |
 | `UserBalance` | `["balance", user]` | virtual betting balance; **delegated to the ER** |
-| `Claim` | `["claim", id_le]` | question, positions, stakes, challenger list (max 16); **delegated to the ER** |
+| `Claim` | `["claim", id_le]` | question, stakes, challengers (max 16, each with an optional agent owner), frozen fee terms + windows, proposal/dispute/bond fields; **delegated to the ER while OPEN/ACTIVE** |
+| `FeeBalance` | `["fees", owner]` | agent-owner fee accrual, pulled with `claim_agent_fees` |
+
+### States
+
+| # | State | Meaning |
+|---|---|---|
+| 0 | OPEN | created, no challengers yet |
+| 1 | ACTIVE | at least one challenger |
+| 2 | RESOLVED | final verdict in `winner_side`; payout cranks can run |
+| 3 | CANCELLED | creator cancelled an OPEN claim |
+| 4 | PROPOSED | oracle proposed `proposed_side`; disputable until `disputable_until` |
+| 5 | DISPUTED | a participant posted the bond; the admin (arbiter) decides |
+
+```
+OPEN ──challenge──▶ ACTIVE ──propose (oracle, ≥ deadline)──▶ PROPOSED ──finalize (anyone, ≥ disputable_until)──▶ RESOLVED
+  │                   │                                          └─dispute (participant + 2 USDC bond)──▶ DISPUTED ──settle_dispute (admin)──▶ RESOLVED
+  └─cancel─▶ CANCELLED └── OPEN / ACTIVE / DISPUTED ── refund_expired (anyone, ≥ deadline|dispute + grace) ──▶ RESOLVED (UNRESOLVABLE)
+```
+
+A claim created while `dispute_window = 0` settles directly on `propose_resolution`
+(MimirV3's `disputeWindow == 0` fast path). Sides: 0 NONE, 1 CREATOR,
+2 CHALLENGERS, 3 DRAW, 4 UNRESOLVABLE.
 
 ### Instruction map
 
 ```
-Base layer only:
-  initialize, set_oracle
-  deposit / withdraw            — USDC ↔ vault, credits/debits UserBalance
-  create_claim / cancel_claim   — USDC straight from the creator's ATA
-  resolve_claim                 — oracle-only, after deadline, post-undelegation
-  payout_creator / payout_challenger(i)  — permissionless pull cranks
+Governance (base layer):
+  initialize(InitArgs)               oracle, fee recipient, fee bps, dispute window, grace
+  set_paused(bool)                   admin — blocks create / challenge / propose only
+  propose_admin → accept_admin       two-step admin transfer (zero key rejected)
+  queue_oracle → execute_oracle      2-day timelock; execute is permissionless; cancel_oracle
+  queue_fee_policy → execute_fee_policy   2-day timelock, ≤ 1000 bps total; cancel_fee_policy
+  set_windows(dispute, grace)        admin — only claims created afterwards (terms are frozen per claim)
+  withdraw_fees(amount)              admin or fee recipient → fee recipient's token account
 
-Both layers (routed by which layer owns the PDA):
-  challenge_claim               — debits UserBalance, appends to Claim
+Escrow (base layer, never paused):
+  deposit / withdraw                 USDC ↔ vault, credits/debits UserBalance
+  open_fee_account(owner)            permissionless; claim_agent_fees (owner pulls)
+
+Claim lifecycle:
+  create_claim(args{…, agent?})      USDC straight from the creator's ATA; snapshots fees + windows
+  cancel_claim                       OPEN, no challengers
+  challenge_claim(stake, agent?)     BOTH layers — zero-fee inside the ER; reads Config for the pause
+
+Optimistic resolution (base layer, after undelegation):
+  propose_resolution(side, summary, confidence, evidence_hash)   oracle-only, ≥ deadline
+  dispute_resolution                 creator or challenger, before disputable_until, 2 USDC bond from their ATA
+  finalize_resolution                permissionless, ≥ disputable_until
+  settle_dispute(side, …)            admin (arbiter)
+  refund_expired                     permissionless escape hatch
+  refund_bond                        permissionless crank → disputer's ATA
+
+Payouts (base layer, permissionless cranks):
+  payout_creator / payout_challenger(i)   optional agent FeeBalance account when an agent fee is due
 
 ER delegation hooks (ephemeral-rollups-sdk):
-  delegate_claim / delegate_balance        — base → ER
-  undelegate_claim / undelegate_balance    — commit + return to base
+  delegate_claim (OPEN/ACTIVE only) / delegate_balance    base → ER
+  undelegate_claim / undelegate_balance                   commit + return to base (permissionless)
 ```
 
-### Why the two-layer split
+### Disputes and the bond
+
+The bond (2 USDC = `MIN_STAKE`, as in V3) comes from the disputer's **USDC
+token account**, not the virtual balance: balances usually sit delegated in
+the ER, while disputes run on the base layer against an undelegated claim, so
+a balance debit would force an undelegate/redelegate round trip for every
+dispute. If the arbiter changes the verdict (or there is no platform
+recipient) the bond becomes `REFUND_DUE` and `refund_bond` returns it; if the
+verdict stands it is forfeited into the platform fee pool. A DISPUTED claim
+the arbiter never rules on is refundable `resolution_grace` after the
+dispute, and the bond comes back.
+
+### Fees (profit only)
+
+Fee terms are frozen onto each claim at creation. For every payout leg:
+
+```
+profit       = max(gross − principal, 0)
+platform_fee = profit × platform_fee_bps / 10_000   (waived if the recipient is the winner)
+agent_fee    = profit × agent_fee_bps    / 10_000   (only if the position has an agent owner ≠ winner)
+net          = gross − platform_fee − agent_fee     (≥ principal, always)
+
+creator wins:     gross = creator_stake + Σ challenger stakes, principal = creator_stake
+challenger wins:  gross = stake + stake × creator_stake / Σ stakes (rounded down), principal = stake
+draw/unresolvable/refund: gross = principal → no fee
+```
+
+`platform_fee_bps + agent_fee_bps ≤ 1000` (10%). Platform fees accrue to
+`Config.fees_accrued`; agent fees to the owner's `FeeBalance` PDA. Neither is
+ever pushed, so a fee recipient can never block a payout. `lib/solana/fees.ts`
+is the TypeScript twin (same test vectors as `math.rs`).
+
+### Vault invariant
 
 Token accounts can't be delegated into an Ephemeral Rollup, so USDC never
 moves inside it. Deposits credit a virtual `UserBalance` PDA which *is*
 delegated; `challenge_claim` mutates only delegated PDAs (balance + claim),
-which is what makes it a zero-fee ~30ms ER transaction. The vault invariant
-holds at all times:
+which is what makes it a zero-fee ~30ms ER transaction. At all times:
 
 ```
-vault = Σ free balances + Σ open-claim stakes + Σ unpaid resolved payouts
+vault.amount ≥ Σ UserBalance.amount
+             + Σ stakes of claims not yet settled (OPEN / ACTIVE / PROPOSED / DISPUTED)
+             + Σ gross of unpaid legs of RESOLVED claims
+             + Σ dispute bonds HELD or REFUND_DUE
+             + Config.fees_accrued
+             + Σ FeeBalance.amount
 ```
 
-Payouts are pull-based (`payout_*` cranks) rather than a push loop inside
-`resolve_claim` — Solana compute and account limits make per-recipient
-cranks the right shape, and the oracle runs them as a service right after
-resolving.
+Every instruction moves value between these buckets, or in/out of the vault
+by the same amount; pool-share rounding can only leave dust behind. The
+LiteSVM suite asserts this after every settlement path.
 
-### Carried over from the original contract design
+### MimirV3 parity
 
-Pool odds (pro-rata challenger share of the creator stake), the 60s
-anti-snipe challenge lock, confidence tiers (FIRM / CONTESTED / refund),
-on-chain evidence hashes, and refund-the-ambiguous verdicts are 1:1 with
-the original Mimir design. Fixed-odds mode, private claims, rematches, and
-per-claim market types were intentionally left out of V1 to keep the
-surface tight.
+| V3 feature | Solana program |
+|---|---|
+| Optimistic resolve + bonded dispute + arbiter | ✓ `propose/dispute/finalize/settle_dispute`, bond pull-refunded |
+| `refundExpired` (7-day grace) | ✓ `refund_expired`; grace is per-claim (60s..30d, 7d default); also accepts OPEN claims |
+| Pause (never blocks exits) | ✓ blocks create/challenge/**propose** (also stops the oracle), never withdraw/payout/refund/dispute |
+| Two-step ownership, timelocked oracle | ✓ `propose_admin/accept_admin`, `queue/cancel/execute_oracle` (2 days) |
+| Profit-only fees, cap, snapshot, timelock, pull accrual | ✓ |
+| Events for admin actions | ✓ Anchor `emit!` on every governance, escrow and lifecycle instruction |
+| Parked push payouts, `withdrawTo`, gas stipend | N/A — payouts are already pull cranks to the owner's token account |
+| Permit, multicall | N/A (EVM-only); Solana transactions batch instructions natively |
+| Rematch attribution, fixed odds, private claims, market types | N/A — not part of the Solana program |
+| wins/losses counters | Off-chain (indexer) |
+
+Deviation from V3: dispute/grace windows are admin-settable but frozen onto
+each claim at creation, so a change never affects a market people already
+entered (V3 has an immutable window and a constant grace).
+
+### Tests
+
+```bash
+# host unit tests (math.rs)
+cd onchain && CARGO_TARGET_DIR="C:\mimir-target" cargo test -p mimir --lib
+# program integration tests in LiteSVM against the built .so (16 tests)
+CARGO_TARGET_DIR="C:\mimir-target-tests" cargo test --manifest-path onchain/tests/litesvm/Cargo.toml
+# devnet smoke: pause, ER challenge, propose→dispute→settle, propose→finalize, refund_expired, withdraw_fees
+npx tsx --env-file-if-exists=.env.local scripts/solana/smoke-v3.ts
+# full demo cycle (base → ER challenge → propose → finalize → payout)
+npm run demo:solana
+```
+
+`solana-test-validator` can't run here (Windows symlink privilege), hence LiteSVM.
+
+### Ops
+
+- `scripts/solana/admin.ts status | pause | unpause | settle <id> <side> "<summary>" | withdraw-fees [usdc] | windows <d> <g>`
+- The oracle worker proposes after the deadline, finalizes after the dispute
+  window, cranks payouts and bond refunds, and runs `refund_expired` for
+  claims stuck past their grace (`agents/oracle/lifecycle.ts`). It honors the
+  on-chain pause. DISPUTED claims wait for `admin.ts settle`.
+- `scripts/solana/migrate-v2-funds.ts [--execute]` moved balances out of the
+  legacy program (see below).
+
+### V2 → V3 migration (done 2026-09-28)
+
+`scripts/solana/migrate-v2-funds.ts --execute` on the legacy program:
+
+- 8 expired ACTIVE claims resolved UNRESOLVABLE (full refunds) and 26 unpaid
+  payout legs cranked to participants' ATAs.
+- 116.072526 USDC of council-persona virtual balances undelegated, withdrawn,
+  deposited into V3 and re-delegated to the ER (optimist 12, pessimist 18,
+  contrarian 2.07, statistician 2, whale-watcher 8, crypto-maxi 16,
+  sports-pundit 20, weatherman 20, doomer 10, yapper 8). Admin had 0.
+- Left in the legacy vault (26 USDC): 5 OPEN claims #263–#267 (3 USDC each)
+  that only the market-creator `Ec5dpUvv…` can cancel, and balances of
+  wallets outside the system. Re-run with `CREATOR_KEYPAIR_JSON` set to
+  cancel those claims and move the creator's balance too.
 
 ## Railway deploy (single platform)
 
@@ -86,7 +218,7 @@ Two services from the same repo:
     `.keys/creator.json`). Without it the creator falls back to the admin
     key and the oracle will skip auto-challenging its claims (the program
     rejects self-challenges).
-  - `NEXT_PUBLIC_MIMIR_PROGRAM_ID`, `SOLANA_USDC_MINT`
+  - `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` (V3), `SOLANA_USDC_MINT`
   - `GEMINI_API_KEY`, `ORACLE_GEMINI_API_KEY`, `COUNCIL_GEMINI_API_KEY`
   - `AUTO_CHALLENGE=1`, `HEDGE_MODE=dry`, `ORACLE_LLM_THROTTLE_MS=5000`
 - Council persona wallets are derived deterministically from the admin

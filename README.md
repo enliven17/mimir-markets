@@ -268,7 +268,7 @@ Flash Trade plays two roles, both through its free public REST API (`https://fla
 | --- | --- | --- |
 | Program | Anchor 1.0.2 (Rust), `ephemeral-rollups-sdk` 0.15 | `#[delegate]` / `#[commit]` / `#[ephemeral]` macros wire the ER delegation CPI hooks |
 | Real-time execution | MagicBlock Ephemeral Rollup (devnet) | Zero-fee, ~30ms transactions against delegated PDAs; commit/undelegate returns state to base |
-| Base chain | Solana devnet | Program `J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR` |
+| Base chain | Solana devnet | Program `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` (V3) |
 | Stakes | SPL USDC (6 decimals) in a program-owned vault | Pull-based payouts; vault invariant auditable on-chain |
 | Perps | Flash Trade REST API | Live oracle prices as evidence + transaction-builder for hedges |
 | Frontend | Next.js 16 (App Router) + React 18 + Tailwind | `/arena` polls a dual-layer JSON feed every 4s |
