@@ -138,6 +138,29 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     at           BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS agent_request_audit_agent_at_idx ON agent_request_audit (agent_id, at DESC)`,
+  // ── Agent baskets (lib/baskets-store.ts) ───────────────────────────────────
+  // A basket holds nothing: these rows are a definition and a set of signed
+  // intents (ed25519, base58), never a ledger of deposits.
+  `CREATE TABLE IF NOT EXISTS baskets (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    thesis         TEXT NOT NULL DEFAULT '',
+    creator_wallet TEXT NOT NULL,
+    members_json   TEXT NOT NULL DEFAULT '[]',
+    signature      TEXT NOT NULL DEFAULT '',
+    created_at     BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS baskets_creator_idx ON baskets (creator_wallet)`,
+  // updated_at is the signature's own signedAt: an older one is refused.
+  `CREATE TABLE IF NOT EXISTS basket_subscriptions (
+    basket_id           TEXT NOT NULL,
+    follower            TEXT NOT NULL,
+    per_market_cap_usdc NUMERIC NOT NULL DEFAULT 0,
+    signature           TEXT NOT NULL DEFAULT '',
+    updated_at          BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (basket_id, follower)
+  )`,
+  `CREATE INDEX IF NOT EXISTS basket_subscriptions_follower_idx ON basket_subscriptions (follower)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
