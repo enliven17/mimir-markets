@@ -10,6 +10,7 @@ import { simulateVirtualBasket, VIRTUAL_BASKET_INITIAL_NAV } from "@/lib/baskets
 import { getBasket } from "@/lib/baskets-store";
 import { loadMemberSettlements, resolveAgentWallets } from "@/lib/baskets-performance";
 import { unitsToUsdc } from "@/lib/money";
+import { councilRoster } from "@/lib/server/council-roster";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson } from "@/lib/server/basket-http";
 
@@ -31,6 +32,7 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   );
   const settlements = await loadMemberSettlements(basket.members, wallets).catch(() => []);
   const performance = simulateVirtualBasket(basket.members, settlements);
+  const personas = new Set(councilRoster().map((p) => p.slug));
 
   return basketJson(
     {
@@ -39,6 +41,7 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
         ...basket,
         members: basket.members.map((m) => ({
           ...m,
+          kind: personas.has(m.agentId) ? "persona" : "agent",
           wallet: wallets.get(m.agentId) ?? null,
           idle: performance.idleAgents.includes(m.agentId),
         })),
