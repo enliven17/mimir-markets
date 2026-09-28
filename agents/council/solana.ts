@@ -254,6 +254,10 @@ async function cycle(members: CouncilMember[], oracleReader: MimirSolanaClient) 
   const now = Math.floor(Date.now() / 1000);
   const cfg = await oracleReader.getConfig();
   if (!cfg) return;
+  if (cfg.paused) {
+    console.log("[council] Program is PAUSED on-chain — challenges are rejected, skipping the sweep.");
+    return;
+  }
 
   const open: OnchainClaim[] = [];
   for (let id = 1n; id <= cfg.claimCount; id++) {

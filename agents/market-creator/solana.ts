@@ -129,6 +129,11 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
     console.log("[creator] Market creation paused (MIMIR_PAUSE_CREATE_MARKET) — skipping drafts.");
     return;
   }
+  // The program's admin pause rejects create_claim; don't burn LLM calls on drafts.
+  if ((await client.getConfig())?.paused) {
+    console.log("[creator] Program is PAUSED on-chain — skipping drafts.");
+    return;
+  }
 
   const [crypto, worldCup] = await Promise.all([
     draftCryptoClaims(CRYPTO_PER_RUN),
