@@ -34,6 +34,12 @@ export const MAX_FOLLOW_CAP_USDC = 100;
 export const BASKET_SIGNATURE_MAX_SKEW_MS = 5 * 60 * 1000;
 
 export const BASKET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{2,63}$/;
+/** Ids that collide with static routes (/baskets/new, /api/baskets/candidates). */
+const RESERVED_BASKET_IDS = new Set(["new", "candidates"]);
+
+export function isValidBasketId(id: string): boolean {
+  return BASKET_ID_PATTERN.test(id) && !RESERVED_BASKET_IDS.has(id);
+}
 export const MAX_BASKET_NAME = 80;
 export const MAX_BASKET_THESIS = 500;
 

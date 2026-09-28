@@ -19,6 +19,7 @@ import {
   isFreshSignature,
   isValidFollowCap,
   sanitizeMembers,
+  isValidBasketId,
   type BasketMember,
   type IndexedClaim,
   type MemberSettlement,
@@ -401,4 +402,12 @@ test("worst-case follower exposure is the cap across every member", () => {
 
 test("the weight total constant matches what validation enforces", () => {
   assert.equal(members.reduce((a, m) => a + m.weightBps, 0), WEIGHT_TOTAL_BPS);
+});
+
+test("basket ids that collide with static routes are refused", () => {
+  assert.ok(isValidBasketId("contrarian-mix"));
+  assert.ok(!isValidBasketId("new"));
+  assert.ok(!isValidBasketId("candidates"));
+  assert.ok(!isValidBasketId("Upper"));
+  assert.ok(!isValidBasketId("ab"));
 });
