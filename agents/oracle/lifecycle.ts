@@ -3,7 +3,7 @@
  *   PROPOSED past its window → finalize_resolution, then crank payouts
  *   RESOLVED with unpaid legs → crank payouts (+ returned dispute bond)
  *   ACTIVE/OPEN/DISPUTED past deadline + grace → refund_expired (escape hatch)
- *   DISPUTED → wait for the admin (arbiter); scripts/solana/settle-dispute.ts
+ *   DISPUTED → wait for the admin (arbiter); scripts/solana/admin.ts settle
  * Every step is permissionless on-chain, so none of it is gated by the pause
  * switch. Failures back off per claim so a stuck leg is not retried every poll.
  */
@@ -54,7 +54,7 @@ export async function advanceLifecycle(client: MimirSolanaClient, claim: Onchain
       reportedDisputes.add(key);
       console.log(
         `[lifecycle] Claim #${claim.id} is DISPUTED by ${claim.disputer.toBase58()} — ` +
-          "waiting for the admin: scripts/solana/settle-dispute.ts"
+          "waiting for the admin: scripts/solana/admin.ts settle"
       );
     }
   } catch (err: any) {
