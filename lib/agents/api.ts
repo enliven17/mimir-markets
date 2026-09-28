@@ -57,6 +57,7 @@ export const OWNER_SIGNED_ACTIONS: AgentAction[] = [
   "register",
   "rotateOperator",
   "issueKey",
+  "listKeys",
   "revokeKey",
   "revoke",
 ];
