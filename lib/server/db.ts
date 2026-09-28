@@ -50,6 +50,26 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS solana_claims_state_idx ON solana_claims (state)`,
   `CREATE INDEX IF NOT EXISTS solana_claims_deadline_idx ON solana_claims (deadline)`,
   `CREATE INDEX IF NOT EXISTS solana_claims_category_idx ON solana_claims (category)`,
+  // V3 program: optimistic resolution + fee terms. `program` scopes rows to one
+  // program id, so claim #1 of a redeployed program never mixes with the old #1.
+  `ALTER TABLE solana_claims
+     ADD COLUMN IF NOT EXISTS program          TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS proposed_side    SMALLINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS proposed_at      BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS disputable_until BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS disputer         TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS disputed_at      BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS bond             TEXT NOT NULL DEFAULT '0',
+     ADD COLUMN IF NOT EXISTS bond_state       SMALLINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS dispute_window   BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS resolution_grace BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS resolved_at      BIGINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS creator_agent    TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS platform_fee_bps SMALLINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS agent_fee_bps    SMALLINT NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS total_fees       TEXT NOT NULL DEFAULT '0',
+     ADD COLUMN IF NOT EXISTS creator_paid     BOOLEAN NOT NULL DEFAULT FALSE`,
+  `CREATE INDEX IF NOT EXISTS solana_claims_program_idx ON solana_claims (program)`,
   // Fixed-window counters for public routes (lib/server/rate-limit.ts).
   `CREATE TABLE IF NOT EXISTS rate_limits (
     bucket_key   TEXT NOT NULL,
