@@ -1,0 +1,1766 @@
+{
+  "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR",
+  "metadata": {
+    "name": "mimir",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Mimir — AI-settled claim market on Solana with MagicBlock Ephemeral Rollups"
+  },
+  "instructions": [
+    {
+      "name": "cancel_claim",
+      "docs": [
+        "Cancel an OPEN claim (no challengers yet). Base layer only."
+      ],
+      "discriminator": [
+        179,
+        1,
+        212,
+        49,
+        81,
+        144,
+        221,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "signer": true,
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "challenge_claim",
+      "docs": [
+        "Challenge a claim by staking from the virtual balance.",
+        "Designed to run inside the Ephemeral Rollup: both the claim PDA and",
+        "the challenger's balance PDA are delegated, so this is a zero-fee,",
+        "~30ms transaction. It also works on the base layer pre-delegation."
+      ],
+      "discriminator": [
+        231,
+        213,
+        62,
+        171,
+        50,
+        56,
+        168,
+        63
+      ],
+      "accounts": [
+        {
+          "name": "challenger",
+          "signer": true
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "challenger"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_claim",
+      "docs": [
+        "Create a claim. Creator stake moves straight from the creator's",
+        "token account into the vault (no virtual balance needed on this side)."
+      ],
+      "discriminator": [
+        71,
+        122,
+        43,
+        84,
+        240,
+        165,
+        215,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "creator_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "CreateClaimArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "delegate_balance",
+      "docs": [
+        "Delegate the caller's balance PDA into the Ephemeral Rollup so they",
+        "can challenge claims inside the ER."
+      ],
+      "discriminator": [
+        199,
+        112,
+        131,
+        196,
+        76,
+        135,
+        198,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "balance"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                254,
+                186,
+                147,
+                66,
+                143,
+                116,
+                185,
+                114,
+                158,
+                245,
+                108,
+                63,
+                175,
+                185,
+                71,
+                127,
+                80,
+                242,
+                106,
+                217,
+                49,
+                89,
+                57,
+                96,
+                179,
+                173,
+                205,
+                135,
+                195,
+                204,
+                226,
+                236
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "balance"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "balance"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_program",
+          "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate_claim",
+      "docs": [
+        "Delegate a claim PDA into the Ephemeral Rollup. From this point on,",
+        "challenges against it run in real time with zero fees."
+      ],
+      "discriminator": [
+        154,
+        51,
+        241,
+        236,
+        110,
+        38,
+        218,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                254,
+                186,
+                147,
+                66,
+                143,
+                116,
+                185,
+                114,
+                158,
+                245,
+                108,
+                63,
+                175,
+                185,
+                71,
+                127,
+                80,
+                242,
+                106,
+                217,
+                49,
+                89,
+                57,
+                96,
+                179,
+                173,
+                205,
+                135,
+                195,
+                204,
+                226,
+                236
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "claim_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_program",
+          "address": "J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "claim_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "docs": [
+        "Deposit USDC into the vault; credits the caller's virtual balance.",
+        "The balance PDA is what gets delegated into the Ephemeral Rollup."
+      ],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "payout_challenger",
+      "docs": [
+        "Pay out one challenger by index. Pool odds: stake + proportional",
+        "share of the creator stake. Permissionless crank."
+      ],
+      "discriminator": [
+        209,
+        3,
+        180,
+        115,
+        92,
+        29,
+        199,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "challenger_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "payout_creator",
+      "docs": [
+        "Pay out the creator's share after resolution. Permissionless crank —",
+        "anyone can run it, USDC always goes to the creator's token account."
+      ],
+      "discriminator": [
+        205,
+        253,
+        162,
+        94,
+        169,
+        172,
+        158,
+        206
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "process_undelegation",
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolve_claim",
+      "discriminator": [
+        63,
+        99,
+        216,
+        44,
+        183,
+        52,
+        190,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "winner_side",
+          "type": "u8"
+        },
+        {
+          "name": "summary",
+          "type": "string"
+        },
+        {
+          "name": "confidence",
+          "type": "u8"
+        },
+        {
+          "name": "evidence_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_oracle",
+      "discriminator": [
+        186,
+        128,
+        81,
+        104,
+        74,
+        79,
+        18,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "undelegate_balance",
+      "docs": [
+        "Commit + undelegate the caller's balance PDA (needed before withdraw)."
+      ],
+      "discriminator": [
+        7,
+        32,
+        46,
+        225,
+        36,
+        220,
+        19,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_claim",
+      "docs": [
+        "Commit + undelegate a claim from the ER back to the base layer.",
+        "Run by the oracle once the deadline passes, right before resolution."
+      ],
+      "discriminator": [
+        251,
+        118,
+        157,
+        208,
+        15,
+        165,
+        106,
+        54
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.id",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "docs": [
+        "Withdraw free (unstaked) balance back to the user's token account.",
+        "Only possible while the balance PDA is NOT delegated."
+      ],
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "relations": [
+            "balance"
+          ]
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Claim",
+      "discriminator": [
+        155,
+        70,
+        22,
+        176,
+        123,
+        215,
+        246,
+        102
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "UserBalance",
+      "discriminator": [
+        187,
+        237,
+        208,
+        146,
+        86,
+        132,
+        29,
+        191
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Mimir: invalid amount"
+    },
+    {
+      "code": 6001,
+      "name": "StakeTooSmall",
+      "msg": "Mimir: stake too small"
+    },
+    {
+      "code": 6002,
+      "name": "DeadlineInPast",
+      "msg": "Mimir: deadline in past"
+    },
+    {
+      "code": 6003,
+      "name": "EmptyQuestion",
+      "msg": "Mimir: empty question"
+    },
+    {
+      "code": 6004,
+      "name": "NotOpen",
+      "msg": "Mimir: claim not open"
+    },
+    {
+      "code": 6005,
+      "name": "NotActive",
+      "msg": "Mimir: claim not active"
+    },
+    {
+      "code": 6006,
+      "name": "NotResolved",
+      "msg": "Mimir: claim not resolved"
+    },
+    {
+      "code": 6007,
+      "name": "NotYetExpired",
+      "msg": "Mimir: not yet expired"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidVerdict",
+      "msg": "Mimir: invalid verdict"
+    },
+    {
+      "code": 6009,
+      "name": "SelfChallenge",
+      "msg": "Mimir: self-challenge"
+    },
+    {
+      "code": 6010,
+      "name": "AlreadyChallenged",
+      "msg": "Mimir: already challenged"
+    },
+    {
+      "code": 6011,
+      "name": "ClaimFull",
+      "msg": "Mimir: claim is full"
+    },
+    {
+      "code": 6012,
+      "name": "ChallengeWindowClosed",
+      "msg": "Mimir: challenge window closed"
+    },
+    {
+      "code": 6013,
+      "name": "InsufficientBalance",
+      "msg": "Mimir: insufficient balance"
+    },
+    {
+      "code": 6014,
+      "name": "MathOverflow",
+      "msg": "Mimir: math overflow"
+    },
+    {
+      "code": 6015,
+      "name": "NotOracle",
+      "msg": "Mimir: not the oracle"
+    },
+    {
+      "code": 6016,
+      "name": "NotCreator",
+      "msg": "Mimir: not the creator"
+    },
+    {
+      "code": 6017,
+      "name": "AlreadyPaid",
+      "msg": "Mimir: already paid"
+    },
+    {
+      "code": 6018,
+      "name": "NothingToPay",
+      "msg": "Mimir: nothing to pay"
+    },
+    {
+      "code": 6019,
+      "name": "BadIndex",
+      "msg": "Mimir: bad challenger index"
+    },
+    {
+      "code": 6020,
+      "name": "WrongRecipient",
+      "msg": "Mimir: wrong recipient"
+    },
+    {
+      "code": 6021,
+      "name": "HasChallengers",
+      "msg": "Mimir: claim has challengers"
+    },
+    {
+      "code": 6022,
+      "name": "SummaryTooLong",
+      "msg": "Mimir: summary too long"
+    }
+  ],
+  "types": [
+    {
+      "name": "Challenger",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "addr",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "paid",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Claim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "question",
+            "type": "string"
+          },
+          {
+            "name": "creator_position",
+            "type": "string"
+          },
+          {
+            "name": "counter_position",
+            "type": "string"
+          },
+          {
+            "name": "resolution_url",
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "type": "string"
+          },
+          {
+            "name": "creator_stake",
+            "type": "u64"
+          },
+          {
+            "name": "total_challenger_stake",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "state",
+            "type": "u8"
+          },
+          {
+            "name": "winner_side",
+            "type": "u8"
+          },
+          {
+            "name": "resolution_summary",
+            "type": "string"
+          },
+          {
+            "name": "confidence",
+            "type": "u8"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "max_challengers",
+            "type": "u8"
+          },
+          {
+            "name": "creator_paid",
+            "type": "bool"
+          },
+          {
+            "name": "challengers",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Challenger"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "claim_count",
+            "type": "u64"
+          },
+          {
+            "name": "total_resolved",
+            "type": "u64"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreateClaimArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "question",
+            "type": "string"
+          },
+          {
+            "name": "creator_position",
+            "type": "string"
+          },
+          {
+            "name": "counter_position",
+            "type": "string"
+          },
+          {
+            "name": "resolution_url",
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "type": "string"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "max_challengers",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserBalance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
