@@ -52,12 +52,13 @@ function invert(wallets: Map<string, string>): Map<string, string> {
   return byWallet;
 }
 
-/** Claims of this program where any of `wallets` is a challenger, in `states`. */
-async function claimsChallengedBy(wallets: string[], states: number[], limit: number): Promise<IndexedClaim[]> {
+/** Claims of this program where any of `wallets` is a challenger, in `states`. Shared with copy trading. */
+export async function claimsChallengedBy(wallets: string[], states: number[], limit: number): Promise<IndexedClaim[]> {
   if (wallets.length === 0) return [];
   const rows = await query(
     `SELECT id, creator, state, winner_side, creator_stake, total_challenger_stake, deadline,
-            resolved_at, max_challengers, delegated, platform_fee_bps, agent_fee_bps, challengers
+            resolved_at, max_challengers, delegated, platform_fee_bps, agent_fee_bps, challengers,
+            question, category, creator_position, counter_position, resolution_url, created_at
        FROM solana_claims c
       WHERE c.program = $1
         AND c.state = ANY($2)
@@ -82,6 +83,12 @@ async function claimsChallengedBy(wallets: string[], states: number[], limit: nu
     platform_fee_bps: Number(r.platform_fee_bps ?? 0),
     agent_fee_bps: Number(r.agent_fee_bps ?? 0),
     challengers: (typeof r.challengers === "string" ? JSON.parse(r.challengers) : r.challengers) ?? [],
+    question: String(r.question ?? ""),
+    category: String(r.category ?? ""),
+    creator_position: String(r.creator_position ?? ""),
+    counter_position: String(r.counter_position ?? ""),
+    resolution_url: String(r.resolution_url ?? ""),
+    created_at: Number(r.created_at ?? 0),
   }));
 }
 

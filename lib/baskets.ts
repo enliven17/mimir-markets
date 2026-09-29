@@ -292,6 +292,13 @@ export interface IndexedClaim {
   platform_fee_bps?: number;
   agent_fee_bps?: number;
   challengers: { addr: string; stake: string; paid?: boolean; agent?: string }[];
+  /** Claim text, read by copy trading's quality floor. */
+  question?: string;
+  category?: string;
+  creator_position?: string;
+  counter_position?: string;
+  resolution_url?: string;
+  created_at?: number;
 }
 
 // Mirrors lib/solana/config.ts (kept literal so this module stays RPC-free).
