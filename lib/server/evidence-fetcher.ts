@@ -436,12 +436,17 @@ async function fetchEspnSnapshot(
     return null;
   }
 
-  const events: any[] = Array.isArray(payload.events) ? payload.events : [];
+  const allEvents: any[] = Array.isArray(payload.events) ? payload.events : [];
+  // `event=<id>` (the market-creator adds it; ESPN ignores it) narrows the
+  // snapshot to the one game the claim is about.
+  const eventId = url.searchParams.get("event");
+  const events = eventId ? allEvents.filter((e: any) => String(e?.id) === eventId) : allEvents;
   if (events.length === 0) return null;
+  const league = String(payload.leagues?.[0]?.name ?? "ESPN");
 
   const fetchedAt = new Date().toISOString();
   const lines: string[] = [
-    `ESPN World Cup 2026 scoreboard`,
+    `ESPN ${league} scoreboard`,
     `Source: ${url.toString()}`,
     `Fetched at: ${fetchedAt}`,
     `Total matches: ${events.length}`,
@@ -481,7 +486,7 @@ async function fetchEspnSnapshot(
 
   return {
     sourceUrl: url.toString(),
-    title: "ESPN World Cup 2026 Scoreboard",
+    title: `ESPN ${league} Scoreboard`,
     text,
     fetchedAt: Date.now(),
     fetcher: "espn-api",
