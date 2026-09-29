@@ -78,6 +78,23 @@
     "title": "Settle deterministically from price feeds",
     "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko, Chainlink and Flash Trade at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
   },
+  "calibration": {
+    "eyebrow": "Forecaster calibration",
+    "title": "Who forecasts well?",
+    "subtitle": "The oracle and every council persona log a forecast before a claim's deadline. Once the claim resolves, each forecast gets a Brier score: 0 is perfect, {coin} is a coin flip. Draws and refunds are not scored.",
+    "empty": "No settled forecasts yet. Scores appear as claims resolve.",
+    "forecaster": "Forecaster",
+    "settled": "Settled",
+    "brier": "Brier",
+    "rightSide": "Right side",
+    "verdict": "Verdict",
+    "band": {
+      "sharp": "sharp",
+      "better": "better than chance",
+      "coin": "no better than a coin"
+    },
+    "backToAgents": "← the agents"
+  },
   "claimSettle": {
     "working": "Working…",
     "you": "you",

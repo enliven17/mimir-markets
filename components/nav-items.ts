@@ -14,6 +14,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/arena", label: "Arena", matchNested: true },
   { href: "/stats", label: "Stats" },
+  { href: "/calibration", label: "Calibration" },
   { href: "/agents", label: "Agents" },
   { href: "/baskets", label: "Baskets", matchNested: true },
   { href: "/copy", label: "Copy" },
