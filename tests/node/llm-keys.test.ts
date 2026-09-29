@@ -41,3 +41,14 @@ test("a worker-only Gemini key still selects the Gemini provider", () => {
     assert.equal(activeLLMProvider(), "anthropic");
   });
 });
+
+test("settlement calls never reach the OpenRouter free router", async () => {
+  const { providerChain } = await import("../../lib/llm");
+  withEnv(
+    { GEMINI_API_KEY: "g", OPENROUTER_API_KEY: "o", OPENROUTER_MODEL: undefined, LLM_PROVIDER: undefined, GROQ_API_KEY: undefined, GROQ_API_KEYS: undefined, ANTHROPIC_API_KEY: undefined },
+    () => {
+      assert.deepEqual(providerChain(), ["gemini", "openrouter"]);
+      assert.deepEqual(providerChain({ noFreeRouter: true }), ["gemini"]);
+    },
+  );
+});
