@@ -6,19 +6,20 @@
  * chain — the ER for delegated claims, the base layer otherwise — when the
  * index is unavailable, so the product still works database-free.
  *
- * Optional query params: ?state=open|active|resolved&category=crypto
+ * Optional query params:
+ *   ?state=open|active|live|proposed|disputed|settling|resolved|cancelled
+ *   &category=crypto
+ * Every claim carries its V3 lifecycle fields (proposal, dispute window,
+ * bond, frozen fee terms) so pages can render PROPOSED / DISPUTED claims.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { Keypair } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
-import {
-  isIndexEnabled,
-  readClaims,
-  readStats,
-  type SolanaClaimRow,
-} from "@/lib/server/solana-index";
+import { isIndexEnabled, readClaims, readStats } from "@/lib/server/solana-index";
+import { claimToApi, rowToApi, type ApiClaim } from "@/lib/server/arena-claim";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { holdsStakes } from "@/lib/claim-status";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,10 @@ const STATE_MAP: Record<string, number[]> = {
   open: [0],
   active: [1],
   live: [0, 1],
+  proposed: [4],
+  disputed: [5],
+  /** A verdict is in but not final. */
+  settling: [4, 5],
   resolved: [2],
   cancelled: [3],
 };
@@ -36,8 +41,6 @@ function getReader(): MimirSolanaClient {
   if (!reader) reader = new MimirSolanaClient(Keypair.generate());
   return reader;
 }
-
-type ApiClaim = ReturnType<typeof rowToApi>;
 
 /**
  * Every claim read straight from chain, newest first. Cached per instance for
@@ -59,30 +62,7 @@ const scanChain = cachedFor(async (): Promise<{
       client.isDelegated(id),
     ]);
     if (!claim) continue;
-    claims.push({
-      id: Number(claim.id),
-      creator: claim.creator.toBase58(),
-      question: claim.question,
-      creatorPosition: claim.creatorPosition,
-      counterPosition: claim.counterPosition,
-      resolutionUrl: claim.resolutionUrl,
-      category: claim.category,
-      creatorStake: claim.creatorStake.toString(),
-      totalChallengerStake: claim.totalChallengerStake.toString(),
-      deadline: claim.deadline,
-      state: claim.state,
-      winnerSide: claim.winnerSide,
-      resolutionSummary: claim.resolutionSummary,
-      confidence: claim.confidence,
-      createdAt: claim.createdAt,
-      maxChallengers: claim.maxChallengers,
-      delegated,
-      challengers: claim.challengers.map((c) => ({
-        addr: c.addr.toBase58(),
-        stake: c.stake.toString(),
-        paid: c.paid,
-      })),
-    });
+    claims.push(claimToApi(claim, delegated));
   }
   return {
     claims: claims.reverse(),
@@ -90,29 +70,6 @@ const scanChain = cachedFor(async (): Promise<{
     totalResolved: Number(cfg.totalResolved),
   };
 }, 4_000);
-
-function rowToApi(c: SolanaClaimRow) {
-  return {
-    id: c.id,
-    creator: c.creator,
-    question: c.question,
-    creatorPosition: c.creator_position,
-    counterPosition: c.counter_position,
-    resolutionUrl: c.resolution_url,
-    category: c.category,
-    creatorStake: c.creator_stake,
-    totalChallengerStake: c.total_challenger_stake,
-    deadline: c.deadline,
-    state: c.state,
-    winnerSide: c.winner_side,
-    resolutionSummary: c.resolution_summary,
-    confidence: c.confidence,
-    createdAt: c.created_at,
-    maxChallengers: c.max_challengers,
-    delegated: c.delegated,
-    challengers: c.challengers,
-  };
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -149,6 +106,9 @@ export async function GET(req: NextRequest) {
     const claims = scan.claims.filter(
       (c) => (!states || states.includes(c.state)) && (!category || c.category === category)
     );
+    const openPool = scan.claims
+      .filter((c) => holdsStakes(c.state))
+      .reduce((sum, c) => sum + BigInt(c.creatorStake) + BigInt(c.totalChallengerStake), 0n);
     return NextResponse.json({
       success: true,
       source: "chain",
@@ -156,7 +116,7 @@ export async function GET(req: NextRequest) {
         claims,
         claimCount: scan.claimCount,
         totalResolved: scan.totalResolved,
-        openPool: "0",
+        openPool: openPool.toString(),
       },
     });
   } catch (error: any) {

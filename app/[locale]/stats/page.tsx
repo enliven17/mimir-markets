@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
+import { holdsStakes, isPendingVerdict } from "@/lib/claim-status";
 
 interface Challenger {
   addr: string;
@@ -190,6 +191,8 @@ export default function StatsPage() {
     .sort((a, b) => b.createdAt - a.createdAt);
 
   const settledCount = settlements.length;
+  // V3: proposed verdicts inside their dispute window, or disputed.
+  const pendingVerdicts = claims.filter((c) => isPendingVerdict(c.state)).length;
   const firm = settlements.filter((s) => s.confidence >= 80).length;
   const contested = settlements.filter(
     (s) => s.confidence >= 60 && s.confidence < 80
@@ -232,7 +235,7 @@ export default function StatsPage() {
           tone="accent"
           label="Open pool"
           value={`${usdc(openPoolUnits)} USDC`}
-          sub="creator + challenger stakes"
+          sub="stakes not yet settled"
         />
         <Kpi
           label="Total markets"
@@ -242,7 +245,7 @@ export default function StatsPage() {
         <Kpi
           label="Resolved"
           value={data ? totalResolved : "…"}
-          sub={`${settledCount} shown here`}
+          sub={`${settledCount} shown · ${pendingVerdicts} awaiting finality`}
         />
         <Kpi
           label="Live on ER"

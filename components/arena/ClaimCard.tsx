@@ -3,6 +3,7 @@
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { PeepStack } from "@/components/ui/PeepAvatar";
+import { claimPhase, isArchivedState, PHASE_LABEL } from "@/lib/claim-status";
 
 export interface SolanaClaim {
   id: number;
@@ -25,6 +26,10 @@ export interface SolanaClaim {
   maxChallengers: number;
   delegated: boolean;
   challengers: { addr: string; stake: string; paid: boolean }[];
+  /** V3: side the oracle proposed while PROPOSED / DISPUTED. */
+  proposedSide?: number;
+  /** V3: unix seconds; a PROPOSED claim is disputable until then. */
+  disputableUntil?: number;
 }
 
 interface ClaimCardProps {
@@ -43,15 +48,17 @@ function formatArenaIdCode(id: number): string {
   return `#${padded}-${letter}`;
 }
 
-type StatusVariant = "live" | "muted" | "archived";
+type StatusVariant = "live" | "muted" | "archived" | "settling";
 
-function getStatusPresentation(state: number): {
+function getStatusPresentation(state: number, deadline: number): {
   label: string;
   variant: StatusVariant;
 } {
-  // 0 OPEN, 1 ACTIVE, 2 RESOLVED, 3 CANCELLED
-  if (state >= 2) return { label: "ARCHIVED", variant: "archived" };
-  if (state === 1) return { label: "LIVE", variant: "live" };
+  const phase = claimPhase(state, deadline);
+  const label = PHASE_LABEL[phase].toUpperCase();
+  if (phase === "proposed" || phase === "disputed" || phase === "awaiting") return { label, variant: "settling" };
+  if (phase === "resolved" || phase === "cancelled") return { label, variant: "archived" };
+  if (phase === "active") return { label, variant: "live" };
   return { label: "PENDING", variant: "muted" };
 }
 
@@ -61,9 +68,10 @@ export default function ClaimCard({ claim }: ClaimCardProps) {
     typeof claim.maxChallengers === "number" && claim.maxChallengers > 0
       ? claim.maxChallengers
       : 1;
-  const isArchived = claim.state >= 2;
+  const isArchived = isArchivedState(claim.state);
   const { label: statusLabel, variant: statusVariant } = getStatusPresentation(
-    claim.state
+    claim.state,
+    claim.deadline
   );
 
   const poolUnits = (
@@ -75,7 +83,9 @@ export default function ClaimCard({ claim }: ClaimCardProps) {
   const statusPillClass =
     statusVariant === "live"
       ? "font-display text-xs font-semibold uppercase tracking-wide text-pv-emerald bg-pv-emerald/10 px-2 py-1"
-      : "font-display text-xs font-semibold uppercase tracking-wide text-pv-muted bg-pv-border/[0.06] px-2 py-1 ring-1 ring-pv-border/25";
+      : statusVariant === "settling"
+        ? "font-display text-xs font-semibold uppercase tracking-wide text-pv-gold bg-pv-gold/10 px-2 py-1 ring-1 ring-pv-gold/25"
+        : "font-display text-xs font-semibold uppercase tracking-wide text-pv-muted bg-pv-border/[0.06] px-2 py-1 ring-1 ring-pv-border/25";
 
   return (
     <article className="group relative flex h-full flex-col gap-6 overflow-hidden bg-pv-bg p-6 transition-colors duration-300 hover:bg-pv-surface sm:gap-8 sm:p-8">

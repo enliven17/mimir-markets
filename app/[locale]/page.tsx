@@ -14,6 +14,7 @@ import { Button, PeepStack } from "@/components/ui";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import { kineticContainer, kineticLetter } from "@/lib/animations/rituals";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
+import { STATE_LABELS } from "@/lib/solana/config";
 
 // Canvas can't render during SSR/prerender — load client-only.
 const HeroAscii = dynamic(() => import("@/components/HeroAscii"), { ssr: false });
@@ -48,7 +49,6 @@ interface ArenaFeed {
   openPool: string;
 }
 
-const STATE_LABELS = ["OPEN", "ACTIVE", "RESOLVED", "CANCELLED"] as const;
 
 /* ── Animated count-up for hero/strip stats ──────────────────────────────── */
 type ParsedStat = {
@@ -488,7 +488,7 @@ export default function HomePage() {
                         {c.category}
                       </span>
                       <span className="border border-pv-emerald/40 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-emerald">
-                        {STATE_LABELS[c.state]}
+                        {STATE_LABELS[c.state] ?? "—"}
                       </span>
                       {c.delegated && (
                         <span className="inline-flex items-center gap-1 bg-pv-emerald/[0.12] px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-pv-emerald">

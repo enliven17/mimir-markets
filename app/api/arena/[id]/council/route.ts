@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { Keypair } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
 import { councilRoster } from "@/lib/server/council-roster";
-import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
+import { isIndexEnabled, readClaim } from "@/lib/server/solana-index";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
@@ -28,8 +28,8 @@ function getReader(): MimirSolanaClient {
  */
 const challengersFor = cachedFor(async (claimId: number): Promise<Challenger[] | null> => {
   if (isIndexEnabled()) {
-    const claims = await readClaims({ limit: 500 });
-    return claims.find((c) => c.id === claimId)?.challengers ?? null;
+    const row = await readClaim(claimId);
+    if (row) return row.challengers;
   }
   const claim = await getReader().getClaim(BigInt(claimId));
   if (!claim) return null;

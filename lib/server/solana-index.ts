@@ -132,15 +132,25 @@ export async function readClaims(filters: FeedFilters = {}): Promise<SolanaClaim
     `SELECT * FROM solana_claims ${whereSql} ORDER BY id DESC LIMIT ${limit}`,
     params
   );
-  return res.rows.map((r: any) => {
-    const out: any = {
-      ...r,
-      id: Number(r.id),
-      challengers: typeof r.challengers === "string" ? JSON.parse(r.challengers) : r.challengers,
-    };
-    for (const c of BIGINT_COLUMNS) out[c] = Number(r[c] ?? 0);
-    return out as SolanaClaimRow;
-  });
+  return res.rows.map(toRow);
+}
+
+function toRow(r: any): SolanaClaimRow {
+  const out: any = {
+    ...r,
+    id: Number(r.id),
+    challengers: typeof r.challengers === "string" ? JSON.parse(r.challengers) : r.challengers,
+  };
+  for (const c of BIGINT_COLUMNS) out[c] = Number(r[c] ?? 0);
+  return out as SolanaClaimRow;
+}
+
+/** One claim by id, or null. Unlike the feed, never capped to the newest rows. */
+export async function readClaim(id: number): Promise<SolanaClaimRow | null> {
+  if (!isDbEnabled()) return null;
+  const p = await getDb();
+  const res = await p.query("SELECT * FROM solana_claims WHERE program = $1 AND id = $2", [PROGRAM(), id]);
+  return res.rows[0] ? toRow(res.rows[0]) : null;
 }
 
 export interface IndexStats {
@@ -158,7 +168,7 @@ export async function readStats(): Promise<IndexStats> {
       COUNT(*)::int AS claim_count,
       COUNT(*) FILTER (WHERE state = 2)::int AS total_resolved,
       COALESCE(SUM(
-        CASE WHEN state IN (0,1)
+        CASE WHEN state IN (0,1,4,5)
           THEN creator_stake::numeric + total_challenger_stake::numeric
           ELSE 0 END
       ), 0)::text AS open_pool

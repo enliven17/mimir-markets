@@ -13,6 +13,7 @@ import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
 import { loadAgentKeypair } from "@/lib/solana/keypair";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { holdsStakes } from "@/lib/claim-status";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,9 @@ const agentsData = cachedFor(async () => {
   const perAgent: Record<string, { stakes: number; volume: number }> = {};
 
   for (const c of claims) {
-    const isOpen = c.state === 0 || c.state === 1;
+    // Stake is at risk until the claim is RESOLVED (or cancelled): a
+    // PROPOSED / DISPUTED verdict can still change.
+    const isOpen = holdsStakes(c.state);
     for (const ch of c.challengers ?? []) {
       const persona = byAddr[ch.addr];
       const key = persona?.slug ?? (ch.addr === oracleAddress ? "oracle" : "human");

@@ -25,6 +25,7 @@ import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
+import { isArchivedState, isLiveState } from "@/lib/claim-status";
 
 const filterPillBase =
   "shrink-0 rounded border px-4 py-2 font-display text-xs font-bold uppercase tracking-tight transition-[color,border-color,background-color] focus-ring";
@@ -51,9 +52,10 @@ function poolUnits(claim: SolanaClaim): number {
   return Number(claim.creatorStake) + Number(claim.totalChallengerStake);
 }
 
-// 0 OPEN, 1 ACTIVE, 2 RESOLVED, 3 CANCELLED
-const isOpenState = (state: number) => state <= 1;
-const isResolvedState = (state: number) => state >= 2;
+// Live board: OPEN / ACTIVE. Archive: a verdict is in (PROPOSED, DISPUTED,
+// RESOLVED) or the claim was cancelled — cards label each phase.
+const isOpenState = isLiveState;
+const isResolvedState = isArchivedState;
 
 export default function ArenaPage() {
   const { locale } = useParams<{ locale: string }>();

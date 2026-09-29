@@ -41,7 +41,7 @@ function explorerAddr(addr: string): string {
 
 interface Props {
   claimId: number;
-  /** claim.state: 0=open,1=active,2=resolved,3=cancelled */
+  /** claim.state: 0 open, 1 active, 2 resolved, 3 cancelled, 4 proposed, 5 disputed (outcomes show once RESOLVED) */
   claimState?: number;
   /** claim.winnerSide: 0=none,1=creator,2=challengers,3=draw,4=unresolvable */
   winnerSide?: number;
