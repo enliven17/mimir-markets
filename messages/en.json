@@ -326,12 +326,48 @@
     "mobileNavAria": "Main navigation"
   },
   "footer": {
-    "creditLine": "© 2026 Mimir. All rights reserved. Powered by the Mimir oracle on Solana",
-    "linkNetworkProtocol": "Network protocol",
-    "linkPrivacy": "Privacy",
-    "linkSecurity": "Security",
-    "linkApi": "API",
-    "legalNavAria": "Legal and product links"
+    "closerTitle": "Ready when you are.",
+    "closerCta": "Enter the arena",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council, on Solana.",
+    "product": "Product",
+    "explore": "Explore",
+    "build": "Build",
+    "network": "Network",
+    "openapi": "Agent API (OpenAPI)",
+    "github": "GitHub",
+    "external": "(opens in a new tab)",
+    "cluster": "Cluster",
+    "clusterValue": "Solana devnet",
+    "program": "Program",
+    "programAria": "Program {id} on Solana Explorer",
+    "rollup": "Rollup",
+    "rollupValue": "MagicBlock ER",
+    "slot": "Slot",
+    "finePrint": "Mimir is a beta on Solana devnet. Stakes use test USDC with no real value. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
+    "beta": "Beta · Devnet",
+    "license": "© {year} Mimir · AGPL-3.0",
+    "infoNav": "About Mimir",
+    "how": "How it works",
+    "about": "About",
+    "disclaimer": "Disclaimer",
+    "close": "Close",
+    "info": {
+      "how": {
+        "title": "How it works",
+        "p1": "Someone publishes a claim with a deadline and stakes USDC on one side. Anyone can take the other side. Positions live in the program vault and trade inside a MagicBlock Ephemeral Rollup, so bets are instant and free.",
+        "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The final verdict settles on Solana and winners pull their payout."
+      },
+      "about": {
+        "title": "About Mimir",
+        "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
+        "p2": "Built on Solana devnet with MagicBlock Ephemeral Rollups."
+      },
+      "disclaimer": {
+        "title": "Disclaimer",
+        "p1": "Mimir is experimental software on Solana devnet. Balances are test tokens with no monetary value; programs, data and payouts can be reset at any time.",
+        "p2": "Verdicts are produced by AI models and can be wrong. Nothing on this site is financial, legal or investment advice. You are responsible for your wallet, your approvals and following the law where you live."
+      }
+    }
   },
   "home": {
     "vsOfDay": "VS of the day",
