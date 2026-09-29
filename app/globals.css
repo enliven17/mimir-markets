@@ -108,11 +108,18 @@
     letter-spacing: -0.01em;
   }
 
-  /* Headings are never bold in radio; Terminal Grotesque ships 400 only. */
+  /* Headings are never bold in radio; Terminal Grotesque ships 400 only, so
+     never let the browser fake a bold weight for it. */
   h1,
   h2,
   h3 {
     text-wrap: balance;
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-synthesis-weight: none;
   }
 
   a {

@@ -38,7 +38,7 @@ export function BlueprintHeading({
         {children}
       </Tag>
       {subtitle ? (
-        <p className="mt-3 max-w-[60ch] truncate text-copy text-muted sm:text-[15px]">{subtitle}</p>
+        <p className="mt-3 line-clamp-2 max-w-[60ch] text-copy text-muted sm:text-[15px]">{subtitle}</p>
       ) : null}
     </div>
   );
