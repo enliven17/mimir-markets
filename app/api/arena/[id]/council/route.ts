@@ -81,6 +81,7 @@ export async function GET(
       displayName: p.displayName,
       emoji: p.emoji,
       archetype: p.archetype,
+      track: p.track,
       address: p.address,
       staked: Boolean(ch),
       stakeUsdc: ch ? Number(ch.stake) / 1e6 : 0,

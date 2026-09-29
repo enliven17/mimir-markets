@@ -12,6 +12,7 @@ interface PersonaVote {
   displayName: string;
   emoji: string;
   archetype: string;
+  track?: "classic" | "philosopher";
   address: string;
   staked: boolean;
   stakeUsdc: number;
@@ -99,56 +100,67 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
         </div>
       </div>
 
-      <ul className="bp-cells grid-cols-1 border border-pv-border/25 sm:grid-cols-2">
-        {data.votes.map((v) => {
-          const outcome = isResolved ? outcomeTag(v, winnerSide) : null;
-          return (
-            <li
-              key={v.slug}
-              className={`flex items-center justify-between gap-2 px-3 py-2 ${
-                v.staked ? "bg-pv-emerald/[0.06]" : "bg-pv-surface"
-              }`}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <PeepAvatar seed={`council-${v.slug}`} size={28} tone={v.staked ? "accent" : "neutral"} />
-                <span className={`truncate text-[12px] font-semibold ${v.staked ? "text-pv-text" : "text-pv-muted"}`}>
-                  {v.displayName}
-                </span>
-              </div>
-              {v.staked ? (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {outcome ? (
-                    <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] ${outcome.cls}`}>
-                      {outcome.label}
-                    </span>
-                  ) : (
-                    <span className="font-mono text-[10px] tabular-nums text-pv-emerald">
-                      ✓ {v.stakeUsdc.toFixed(2)} USDC
-                    </span>
-                  )}
-                  {!outcome && (
-                    <a
-                      href={explorerAddr(v.address)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-mono text-[10px] text-pv-muted hover:text-pv-emerald"
-                    >
-                      ↗
-                    </a>
-                  )}
-                  {outcome && (
-                    <span className="font-mono text-[10px] tabular-nums text-pv-muted">
-                      {v.stakeUsdc.toFixed(2)} USDC
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">— abstain</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {(["classic", "philosopher"] as const).map((track) => {
+        const votes = data.votes.filter((v) => (v.track ?? "classic") === track);
+        if (votes.length === 0) return null;
+        return (
+          <div key={track} className="mt-3 first:mt-0">
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-pv-muted">
+              {track === "classic" ? "Classic jury" : "Philosopher jury"}
+            </div>
+            <ul className="bp-cells grid-cols-1 border border-pv-border/25 sm:grid-cols-2">
+              {votes.map((v) => {
+                const outcome = isResolved ? outcomeTag(v, winnerSide) : null;
+                return (
+                  <li
+                    key={v.slug}
+                    className={`flex items-center justify-between gap-2 px-3 py-2 ${
+                      v.staked ? "bg-pv-emerald/[0.06]" : "bg-pv-surface"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <PeepAvatar seed={`council-${v.slug}`} size={28} tone={v.staked ? "accent" : "neutral"} />
+                      <span className={`truncate text-[12px] font-semibold ${v.staked ? "text-pv-text" : "text-pv-muted"}`}>
+                        {v.displayName}
+                      </span>
+                    </div>
+                    {v.staked ? (
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {outcome ? (
+                          <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] ${outcome.cls}`}>
+                            {outcome.label}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[10px] tabular-nums text-pv-emerald">
+                            ✓ {v.stakeUsdc.toFixed(2)} USDC
+                          </span>
+                        )}
+                        {!outcome && (
+                          <a
+                            href={explorerAddr(v.address)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-[10px] text-pv-muted hover:text-pv-emerald"
+                          >
+                            ↗
+                          </a>
+                        )}
+                        {outcome && (
+                          <span className="font-mono text-[10px] tabular-nums text-pv-muted">
+                            {v.stakeUsdc.toFixed(2)} USDC
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">— abstain</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * /agents — the Mimir council: a persona-card grid of the AI economic actors,
- * driven entirely by Solana data.
+ * /agents — the Mimir council: a persona-card grid of the AI economic actors
+ * (both tracks, classic and philosopher), driven entirely by Solana data.
  *
  * The original /council layout: eyebrow + big title + description + a row of
  * stat chips, then a responsive PersonaCard grid, then a bottom nav. We keep
@@ -22,6 +22,7 @@ interface Persona {
   emoji: string;
   bio: string;
   archetype: string;
+  track?: "classic" | "philosopher";
   address: string;
   stakes: number;
   volume: string;
@@ -73,6 +74,11 @@ const ARCHETYPE_LABEL: Record<string, string> = {
   specialist: "Specialist · category-filtered",
   micro: "Micro · low threshold",
 };
+
+const TRACKS = [
+  { track: "classic", title: "Classic jury", blurb: "Ten temperaments: optimists, doomers, contrarians and specialists." },
+  { track: "philosopher", title: "Philosopher jury", blurb: "Ten epistemic frames: base rates, mechanisms, tails and inversions." },
+] as const;
 
 // ── Persona card (reproduced verbatim from archive council page) ───────────────
 
@@ -215,7 +221,7 @@ export default function AgentsPage() {
       <BlueprintHeading
         as="h1"
         eyebrow="The Mimir council"
-        subtitle="Each persona reads the same claims and evidence but reaches different verdicts based on character — optimists tilt up, doomers tilt down, contrarians chase imbalance, specialists only touch their domain. Every stake is a real transaction signed by the persona's own derived wallet on the MagicBlock Ephemeral Rollup. Polls every 5 seconds."
+        subtitle="Two juries read the same claims and evidence and reach different verdicts: the classic ten by temperament, the philosophers by what they count as knowing. Every stake is a real transaction signed by the persona's own derived wallet on the MagicBlock Ephemeral Rollup. Polls every 5 seconds."
       >
         AI personas. Derived wallets. One market.
       </BlueprintHeading>
@@ -305,15 +311,27 @@ export default function AgentsPage() {
           </p>
         </div>
       ) : (
-        <section className="bp-cells grid-cols-1 border border-pv-border/25 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {personas.map((p) => (
-            <PersonaCard
-              key={p.slug}
-              persona={p}
-              recentBets={recentBetsFor(p.address)}
-            />
-          ))}
-        </section>
+        <div className="space-y-6">
+          {TRACKS.map(({ track, title, blurb }) => {
+            const members = personas.filter((p) => (p.track ?? "classic") === track);
+            if (members.length === 0) return null;
+            return (
+              <section key={track} aria-labelledby={`agents-track-${track}`}>
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 id={`agents-track-${track}`} className="font-display text-lg font-bold uppercase tracking-tight text-pv-text">
+                    {title}
+                  </h2>
+                  <p className="text-[12px] text-pv-muted">{blurb}</p>
+                </div>
+                <div className="bp-cells grid-cols-1 border border-pv-border/25 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {members.map((p) => (
+                    <PersonaCard key={p.slug} persona={p} recentBets={recentBetsFor(p.address)} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       )}
 
       </div>
@@ -324,6 +342,9 @@ export default function AgentsPage() {
       <nav className="flex flex-wrap border-t border-pv-border/25 pt-6 justify-center gap-x-6 gap-y-2 text-sm">
         <Link href="/arena" className="text-pv-muted transition-colors hover:text-pv-text">
           ← live arena
+        </Link>
+        <Link href="/council" className="text-pv-muted transition-colors hover:text-pv-text">
+          council records →
         </Link>
         <Link href="/stats" className="text-pv-muted transition-colors hover:text-pv-text">
           aggregate stats →
