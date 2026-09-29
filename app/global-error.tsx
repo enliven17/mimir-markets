@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Last-resort boundary: replaces the root layout, so no i18n, fonts or
+ * providers are available. Radio `.error-page` layout on the plain tokens.
+ */
 import { useEffect } from "react";
 import "./globals.css";
 
@@ -14,30 +18,24 @@ export default function GlobalError({ error, reset }: Props) {
   }, [error]);
 
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-pv-bg text-pv-text">
-        <main className="min-h-screen flex items-center justify-center px-6">
-          <section className="w-full max-w-2xl bp-paper border border-pv-border/25 bg-pv-surface p-8 sm:p-10 text-center">
-            <p className="text-xs uppercase tracking-[0.35em] text-pv-emerald font-bold">
+    <html lang="en">
+      <body>
+        <div className="wall" aria-hidden />
+        <main className="grid min-h-screen place-items-center px-[var(--gut)] py-10 text-center">
+          <section className="glass-deep w-full max-w-[560px] rounded-4xl px-6 py-10 shadow-sheet sm:px-11">
+            <p className="inline-flex items-center gap-2 text-status uppercase text-muted">
+              <span aria-hidden className="h-[7px] w-[7px] rounded-full bg-coral" />
               Safe fallback
             </p>
-            <h1 className="mt-4 font-display text-4xl sm:text-5xl font-bold tracking-tight">
-              Something went wrong.
-            </h1>
-            <p className="mt-4 text-sm sm:text-base text-pv-muted">
-              The app hit a fatal route error, but you can retry without reloading the whole session.
+            <h1 className="mt-4 text-app-hero text-cream">Something went wrong.</h1>
+            <p className="mx-auto mt-4 max-w-[36ch] text-copy text-muted">
+              Mimir hit an error it could not recover from. Try again, or reload the home page.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                onClick={reset}
-                className="w-full sm:w-auto px-5 py-3 border border-pv-emerald bg-pv-emerald text-pv-bg font-bold hover:brightness-110 transition-all focus-ring"
-              >
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <button type="button" onClick={reset} className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
                 Try again
               </button>
-              <a
-                href="/"
-                className="w-full sm:w-auto px-5 py-3 border border-pv-border/25 hover:border-pv-border/40 hover:bg-pv-border/[0.04] transition-all focus-ring"
-              >
+              <a href="/" className="btn-ghost !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
                 Reload home
               </a>
             </div>

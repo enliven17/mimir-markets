@@ -1678,5 +1678,12 @@
         "hint": "Publish a claim and stake a side"
       }
     }
+  },
+  "errors": {
+    "status": "Recovered",
+    "title": "This page hit a snag.",
+    "body": "The rest of Mimir is fine. Try again, or head back to the arena.",
+    "retry": "Try again",
+    "home": "Back to the arena"
   }
 }

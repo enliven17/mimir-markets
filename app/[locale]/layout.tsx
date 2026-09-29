@@ -8,8 +8,7 @@ import Footer from "@/components/Footer";
 import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
-import SkipToContentLink from "../../components/SkipToContentLink";
-import ScrollToTopOnLoad from "../../components/ScrollToTopOnLoad";
+import SkipToContentLink from "@/components/SkipToContentLink";
 
 type Props = {
   children: React.ReactNode;
@@ -51,18 +50,13 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <NextIntlClientProvider messages={messages}>
       <WalletSheetProvider>
-      <HtmlLang locale={locale} />
-      <SkipToContentLink />
-      <ScrollToTopOnLoad />
-      <Header />
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto min-w-0 max-w-[1200px] px-4 pb-0 pt-[calc(3.5rem+env(safe-area-inset-top))] sm:px-6 lg:px-8"
-      >
-        <PageFrame>{children}</PageFrame>
-      </main>
-      <Footer />
+        <HtmlLang locale={locale} />
+        <SkipToContentLink />
+        <Header />
+        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none">
+          <PageFrame>{children}</PageFrame>
+        </main>
+        <Footer />
       </WalletSheetProvider>
     </NextIntlClientProvider>
   );

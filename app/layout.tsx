@@ -4,7 +4,6 @@ import { fontVariables } from "@/lib/fonts";
 import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
 import { Toaster } from "sonner";
-import NextTopLoader from "nextjs-toploader";
 
 // Dark only (docs/REDESIGN.md 1): radio's colour scheme and theme colour.
 export const viewport: Viewport = {
@@ -28,7 +27,6 @@ export default function RootLayout({
       </head>
       <body>
         <div className="wall" aria-hidden />
-        <NextTopLoader color="#ff5148" height={2} showSpinner={false} shadow={false} />
         <MotionProvider>
           <SolanaWalletProviders>
             {children}

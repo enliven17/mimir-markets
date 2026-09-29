@@ -230,8 +230,10 @@ html.lenis body {
     transform: translateY(0) scale(1);
   }
 }
+/* `backwards`, not `both`: once it ends the wrapper keeps no transform or
+   filter, which would otherwise trap position:fixed children (docks, bars). */
 .route-enter {
-  animation: route-panel-enter 400ms var(--ease-spring) both;
+  animation: route-panel-enter 400ms var(--ease-spring) backwards;
 }
 
 /* Card enter, staggered by --i (radio live-card-in). */

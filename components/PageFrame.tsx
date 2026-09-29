@@ -2,17 +2,25 @@
 
 import { usePathname } from "@/i18n/navigation";
 
-// Global blueprint rails: a left/right rule framing the content column on
-// every page except home (which draws its own per-section borders). The
-// negative top margin cancels the layout's navbar offset so the rails run all
-// the way up under the navbar; the padding then pushes the page content
-// clear of it, so a page-opening BlueprintHeading's top rule lands on the
-// navbar's bottom border (one line, not two).
-export default function PageFrame({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  if (pathname === "/") return <>{children}</>;
+/**
+ * Page width container (docs/REDESIGN.md 1.7): 1180px for feeds, 920px for
+ * detail and forms, with the shared gutter. Clears the fixed header: the
+ * docked bar on `/`, the floating pill everywhere else.
+ */
+export default function PageFrame({
+  children,
+  width = "wrap",
+}: {
+  children: React.ReactNode;
+  width?: "wrap" | "narrow";
+}) {
+  const isHome = usePathname() === "/";
   return (
-    <div className="bp-page -mt-[calc(3.5rem+env(safe-area-inset-top))] min-h-screen min-w-0 border-x border-pv-border/25 pb-10 pt-[calc(3.5rem-1px+env(safe-area-inset-top))]">
+    <div
+      className={`bp-page mx-auto w-full min-w-0 px-[var(--gut)] ${
+        width === "narrow" ? "max-w-[calc(var(--wrap-narrow)+2*var(--gut))]" : "max-w-[calc(var(--wrap)+2*var(--gut))]"
+      } ${isHome ? "pt-[calc(64px+env(safe-area-inset-top))]" : "pb-10 pt-[calc(92px+env(safe-area-inset-top))]"}`}
+    >
       {children}
     </div>
   );
