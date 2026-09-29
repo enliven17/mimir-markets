@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { Link } from "@/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -12,12 +11,6 @@ import {
   Sparkles,
   Timer,
 } from "lucide-react";
-
-/** Matches `ExploreClient` advanced filters panel height animation. */
-const exploreFilterPanelHeightTransition = {
-  duration: 0.34,
-  ease: [0.25, 0.46, 0.45, 0.94] as const,
-};
 
 import type { ChallengeOpportunity } from "@/lib/claimDrafts";
 import { createPrefillHref } from "@/lib/create-prefill";
@@ -272,16 +265,7 @@ export default function ChallengeOpportunityCard({
               aria-hidden
             />
           </span>
-          <motion.span
-            initial={false}
-            animate={{
-              height: settlementExpanded ? "auto" : "2.5rem",
-            }}
-            transition={{
-              height: exploreFilterPanelHeightTransition,
-            }}
-            className="block min-h-0 min-w-0 w-full overflow-hidden"
-          >
+          <span className="block min-h-0 min-w-0 w-full overflow-hidden">
             <span
               id={settlementPanelId}
               className={
@@ -292,7 +276,7 @@ export default function ChallengeOpportunityCard({
             >
               {settlementText}
             </span>
-          </motion.span>
+          </span>
         </button>
       </div>
 

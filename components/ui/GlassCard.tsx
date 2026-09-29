@@ -25,7 +25,7 @@ const glowStyles: Record<GlowSide, ReactNode> = {
 
 /**
  * @deprecated Use `Card` from `components/ui/Card`. Kept so existing pages
- * compile; now a radio glass card (no framer-motion).
+ * compile; now a plain radio glass card.
  */
 export default function GlassCard({
   children,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import { gsap, reducedMotion } from "@/lib/motion";
 
 interface LiveStatProps {
   /** The target number to display */
@@ -43,8 +43,8 @@ const colorClasses = {
 };
 
 /**
- * LiveStat — animated number display that rolls/ticks on mount
- * and pulses briefly when the value updates.
+ * LiveStat — number display that rolls to new values and pulses briefly
+ * when the value updates (GSAP; snaps under reduced motion).
  */
 export default function LiveStat({
   value,
@@ -59,36 +59,45 @@ export default function LiveStat({
   labelClassName = "",
   className = "",
 }: LiveStatProps) {
-  const motionValue = useMotionValue(0);
-  const [displayValue, setDisplayValue] = useState("0");
-  const [pulsing, setPulsing] = useState(false);
-  const prevValue = useRef(value);
+  const formatter = format ?? ((n: number) => Math.round(n).toLocaleString());
+  const [displayValue, setDisplayValue] = useState(() => formatter(value));
+  const numRef = useRef<HTMLDivElement>(null);
+  const shown = useRef({ v: 0 });
   const hasAnimated = useRef(false);
 
-  const formatter = format ?? ((n: number) => Math.round(n).toLocaleString());
-
   useEffect(() => {
-    const from = hasAnimated.current ? prevValue.current : 0;
+    const isFirst = !hasAnimated.current;
     hasAnimated.current = true;
-    prevValue.current = value;
-
-    const controls = animate(motionValue, value, {
-      duration,
-      ease: [0.25, 0.46, 0.45, 0.94],
-      onUpdate: (v) => setDisplayValue(formatter(v)),
-    });
-
-    // Pulse on value change (not on first mount)
-    if (from !== 0 && from !== value) {
-      setPulsing(true);
-      const timer = setTimeout(() => setPulsing(false), 400);
-      return () => {
-        controls.stop();
-        clearTimeout(timer);
-      };
+    const from = shown.current.v;
+    // First paint shows the real value (SSR-safe); later updates roll.
+    if (isFirst || reducedMotion()) {
+      shown.current.v = value;
+      setDisplayValue(formatter(value));
+      return;
     }
-
-    return () => controls.stop();
+    const tween = gsap.fromTo(
+      shown.current,
+      { v: from },
+      {
+        v: value,
+        duration,
+        ease: "power2.out",
+        onUpdate: () => setDisplayValue(formatter(shown.current.v)),
+      },
+    );
+    let pulse: gsap.core.Tween | undefined;
+    if (from !== value && numRef.current) {
+      pulse = gsap.fromTo(
+        numRef.current,
+        { scale: 1.06, opacity: 0.8 },
+        { scale: 1, opacity: 1, duration: 0.4, ease: "power2.out", clearProps: "transform,opacity" },
+      );
+    }
+    return () => {
+      tween.kill();
+      pulse?.kill();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, duration]);
 
   return (
@@ -101,10 +110,9 @@ export default function LiveStat({
         </span>
       )}
 
-      <motion.div
-        className={`font-display font-bold tabular-nums ${sizeClasses[size]} ${colorClasses[color]} transition-all duration-200`}
-        animate={pulsing ? { scale: [1, 1.06, 1], opacity: [1, 0.8, 1] } : {}}
-        transition={{ duration: 0.4 }}
+      <div
+        ref={numRef}
+        className={`font-mono tabular-nums ${sizeClasses[size]} ${colorClasses[color]}`}
       >
         {prefix && <span className="text-pv-muted/50">{prefix}</span>}
         {displayValue}
@@ -113,7 +121,7 @@ export default function LiveStat({
             {suffix}
           </span>
         )}
-      </motion.div>
+      </div>
 
       {label && labelPosition === "below" && (
         <span

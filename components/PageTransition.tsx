@@ -1,58 +1,35 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useRef, type ReactNode } from "react";
+import { useRiseBatch } from "@/components/motion/useRiseBatch";
 
 interface PageTransitionProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.07,
-      delayChildren: 0.02,
-    },
-  },
-};
-
-export const itemVariants = {
-  hidden: { opacity: 0, y: 18 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  },
-};
-
-export default function PageTransition({
-  children,
-  className = "",
-}: PageTransitionProps) {
+/**
+ * Page entrance on GSAP: every `AnimatedItem` inside is a
+ * `[data-rise]` element that rises in once when it scrolls into view
+ * (components/motion/useRiseBatch.ts, juxtai timing). Reduced motion: static.
+ *
+ * Kept with the same API so existing pages compile; later phases can drop the
+ * wrapper and put `data-rise` straight on their sections.
+ */
+export default function PageTransition({ children, className = "" }: PageTransitionProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useRiseBatch(ref, { y: 32, duration: 1, stagger: 0.08, start: "top 90%" });
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className={className}
-    >
+    <div ref={ref} className={className}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
-export function AnimatedItem({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+export function AnimatedItem({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <motion.div variants={itemVariants} className={className}>
+    <div data-rise className={className}>
       {children}
-    </motion.div>
+    </div>
   );
 }

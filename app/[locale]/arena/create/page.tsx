@@ -8,7 +8,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { motion } from "framer-motion";
 import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -460,20 +459,19 @@ export default function CreateMarketPage() {
                   </h3>
                   <div className="grid grid-cols-5 gap-2">
                     {STAKE_PRESET_AMOUNTS.map((amount) => (
-                      <motion.button
+                      <button
                         key={amount}
                         type="button"
-                        whileTap={{ scale: 0.97 }}
                         onClick={() => { setStake(amount); setCustomStakeDraft(""); }}
                         aria-pressed={stake === amount && presetStakeHighlight}
-                        className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
+                        className={`press min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                           stake === amount && presetStakeHighlight
                             ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                             : "border border-pv-border/25 bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                         }`}
                       >
                         {amount} USDC
-                      </motion.button>
+                      </button>
                     ))}
                     <div className={`flex min-h-[2.75rem] w-full min-w-0 items-center justify-center rounded-lg border px-1.5 py-1.5 transition-[border-color,background-color,color,box-shadow] sm:min-h-[3.25rem] sm:px-2 sm:py-2 ${
                       customStakeFocused || !isPresetStakeAmount(stake)
@@ -527,20 +525,19 @@ export default function CreateMarketPage() {
                       const seconds = DEADLINE_PRESET_SECONDS[id];
                       const selected = deadlinePreset === seconds;
                       return (
-                        <motion.button
+                        <button
                           key={id}
                           type="button"
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => applyDeadlinePreset(seconds)}
+                            onClick={() => applyDeadlinePreset(seconds)}
                           aria-pressed={selected}
-                          className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
+                          className={`press min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                             selected
                               ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                               : "border border-pv-border/25 bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                           }`}
                         >
                           {t(`presets.${id}` as any)}
-                        </motion.button>
+                        </button>
                       );
                     })}
                   </div>
@@ -644,11 +641,9 @@ export default function CreateMarketPage() {
                   </div>
                   <ChevronDown size={20} className={`shrink-0 text-pv-muted transition-transform duration-200 ease-out ${advancedOpen ? "rotate-180" : ""}`} aria-hidden />
                 </button>
-                <motion.div
-                  initial={false}
-                  animate={{ height: advancedOpen ? "auto" : 0, opacity: advancedOpen ? 1 : 0 }}
-                  transition={{ height: { duration: 0.34, ease: [0.25, 0.46, 0.45, 0.94] }, opacity: { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] } }}
-                  className={`overflow-hidden ${!advancedOpen ? "pointer-events-none" : ""}`}
+                <div
+                  data-open={advancedOpen ? "true" : "false"}
+                  className={`collapse-grid ${!advancedOpen ? "pointer-events-none" : ""}`}
                   aria-hidden={!advancedOpen}
                 >
                   <div id={termsPanelId} className="space-y-8 border-t border-pv-border/25 px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
@@ -703,7 +698,7 @@ export default function CreateMarketPage() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               </GlassCard>
             </AnimatedItem>
 

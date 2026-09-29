@@ -13,7 +13,6 @@
  * MagicBlock Ephemeral Rollup surface under the "LIVE ON ER" tab.
  */
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import { ChevronDown, ListFilter, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Link } from "@/i18n/navigation";
@@ -374,18 +373,14 @@ export default function ArenaPage() {
 
     return (
       <div className="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2 lg:grid-cols-3">
-        {list.map((claim) => (
-          <motion.div
-            className="bp-cell h-full"
+        {list.map((claim, i) => (
+          <div
+            className="bp-cell card-in h-full"
             key={claim.id}
-            layout
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.22 }}
+            style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
           >
             <ClaimCard claim={claim} locale={locale} />
-          </motion.div>
+          </div>
         ))}
       </div>
     );
@@ -419,7 +414,7 @@ export default function ArenaPage() {
       </AnimatedItem>
 
       {/* z-20: filter dropdowns (absolute z-[100]) must stack above
-          #arena-content — Framer-motion siblings create stacking contexts. */}
+          #arena-content — risen (transformed) siblings create stacking contexts. */}
       <AnimatedItem className="relative z-20">
         <section
           id="arena-controls"
@@ -507,21 +502,14 @@ export default function ArenaPage() {
                       aria-hidden
                     />
                   </button>
-                  <AnimatePresence>
-                    {sortMenuOpen ? (
-                      <motion.div
+                  {sortMenuOpen ? (
+                      <div
                         key="explore-sort-listbox"
                         id="explore-sort-listbox"
+                        data-lenis-prevent
                         role="listbox"
                         aria-labelledby="explore-sort-label"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{
-                          duration: 0.16,
-                          ease: [0.25, 0.46, 0.45, 0.94],
-                        }}
-                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
+                        className="pop-in absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
                       >
                         {sortOnlyOptions.map(({ key, label }) => (
                           <button
@@ -542,9 +530,8 @@ export default function ArenaPage() {
                             {label}
                           </button>
                         ))}
-                      </motion.div>
+                      </div>
                     ) : null}
-                  </AnimatePresence>
                 </div>
 
                 <div
@@ -582,21 +569,14 @@ export default function ArenaPage() {
                       aria-hidden
                     />
                   </button>
-                  <AnimatePresence>
-                    {quickFilterMenuOpen ? (
-                      <motion.div
+                  {quickFilterMenuOpen ? (
+                      <div
                         key="explore-quick-filter-listbox"
                         id="explore-quick-filter-listbox"
+                        data-lenis-prevent
                         role="listbox"
                         aria-labelledby="explore-quick-filter-label"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{
-                          duration: 0.16,
-                          ease: [0.25, 0.46, 0.45, 0.94],
-                        }}
-                        className="absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
+                        className="pop-in absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
                       >
                         <button
                           type="button"
@@ -607,9 +587,8 @@ export default function ArenaPage() {
                         >
                           All
                         </button>
-                      </motion.div>
+                      </div>
                     ) : null}
-                  </AnimatePresence>
                 </div>
 
                 <div className="col-span-1 min-w-0 w-full max-w-[7.875rem] lg:col-span-2 lg:w-3/4 lg:max-w-none lg:justify-self-start">
@@ -710,19 +689,12 @@ export default function ArenaPage() {
                 </div>
               </div>
 
-              <motion.div
-                initial={false}
-                animate={{
-                  height: advancedOpen ? "auto" : 0,
-                  opacity: advancedOpen ? 1 : 0,
-                }}
-                transition={{
-                  height: { duration: 0.34, ease: [0.25, 0.46, 0.45, 0.94] },
-                  opacity: { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] },
-                }}
-                className={`overflow-hidden ${!advancedOpen ? "pointer-events-none" : ""}`}
+              <div
+                data-open={advancedOpen ? "true" : "false"}
+                className={`collapse-grid ${!advancedOpen ? "pointer-events-none" : ""}`}
                 aria-hidden={!advancedOpen}
               >
+                <div>
                 <div className="mt-6 border-t border-pv-border/[0.06] pt-6">
                   <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:items-start sm:gap-x-10 sm:gap-y-6">
                     <div className="min-w-0">
@@ -787,7 +759,8 @@ export default function ArenaPage() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -795,41 +768,21 @@ export default function ArenaPage() {
 
       <AnimatedItem className="relative z-0">
         <section id="arena-content">
-          <AnimatePresence mode="wait" initial={false}>
             {activeView === "open" && (
-              <motion.div
-                key="arena-open-view"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.22 }}
-              >
+              <div key="arena-open-view" className="fade-rise">
                 {renderGrid(openChallenges)}
-              </motion.div>
+              </div>
             )}
             {activeView === "resolved" && (
-              <motion.div
-                key="arena-resolved-view"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.22 }}
-              >
+              <div key="arena-resolved-view" className="fade-rise">
                 {renderGrid(resolvedChallenges, { isResolvedView: true })}
-              </motion.div>
+              </div>
             )}
             {activeView === "live" && (
-              <motion.div
-                key="arena-live-view"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.22 }}
-              >
+              <div key="arena-live-view" className="fade-rise">
                 {renderGrid(liveChallenges)}
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
         </section>
       </AnimatedItem>
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
 export type ExploreEmptyStateShellProps = {
@@ -26,14 +25,11 @@ export default function ExploreEmptyStateShell({
   announce = true,
 }: ExploreEmptyStateShellProps) {
   return (
-    <motion.div
+    <div
       {...(announce
         ? { role: "status" as const, "aria-live": "polite" as const }
         : {})}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="mx-auto w-full max-w-[min(100%,28rem)] px-4 py-10 sm:max-w-xl sm:py-14"
+      className="fade-rise mx-auto w-full max-w-[min(100%,28rem)] px-4 py-10 sm:max-w-xl sm:py-14"
     >
       <div className="bp-paper relative overflow-hidden border border-pv-border/25 bg-pv-surface px-5 py-10 sm:px-8 sm:py-12">
         <div
@@ -65,6 +61,6 @@ export default function ExploreEmptyStateShell({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

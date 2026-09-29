@@ -9,9 +9,12 @@ import { gsap, MOTION_OK_QUERY, ScrollTrigger, useGSAP } from "@/lib/motion";
  * neighbours stagger. Only inside `gsap.matchMedia(no-preference)`, so it
  * reverts on its own when reduced motion is switched on.
  *
- * Elements are visible in the SSR HTML and only hidden by the tween itself,
- * so nothing stays invisible if an element is added after the batch ran.
- * Pass `deps` (e.g. a data length) to pick up elements rendered later.
+ * With JS and motion allowed, globals.css hides `[data-rise]` before paint
+ * (no flash of content that then vanishes and rises). The tween marks each
+ * element `data-risen` and fades it in. Failsafe: the `motion-timeout` class
+ * the head script adds after 3s shows anything that never got a batch (added
+ * late, inside a hidden tab). Without JS or with reduced motion nothing is
+ * hidden. Pass `deps` (e.g. a data length) to pick up elements rendered later.
  */
 export function useRiseBatch(
   scope: RefObject<HTMLElement | null>,
@@ -35,19 +38,25 @@ export function useRiseBatch(
           start,
           once: true,
           onEnter: (batch) => {
-            batch.forEach((el) => el.setAttribute("data-risen", ""));
-            gsap.from(batch, {
-              y,
-              opacity: 0,
-              duration,
-              ease: "expo.out",
-              stagger,
-              clearProps: "transform,opacity",
-            });
+            gsap.fromTo(
+              batch,
+              { y, opacity: 0 },
+              {
+                y: 0,
+                opacity: 1,
+                duration,
+                ease: "expo.out",
+                stagger,
+                clearProps: "transform,opacity",
+                onStart: () => batch.forEach((el) => el.setAttribute("data-risen", "")),
+              },
+            );
           },
         });
       });
-      return () => mm.revert();
+      return () => {
+        mm.revert();
+      };
     },
     { scope, dependencies: deps, revertOnUpdate: true },
   );

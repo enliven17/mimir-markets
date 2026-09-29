@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { getTimeRemaining } from "@/lib/constants";
 import { useLocale } from "next-intl";
 
@@ -88,15 +87,10 @@ export default function LiveDeadline({
     <div className={`flex flex-col gap-1.5 ${className}`} role="timer" aria-live="polite">
       <div className="flex items-center gap-2">
         {/* Phase badge */}
-        <AnimatePresence mode="wait">
-          {showPhaseBadge && phaseConfig && (
-            <motion.span
+        {showPhaseBadge && phaseConfig && (
+            <span
               key={phase}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.25 }}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 border rounded font-mono font-bold uppercase tracking-[0.12em] ${phaseConfig.border} ${phaseConfig.color} ${
+              className={`pop-in inline-flex items-center gap-1 px-2 py-0.5 border rounded font-mono font-bold uppercase tracking-[0.12em] ${phaseConfig.border} ${phaseConfig.color} ${
                 compact ? "text-[8px]" : "text-[10px]"
               }`}
             >
@@ -106,9 +100,8 @@ export default function LiveDeadline({
                 }`}
               />
               {phaseConfig.label}
-            </motion.span>
+            </span>
           )}
-        </AnimatePresence>
 
         {/* Countdown text */}
         <span
@@ -123,13 +116,11 @@ export default function LiveDeadline({
       {/* Decay bar */}
       {showBar && !compact && (
         <div className="relative h-1 w-full rounded-full bg-pv-border/[0.06] overflow-hidden">
-          <motion.div
-            className={`absolute inset-y-0 left-0 rounded-full ${barColor} ${
+          <div
+            className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out ${barColor} ${
               isCritical ? "animate-phase-glow" : ""
             }`}
-            initial={{ width: "100%" }}
-            animate={{ width: `${Math.max(progress * 100, 1)}%` }}
-            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+            style={{ width: `${Math.max(progress * 100, 1)}%` }}
           />
         </div>
       )}

@@ -1,8 +1,7 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "framer-motion";
 
-interface ControlPanelProps extends Omit<HTMLMotionProps<"div">, "children"> {
+interface ControlPanelProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
   children: React.ReactNode;
   /** Optional panel label */
   label?: string;
@@ -24,7 +23,7 @@ export default function ControlPanel({
   ...props
 }: ControlPanelProps) {
   return (
-    <motion.div
+    <div
       className={`relative rounded-xl overflow-hidden ${
         recessed
           ? "bg-pv-bg/80 border border-pv-border/25 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"
@@ -40,7 +39,7 @@ export default function ControlPanel({
         </div>
       )}
       <div className="p-4">{children}</div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -1,9 +1,8 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "framer-motion";
 import { useMemo } from "react";
 
-interface ArtifactProps extends Omit<HTMLMotionProps<"div">, "children"> {
+interface ArtifactProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
   children: React.ReactNode;
   /** Serial number prefix (auto-generated if true, custom if string) */
   serial?: boolean | string;
@@ -42,11 +41,10 @@ export default function Artifact({
   );
 
   return (
-    <motion.div
+    <div
       className={`relative border border-pv-border/25 rounded-lg bg-pv-surface/80 overflow-hidden ${
-        hoverable ? "hover:border-pv-border/25 hover:bg-pv-surface/90 cursor-pointer transition-all duration-200" : ""
+        hoverable ? "hover:bg-pv-surface/90 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 cursor-pointer transition-all duration-200" : ""
       } ${className}`}
-      whileHover={hoverable ? { y: -2 } : undefined}
       {...props}
     >
       {/* Watermark */}
@@ -75,7 +73,7 @@ export default function Artifact({
 
       {/* Bottom edge mark */}
       <div className="h-px bg-gradient-to-r from-transparent via-pv-border/[0.06] to-transparent" />
-    </motion.div>
+    </div>
   );
 }
 

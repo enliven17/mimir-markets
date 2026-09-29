@@ -199,6 +199,12 @@ html.lenis body {
     opacity: 0;
   }
 }
+/* Same guard for the [data-rise] batch (components/motion/useRiseBatch.ts). */
+@media (prefers-reduced-motion: no-preference) {
+  html.js:not(.motion-timeout) [data-rise]:not([data-risen]) {
+    opacity: 0;
+  }
+}
 [data-dither] {
   -webkit-mask-repeat: repeat;
   mask-repeat: repeat;
@@ -237,7 +243,7 @@ html.lenis body {
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
-/* Small enter used by popovers/menus/list swaps that framer-motion used to do. */
+/* Small enters for popovers, menus and list swaps. */
 @keyframes pop-in {
   from {
     opacity: 0;

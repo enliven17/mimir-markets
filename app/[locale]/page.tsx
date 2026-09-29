@@ -6,14 +6,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { gsap, MOTION_OK_QUERY, useGSAP } from "@/lib/motion";
+import { useInViewOnce, usePrefersReducedMotion } from "@/components/motion/hooks";
 import dynamic from "next/dynamic";
 import { Link } from "@/i18n/navigation";
 import PageTransition, { AnimatedItem } from "@/components/PageTransition";
 import { Button, PeepStack } from "@/components/ui";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import SettlementDataSection from "@/components/SettlementDataSection";
-import { kineticContainer, kineticLetter } from "@/lib/animations/rituals";
+import { kineticLetter } from "@/lib/animations/rituals";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { STATE_LABELS } from "@/lib/solana/config";
 
@@ -96,7 +97,7 @@ function formatStat(current: number, parsed: ParsedStat): string {
 
 function AnimatedStatNumber({ raw, delayMs }: { raw: string; delayMs: number }) {
   const parsed = useMemo(() => parseStat(raw), [raw]);
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
 
   const targetText = useMemo(
     () => (parsed ? formatStat(parsed.target, parsed) : raw),
@@ -110,7 +111,7 @@ function AnimatedStatNumber({ raw, delayMs }: { raw: string; delayMs: number }) 
   const [display, setDisplay] = useState(initialText);
   const ref = useRef<HTMLSpanElement | null>(null);
   const startedRef = useRef(false);
-  const isInView = useInView(ref, { once: true, amount: 0.05 });
+  const isInView = useInViewOnce(ref, 0.05);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -270,6 +271,25 @@ const STEPS: {
 
 export default function HomePage() {
   const [feed, setFeed] = useState<ArenaFeed | null>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+
+  // Hero entrance on GSAP (GSAP replaces the old motion variants): words rise out of
+  // blur in sequence, then the copy, tags and CTAs. Off under reduced motion.
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK_QUERY, () => {
+        gsap.fromTo("[data-kinetic]", kineticLetter.from, kineticLetter.to);
+        gsap.fromTo(
+          "[data-hero-fade]",
+          { opacity: 0, y: 12 },
+          { opacity: 1, y: 0, duration: 0.5, delay: 0.5, stagger: 0.04, ease: "power2.out" },
+        );
+      });
+      return () => mm.revert();
+    },
+    { scope: heroRef },
+  );
 
   useEffect(() => {
     let alive = true;
@@ -318,53 +338,46 @@ export default function HomePage() {
           </div>
 
           <div className="relative z-10 flex min-h-[78vh] w-full items-center justify-center border-x border-pv-border/25 px-4 pt-[calc(3.5rem+env(safe-area-inset-top))] sm:px-6 lg:px-8">
-            <div className="w-full max-w-[640px] py-12 text-center sm:py-14 lg:py-16">
-              <motion.h1
+            <div ref={heroRef} className="w-full max-w-[640px] py-12 text-center sm:py-14 lg:py-16">
+              <h1
                 className="mb-6 flex flex-col gap-1 text-center font-display font-bold leading-[0.92] tracking-tight text-pv-text"
-                variants={kineticContainer}
-                initial="hidden"
-                animate="visible"
               >
                 <span className="block overflow-hidden text-[clamp(2.4rem,9vw,4.6rem)] lg:text-[clamp(3rem,4.4vw,5rem)]">
-                  <motion.span variants={kineticLetter} className="inline-block whitespace-nowrap">
+                  <span data-kinetic className="inline-block whitespace-nowrap">
                     DON&apos;T ARGUE.
-                  </motion.span>
+                  </span>
                 </span>
                 <span className="block overflow-hidden text-[clamp(2.4rem,9vw,4.6rem)] lg:text-[clamp(3rem,4.4vw,5rem)]">
-                  <motion.span variants={kineticLetter} className="inline-block whitespace-nowrap">
+                  <span data-kinetic className="inline-block whitespace-nowrap">
                     SETTLE.
-                  </motion.span>
+                  </span>
                 </span>
                 <span className="block h-2 lg:h-3" aria-hidden />
                 <span className="block overflow-hidden text-[clamp(2.3rem,8vw,4rem)] lg:text-[clamp(2.8rem,4.5vw,4.2rem)]">
-                  <motion.span variants={kineticLetter} className="mr-[0.25em] inline-block font-medium text-pv-muted">
+                  <span data-kinetic className="mr-[0.25em] inline-block font-medium text-pv-muted">
                     With
-                  </motion.span>
-                  <motion.span
-                    variants={kineticLetter}
+                  </span>
+                  <span
+                    data-kinetic
                     className="inline-block italic text-pv-emerald drop-shadow-[0_0_18px_rgba(255,81,72,0.45)]"
                   >
                     Mimir.
-                  </motion.span>
+                  </span>
                 </span>
-              </motion.h1>
+              </h1>
 
-              <motion.p
+              <p
+                data-hero-fade
                 className="mx-auto mb-5 max-w-[480px] text-[13px] leading-relaxed text-pv-muted sm:text-sm lg:text-[15px] lg:leading-7"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
               >
                 An AI-settled prediction market on Solana. Stake USDC, challenge
                 inside a MagicBlock Ephemeral Rollup at zero fees, and let the
                 oracle resolve against Flash Trade prices on-chain.
-              </motion.p>
+              </p>
 
-              <motion.div
+              <div
+                data-hero-fade
                 className="mb-7 flex flex-wrap items-center justify-center gap-2"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.54, duration: 0.5 }}
               >
                 {["Solana devnet", "Ephemeral Rollup · ~30ms", "USDC · zero-fee bets"].map((tag, i) => (
                   <span
@@ -375,13 +388,11 @@ export default function HomePage() {
                     {tag}
                   </span>
                 ))}
-              </motion.div>
+              </div>
 
-              <motion.div
+              <div
+                data-hero-fade
                 className="flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.58, duration: 0.5 }}
               >
                 <Link
                   href="/docs"
@@ -395,7 +406,7 @@ export default function HomePage() {
                 >
                   Enter the arena
                 </Link>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>

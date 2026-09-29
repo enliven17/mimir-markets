@@ -1,8 +1,7 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "framer-motion";
 
-interface StageProps extends Omit<HTMLMotionProps<"section">, "children"> {
+interface StageProps extends Omit<React.HTMLAttributes<HTMLElement>, "children"> {
   children: React.ReactNode;
   /** Ambient glow direction */
   glow?: "cyan" | "fuch" | "both" | "emerald" | "none";
@@ -33,7 +32,7 @@ export default function Stage({
   ...props
 }: StageProps) {
   return (
-    <motion.section
+    <section
       className={`relative overflow-hidden rounded-2xl ${className}`}
       {...props}
     >
@@ -61,6 +60,6 @@ export default function Stage({
 
       {/* Content */}
       <div className="relative z-10">{children}</div>
-    </motion.section>
+    </section>
   );
 }
