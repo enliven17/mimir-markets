@@ -1,0 +1,1031 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Landing `/` (docs/DESIGN.md, "Landing"). Short sections, one idea each.
+   Static by default: pinned and sticky layouts switch on only when the
+   section's script sets `data-pinned` / `data-dial` (JS + motion allowed), so
+   the server HTML, no-JS and reduced-motion views are plain stacked blocks.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.l-wrap {
+  width: 100%;
+  max-width: calc(var(--wrap) + 2 * var(--gut));
+  margin-inline: auto;
+  padding-inline: var(--gut);
+}
+.l-section {
+  position: relative;
+  padding-block: clamp(112px, 15vw, 200px);
+}
+.l-h2 {
+  margin: 0;
+  font-weight: inherit;
+  font-size: clamp(38px, 6vw, 76px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  max-width: 16ch;
+  text-wrap: balance;
+}
+.l-accent {
+  color: var(--red);
+}
+.l-sub {
+  margin: 18px 0 0;
+  max-width: 46ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.l-eyebrow {
+  margin: 0 0 18px;
+}
+.l-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  font-size: 14px;
+  color: var(--muted);
+  border-radius: 4px;
+  transition: color 200ms ease;
+}
+.l-link svg {
+  transition: transform 240ms var(--ease-spring);
+}
+@media (hover: hover) and (pointer: fine) {
+  .l-link:hover {
+    color: var(--cream);
+  }
+  .l-link:hover svg {
+    transform: translateX(3px);
+  }
+}
+.l-mock {
+  border-radius: 22px;
+  background: var(--glass-card);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* ── 1. Hero ── */
+.l-hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: calc(100svh - var(--l-strip-h, 122px));
+  min-height: max(560px, calc(100svh - var(--l-strip-h, 122px)));
+  padding: calc(64px + env(safe-area-inset-top) + clamp(24px, 5vw, 56px)) var(--gut) clamp(56px, 8vw, 104px);
+  text-align: center;
+  overflow: hidden;
+}
+.l-hero-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, transparent 18%, #000 78%);
+  mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, transparent 18%, #000 78%);
+  opacity: 0.55;
+}
+@media (max-width: 640px) {
+  .l-hero-field {
+    opacity: 0.32;
+  }
+}
+.l-hero-field::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 40%;
+  background: linear-gradient(transparent, var(--ink));
+}
+.l-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 30px;
+  width: 100%;
+  max-width: var(--wrap);
+}
+.l-hero-title {
+  position: relative;
+  margin: 0;
+  font-weight: inherit;
+  font-size: clamp(40px, 12.4vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.l-hero-title .l-line {
+  display: block;
+}
+@media (min-width: 640px) {
+  .l-hero-title {
+    font-size: clamp(40px, 7vw, 104px);
+  }
+  .l-hero-title .l-line {
+    display: inline;
+  }
+}
+.l-accent-word {
+  position: relative;
+  color: var(--red);
+}
+.l-scribble {
+  position: absolute;
+  left: -5%;
+  top: 82%;
+  width: 110%;
+  height: 0.42em;
+  pointer-events: none;
+}
+.l-scribble canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.l-hero-sub {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  font-size: clamp(15px, 1.45vw, 20px);
+  line-height: 1.45;
+  color: #cdc2b4;
+  text-wrap: balance;
+}
+.l-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.l-cta-row .btn-primary,
+.l-cta-row .btn-ghost {
+  font-size: 21px;
+  padding: 15px 28px 15px 24px;
+}
+@media (min-width: 640px) {
+  .l-cta-row .btn-primary,
+  .l-cta-row .btn-ghost {
+    font-size: 23px;
+    padding: 17px 31px 17px 27px;
+  }
+}
+.l-cta-row .btn-primary {
+  color: #fff;
+}
+@media (max-width: 440px) {
+  .l-cta-row {
+    display: grid;
+    width: 100%;
+    max-width: 320px;
+  }
+  .l-cta-row .magnetic,
+  .l-cta-row a {
+    width: 100%;
+  }
+}
+
+/* ── 2. Live strip + ticker ── */
+.l-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  margin: 0;
+  padding-inline: max(var(--gut), calc((100% - var(--wrap)) / 2));
+  border-block: 1px solid var(--line);
+  background: rgba(17, 15, 14, 0.6);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.l-stat {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-left: 1px solid var(--line);
+}
+.l-stat:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.l-stat dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.l-stat dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--cream);
+}
+.l-stat dd small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.l-src {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 18px;
+  border-left: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.l-src[data-state="error"] .live-dot {
+  background: var(--dim);
+}
+.l-src[data-state="error"] .live-dot::after {
+  display: none;
+}
+@media (max-width: 620px) {
+  .l-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .l-src {
+    display: none;
+  }
+  .l-stat {
+    padding: 12px 10px;
+  }
+  .l-stat dd {
+    font-size: 15px;
+  }
+}
+.l-ticker {
+  position: relative;
+  height: 44px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.l-ticker-label {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 56px 0 var(--gut);
+  font-size: 12px;
+  color: var(--cream);
+  background: linear-gradient(90deg, var(--ink) 62%, transparent);
+  white-space: nowrap;
+}
+.l-ticker .marquee {
+  height: 100%;
+}
+.l-ticker .marquee-track,
+.l-ticker .marquee-track > * {
+  height: 100%;
+}
+.l-tx {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 22px;
+  border-right: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.l-tx-sq {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  background: var(--red);
+}
+.l-tx-sq[data-done] {
+  background: var(--cream);
+}
+.l-tx-id {
+  font-family: var(--mono);
+  color: var(--cream);
+}
+.l-tx-pool {
+  font-family: var(--mono);
+  color: var(--pending);
+}
+.l-ticker-empty {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-left: calc(var(--gut) + 128px);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 3. How it settles ── */
+.l-how-steps {
+  display: grid;
+  gap: 40px;
+  margin: 52px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.l-how-step {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  column-gap: 20px;
+  align-items: start;
+}
+.l-how-n {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  font-size: 22px;
+  color: var(--red);
+  background: rgba(74, 35, 34, 0.85);
+}
+.l-how-step h3 {
+  margin: 4px 0 0;
+  font-weight: inherit;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1;
+}
+.l-how-step p {
+  margin: 10px 0 0;
+  max-width: 34ch;
+  font-size: 17px;
+  color: var(--muted);
+}
+.l-how-numeral,
+.l-how-path {
+  display: none;
+}
+
+/* Pinned layout: only when the scrubbed timeline runs. */
+.l-how[data-pinned] {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-block: calc(64px + env(safe-area-inset-top)) 40px;
+  overflow: hidden;
+}
+.l-how[data-pinned] .l-how-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(24px, 6vw, 96px);
+  margin-top: clamp(16px, 4vh, 48px);
+}
+.l-how[data-pinned] .l-how-numeral {
+  display: block;
+  justify-self: center;
+  height: 1em;
+  overflow: hidden;
+  font-family: var(--grotesk);
+  font-size: clamp(150px, 27vw, 400px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--red);
+  text-shadow: 0 0 60px rgba(255, 43, 43, 0.25);
+}
+.l-how-digits {
+  display: flex;
+  flex-direction: column;
+}
+.l-how-digits span {
+  display: block;
+  height: 1em;
+}
+.l-how[data-pinned] .l-how-steps {
+  display: grid;
+  margin: 0;
+}
+.l-how[data-pinned] .l-how-step {
+  grid-area: 1 / 1;
+  display: block;
+}
+.l-how[data-pinned] .l-how-n {
+  display: none;
+}
+.l-how[data-pinned] .l-how-step h3 {
+  font-size: clamp(46px, 7.2vw, 104px);
+  line-height: 0.95;
+}
+.l-how[data-pinned] .l-how-step p {
+  margin-top: 20px;
+  font-size: clamp(16px, 1.6vw, 21px);
+}
+.l-how[data-pinned] .l-how-path {
+  position: relative;
+  display: block;
+  margin-top: clamp(32px, 7vh, 80px);
+}
+.l-path-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.l-path-line,
+.l-path-fill {
+  position: absolute;
+  left: 20px;
+  right: calc(25% - 20px);
+  top: 19px;
+  height: 3px;
+  border-radius: 3px;
+}
+.l-path-line {
+  background: var(--line);
+}
+.l-path-fill {
+  background: linear-gradient(90deg, var(--deep), var(--red));
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+.l-path-node {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  font-size: 13px;
+  color: var(--dim);
+  transition: color 240ms ease;
+}
+.l-path-node i {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-style: normal;
+  font-size: 15px;
+  color: var(--muted);
+  background: var(--glass-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 30px -12px rgba(0, 0, 0, 0.6);
+  transition: background-color 240ms ease, color 240ms ease;
+}
+.l-path-node[data-lit] {
+  color: var(--cream);
+}
+.l-path-node[data-lit] i {
+  color: var(--red);
+  background: rgba(74, 35, 34, 0.9);
+}
+@media (max-width: 833px) {
+  .l-how[data-pinned] .l-how-stage {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    gap: 8px;
+  }
+  .l-how[data-pinned] .l-how-numeral {
+    justify-self: start;
+    font-size: clamp(120px, 34vw, 220px);
+  }
+  .l-how[data-pinned] .l-how-step h3 {
+    font-size: clamp(44px, 13vw, 72px);
+  }
+  .l-path-node {
+    font-size: 11px;
+  }
+  .l-path-node i {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+  .l-path-line,
+  .l-path-fill {
+    left: 17px;
+    right: calc(25% - 17px);
+    top: 16px;
+  }
+}
+
+/* ── 4. One claim ── */
+.l-duo {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+.l-insp {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+}
+.l-insp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 8px;
+  color: var(--muted);
+}
+.l-insp-q {
+  margin: 0;
+  padding: 6px 22px 16px;
+  font-weight: inherit;
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--cream);
+  text-wrap: pretty;
+}
+.l-sides {
+  display: grid;
+  gap: 8px;
+  padding: 0 22px 16px;
+}
+.l-side {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.l-side span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.l-split {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+.l-split i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: flex-grow 700ms var(--ease-out);
+}
+.l-split i:first-child {
+  background: var(--cream);
+}
+.l-split i:last-child {
+  background: var(--coral);
+}
+.l-insp .kv {
+  margin: 0 10px;
+}
+.l-insp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px 20px;
+}
+.l-insp-foot .l-link {
+  color: var(--coral);
+  font-size: 15px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .l-insp-foot .l-link:hover {
+    color: var(--coral-hi);
+  }
+}
+.l-insp-skel {
+  display: grid;
+  gap: 14px;
+  min-height: 420px;
+  padding: 22px;
+  align-content: start;
+}
+@media (max-width: 980px) {
+  .l-duo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .l-insp-head,
+  .l-insp-q,
+  .l-sides,
+  .l-insp-foot {
+    padding-inline: 16px;
+  }
+  .l-insp-q {
+    font-size: 17px;
+  }
+}
+
+/* ── 5. Council dial ── */
+.l-dial-copy {
+  display: grid;
+  gap: 22px;
+  justify-items: start;
+}
+.l-dial-copy .l-eyebrow {
+  margin: 0;
+}
+.l-dial-copy .l-sub {
+  margin: 0;
+}
+.l-dial-tabs,
+.l-dial-meter,
+.l-dial-copy .l-dial-sub,
+.l-dial-copy .l-link {
+  display: none;
+}
+.l-pane-sub {
+  margin: 0 0 16px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.l-pane-link {
+  margin-top: 16px;
+}
+.l-dial[data-dial] .l-dial-copy .l-link {
+  display: inline-flex;
+}
+.l-dial[data-dial] .l-pane-sub,
+.l-dial[data-dial] .l-pane-link {
+  display: none;
+}
+.l-dial-stage {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 52px;
+}
+.l-pane-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.l-pane .l-mock {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+.l-mock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+.l-mock-row .k {
+  color: var(--dim);
+}
+.l-mock-q {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--cream);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.l-mock-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  border-radius: 999px;
+  font-family: var(--grotesk);
+  font-size: 20px;
+  background: var(--cream);
+  color: var(--ink);
+}
+.l-roster {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.l-roster li {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  font-size: 18px;
+  background: rgba(243, 234, 214, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.l-roster li[data-track="philosopher"] {
+  background: rgba(74, 35, 34, 0.55);
+}
+.l-roster-skel {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.l-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.l-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.l-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(243, 234, 214, 0.3);
+}
+.l-legend i[data-track="philosopher"] {
+  background: #8a3b38;
+}
+@media (max-width: 980px) {
+  .l-dial-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .l-roster {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .l-roster li {
+    aspect-ratio: auto;
+    height: 44px;
+  }
+}
+
+/* Pinned dial: only when scroll drives it (a pin, not CSS sticky: the body's
+   overflow-x clip would break sticky). */
+.l-dial[data-dial] {
+  padding-block: 0;
+}
+.l-dial[data-dial] .l-dial-sticky {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-top: calc(64px + env(safe-area-inset-top));
+}
+.l-dial[data-dial] .l-dial-tabs {
+  display: grid;
+  width: min(100%, 420px);
+}
+.l-dial .l-dial-tabs > button {
+  min-height: 44px;
+  padding-inline: 10px;
+  line-height: 1.2;
+  text-align: center;
+}
+.l-dial .l-dial-tabs > button > span {
+  white-space: normal;
+  overflow: visible;
+}
+.l-dial .l-h2 {
+  font-size: clamp(36px, 4.6vw, 64px);
+  max-width: 13ch;
+}
+.l-dial[data-dial] .l-dial-meter {
+  display: block;
+  width: min(100%, 420px);
+  height: 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.l-dial-meter i {
+  display: block;
+  height: 100%;
+  background: var(--coral);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+.l-dial[data-dial] .l-dial-copy .l-dial-sub {
+  display: block;
+  min-height: 3em;
+}
+.l-dial[data-dial] .l-dial-stage {
+  display: block;
+  margin: 0;
+  width: min(540px, 100%);
+  justify-self: center;
+}
+.l-dial[data-dial] .l-pane-title {
+  display: none;
+}
+.l-dial[data-dial] .l-pane:not([data-on]) {
+  display: none;
+}
+@media (max-width: 980px) {
+  .l-dial[data-dial] .l-dial-sticky {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 24px;
+    padding-bottom: 20px;
+  }
+  .l-dial[data-dial] .l-dial-copy {
+    gap: 14px;
+  }
+  .l-dial[data-dial] .l-dial-copy .l-dial-sub {
+    min-height: 0;
+  }
+  .l-dial[data-dial] .l-pane .l-mock {
+    gap: 14px;
+    padding: 18px;
+  }
+}
+
+/* ── 6. Ledger rail ── */
+.l-ledger-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.l-rail-wrap {
+  margin-top: 36px;
+}
+.l-rail > div:first-child:not(.rail) {
+  padding-inline: max(var(--gut), calc((100% - var(--wrap)) / 2));
+}
+.l-rail > .rail {
+  padding-inline: max(var(--gut), calc((100% - var(--wrap)) / 2));
+  scroll-padding-inline: max(var(--gut), calc((100% - var(--wrap)) / 2));
+}
+.l-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 180px;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--glass-card);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+  transition: transform 320ms var(--ease-overshoot), box-shadow 320ms ease;
+}
+.l-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.l-tag {
+  color: var(--red);
+}
+.l-tag[data-tag="contested"] {
+  color: var(--pending);
+}
+.l-tag[data-tag="refund"] {
+  color: var(--muted);
+}
+.l-card h3 {
+  margin: 0;
+  font-weight: inherit;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--cream);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.l-card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+.l-card-verdict {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 320ms var(--ease-out), opacity 220ms ease;
+}
+.l-card-verdict > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.l-card-verdict p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.l-card:focus-visible .l-card-verdict,
+.l-card:focus-within .l-card-verdict {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .l-card:hover {
+    transform: translateY(-5px) rotate(-0.6deg);
+  }
+  .l-card:hover .l-card-verdict {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .l-card-verdict {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+/* ── Edge fog: top and bottom bands blur while scrolling. ── */
+.l-fog {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: min(22vh, 200px);
+  pointer-events: none;
+  visibility: hidden;
+  --f: 0;
+}
+.l-fog[data-on] {
+  visibility: visible;
+}
+.l-fog.b {
+  bottom: 0;
+}
+.l-fog.t {
+  top: 0;
+  transform: scaleY(-1);
+}
+.l-fog i {
+  position: absolute;
+  inset: 0;
+  opacity: var(--f);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.l-fog i:nth-child(1) {
+  -webkit-backdrop-filter: blur(0.8px);
+  backdrop-filter: blur(0.8px);
+  -webkit-mask-image: linear-gradient(transparent 0%, #000 16%, #000 34%, transparent 50%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+  mask-image: linear-gradient(transparent 0%, #000 16%, #000 34%, transparent 50%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+}
+.l-fog i:nth-child(2) {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(transparent 16%, #000 34%, #000 50%, transparent 66%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+  mask-image: linear-gradient(transparent 16%, #000 34%, #000 50%, transparent 66%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+}
+.l-fog i:nth-child(3) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask-image: linear-gradient(transparent 34%, #000 50%, #000 66%, transparent 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+  mask-image: linear-gradient(transparent 34%, #000 50%, #000 66%, transparent 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+}
+.l-fog i:nth-child(4) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(transparent 50%, #000 66%, #000 84%, transparent 100%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+  mask-image: linear-gradient(transparent 50%, #000 66%, #000 84%, transparent 100%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+}
+.l-fog i:nth-child(5) {
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(transparent 66%, #000 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+  mask-image: linear-gradient(transparent 66%, #000 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
+}
+
+/* ── Reduced motion: every section is a static block. ── */
+@media (prefers-reduced-motion: reduce) {
+  .l-fog {
+    display: none;
+  }
+  .l-card,
+  .l-split i,
+  .l-card-verdict {
+    transition: none;
+  }
+  .l-card:hover {
+    transform: none;
+  }
+  .l-card-verdict {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  .l-roster-skel {
+    animation: none;
+  }
+  .l-ticker .marquee {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
