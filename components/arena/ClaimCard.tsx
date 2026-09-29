@@ -3,7 +3,8 @@
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { PeepStack } from "@/components/ui/PeepAvatar";
-import { claimPhase, isArchivedState, PHASE_LABEL } from "@/lib/claim-status";
+import { claimPhase, isArchivedState, isLiveState, PHASE_LABEL } from "@/lib/claim-status";
+import OddsBar from "@/components/arena/OddsBar";
 
 export interface SolanaClaim {
   id: number;
@@ -153,6 +154,9 @@ export default function ClaimCard({ claim }: ClaimCardProps) {
               </span>
             </div>
           </div>
+          {isLiveState(claim.state) ? (
+            <OddsBar split={claim} creatorPosition={claim.creatorPosition} challengerPosition={claim.counterPosition} />
+          ) : null}
         </div>
       </div>
 

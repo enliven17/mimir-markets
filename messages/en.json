@@ -72,7 +72,10 @@
     "unpricedTitle": "Nobody has taken the other side yet.",
     "unpricedBody": "Until someone stakes against it there is no price, only the creator's conviction. The first challenger takes the whole creator stake if they are right.",
     "poolExplainer": "Pari-mutuel: each side's share of the pot is what the money already here implies. Staking against a crowded side pays more, because the crowd's stake is what you win.",
-    "contrarian": "The money is {pct}% on “{crowded}”. If “{thin}” is right, a challenger is paid {multiple}x."
+    "contrarian": "The money is {pct}% on “{crowded}”. If “{thin}” is right, a challenger is paid {multiple}x.",
+    "cardUnpriced": "No counter-stake yet, so no price",
+    "cardAria": "Creator side {creator}, challenger side {challenger}",
+    "cardPays": "Challenging pays {multiple}x at the current split"
   },
   "resolverToggle": {
     "title": "Settle deterministically from price feeds",
