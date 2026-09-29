@@ -39,6 +39,8 @@ import type { ApiClaim } from "@/lib/server/arena-claim";
 import { claimPhase, isPendingVerdict, PHASE_LABEL, SIDE_LABEL } from "@/lib/claim-status";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import PeepAvatar from "@/components/ui/PeepAvatar";
+import HolderBadge from "@/components/token/HolderBadge";
+import { useWalletTiers } from "@/components/token/useWalletTiers";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 
@@ -222,6 +224,9 @@ export default function ArenaClaimPage() {
       setBusy(null);
     }
   };
+
+  // Holder badges: one batched tier read per new set of wallets.
+  const tiers = useWalletTiers(claim ? [claim.creator, ...claim.challengers.map((c) => c.addr)] : []);
 
   if (!claim) {
     return (
@@ -447,7 +452,10 @@ export default function ArenaClaimPage() {
                           Creator
                         </div>
                       </div>
-                      <div className="text-sm font-semibold text-pv-text">{shorten(claim.creator)}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-pv-text">
+                        {shorten(claim.creator)}
+                        <HolderBadge tier={tiers[claim.creator]} />
+                      </div>
                       <div className="mt-1 text-xs text-pv-cyan">{claim.creatorPosition}</div>
                       <div className="mt-3 font-mono text-sm font-bold tabular-nums text-pv-text">
                         ${usdc(claim.creatorStake)} <span className="text-pv-muted">staked</span>
@@ -475,7 +483,10 @@ export default function ArenaClaimPage() {
                               Rival
                             </div>
                           </div>
-                          <div className="text-sm font-semibold text-pv-text">{shorten(claim.challengers[0].addr)}</div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-pv-text">
+                            {shorten(claim.challengers[0].addr)}
+                            <HolderBadge tier={tiers[claim.challengers[0].addr]} />
+                          </div>
                           <div className="mt-1 text-xs text-pv-fuch">{claim.counterPosition}</div>
                           <div className="mt-3 font-mono text-sm font-bold tabular-nums text-pv-text">
                             ${usdc(claim.totalChallengerStake)} <span className="text-pv-muted">staked</span>
@@ -871,6 +882,7 @@ export default function ArenaClaimPage() {
                                       <span className="break-words font-mono text-[12px] font-semibold leading-tight text-pv-text sm:text-[13px]">
                                         {shorten(c.addr)}
                                       </span>
+                                      <HolderBadge tier={tiers[c.addr]} />
                                       {isYou && (
                                         <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-pv-emerald">
                                           you

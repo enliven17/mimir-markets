@@ -17,6 +17,9 @@ import DashboardWalletGate from "@/components/dashboard/DashboardWalletGate";
 import FundsPanel from "@/components/dashboard/FundsPanel";
 import PositionList from "@/components/dashboard/PositionList";
 import { OnboardingChecklistView } from "@/components/onboarding/OnboardingChecklist";
+import HolderBadge from "@/components/token/HolderBadge";
+import { useHolderTier } from "@/components/token/useHolderTier";
+import PeepAvatar from "@/components/ui/PeepAvatar";
 import { useDashboardFilterUrlState } from "@/hooks/useDashboardFilterUrlState";
 import { useUserPositions } from "@/hooks/useUserPositions";
 import { useWalletFunds } from "@/hooks/useWalletFunds";
@@ -32,6 +35,8 @@ export default function DashboardClient() {
   const funds = useWalletFunds();
   const positions = useUserPositions(address);
   const { filters, update, reset } = useDashboardFilterUrlState();
+  // The connected wallet's tier: shares the header chip's request.
+  const holder = useHolderTier();
 
   const heading = (
     <BlueprintHeading as="h1" eyebrow={t("eyebrow")} subtitle={t("subtitle")}>
@@ -63,6 +68,13 @@ export default function DashboardClient() {
   return (
     <>
       {heading}
+      <div className="flex min-w-0 items-center gap-2 border-b border-pv-border/25 px-4 py-3 sm:px-6">
+        <PeepAvatar seed={`creator-${address}`} size={28} tone="accent" />
+        <span className="min-w-0 truncate font-mono text-xs text-pv-text" title={address}>
+          {address.slice(0, 4)}…{address.slice(-4)}
+        </span>
+        <HolderBadge tier={holder.state?.tier} />
+      </div>
       <OnboardingChecklistView funds={funds} mimir={funds.mimir} hasStake={hasStake} onFunded={funds.reload} className="mx-4 my-5 sm:mx-6" />
 
       <FundsPanel funds={funds} mimir={funds.mimir} onChanged={refreshAll} />

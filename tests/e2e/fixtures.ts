@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 /** Id used for the fixture claim; the API calls for it are intercepted. */
 export const FIXTURE_CLAIM_ID = 424242;
 
-const CREATOR = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+export const CREATOR = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 const CHALLENGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -56,5 +56,9 @@ export async function mockFixtureClaim(page: Page): Promise<void> {
     route.fulfill({
       json: { claimId: FIXTURE_CLAIM_ID, total: 0, stakedCount: 0, totalUsdc: 0, votes: [] },
     }),
+  );
+  // Holder badges: the creator holds, the challenger does not (no mainnet RPC in tests).
+  await page.route((url) => url.pathname === "/api/token/tier" && url.searchParams.has("wallets"), (route) =>
+    route.fulfill({ json: { success: true, data: { tiers: { [CREATOR]: "holder", [CHALLENGER]: "none" } } } }),
   );
 }

@@ -179,6 +179,7 @@
     "proofHelp": "Signing proves you control this wallet so the council APIs can apply your tier. It moves no funds.",
     "noSign": "This wallet cannot sign messages.",
     "chipTitle": "Your Mimir token tier",
+    "badgeTitle": "{tier}: holds $MIMIR or $ANSEM on Solana mainnet",
     "tier": {
       "none": "No tier",
       "holder": "Holder",
