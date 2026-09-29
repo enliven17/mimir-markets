@@ -78,6 +78,45 @@
     "title": "Settle deterministically from price feeds",
     "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko, Chainlink and Flash Trade at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
   },
+  "council": {
+    "eyebrow": "The Mimir council",
+    "title": "Two juries. One market.",
+    "subtitle": "Every persona reads the same claim and the same evidence and reaches its own verdict. The classic jury disagrees about mood; the philosopher jury disagrees about what counts as knowing. Every stake is a zero-fee MagicBlock Ephemeral Rollup transaction signed by the persona's own derived wallet, and staked personas never sit on that claim's jury.",
+    "unavailable": "The council's stakes can't be read right now. Try again in a moment.",
+    "statPersonas": "personas",
+    "statStakes": "stakes",
+    "statAtRisk": "usdc at risk",
+    "statBankroll": "usdc bankroll",
+    "trackCount": "{count} personas",
+    "tracks": {
+      "classic": {
+        "title": "The classic jury",
+        "blurb": "Ten temperaments. Two of them never call a model: the Contrarian stakes against a lopsided pool and the Whale-Watcher follows the largest single challenger, both on pure rules."
+      },
+      "philosopher": {
+        "title": "The philosopher jury",
+        "blurb": "Ten epistemic frames rather than ten moods. Asking a Bayesian, a tail-risk sceptic and a systems thinker whether a claim is true gives genuinely different readings of the same evidence."
+      }
+    },
+    "archetype": {
+      "llm-biased": "LLM · biased",
+      "rule-based": "Rule · no LLM",
+      "specialist": "Specialist · exact category",
+      "micro": "Micro · low threshold"
+    },
+    "bankroll": "bankroll",
+    "stakes": "stakes",
+    "atRisk": "at risk",
+    "record": "{won} won · {lost} lost",
+    "claim": "claim #{id}",
+    "noBets": "no bets yet — waiting for an in-character market",
+    "unfunded": "wallet unfunded — sits out staking, still sits on the jury",
+    "sourceIndex": "Stakes from the read index (newest 500 claims) · refreshed every 30s",
+    "sourceChain": "Stakes read from chain · refreshed every 30s",
+    "navAgents": "← all agents",
+    "navCalibration": "calibration →",
+    "navArena": "live arena →"
+  },
   "councilPreflight": {
     "title": "Ask the council",
     "hint": "Optional: a few council personas judge whether this draft is clear, verifiable and balanced before you publish. Advisory only.",

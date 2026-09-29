@@ -16,6 +16,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/stats", label: "Stats" },
   { href: "/calibration", label: "Calibration" },
+  { href: "/council", label: "Council" },
   { href: "/agents", label: "Agents" },
   { href: "/baskets", label: "Baskets", matchNested: true },
   { href: "/copy", label: "Copy" },
