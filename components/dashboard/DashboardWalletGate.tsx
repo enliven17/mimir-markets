@@ -2,7 +2,7 @@
 
 /** Dashboard without a connected wallet: one framed connect card. */
 import { useTranslations } from "next-intl";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Wallet } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
@@ -18,7 +18,7 @@ export default function DashboardWalletGate() {
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-pv-muted">{t("connectDesc")}</p>
         <div className="mt-6 flex justify-center">
-          <WalletMultiButton />
+          <ConnectWalletButton />
         </div>
         <Link href="/arena" className="mt-6 inline-block text-xs text-pv-emerald underline-offset-4 hover:underline">
           {t("connectExploreLink")}

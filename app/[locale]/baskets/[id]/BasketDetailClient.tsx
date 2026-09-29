@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Connection, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Check, Info, Radio, TriangleAlert, Users } from "lucide-react";
@@ -368,7 +368,7 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
         ) : (
           <div className="mt-5 flex flex-col items-center gap-2">
             <p className="text-center text-[12px] text-pv-muted">{t("connect")}</p>
-            <WalletMultiButton />
+            <ConnectWalletButton />
           </div>
         )}
       </BlueprintSection>

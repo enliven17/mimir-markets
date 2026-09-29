@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { ArrowUpRight, PowerOff, Wallet } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
@@ -77,7 +77,7 @@ export default function CopyClient() {
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-pv-muted">{t("connectDesc")}</p>
           <div className="mt-6 flex justify-center">
-            <WalletMultiButton />
+            <ConnectWalletButton />
           </div>
         </section>
       </div>

@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import bs58 from "bs58";
 import { Check, Plus, Scale, TriangleAlert, X } from "lucide-react";
 
@@ -296,7 +296,7 @@ export default function BasketComposerClient() {
         {!connected && (
           <div className="flex flex-col items-center gap-2">
             <p className="text-center text-[12px] text-pv-muted">{t("connectPublish")}</p>
-            <WalletMultiButton />
+            <ConnectWalletButton />
           </div>
         )}
         <button

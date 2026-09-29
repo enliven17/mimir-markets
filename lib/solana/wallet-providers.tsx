@@ -3,32 +3,25 @@
 /**
  * Solana wallet context (app-wide, from the root layout).
  *
- * Wallets come from two places:
- * - Wallet Standard: installed wallets (Phantom, Solflare, Backpack, …)
- *   register themselves and the adapter discovers them automatically.
- * - Explicit Phantom + Solflare adapters, so the modal still lists them when
- *   no extension is installed. Clicking one opens its install page on desktop
- *   and the in-wallet browser deep link on iOS; the adapter drops these when
- *   the same wallet also registers through the Wallet Standard.
- * - WalletConnect (mobile QR), only when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
- *   is set. It is imported lazily because it pulls Reown AppKit.
+ * Wallets come from the Wallet Standard only: Phantom, Solflare, Backpack and
+ * every other standard wallet register themselves and the adapter discovers
+ * them. On Android the provider adds the Solana Mobile Wallet Adapter by
+ * itself. Wallets that are not installed, and the iOS "open in wallet" deep
+ * links, are handled by our own connect sheet (components/wallet).
+ *
+ * WalletConnect (mobile QR) is added only when
+ * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set. It is imported lazily because
+ * it pulls Reown AppKit.
  *
  * We deliberately avoid `@solana/wallet-adapter-wallets`: it pulls the Ledger
  * adapter's `usb` native module, which needs a C/Python toolchain to build
  * and breaks clean container installs.
  */
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import {
-  ConnectionProvider,
-  WalletProvider,
-} from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { WalletAdapterNetwork, type Adapter } from "@solana/wallet-adapter-base";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
-import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { WalletAdapterNetwork, type Adapter, type WalletError } from "@solana/wallet-adapter-base";
 import { SOLANA_RPC } from "./config";
-
-import "@solana/wallet-adapter-react-ui/styles.css";
+import { emitWalletError } from "./wallet-events";
 
 const NETWORK = WalletAdapterNetwork.Devnet;
 const WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
@@ -69,20 +62,16 @@ function useWalletConnectAdapter(): Adapter | null {
   return adapter;
 }
 
+const onError = (error: WalletError, adapter?: Adapter) => emitWalletError(error, adapter);
+
 export function SolanaWalletProviders({ children }: { children: ReactNode }) {
   const walletConnect = useWalletConnectAdapter();
-  const wallets = useMemo<Adapter[]>(() => {
-    const base: Adapter[] = [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network: NETWORK }),
-    ];
-    return walletConnect ? [...base, walletConnect] : base;
-  }, [walletConnect]);
+  const wallets = useMemo<Adapter[]>(() => (walletConnect ? [walletConnect] : []), [walletConnect]);
 
   return (
     <ConnectionProvider endpoint={SOLANA_RPC} config={{ commitment: "confirmed" }}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
+      <WalletProvider wallets={wallets} autoConnect onError={onError}>
+        {children}
       </WalletProvider>
     </ConnectionProvider>
   );

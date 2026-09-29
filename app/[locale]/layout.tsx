@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
+import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
 import SkipToContentLink from "../../components/SkipToContentLink";
 import ScrollToTopOnLoad from "../../components/ScrollToTopOnLoad";
 
@@ -49,6 +50,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <NextIntlClientProvider messages={messages}>
+      <WalletSheetProvider>
       <HtmlLang locale={locale} />
       <SkipToContentLink />
       <ScrollToTopOnLoad />
@@ -61,6 +63,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         <PageFrame>{children}</PageFrame>
       </main>
       <Footer />
+      </WalletSheetProvider>
     </NextIntlClientProvider>
   );
 }

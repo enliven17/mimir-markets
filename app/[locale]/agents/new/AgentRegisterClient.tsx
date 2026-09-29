@@ -16,7 +16,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import bs58 from "bs58";
 import { ArrowRight, Check, Copy, KeyRound, ShieldCheck, TriangleAlert } from "lucide-react";
 
@@ -341,7 +341,7 @@ export default function AgentRegisterClient() {
               ) : (
                 <div className="flex flex-col items-center gap-2">
                   <p className="text-center text-[12px] text-pv-muted">{t("connectFirst")}</p>
-                  <WalletMultiButton />
+                  <ConnectWalletButton />
                 </div>
               )}
               <button

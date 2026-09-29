@@ -12,7 +12,7 @@
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
 import { toast } from "sonner";
 import { Check, ChevronDown, ExternalLink, X } from "lucide-react";
 
@@ -63,7 +63,7 @@ export function OnboardingChecklistView({ funds, mimir, hasStake, onFunded, clas
   const headingId = useId();
   const listId = useId();
   const { connected, connecting } = useWallet();
-  const { setVisible } = useWalletModal();
+  const { open: openWalletSheet } = useWalletSheet();
 
   // null until localStorage has been read, so dismissed users never see a flash
   // and the server render matches the first client render.
@@ -116,7 +116,7 @@ export function OnboardingChecklistView({ funds, mimir, hasStake, onFunded, clas
     switch (id) {
       case "connect":
         return (
-          <button type="button" className={primaryAction} onClick={() => setVisible(true)} disabled={connecting}>
+          <button type="button" className={primaryAction} onClick={openWalletSheet} disabled={connecting}>
             {connecting ? t("steps.connect.connecting") : t("steps.connect.action")}
           </button>
         );

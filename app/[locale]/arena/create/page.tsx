@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link, useRouter } from "@/i18n/navigation";
 import {
   ChevronDown,
@@ -347,7 +347,7 @@ export default function CreateMarketPage() {
           <GlassCard glass noPad glow="none" className="!rounded-2xl border border-pv-border/25">
             <div className="flex flex-col items-center gap-4 p-8 text-center sm:p-12">
               <p className="text-sm text-pv-muted">Connect your wallet to publish a challenge.</p>
-              <WalletMultiButton />
+              <ConnectWalletButton />
             </div>
           </GlassCard>
         </AnimatedItem>

@@ -22,9 +22,9 @@ import { NAV_CTA, NAV_PRIMARY, NAV_SHEET_GROUPS, isNavActive } from "./nav-items
 
 // wallet-adapter button is client-only (touches window) — load without SSR.
 // The placeholder keeps the bar from shifting while it loads.
-const WalletButton = dynamic(() => import("./WalletButton"), {
+const WalletButton = dynamic(() => import("./wallet/WalletChip"), {
   ssr: false,
-  loading: () => <span aria-hidden className="inline-block h-[34px] w-[98px] border border-pv-emerald/40" />,
+  loading: () => <span aria-hidden className="inline-block h-9 w-[98px] rounded-full bg-cream/5" />,
 });
 
 const linkBase =

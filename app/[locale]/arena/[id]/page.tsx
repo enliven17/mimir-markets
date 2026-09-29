@@ -19,7 +19,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import WalletChip from "@/components/wallet/WalletChip";
 import {
   createBrowserMimir,
   depositUsdc,
@@ -288,7 +288,7 @@ export default function ArenaClaimPage() {
           >
             ← Arena
           </Link>
-          <WalletMultiButton />
+          <WalletChip />
         </div>
 
         {/* ── Phase progress ── */}
