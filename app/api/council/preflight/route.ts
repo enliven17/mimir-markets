@@ -9,6 +9,8 @@
  *
  * Free (the source sold it over x402), so it is rate-limited per IP and per
  * deploy, and an identical draft within 10 minutes is served from memory.
+ * Token holders with a valid holder proof get their tier's multiple of the
+ * per-caller limit and a separate deploy-wide pool (lib/server/holder.ts).
  */
 import { NextResponse } from "next/server";
 import {
@@ -19,7 +21,9 @@ import {
   type PreflightResult,
 } from "@/agents/market-creator/council-preflight";
 import { cachedFor } from "@/lib/server/ttl-cache";
-import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
+import { rateIdentity } from "@/lib/server/holder";
+import { rateLimitFor } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +37,11 @@ const cachedPreflight = cachedFor(async (candidate: PreflightCandidate, slugs: s
 }, 10 * 60_000);
 
 export async function POST(req: Request) {
-  const ip = clientIp(req);
-  if (!(await allowRequest("council-preflight", ip, 5, 60_000)) || !(await allowRequest("council-preflight", "all", 30, 60_000))) {
+  const { key, tier, pool } = await rateIdentity(req);
+  if (
+    !(await allowRequest("council-preflight", key, rateLimitFor(5, tier), 60_000)) ||
+    !(await allowRequest("council-preflight", pool, 30, 60_000))
+  ) {
     return tooManyRequests(60);
   }
 

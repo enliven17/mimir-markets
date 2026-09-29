@@ -7,6 +7,10 @@
  * and each (claim, persona) generation is memoized for 10 minutes
  * (lib/server/reasoning-cache.ts). Rule personas (Contrarian, Whale-Watcher)
  * never call the LLM: their take is their rule read against the live pool.
+ *
+ * Token perk: a valid holder proof (x-mimir-wallet + x-mimir-proof) is
+ * counted per wallet at its tier's multiple of these limits, and its LLM
+ * calls draw on a separate holder pool (lib/server/holder.ts rateIdentity).
  */
 import { NextResponse } from "next/server";
 import { getPersonaBySlug } from "@/agents/council/personas";
@@ -16,15 +20,17 @@ import { callLLM } from "@/lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "@/lib/prompt-safety";
 import { loadCouncilClaim } from "@/lib/server/council-claim";
 import { getCachedReasoning, setCachedReasoning } from "@/lib/server/reasoning-cache";
-import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
+import { rateIdentity } from "@/lib/server/holder";
+import { rateLimitFor } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 
 const fail = (status: number, error: string) => NextResponse.json({ success: false, error }, { status });
 
 export async function GET(req: Request) {
-  const ip = clientIp(req);
-  if (!(await allowRequest("council-reasoning", ip, 30, 60_000))) return tooManyRequests(60);
+  const { key, tier, pool } = await rateIdentity(req);
+  if (!(await allowRequest("council-reasoning", key, rateLimitFor(30, tier), 60_000))) return tooManyRequests(60);
 
   const { searchParams } = new URL(req.url);
   const claimId = Number(searchParams.get("claimId"));
@@ -54,7 +60,10 @@ export async function GET(req: Request) {
   }
 
   // A miss costs an LLM call: tighter per-IP budget and a deploy-wide ceiling.
-  if (!(await allowRequest("council-reasoning-llm", ip, 6, 60_000)) || !(await allowRequest("council-reasoning-llm", "all", 60, 60_000))) {
+  if (
+    !(await allowRequest("council-reasoning-llm", key, rateLimitFor(6, tier), 60_000)) ||
+    !(await allowRequest("council-reasoning-llm", pool, 60, 60_000))
+  ) {
     return tooManyRequests(60);
   }
 
