@@ -375,27 +375,28 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Wallet Adapter — button, connected dropdown and selection modal, reskinned
    to the purple blueprint via the pv-* variables (so they track light/dark):
-   sharp corners, ink hairlines, Maple Mono. Selectors stay specific enough to
-   beat the vendor stylesheet without !important.
+   sharp corners, ink hairlines, Maple Mono. The vendor stylesheet loads after
+   this file, so every selector is prefixed with :root to win on specificity
+   without !important.
    ────────────────────────────────────────────────────────────────────────── */
-.wallet-adapter-button {
+:root .wallet-adapter-button {
   font-family: "Maple Mono", var(--font-display), ui-monospace, monospace;
   border-radius: 0;
 }
-.wallet-adapter-button:not([disabled]):focus-visible,
-.wallet-adapter-modal-button-close:focus-visible,
-.wallet-adapter-modal-list-more:focus-visible {
+:root .wallet-adapter-button:not([disabled]):focus-visible,
+:root .wallet-adapter-modal-button-close:focus-visible,
+:root .wallet-adapter-modal-list-more:focus-visible {
   outline: 2px solid rgb(var(--pv-accent));
   outline-offset: 2px;
 }
 
 /* Trigger (header / gates): same chip as the Publish CTA, never wraps. */
-.wallet-adapter-button.wallet-adapter-button-trigger {
+:root .wallet-adapter-button.wallet-adapter-button-trigger {
   background: rgb(var(--pv-accent));
   border: 1px solid rgb(var(--pv-accent));
   color: rgb(var(--pv-bg));
-  height: auto;
-  padding: 0.5rem 0.9rem;
+  height: 34px;
+  padding: 0 0.95rem;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -404,31 +405,31 @@
   white-space: nowrap;
   transition: filter 0.18s ease-out, background-color 0.18s ease-out;
 }
-.wallet-adapter-button.wallet-adapter-button-trigger:not([disabled]):hover {
+:root .wallet-adapter-button.wallet-adapter-button-trigger:not([disabled]):hover {
   background: rgb(var(--pv-accent));
   filter: brightness(1.1);
 }
-.wallet-adapter-button.wallet-adapter-button-trigger:not([disabled]):active {
+:root .wallet-adapter-button.wallet-adapter-button-trigger:not([disabled]):active {
   filter: brightness(0.95);
 }
-.wallet-adapter-button.wallet-adapter-button-trigger[disabled] {
+:root .wallet-adapter-button.wallet-adapter-button-trigger[disabled] {
   background: rgb(var(--pv-surface2));
   border-color: rgb(var(--pv-border) / 0.25);
   color: rgb(var(--pv-muted));
 }
-.wallet-adapter-button-trigger .wallet-adapter-button-start-icon,
-.wallet-adapter-button-trigger .wallet-adapter-button-end-icon {
+:root .wallet-adapter-button-trigger .wallet-adapter-button-start-icon,
+:root .wallet-adapter-button-trigger .wallet-adapter-button-end-icon {
   width: 14px;
   height: 14px;
   margin-right: 0.5rem;
 }
-.wallet-adapter-button-trigger .wallet-adapter-button-start-icon img {
+:root .wallet-adapter-button-trigger .wallet-adapter-button-start-icon img {
   width: 14px;
   height: 14px;
 }
 
 /* Connected dropdown (copy address / change wallet / disconnect). */
-.wallet-adapter-dropdown-list {
+:root .wallet-adapter-dropdown-list {
   background: rgb(var(--pv-bg));
   border: 1px solid rgb(var(--pv-border) / 0.25);
   border-radius: 0;
@@ -437,7 +438,7 @@
   grid-row-gap: 0;
   font-family: "Maple Mono", ui-monospace, monospace;
 }
-.wallet-adapter-dropdown-list-item {
+:root .wallet-adapter-dropdown-list-item {
   border-radius: 0;
   color: rgb(var(--pv-text));
   font-size: 12px;
@@ -446,22 +447,22 @@
   height: 40px;
   padding: 0 16px;
 }
-.wallet-adapter-dropdown-list-item + .wallet-adapter-dropdown-list-item {
+:root .wallet-adapter-dropdown-list-item + .wallet-adapter-dropdown-list-item {
   border-top: 1px solid rgb(var(--pv-border) / 0.12);
 }
-.wallet-adapter-dropdown-list-item:not([disabled]):hover {
+:root .wallet-adapter-dropdown-list-item:not([disabled]):hover {
   background: rgb(var(--pv-surface));
   color: rgb(var(--pv-accent));
 }
 
 /* Selection modal. */
-.wallet-adapter-modal {
+:root .wallet-adapter-modal {
   background: rgb(var(--pv-bg) / 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
-.wallet-adapter-modal-overlay { background: transparent; }
-.wallet-adapter-modal-wrapper {
+:root .wallet-adapter-modal-overlay { background: transparent; }
+:root .wallet-adapter-modal-wrapper {
   background: rgb(var(--pv-bg));
   background-image:
     linear-gradient(rgb(var(--pv-border) / 0.04) 1px, transparent 1px),
@@ -474,7 +475,7 @@
   font-family: "Maple Mono", ui-monospace, monospace;
   max-width: 420px;
 }
-.wallet-adapter-modal-title {
+:root .wallet-adapter-modal-title {
   color: rgb(var(--pv-text));
   font-family: "Maple Mono", ui-monospace, monospace;
   font-size: 13px;
@@ -488,7 +489,7 @@
   padding: 22px 64px 20px 24px;
   border-bottom: 1px solid rgb(var(--pv-border) / 0.25);
 }
-.wallet-adapter-modal-button-close {
+:root .wallet-adapter-modal-button-close {
   top: 14px;
   right: 14px;
   padding: 10px;
@@ -497,21 +498,21 @@
   border-radius: 0;
   transition: border-color 0.15s ease-out;
 }
-.wallet-adapter-modal-button-close svg {
+:root .wallet-adapter-modal-button-close svg {
   width: 12px;
   height: 12px;
   fill: rgb(var(--pv-muted));
 }
-.wallet-adapter-modal-button-close:hover { border-color: rgb(var(--pv-accent) / 0.6); }
-.wallet-adapter-modal-button-close:hover svg { fill: rgb(var(--pv-accent)); }
-.wallet-adapter-modal-list {
+:root .wallet-adapter-modal-button-close:hover { border-color: rgb(var(--pv-accent) / 0.6); }
+:root .wallet-adapter-modal-button-close:hover svg { fill: rgb(var(--pv-accent)); }
+:root .wallet-adapter-modal-list {
   margin: 0;
 }
-.wallet-adapter-modal-list li + li,
-.wallet-adapter-modal-list .wallet-adapter-collapse li {
+:root .wallet-adapter-modal-list li + li,
+:root .wallet-adapter-modal-list .wallet-adapter-collapse li {
   border-top: 1px solid rgb(var(--pv-border) / 0.12);
 }
-.wallet-adapter-modal-list .wallet-adapter-button {
+:root .wallet-adapter-modal-list .wallet-adapter-button {
   background: transparent;
   color: rgb(var(--pv-text));
   font-size: 14px;
@@ -521,16 +522,16 @@
   padding: 0 24px;
   transition: background-color 0.15s ease-out, color 0.15s ease-out;
 }
-.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+:root .wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
   background: rgb(var(--pv-surface));
   color: rgb(var(--pv-accent));
 }
-.wallet-adapter-modal-list .wallet-adapter-button-start-icon,
-.wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
+:root .wallet-adapter-modal-list .wallet-adapter-button-start-icon,
+:root .wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
   width: 26px;
   height: 26px;
 }
-.wallet-adapter-modal-list .wallet-adapter-button span {
+:root .wallet-adapter-modal-list .wallet-adapter-button span {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -541,7 +542,7 @@
   padding: 3px 8px;
   line-height: 1.2;
 }
-.wallet-adapter-modal-list-more {
+:root .wallet-adapter-modal-list-more {
   color: rgb(var(--pv-muted));
   font-family: "Maple Mono", ui-monospace, monospace;
   font-size: 11px;
@@ -552,11 +553,11 @@
   padding: 14px 24px;
   border-top: 1px solid rgb(var(--pv-border) / 0.25);
 }
-.wallet-adapter-modal-list-more:hover { color: rgb(var(--pv-accent)); }
-.wallet-adapter-modal-list-more svg { fill: currentColor; }
-.wallet-adapter-modal-middle { padding: 24px; }
-.wallet-adapter-modal-middle svg { color: rgb(var(--pv-accent)); }
-.wallet-adapter-modal-middle-button {
+:root .wallet-adapter-modal-list-more:hover { color: rgb(var(--pv-accent)); }
+:root .wallet-adapter-modal-list-more svg { fill: currentColor; }
+:root .wallet-adapter-modal-middle { padding: 24px; }
+:root .wallet-adapter-modal-middle svg { color: rgb(var(--pv-accent)); }
+:root .wallet-adapter-modal-middle-button {
   background: rgb(var(--pv-accent));
   border-radius: 0;
   color: rgb(var(--pv-bg));
