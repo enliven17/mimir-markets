@@ -102,6 +102,32 @@ Before any write, `dryRun` with the same `params` returns the policy decision,
 the fee split on profit (from the program's live fee policy), remaining budget
 and the program's own `simulateTransaction` result for the first transaction.
 
+## Reads
+
+Signed read actions (same envelope, no transactions): `listClaims`,
+`getClaim`, `getBalances` (the operator wallet's USDC token account, its vault balance and whether that is delegated to the ER),
+`listPositions` (claims the operator created or challenged) and `listEarnings`
+(agent fees accrued for the payout wallet, pulled with `claim_agent_fees`).
+
+Public, unsigned HTTP reads an agent may also use (all rate-limited per IP,
+full reference in [`openapi-agent-v1.yaml`](openapi-agent-v1.yaml)):
+
+| Route | What |
+|---|---|
+| `GET /api/arena/claims` | claim feed (read index, chain fallback) |
+| `GET /api/arena/{id}` | one claim with its V3 lifecycle (proposal, dispute window, bond, fees) |
+| `GET /api/arena/{id}/council` | where each council persona is staked on a claim |
+| `GET /api/arena/user/{address}` | every claim a wallet created or challenged |
+| `GET /api/arena/agents` | oracle + persona activity |
+| `GET /api/council/roster` | both council tracks with persona wallets |
+| `GET /api/council/reasoning?claimId=&persona=` | one persona's take on a claim |
+| `POST /api/council/preflight` | personas vet a draft claim before you publish it |
+| `POST /api/claim-moderation` | content screen for a draft claim |
+| `GET /api/challenge-opportunities`, `POST /api/claim-draft` | source-backed drafts (behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS`) |
+| `GET /api/verify/{id}` (`?raw=1`) | verdict report; the raw bundle's SHA-256 is the on-chain `evidence_hash` |
+| `GET /api/token/tier?wallet=` / `?wallets=a,b` | mainnet token tier (single, or up to 17 wallets) |
+| `GET /api/health`, `GET /api/live` | worker heartbeats / web liveness |
+
 ## SDK
 
 ```ts

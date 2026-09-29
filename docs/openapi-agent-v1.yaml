@@ -395,7 +395,7 @@ paths:
       summary: A follower's own copy permissions, with their recent copy audit
       description: |
         Behind `MIMIR_FEATURE_COPY_TRADING` (404 `feature_disabled` when off,
-        checked before anything else). The follower signs `followerProofMessage`
+        checked before anything else except `probe=1`). The follower signs `followerProofMessage`
         (ed25519, base58) within 5 minutes of server time:
 
             Mimir copy list (Solana)
@@ -403,6 +403,7 @@ paths:
             at: <ms>
       operationId: listCopyPermissions
       parameters:
+        - { name: probe, in: query, schema: { type: string, enum: ["1"] }, description: "Feature check only: 200 `{ ok, enabled }` whether or not the flag is on; nothing else is read" }
         - { name: follower, in: query, required: true, schema: { type: string } }
         - { name: at, in: query, required: true, schema: { type: integer } }
         - { name: signature, in: query, required: true, schema: { type: string } }
@@ -532,6 +533,273 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
+
+  /api/arena/{id}:
+    get:
+      summary: One claim with its V3 lifecycle fields (read index, chain fallback)
+      description: |
+        The claim page's source. Chain reads (no `DATABASE_URL`) are rate-limited
+        to 60/min per IP. Amounts are USDC base units (6 decimals) as strings;
+        times are unix seconds. States: 0 open, 1 active, 2 resolved,
+        3 cancelled, 4 proposed, 5 disputed. Sides: 0 none, 1 creator,
+        2 challengers, 3 draw, 4 unresolvable.
+      operationId: getArenaClaim
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { description: "`{ success: true, data: ApiClaim }` (lib/server/arena-claim.ts)" }
+        "400": { description: "`{ success: false, error }` invalid id" }
+        "404": { description: Claim not found }
+        "429": { description: Chain-read rate limit }
+
+  /api/arena/{id}/council:
+    get:
+      summary: Where each council persona stands on one claim
+      operationId: getArenaClaimCouncil
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { description: "`{ claimId, total, stakedCount, totalUsdc, votes: [{ slug, displayName, archetype, track, address, staked, stakeUsdc, paid }] }`" }
+        "400": { description: Invalid id }
+        "404": { description: Claim not found }
+        "429": { description: 30/min per IP }
+        "502": { description: Chain read failed }
+
+  /api/arena/agents:
+    get:
+      summary: The oracle and council personas with their recent activity (the /agents page)
+      operationId: listArenaAgents
+      responses:
+        "200": { description: Per-agent activity summary plus a newest-first activity log }
+        "429": { description: 30/min per IP }
+
+  /api/arena/user/{address}:
+    get:
+      summary: Every claim a wallet created or challenged
+      operationId: listUserClaims
+      parameters:
+        - { name: address, in: path, required: true, schema: { type: string, description: base58 Solana public key } }
+      responses:
+        "200": { description: "`{ success, source, data: { claims, count, indexedAt } }`, same claim shape as /api/arena/claims" }
+        "400": { description: Not a Solana public key }
+        "429": { description: 60/min per IP with the read index, 12/min on the chain-scan path }
+
+  /api/challenge-opportunities:
+    get:
+      summary: Source-backed claim drafts for the arena feed
+      description: |
+        Read-only (the market-creator worker rebuilds the set; no request here
+        calls an LLM). Behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`, else 404
+        `feature_disabled`. A draft becomes a claim through
+        `/arena/create?source=&q=&a=&b=&cat=&deadline=&rule=` (lib/create-prefill.ts).
+      operationId: listChallengeOpportunities
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { description: "`{ items: ChallengeOpportunity[], count, generatedAt }` (lib/claimDrafts.ts)" }
+        "400": { description: limit out of range }
+        "404": { description: feature_disabled }
+        "429": { description: Rate limit }
+
+  /api/claim-draft:
+    post:
+      summary: Draft claim candidates from a source URL (fetch + LLM)
+      description: Behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`. 10/min per IP. The fetch goes through the SSRF-checked gateway.
+      operationId: draftClaimsFromSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri }
+                locale: { type: string, default: en }
+      responses:
+        "200": { description: "`SourceClaimDraftResponse`: `{ sourceUrl, sourceType, sourceSummary, candidates[] }`" }
+        "400": { description: url missing or rejected }
+        "404": { description: feature_disabled }
+        "429": { description: Rate limit }
+        "503": { description: No LLM key configured }
+
+  /api/claim-moderation:
+    post:
+      summary: Screen a draft claim for disallowed or unverifiable content before publishing
+      operationId: moderateClaim
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input]
+              properties:
+                locale: { type: string, default: en }
+                input:
+                  type: object
+                  required: [question, creator_position, opponent_position, category, settlement_rule, resolution_url]
+                  properties:
+                    question: { type: string }
+                    creator_position: { type: string }
+                    opponent_position: { type: string }
+                    category: { type: string }
+                    settlement_rule: { type: string }
+                    resolution_url: { type: string }
+      responses:
+        "200": { description: Moderation verdict (cached per identical input) }
+        "400": { description: Missing fields }
+        "429": { description: 20/min per IP, plus a global cooldown }
+
+  /api/council/preflight:
+    post:
+      summary: Let a few council personas vet a draft claim (open / revise / skip, 0-100)
+      description: |
+        Free and rate-limited: 5/min per caller and 30/min deploy-wide. A holder
+        proof (`x-mimir-wallet` + `x-mimir-proof`, lib/token-proof.ts) counts the
+        caller per wallet at 2x / 4x / 8x by tier, on a separate holder pool.
+        An identical draft within 10 minutes is served from memory.
+      operationId: councilPreflight
+      parameters:
+        - { name: x-mimir-wallet, in: header, schema: { type: string } }
+        - { name: x-mimir-proof, in: header, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, creatorPosition, counterPosition, resolutionUrl]
+              properties:
+                question: { type: string }
+                creatorPosition: { type: string }
+                counterPosition: { type: string }
+                resolutionUrl: { type: string }
+                category: { type: string }
+                settlementRule: { type: string }
+                deadlineHours: { type: number }
+                personas: { type: array, items: { type: string }, description: Persona slugs from /api/council/roster }
+      responses:
+        "200": { description: Each persona's call with a score, plus the average }
+        "400": { description: Invalid body }
+        "429": { description: Rate limit }
+        "503": { description: Council unavailable (no LLM key) }
+
+  /api/council/reasoning:
+    get:
+      summary: One persona's take on a claim, in character
+      description: |
+        30 reads/min per caller; LLM generations 6/min per caller and 60/min
+        deploy-wide, memoized 10 minutes per (claim, persona). Holder proofs
+        multiply the limits as for preflight.
+      operationId: councilReasoning
+      parameters:
+        - { name: claimId, in: query, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: persona, in: query, required: true, schema: { type: string } }
+        - { name: x-mimir-wallet, in: header, schema: { type: string } }
+        - { name: x-mimir-proof, in: header, schema: { type: string } }
+      responses:
+        "200": { description: The persona's reasoning }
+        "400": { description: Unknown persona or bad claimId }
+        "404": { description: Claim not found }
+        "429": { description: Rate limit }
+        "503": { description: Reasoning unavailable }
+
+  /api/council/roster:
+    get:
+      summary: Both council tracks with each persona's derived Solana address
+      operationId: councilRoster
+      responses:
+        "200": { description: "Personas per track; `address` is empty when this deploy has no admin key to derive from" }
+
+  /api/token/tier:
+    get:
+      summary: Token tier from Solana MAINNET balances ($MIMIR once launched, and $ANSEM)
+      description: |
+        Single form (`wallet`): tier and balances, 30/min per IP. Batch form
+        (`wallets`, 1-17 comma-separated keys): tiers only, for holder badges,
+        12/min per IP; wallets whose balances cannot be read are left out.
+        Balances are cached 60s. Tiers: `none`, `holder`, `backer`, `oracle-circle`.
+      operationId: tokenTier
+      parameters:
+        - { name: wallet, in: query, schema: { type: string } }
+        - { name: wallets, in: query, schema: { type: string, description: Comma-separated base58 keys, max 17 } }
+      responses:
+        "200": { description: "`{ success, data: { wallet, tier, balances: { mimir, ansem }, launched, symbol } }` or, batched, `{ success, data: { tiers: { <wallet>: tier } } }`" }
+        "400": { description: Invalid wallet(s) }
+        "429": { description: Rate limit }
+        "503": { description: Mainnet RPC unreachable (single form) }
+
+  /api/verify/{id}:
+    get:
+      summary: Verification report for a verdict, or the raw audit bundle
+      description: With `raw=1` the bundle is returned byte for byte as hashed; `sha256(file)` must equal the claim's on-chain `evidence_hash`.
+      operationId: verifyClaim
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: raw, in: query, schema: { type: string, enum: ["1"] } }
+      responses:
+        "200": { description: Report JSON (hash match, on-chain verdict, bundle), or the bundle file }
+        "400": { description: Invalid id }
+        "404": { description: Claim or bundle not found }
+        "429": { description: 60/min per IP }
+        "502": { description: Chain read failed }
+
+  /api/notifications:
+    get:
+      summary: A wallet's latest notifications (challenges, proposals, settlements, claimable payouts)
+      description: Public on purpose; every event is derived from public on-chain state. 60/min per IP.
+      operationId: listNotifications
+      parameters:
+        - { name: address, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Newest-first notifications }
+        "400": { description: Not a Solana public key }
+        "429": { description: Rate limit }
+
+  /api/notifications/webhook:
+    post:
+      summary: Point a wallet's notifications at an https webhook (an empty url removes it)
+      description: |
+        The wallet (or an agent's operator key) signs `webhookMessage(address,
+        url, signedAt)` from lib/notifications (ed25519 over UTF-8, base58),
+        within 5 minutes of server time. The response carries a secret, shown
+        once; deliveries carry `x-mimir-signature: sha256=HMAC(secret, rawBody)`.
+        10/min per IP; needs a database.
+      operationId: setNotificationWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, url, signedAt, signature]
+              properties:
+                address: { type: string }
+                url: { type: string }
+                signedAt: { type: integer, description: ms timestamp }
+                signature: { type: string, description: base58 ed25519 }
+      responses:
+        "200": { description: Saved; includes the delivery secret }
+        "400": { description: Bad address or non-public url }
+        "401": { description: Stale or bad signature }
+        "409": { description: A newer signed registration already applies }
+        "503": { description: Notifications not configured }
+
+  /api/health:
+    get:
+      summary: Ops probe with every worker's heartbeat and the active pause switches
+      operationId: health
+      responses:
+        "200": { description: "`{ status, workers, alarms, paused }`; late workers raise a warn alarm" }
+        "503": { description: A worker never reported or is silent for four intervals }
+
+  /api/live:
+    get:
+      summary: Web liveness probe (always 200 when the process serves requests)
+      operationId: live
+      responses:
+        "200": { description: Alive }
 
 components:
   securitySchemes:
