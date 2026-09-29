@@ -13,6 +13,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/arena", label: "Arena", matchNested: true },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/stats", label: "Stats" },
   { href: "/calibration", label: "Calibration" },
   { href: "/agents", label: "Agents" },
