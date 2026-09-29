@@ -183,6 +183,40 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     PRIMARY KEY (basket_id, follower)
   )`,
   `CREATE INDEX IF NOT EXISTS basket_subscriptions_follower_idx ON basket_subscriptions (follower)`,
+  // ── Copy trading (lib/copy-trading-store.ts) ───────────────────────────────
+  // A permission is a signed policy (ed25519, base58), never a deposit.
+  // signed_at is the grant's own timestamp: an older grant never overwrites a
+  // newer one, and a grant signed before a revocation cannot revive it.
+  `CREATE TABLE IF NOT EXISTS copy_permissions (
+    id                 TEXT PRIMARY KEY,
+    follower           TEXT NOT NULL,
+    signal_agent_id    TEXT NOT NULL,
+    execution_agent_id TEXT NOT NULL,
+    active             BOOLEAN NOT NULL DEFAULT TRUE,
+    expires_at         BIGINT NOT NULL DEFAULT 0,
+    policy_json        TEXT NOT NULL DEFAULT '{}',
+    signature          TEXT NOT NULL DEFAULT '',
+    signed_at          BIGINT NOT NULL DEFAULT 0,
+    created_at         BIGINT NOT NULL DEFAULT 0,
+    revoked_at         BIGINT
+  )`,
+  `CREATE INDEX IF NOT EXISTS copy_permissions_follower_idx ON copy_permissions (follower)`,
+  `CREATE INDEX IF NOT EXISTS copy_permissions_executor_idx ON copy_permissions (execution_agent_id)`,
+  // Executed and refused copies alike: the log has to answer "why not".
+  `CREATE TABLE IF NOT EXISTS copy_executions (
+    id            BIGSERIAL PRIMARY KEY,
+    permission_id TEXT NOT NULL,
+    claim_id      BIGINT NOT NULL,
+    executed      BOOLEAN NOT NULL DEFAULT FALSE,
+    skip_reason   TEXT,
+    stake_usdc    NUMERIC NOT NULL DEFAULT 0,
+    tx_signature  TEXT,
+    at            BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS copy_executions_permission_at_idx ON copy_executions (permission_id, at DESC)`,
+  // One executed copy per claim per permission: a repeated report cannot double-count spend.
+  `CREATE UNIQUE INDEX IF NOT EXISTS copy_executions_executed_uniq
+     ON copy_executions (permission_id, claim_id) WHERE executed`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
