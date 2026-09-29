@@ -136,6 +136,14 @@ async function main() {
       // account gets deposited into the vault and delegated to the ER.
       if (row.erBettor && ata > 0) {
         const sweep = toUsdcUnits(ata);
+        // A delegated balance PDA is owned by the delegation program, so the
+        // base-layer deposit would fail: bring it home first, then re-delegate.
+        if (await client.isBalanceDelegated()) {
+          await withRetry(`${row.role} undelegate`, () => client.undelegateBalance());
+          for (let i = 0; i < 30 && (await client.isBalanceDelegated()); i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
         await withRetry(`${row.role} deposit`, () => client.deposit(sweep));
         try {
           await withRetry(`${row.role} delegate`, () => client.delegateBalance(), 2);
