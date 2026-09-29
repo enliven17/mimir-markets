@@ -138,6 +138,28 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     at           BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS agent_request_audit_agent_at_idx ON agent_request_audit (agent_id, at DESC)`,
+  // ── Oracle trust records ───────────────────────────────────────────────────
+  // Verdict audit bundles keyed by the sha256 committed on chain as
+  // evidence_hash (lib/server/verdict-bundles.ts). Content-addressed.
+  `CREATE TABLE IF NOT EXISTS verdict_bundles (
+    hash       TEXT PRIMARY KEY,
+    program    TEXT NOT NULL,
+    claim_id   BIGINT NOT NULL,
+    bundle     TEXT NOT NULL,
+    created_at BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS verdict_bundles_claim_idx ON verdict_bundles (program, claim_id)`,
+  // Pre-deadline forecasts by the oracle and council personas (lib/server/forecasts.ts).
+  `CREATE TABLE IF NOT EXISTS forecasts (
+    program       TEXT NOT NULL,
+    claim_id      BIGINT NOT NULL,
+    forecaster    TEXT NOT NULL,
+    p_challengers DOUBLE PRECISION NOT NULL,
+    verdict       TEXT NOT NULL,
+    confidence    SMALLINT NOT NULL DEFAULT 0,
+    created_at    BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (program, claim_id, forecaster)
+  )`,
   // ── Agent baskets (lib/baskets-store.ts) ───────────────────────────────────
   // A basket holds nothing: these rows are a definition and a set of signed
   // intents (ed25519, base58), never a ledger of deposits.
