@@ -241,6 +241,19 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     signed_at  BIGINT NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL DEFAULT 0
   )`,
+  // ── Challenge opportunities (lib/server/challenge-opportunities.ts) ──────
+  // Source-backed claim drafts for the arena feed, rebuilt by the market-creator
+  // worker. The opportunity itself is one JSON document; the sort keys are columns.
+  `CREATE TABLE IF NOT EXISTS challenge_opportunities (
+    id                   TEXT PRIMARY KEY,
+    payload              JSONB NOT NULL,
+    action               TEXT NOT NULL DEFAULT 'create',
+    claim_strength_score INTEGER NOT NULL DEFAULT 0,
+    confidence_score     INTEGER NOT NULL DEFAULT 0,
+    generated_at         BIGINT NOT NULL DEFAULT 0,
+    expires_at           BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS challenge_opportunities_expires_idx ON challenge_opportunities (expires_at)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */

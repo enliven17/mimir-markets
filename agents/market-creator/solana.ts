@@ -51,6 +51,7 @@ import { draftStockClaims } from "./stocks";
 import { fetchPolymarketCandidates, isPolymarketEnabled, polymarketDraft } from "./polymarket";
 import { filterDuplicates } from "./dedupe";
 import { cancelExpiredEmpty, summarizeInventory } from "./inventory";
+import { refreshOpportunitiesFromWorker } from "./opportunities";
 
 const envNum = (name: string, fallback: string) => Number(process.env[name] ?? fallback);
 
@@ -179,8 +180,12 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
 
   // One pass: cancel own dead claims (frees the arena + refunds stake), count
   // joinable inventory and collect signatures for the duplicate guard.
-  const inventory = summarizeInventory(await client.getAllClaims(), client.publicKey);
+  const claims = await client.getAllClaims();
+  const inventory = summarizeInventory(claims, client.publicKey);
   await cancelExpiredEmpty(client, inventory.expiredEmpty, DRY_RUN);
+
+  // Arena challenge-opportunity index (every 6h; no-op without the flag, a DB and a Gemini key).
+  await refreshOpportunitiesFromWorker(claims, DRY_RUN);
 
   // Cancelling above returns stake, so it runs even while creation is paused.
   if (isPaused("create_market")) {
