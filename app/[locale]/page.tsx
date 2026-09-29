@@ -12,6 +12,7 @@ import { Link } from "@/i18n/navigation";
 import PageTransition, { AnimatedItem } from "@/components/PageTransition";
 import { Button, PeepStack } from "@/components/ui";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
+import SettlementDataSection from "@/components/SettlementDataSection";
 import { kineticContainer, kineticLetter } from "@/lib/animations/rituals";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { STATE_LABELS } from "@/lib/solana/config";
@@ -464,6 +465,11 @@ export default function HomePage() {
             })}
           </div>
         </section>
+      </AnimatedItem>
+
+      {/* SETTLEMENT DATA — what price settlement reads, and who provides it */}
+      <AnimatedItem>
+        <SettlementDataSection />
       </AnimatedItem>
 
       {/* LIVE ARENA — open/active markets from the feed */}

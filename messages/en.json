@@ -54,6 +54,7 @@
     "titleSettled": "How it was settled",
     "verifyLink": "Verify this verdict →",
     "crossCheck": "{symbol} price at the deadline is cross-checked across independent feeds against ${threshold}. Sources that disagree refund instead of settling.",
+    "crossCheckData": "Price data from CoinGecko, Chainlink, Flash Trade and",
     "tier": {
       "deterministic": "Deterministic",
       "firm": "Firm",

@@ -4,12 +4,14 @@
  * Shown only on claims where the price cross-check runs: the asset price is
  * read at the deadline from independent feeds, and sources that disagree
  * refund instead of settling. It is a check on the resolution source, not the
- * resolution source itself, so it says so.
+ * resolution source itself, so it says so. It also carries the CoinMarketCap
+ * attribution where that data is actually used.
  */
 import { ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { priceCheckTarget } from "@/lib/price-consensus";
 import { resolverFromUrl } from "@/lib/resolver-spec";
+import CoinMarketCapMark from "@/components/brand/CoinMarketCapMark";
 
 export default function PriceCrossCheckNote({
   question,
@@ -27,7 +29,13 @@ export default function PriceCrossCheckNote({
   return (
     <p className={`flex items-start gap-1.5 text-[11px] leading-relaxed text-pv-muted ${className}`}>
       <ShieldCheck size={12} className="mt-0.5 shrink-0" aria-hidden />
-      <span>{t("crossCheck", { symbol: target.symbol, threshold: target.threshold.toLocaleString("en-US") })}</span>
+      <span>
+        {t("crossCheck", { symbol: target.symbol, threshold: target.threshold.toLocaleString("en-US") })}{" "}
+        <span className="inline-flex flex-wrap items-center gap-1">
+          {t("crossCheckData")}
+          <CoinMarketCapMark height={11} className="translate-y-px" />
+        </span>
+      </span>
     </p>
   );
 }
