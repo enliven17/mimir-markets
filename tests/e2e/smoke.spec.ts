@@ -91,3 +91,13 @@ test("health endpoint answers", async ({ request }) => {
   const body = await res.json();
   expect(body).toBeTruthy();
 });
+
+test("create page accepts an opportunity-card prefill link", async ({ page }) => {
+  const q = new URLSearchParams({
+    source: "https://www.example.com/market",
+    q: "Will BTC trade above $150,000 by Dec 31, 2026?",
+    cat: "crypto",
+  });
+  await page.goto(`/en/arena/create?${q}`);
+  await expect(page.getByText(/Prefilled from example\.com/)).toBeVisible();
+});

@@ -476,6 +476,7 @@
     "connectWallet": "Connect Wallet",
     "fillAllFields": "Fill in all fields",
     "outcomeAutofillAction": "Draft both outcomes",
+    "prefilledFrom": "Prefilled from {source}. Check every field before you publish.",
     "outcomeAutofillHint": "Turn the question into editable side A and side B outcome text.",
     "outcomeAutofillNeedsQuestion": "Write the question first so Mimir can draft both sides",
     "outcomeAutofillApplied": "Outcome sides drafted from the question",

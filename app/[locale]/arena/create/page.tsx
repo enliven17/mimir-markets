@@ -2,13 +2,14 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useMemo,
   useState,
 } from "react";
 import { motion } from "framer-motion";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -47,6 +48,8 @@ import CouncilPreflight from "@/components/council/CouncilPreflight";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
 import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
 import { dexMintFor, dexSourceUrl } from "@/lib/token-config";
+import { draftOutcomeSidesFromQuestion } from "@/lib/outcomeDraft";
+import { parseCreatePrefill } from "@/lib/create-prefill";
 
 const STAKE_PRESET_AMOUNTS = [MIN_STAKE, 5, 10, 25] as const;
 
@@ -61,21 +64,6 @@ function formatLocalDateInputValue(date: Date) {
 function formatLocalTimeInputValue(date: Date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(11, 16);
-}
-
-function draftOutcomeSides(question: string): { creator: string; opponent: string } | null {
-  const q = question.replace(/[¿¡]/g, "").replace(/\s+/g, " ").replace(/[?!]+$/, "").trim();
-  if (!q) return null;
-  const m = q.match(/^(.+?)\s+(will|is|are|can|has|have)\s+(.+)$/i);
-  if (m) {
-    const [, subj = "", aux = "", pred = ""] = m;
-    return {
-      creator: `${subj.trim()} ${aux.toLowerCase()} ${pred.trim()}`,
-      opponent: `${subj.trim()} ${aux.toLowerCase()} not ${pred.trim()}`,
-    };
-  }
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-  return { creator: `Yes - ${cap(q)}`, opponent: `No - ${cap(q)}` };
 }
 
 // FNV-1a hash for ticket draft ID (same approach as original mimir)
@@ -94,6 +82,7 @@ function computeDraftId(question: string, creatorPos: string, stake: number): st
 
 export default function CreateMarketPage() {
   const t = useTranslations("create");
+  const locale = useLocale();
   const router = useRouter();
   const wallet = useWallet();
   const mimir = useMemo(
@@ -127,8 +116,46 @@ export default function CreateMarketPage() {
   const [createTxSig, setCreateTxSig] = useState<string | null>(null);
   const [delegateTxSig, setDelegateTxSig] = useState<string | null>(null);
 
+  const [prefilledFrom, setPrefilledFrom] = useState<string | null>(null);
+
   useLayoutEffect(() => {
     setCustomDateInputMin(formatLocalDateInputValue(new Date()));
+  }, []);
+
+  // ?source=…&q=…&a=…&b=…&cat=…&deadline=…&rule=… from an opportunity card.
+  useEffect(() => {
+    const prefill = parseCreatePrefill(new URLSearchParams(window.location.search));
+    if (!prefill) return;
+    if (prefill.source) setUrl(prefill.source);
+    if (prefill.question) setQuestion(prefill.question);
+    if (prefill.creatorPosition && prefill.counterPosition) {
+      setCreatorPos(prefill.creatorPosition);
+      setOpponentPos(prefill.counterPosition);
+    } else if (prefill.question) {
+      const drafted = draftOutcomeSidesFromQuestion(prefill.question, locale);
+      if (drafted) {
+        setCreatorPos(drafted.creator);
+        setOpponentPos(drafted.opponent);
+      }
+    }
+    if (prefill.category) setCategory(prefill.category);
+    if (prefill.deadline) {
+      const d = new Date(prefill.deadline * 1000);
+      setDeadlinePreset(null);
+      setCustomDeadlineDate(formatLocalDateInputValue(d));
+      setCustomDeadlineTime(formatLocalTimeInputValue(d));
+    }
+    if (prefill.settlementRule) {
+      setSettlementRule(prefill.settlementRule);
+      setAdvancedOpen(true);
+    }
+    let from = "link";
+    try {
+      if (prefill.source) from = new URL(prefill.source).hostname.replace(/^www\./, "");
+    } catch {}
+    setPrefilledFrom(from);
+    // Once per page load; the locale only picks the Yes/No wording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function applyDeadlinePreset(seconds: number) {
@@ -307,6 +334,11 @@ export default function CreateMarketPage() {
           >
             ← Arena
           </Link>
+          {prefilledFrom ? (
+            <p role="status" className="mt-2 font-mono text-[11px] text-pv-muted">
+              {t("prefilledFrom", { source: prefilledFrom })}
+            </p>
+          ) : null}
         </div>
       </AnimatedItem>
 
@@ -359,7 +391,7 @@ export default function CreateMarketPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const d = draftOutcomeSides(question);
+                        const d = draftOutcomeSidesFromQuestion(question, locale);
                         if (d) { setCreatorPos(d.creator); setOpponentPos(d.opponent); }
                       }}
                       disabled={question.trim().length === 0}
@@ -522,7 +554,7 @@ export default function CreateMarketPage() {
                           min={customDateInputMin}
                           value={customDeadlineDate}
                           onChange={(e) => { setDeadlinePreset(null); setCustomDeadlineDate(e.target.value); }}
-                          className="w-full rounded-xl border border-pv-border/25 bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 [color-scheme:dark]"
+                          className="w-full rounded-xl border border-pv-border/25 bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 dark:[color-scheme:dark]"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -532,7 +564,7 @@ export default function CreateMarketPage() {
                           value={customDeadlineTime}
                           onChange={(e) => { setDeadlinePreset(null); setCustomDeadlineTime(e.target.value); }}
                           disabled={!customDeadlineDate}
-                          className="w-full rounded-xl border border-pv-border/25 bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 disabled:cursor-not-allowed disabled:opacity-50 [color-scheme:dark]"
+                          className="w-full rounded-xl border border-pv-border/25 bg-pv-bg/90 px-4 py-3 text-sm text-pv-text outline-none transition-all focus:border-pv-emerald/50 focus:ring-1 focus:ring-pv-emerald/20 disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                         />
                       </div>
                     </div>

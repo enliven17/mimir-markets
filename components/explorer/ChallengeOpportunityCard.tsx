@@ -20,6 +20,7 @@ const exploreFilterPanelHeightTransition = {
 };
 
 import type { ChallengeOpportunity } from "@/lib/claimDrafts";
+import { createPrefillHref } from "@/lib/create-prefill";
 
 type ChallengeOpportunityCardProps = {
   opportunity: ChallengeOpportunity;
@@ -140,7 +141,7 @@ export default function ChallengeOpportunityCard({
   const challengeId = opportunity.action === "challenge" ? opportunity.existingClaimId : undefined;
   const primaryHref = challengeId
     ? `/arena/${challengeId}`
-    : `/arena/create?source=${encodeURIComponent(opportunity.candidate.primaryResolutionSource)}`;
+    : createPrefillHref(opportunity.candidate);
   const confidenceKey = resolveConfidenceKey(opportunity.candidate.confidenceScore);
   const confidenceLabel = t(
     `confidence${confidenceKey[0].toUpperCase()}${confidenceKey.slice(1)}`
