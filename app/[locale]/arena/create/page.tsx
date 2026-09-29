@@ -42,6 +42,9 @@ import {
   normalizeCategoryId,
 } from "@/lib/constants";
 import { txErrorMessage } from "@/lib/tx-errors";
+import ResolverToggle from "@/components/arena/ResolverToggle";
+import { deterministicPriceOption } from "@/lib/resolver-spec";
+import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
 
 const STAKE_PRESET_AMOUNTS = [MIN_STAKE, 5, 10, 25] as const;
 
@@ -115,6 +118,7 @@ export default function CreateMarketPage() {
   const [category, setCategory] = useState("custom");
   const [settlementRule, setSettlementRule] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [deterministic, setDeterministic] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<bigint | null>(null);
@@ -148,6 +152,22 @@ export default function CreateMarketPage() {
   const sourceNeedsWork = url.trim().length > 0 && !/^https?:\/\//.test(url.trim());
   const ticketDraftId = useMemo(() => computeDraftId(question, creatorPos, stake), [question, creatorPos, stake]);
   const walletAddress = wallet.publicKey?.toBase58() ?? null;
+  // Price threshold drafts with Yes/No sides can settle from price feeds alone.
+  const priceOption = useMemo(
+    () =>
+      deterministicPriceOption({
+        question,
+        creatorPosition: creatorPos,
+        counterPosition: opponentPos,
+        resolutionUrl: url,
+        defaultSource: (symbol) =>
+          (FLASH_CLAIM_SYMBOLS as readonly string[]).includes(symbol)
+            ? flashResolutionUrl(symbol)
+            : `https://api.coingecko.com/api/v3/simple/price?ids=${symbol === "AVAX" ? "avalanche-2" : "chainlink"}&vs_currencies=usd`,
+      }),
+    [question, creatorPos, opponentPos, url]
+  );
+  const finalResolutionUrl = priceOption && deterministic ? priceOption.resolutionUrl : url.trim();
 
   const onSubmit = useCallback(async () => {
     if (!mimir) return;
@@ -172,7 +192,7 @@ export default function CreateMarketPage() {
         question: question.trim(),
         creatorPosition: creatorPos.trim(),
         counterPosition: opponentPos.trim(),
-        resolutionUrl: url.trim(),
+        resolutionUrl: finalResolutionUrl,
         category,
         stakeAmount: stakeUnits,
         deadline,
@@ -188,7 +208,7 @@ export default function CreateMarketPage() {
       setError(txErrorMessage(err, t("errorCreating")));
       setBusy(null);
     }
-  }, [mimir, question, creatorPos, opponentPos, url, category, stake, customDeadline, t]);
+  }, [mimir, question, creatorPos, opponentPos, finalResolutionUrl, category, stake, customDeadline, t]);
 
   // ── Success state ────────────────────────────────────────────────────────
   if (createdId !== null) {
@@ -539,6 +559,14 @@ export default function CreateMarketPage() {
                   <p className={`text-xs leading-relaxed ${sourceNeedsWork ? "text-amber-300" : "text-pv-muted"}`}>
                     {sourceNeedsWork ? t("qualitySource") : t("sourceStrengthHint")}
                   </p>
+                  {priceOption ? (
+                    <ResolverToggle
+                      spec={priceOption.spec}
+                      resolutionUrl={priceOption.resolutionUrl}
+                      enabled={deterministic}
+                      onChange={setDeterministic}
+                    />
+                  ) : null}
                   <div className="space-y-3 rounded-xl border border-pv-border/25 bg-pv-bg/70 p-4 sm:p-5">
                     <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-pv-emerald/85">{t("verificationGuidanceTitle")}</h4>
                     <p className="text-sm leading-relaxed text-pv-muted">{categoryGuidance.sourceHint}</p>

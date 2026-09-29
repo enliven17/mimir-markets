@@ -75,3 +75,13 @@ test("a spec round-trips through the resolution URL fragment (Solana claims)", a
   assert.ok(url.length <= 200, "fits the on-chain resolution_url limit");
   assert.deepEqual(resolverSpecFor({ resolutionUrl: "https://x.io", settlementRule: 'resolver: {"kind":"price","symbol":"ETH","op":"<","threshold":2000}' })?.kind, "price");
 });
+
+test("the create form only offers deterministic settlement for clean price drafts", async () => {
+  const { deterministicPriceOption } = await import("../../lib/resolver-spec");
+  const src = (s: string) => `https://flashapi.trade/prices/${s}`;
+  const ok = deterministicPriceOption({ question: "Will SOL trade above $250 on Friday?", creatorPosition: "Yes", counterPosition: "No", resolutionUrl: "", defaultSource: src });
+  assert.equal(ok?.resolutionUrl, "https://flashapi.trade/prices/SOL#mimir=price:SOL:gt:250");
+  assert.equal(deterministicPriceOption({ question: "Will SOL trade above $250?", creatorPosition: "Bulls", counterPosition: "Bears", resolutionUrl: "", defaultSource: src }), null);
+  assert.equal(deterministicPriceOption({ question: "Will SOL reach $250?", creatorPosition: "Yes", counterPosition: "No", resolutionUrl: "", defaultSource: src }), null);
+  assert.equal(deterministicPriceOption({ question: "Will ETH beat SOL above $250?", creatorPosition: "Yes", counterPosition: "No", resolutionUrl: "", defaultSource: src }), null);
+});

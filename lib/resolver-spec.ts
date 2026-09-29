@@ -200,3 +200,41 @@ export function resolverFromUrl(url: string | null | undefined): ResolverSpec | 
 export function resolverSpecFor(c: { resolutionUrl: string; settlementRule?: string | null }): ResolverSpec | null {
   return resolverFromUrl(c.resolutionUrl) ?? parseResolverSpec(c.settlementRule);
 }
+
+/** The on-chain resolution_url limit (onchain constants MAX_URL). */
+export const MAX_RESOLUTION_URL = 200;
+
+/**
+ * For the create form: the price spec a draft could settle by, and the
+ * resolution URL it would carry. Null unless the question is a single-asset
+ * above/below threshold, the positions read Yes/No, and the URL fits on chain.
+ */
+export function deterministicPriceOption(draft: {
+  question: string;
+  creatorPosition: string;
+  counterPosition: string;
+  resolutionUrl: string;
+  defaultSource: (symbol: string) => string;
+}): { spec: Extract<ResolverSpec, { kind: "price" }>; resolutionUrl: string } | null {
+  const text = draft.question;
+  const symbolMatch = SYMBOLS.find((s) => s.pattern.test(text));
+  const thresholds = [...text.matchAll(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*([kKmM]))?/g)];
+  if (!symbolMatch || thresholds.length !== 1 || SYMBOLS.filter((s) => s.pattern.test(text)).length !== 1) return null;
+  const suffix = thresholds[0][2]?.toLowerCase();
+  const threshold = Number(thresholds[0][1].replace(/,/g, "")) * (suffix === "k" ? 1_000 : suffix === "m" ? 1_000_000 : 1);
+  const spec = priceSpecFromQuestion(text, symbolMatch.symbol, threshold);
+  if (!spec || spec.kind !== "price") return null;
+  if (!winnerFor(true, draft.creatorPosition, draft.counterPosition)) return null;
+  const base = draft.resolutionUrl.trim() || draft.defaultSource(spec.symbol);
+  if (!/^https:\/\//.test(base)) return null;
+  const resolutionUrl = withResolverFragment(base, spec);
+  return resolutionUrl.length <= MAX_RESOLUTION_URL ? { spec, resolutionUrl } : null;
+}
+
+const SYMBOLS: Array<{ symbol: string; pattern: RegExp }> = [
+  { symbol: "BTC", pattern: /\b(btc|bitcoin)\b/i },
+  { symbol: "ETH", pattern: /\b(eth|ethereum|ether)\b/i },
+  { symbol: "SOL", pattern: /\b(sol|solana)\b/i },
+  { symbol: "LINK", pattern: /\b(link|chainlink)\b/i },
+  { symbol: "AVAX", pattern: /\b(avax|avalanche)\b/i },
+];
