@@ -187,6 +187,38 @@ npm run demo:solana
 - `scripts/solana/migrate-v2-funds.ts [--execute]` moved balances out of the
   legacy program (see below).
 
+### How the oracle decides (`agents/oracle/decide.ts`)
+
+1. Evidence from the resolution URL. Sports claims wait up to 12h (and
+   Polymarket-sourced ones 72h) for a final result.
+2. Price claims read the price **at the deadline** from CoinGecko, Chainlink
+   (mainnet `eth_call`, no key), Flash Trade (live only) and CoinMarketCap
+   (with `CMC_API_KEY`).
+3. A **structured resolver** settles from data alone when it is determinate.
+   Claims have no settlement-rule field, so the spec rides in the resolution
+   URL fragment, stored on chain with the claim:
+   `https://flashapi.trade/prices/BTC#mimir=price:BTC:gt:83795.5` (json specs:
+   `#mimir=json:eq:%22FINAL%22:data.status` read the URL itself). The market
+   creator attaches one to its crypto claims; `/arena/create` offers it for
+   Yes/No price drafts.
+4. No evidence: retried for 6h, then proposed UNRESOLVABLE (refund).
+5. The oracle's LLM verdict (never via the OpenRouter free router; the model is
+   recorded), or with `COUNCIL_SETTLEMENT=1` the council jury — personas that
+   hold a position are excluded; `COUNCIL_SELF_RESOLVING=1` runs the
+   arXiv:2306.04305 sequential jury scored against an evidence-only reference.
+6. Price cross-check: sources that disagree, or a model contradicting
+   agreeing sources, refund; agreement adds confidence only for the side the
+   data backs. Then fetcher-trust caps, tiers (<60 refund, 60–79 CONTESTED) and
+   "oracle holds a position → FIRM only".
+
+Everything is sealed into a canonical-JSON **verdict bundle**;
+`evidence_hash = sha256(bundle)`, stored in `verdict_bundles` before the
+proposal. `/verify/<id>` (and `/api/verify/<id>?raw=1`) recompute it —
+`sha256sum` of the downloaded file must equal the on-chain hash. Every
+pre-deadline forecast (oracle and personas) lands in `forecasts`;
+`/calibration` shows Brier scores once claims resolve. `ORACLE_DRY_RUN=1`
+decides and logs without writing anything.
+
 ### V2 → V3 migration (done 2026-09-28)
 
 `scripts/solana/migrate-v2-funds.ts --execute` on the legacy program:
