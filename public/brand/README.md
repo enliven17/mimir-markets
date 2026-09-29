@@ -4,7 +4,7 @@ Logos belonging to other companies are not vendored into this repository. Each
 one is that company's trademark, carries its own usage rules, and an
 approximation drawn by hand is worse than no logo at all.
 
-Drop the official file in and the UI picks it up automatically. Until then the
+Drop the official file in and rebuild; the UI picks it up (next.config.js checks for it at build time). Until then the
 components fall back to a plain-text wordmark, so the attribution is correct
 either way.
 

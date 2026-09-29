@@ -10,7 +10,9 @@
  * it is not, which means the attribution is correct either way.
  *
  * To enable the logo: download the official mark from CoinMarketCap's brand
- * assets and save it as `public/brand/coinmarketcap.svg`. Nothing else changes.
+ * assets and save it as `public/brand/coinmarketcap.svg`, then rebuild:
+ * next.config.js sets NEXT_PUBLIC_CMC_LOGO when the file exists, so a missing
+ * logo is never requested (no 404 in the console).
  */
 
 import { useState } from "react";
@@ -24,13 +26,14 @@ interface CoinMarketCapMarkProps {
 }
 
 const LOGO_SRC = "/brand/coinmarketcap.svg";
+const HAS_LOGO = process.env.NEXT_PUBLIC_CMC_LOGO === "1";
 
 export default function CoinMarketCapMark({
   height = 16,
   className = "",
   linked = true,
 }: CoinMarketCapMarkProps) {
-  const [assetMissing, setAssetMissing] = useState(false);
+  const [assetMissing, setAssetMissing] = useState(!HAS_LOGO);
 
   const mark = assetMissing ? (
     <span className="font-semibold">CoinMarketCap</span>

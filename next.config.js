@@ -1,5 +1,14 @@
 const createNextIntlPlugin = require("next-intl/plugin");
+const fs = require("node:fs");
+const path = require("node:path");
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
+/**
+ * Third-party logos are not vendored (public/brand/README.md). Components only
+ * request one when the file is present at build time, so a missing logo is a
+ * wordmark rather than a 404 on every page view.
+ */
+const hasBrandAsset = (file) => fs.existsSync(path.join(__dirname, "public", "brand", file));
 
 /**
  * Baseline security headers. No full CSP: the Solana wallet adapters inject
@@ -19,6 +28,9 @@ const SECURITY_HEADERS = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_CMC_LOGO: hasBrandAsset("coinmarketcap.svg") ? "1" : "",
+  },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
