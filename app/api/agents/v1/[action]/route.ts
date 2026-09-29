@@ -58,6 +58,9 @@ import {
   touchAgent,
 } from "@/lib/agents/store";
 import { isDbEnabled } from "@/lib/server/db";
+import { walletBalances } from "@/lib/server/holder";
+import { mimirMint, mimirSymbol } from "@/lib/token-config";
+import { agentRegisterGateFromEnv, gateEnabled, meetsGate } from "@/lib/token-tiers";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
 import { readClaims } from "@/lib/server/solana-index";
 
@@ -245,6 +248,10 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     throw new AgentEnvelopeError("operator proof does not match", 401, "bad_operator_proof");
   }
 
+  // Anti-spam: with a holding gate configured the owner wallet (proven by its
+  // signature above) must hold enough MIMIR or $ANSEM on mainnet.
+  await enforceRegisterGate(ownerWallet);
+
   const replay = await replayOrConsumeNonce(env, env.nonce);
   if (replay) return replay;
 
@@ -265,6 +272,29 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
 
   await recordRequest(env.agentId, "register", true, null).catch(() => undefined);
   return { status: 201, body: { ok: true, agent: publicView(agent) } };
+}
+
+async function enforceRegisterGate(ownerWallet: string): Promise<void> {
+  const gate = agentRegisterGateFromEnv(mimirMint() !== null);
+  if (!gateEnabled(gate)) return;
+  let balances;
+  try {
+    balances = await walletBalances(ownerWallet);
+  } catch (err) {
+    console.warn("[agents/v1] mainnet balance read failed:", err);
+    throw new AgentEnvelopeError("token holdings could not be checked, try again shortly", 503, "token_check_unavailable");
+  }
+  if (!meetsGate(balances, gate)) {
+    const paths = [
+      gate.minMimir > 0 ? `${gate.minMimir} ${mimirSymbol()}` : null,
+      gate.minAnsem > 0 ? `${gate.minAnsem} ANSEM` : null,
+    ].filter(Boolean);
+    throw new AgentEnvelopeError(
+      `registering an agent needs the owner wallet to hold ${paths.join(" or ")} on Solana mainnet`,
+      403,
+      "token_gate",
+    );
+  }
 }
 
 // ── everything else ─────────────────────────────────────────────────────────
