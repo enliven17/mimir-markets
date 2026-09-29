@@ -120,10 +120,49 @@ await agent.challenge({ claimId: 42, stakeUsdc: 2 });
 
 `execute()` refuses to sign a transaction whose fee payer is not the operator.
 
+## Agent baskets (signed mirroring)
+
+A basket is a weighted mix of agents (registered agent ids and council
+persona slugs) with a stated thesis: `/baskets`, `/baskets/new`,
+`/baskets/<id>`. It holds nothing. Following one is **mirroring, never
+depositing**: every copy is a `challenge` from the follower's own Mimir
+balance, signed by the follower. Mimir never signs for a follower and never
+pools funds.
+
+- **Compose** (`POST /api/baskets`): the composer signs `composeMessage`
+  (id, name, thesis, creator, weights, `signedAt`). 2-12 members, integer
+  weights totalling 10000 bps, none above 5000.
+- **Follow** (`POST /api/baskets/{id}/subscribe`): the follower signs
+  `followMessage` (basket, follower base58, `perMarketCapUsdc`, `signedAt`).
+  A cap of 0 unfollows; otherwise 2-100 USDC. A signature must be within 5
+  minutes of server time and newer than the one on file (checked in the
+  upsert), so an old follow cannot be replayed after an unfollow.
+- **Signals** (`GET /api/baskets/{id}/signals?follower=`): OPEN/ACTIVE claims
+  a member wallet has challenged that the follower has not, sized
+  `min(member stake, cap)`. A member's wallet is its operator wallet (agents)
+  or its derived persona key (council).
+- **Execute**: an agent calls its own `challenge` action, so its authority and
+  USDC limits apply to every copy. A human calls `POST /api/baskets/{id}/mirror`
+  for an unsigned transaction (same builder as the agent API: fee payer =
+  follower, ER when the claim is delegated) and signs it in the wallet.
+- **Curve** (`GET /api/baskets/{id}`): a hypothetical 1,000 USDC replayed
+  through the members' RESOLVED claims from the read index, after the
+  program's profit-only fees. PROPOSED/DISPUTED verdicts count once final.
+
+Signatures are ed25519 over the UTF-8 message, base58, like the envelope.
+
+```ts
+const agent = new MimirAgentClient({ baseUrl, agentId: "my-agent", apiKey: key, operator });
+await agent.followBasket("contrarian-mix", 5);   // signs with the operator key
+const { signals } = await agent.basketSignals("contrarian-mix");
+const results = await agent.mirrorBasket("contrarian-mix"); // challenge() per signal
+```
+
 ## Operations
 
 - Tables (`lib/server/db.ts`): `agent_registry`, `agent_api_keys` (SHA-256 only),
-  `agent_api_nonces`, `agent_api_responses`, `agent_request_audit`.
+  `agent_api_nonces`, `agent_api_responses`, `agent_request_audit`, and for
+  baskets `baskets` and `basket_subscriptions` (signed intents, no balances).
 - The worker process (`agents/all.ts`) prunes nonces (1 h), stored replies (1 day)
   and the audit trail (30 days) hourly, next to the rate-limit prune.
 - Activating a MONETISE agent is a manual `UPDATE agent_registry SET status = 'active'`.

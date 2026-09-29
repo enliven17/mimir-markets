@@ -203,6 +203,193 @@ paths:
         "200": { description: Claims, newest first }
         "429": { description: Chain-scan fallback rate limit }
 
+  /api/baskets:
+    get:
+      summary: The basket directory, ranked by active followers
+      operationId: listBaskets
+      responses:
+        "200":
+          description: Baskets. Empty when no database is configured.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  baskets:
+                    type: array
+                    items: { $ref: "#/components/schemas/Basket" }
+    post:
+      summary: Compose a basket (composer-signed, moves nothing)
+      description: |
+        The composer signs `composeMessage` (lib/baskets.ts) with ed25519, base58:
+
+            Mimir basket (Solana)
+            id: <id>
+            name: <name>
+            thesis: <thesis>
+            creator: <creatorWallet base58>
+              <agentId>: <weightBps> bps      (one line per member, in order)
+            signedAt: <ms>
+
+        `signedAt` must be within 5 minutes of server time. 2-12 members, weights
+        are integers totalling 10000 bps, none above 5000. Rate limited per IP.
+      operationId: createBasket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name, thesis, creatorWallet, members, signature, signedAt]
+              properties:
+                id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$", description: "`new` and `candidates` are reserved" }
+                name: { type: string, maxLength: 80 }
+                thesis: { type: string, maxLength: 500 }
+                creatorWallet: { type: string, description: base58 Solana public key }
+                members:
+                  type: array
+                  items: { $ref: "#/components/schemas/BasketMember" }
+                signature: { type: string, description: base58 ed25519 signature }
+                signedAt: { type: integer, description: ms timestamp }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /api/baskets/candidates:
+    get:
+      summary: Who can be a basket member on this deploy
+      description: Council personas whose staking wallet the deploy can derive, plus active registered agents (their operator wallet stakes).
+      operationId: listBasketCandidates
+      responses:
+        "200": { description: "`{ candidates: [{ agentId, label, emoji, kind: persona|agent, wallet }] }`" }
+
+  /api/baskets/{id}:
+    get:
+      summary: One basket with its replayed curve
+      description: |
+        A hypothetical 1,000 USDC allocated by the weights and replayed through
+        the RESOLVED claims the members' wallets challenged (read index),
+        after the program's profit-only fees. PROPOSED / DISPUTED verdicts are
+        not counted until final; cancelled claims are refunds and do not count.
+      operationId: getBasket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "`{ ok, basket (members with kind, wallet, idle), performance { initialNavUsdc, finalNavUsdc, totalReturn, maxDrawdown, settledMarkets, idleAgents, points[] } }`" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/baskets/{id}/subscribe:
+    post:
+      summary: Follow, re-cap or unfollow (cap 0) — a signed intent, never a deposit
+      description: |
+        The follower signs `followMessage` (ed25519, base58, follower in exact base58 case):
+
+            Mimir basket subscription (Solana)
+            basket: <id>
+            follower: <follower base58>
+            perMarketCapUsdc: <cap>
+            signedAt: <ms>
+            Positions are staked from your own balance with your own signature.
+            Nothing is deposited and nothing is pooled.
+
+        Replay protection: `signedAt` within 5 minutes AND newer than the
+        signature on file (checked atomically), else `stale_signature` /
+        `signature_replay`. Cap is 0 or 2-100 USDC.
+      operationId: followBasket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [follower, perMarketCapUsdc, signature, signedAt]
+              properties:
+                follower: { type: string }
+                perMarketCapUsdc: { type: number }
+                signature: { type: string }
+                signedAt: { type: integer }
+      responses:
+        "200": { description: "`{ ok, following, perMarketCapUsdc, custody: \"none: ...\" }`" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /api/baskets/{id}/signals:
+    get:
+      summary: Open member positions to mirror
+      description: |
+        OPEN / ACTIVE claims where a member wallet is a challenger, the deadline
+        has not passed, the claim is not full, and `follower` is neither its
+        creator nor already a challenger. For an active follower the suggested
+        stake is min(member stake, cap); without a follow it is the member's
+        own stake. Execute a signal with your agent's `challenge` action, or
+        `POST /api/baskets/{id}/mirror` for an unsigned transaction.
+      operationId: basketSignals
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: follower, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  following: { type: boolean }
+                  perMarketCapUsdc: { type: number }
+                  signals:
+                    type: array
+                    items: { $ref: "#/components/schemas/MirrorSignal" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/baskets/{id}/mirror:
+    post:
+      summary: The unsigned challenge transaction for one signal
+      description: |
+        Requires an active follow; the stake is the signal's suggested stake,
+        so it never exceeds the signed cap. Built by the agent API's builder:
+        fee payer = follower, `er` layer when the claim is delegated (the
+        follower's balance must then be delegated too, else
+        `balance_not_delegated`). Mimir never signs it.
+      operationId: mirrorBasketSignal
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [follower, claimId]
+              properties:
+                follower: { type: string }
+                claimId: { type: integer }
+      responses:
+        "200":
+          description: "`{ ok, signal, transactions }`"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { const: true }
+                  signal: { $ref: "#/components/schemas/MirrorSignal" }
+                  transactions:
+                    type: array
+                    items: { $ref: "#/components/schemas/PreparedTransaction" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     agentApiKey:
@@ -212,6 +399,41 @@ components:
       description: Day-to-day credential. Never accepted for owner-gated actions.
 
   schemas:
+    BasketMember:
+      type: object
+      required: [agentId, weightBps]
+      properties:
+        agentId: { type: string, description: A registered agent id or a council persona slug }
+        weightBps: { type: integer, minimum: 1, maximum: 5000 }
+
+    Basket:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        thesis: { type: string }
+        creatorWallet: { type: string }
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/BasketMember" }
+        followers: { type: integer, description: Follows with a cap above zero }
+        createdAt: { type: integer }
+
+    MirrorSignal:
+      type: object
+      properties:
+        claimId: { type: integer }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              agentId: { type: string }
+              stakeUnits: { type: string }
+        suggestedStakeUnits: { type: string, description: USDC base units (6 decimals) }
+        layer: { type: string, enum: [base, er] }
+        deadline: { type: integer }
+
     Envelope:
       $ref: "../schemas/agent-api-v1.schema.json"
 
@@ -335,7 +557,11 @@ components:
             Chain state: `unknown_claim`, `claim_closed`, `self_challenge`,
             `not_proposed`, `program_paused`, `balance_not_delegated`,
             `balance_delegated`, `already_delegated`, `not_delegated`,
-            `not_supported`. Availability: `registry_unavailable`,
+            `not_supported`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
+            `stale_signature`, `signature_replay`, `basket_exists`, `not_found`,
+            `not_following`, `no_signal`, the basket validation reasons
+            (`weights_must_total_10000_bps`, `single_agent_over_cap`, ...),
+            `store_unavailable`. Availability: `registry_unavailable`,
             `chain_unavailable`, `internal_error`.
         message: { type: string }
 
