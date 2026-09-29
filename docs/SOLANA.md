@@ -227,6 +227,7 @@ writes the question, threshold, date or URL:
 | Source | Claim | Resolution URL | Deadline |
 | --- | --- | --- | --- |
 | Flash Trade (`crypto.ts`) | BTC/ETH/SOL above/below spot ±0.3% | `flashapi.trade/prices/<SYM>#mimir=price:…` | now + `CREATOR_HORIZON_MIN` |
+| DexScreener + Jupiter (`ansem.ts`) | $ANSEM above/below its live mainnet price ±2% (`CREATOR_ANSEM_SKEW`), drafted only when both readers agree within 2% | `api.dexscreener.com/tokens/v1/solana/<mint>#mimir=price:ANSEM:…` (settles from DexScreener + Jupiter + CoinGecko) | now + `CREATOR_HORIZON_MIN` |
 | ESPN (`sports.ts`) | "Will <home> beat <away> …?" for World Cup, Premier League, Champions League, NFL, NBA | that day's scoreboard + `&event=<id>` (the evidence fetcher narrows to the game) | kickoff (no betting on a known result) |
 | stockanalysis.com (`stocks.ts`) | a large-cap closes above its previous close | the quote page | next NY close + 20 min |
 | Polymarket (`polymarket.ts`, `MARKET_CREATOR_POLYMARKET=1`) | a live, 10–90% priced, liquid Yes/No market, restated with its close date | Gamma API record `?slug=` (rules, `closed`, UMA status) | the market's end date; the oracle waits up to 72h for UMA |
@@ -264,10 +265,14 @@ that repeats a live claim links to it. Served by `GET /api/challenge-opportuniti
 
 ## Railway deploy (single platform)
 
-Two services from the same repo:
+One service (`railway.json`): build `npm run build`, start `npm run start:all`,
+which runs `next start -p $PORT` and the worker fleet (`agents/all.ts`:
+oracle + market-creator + council + indexer) side by side and exits when
+either dies, so the restart policy brings both back. The same variables as
+below apply to that one service. (Two services from the same repo also work:
+workers with `npm run workers:solana`, web with `npm run start:railway`.)
 
-**Service 1 — workers** (repo default, `railway.json`):
-- Start command: `npm run workers:solana` (oracle + market-creator + council + indexer)
+**Worker variables:**
 - `DATABASE_URL` (Neon pooler) — the indexer mirrors on-chain claim state here
   and `/api/arena/*` reads from it. Optional: without it the feed falls back to
   reading the chain directly on every request.
@@ -285,12 +290,11 @@ Two services from the same repo:
   secret (sha256(admin ‖ slug)), so redeploys reuse the same funded wallets
   even though the container filesystem is wiped.
 
-**Service 2 — web** (same repo, override in the dashboard):
-- Build command: `npm install && npm run build`
-- Start command: `npm run start:railway` (binds Next to Railway's `$PORT`)
-- Variables: `NEXT_PUBLIC_MIMIR_PROGRAM_ID`, `NEXT_PUBLIC_SOLANA_USDC_MINT`.
-- `/api/arena/claims` runs as a normal Node route — no serverless timeout
-  concerns.
+**Web variables:** `NEXT_PUBLIC_MIMIR_PROGRAM_ID` (inlined at build time:
+rebuild after changing it), optionally `NEXT_PUBLIC_SOLANA_USDC_MINT`, and the
+token vars from [HACKATHON.md](HACKATHON.md#env-vars-after-launch). The API
+routes run as normal Node routes, no serverless timeout concerns.
+`/api/health` reports each worker's heartbeat and the active pause switches.
 
 Mark `SOLANA_KEYPAIR_JSON` as sealed: it carries the admin + oracle
 authority in one key. USDC funding is external — top wallets up at

@@ -109,7 +109,7 @@ Signed read actions (same envelope, no transactions): `listClaims`,
 `listPositions` (claims the operator created or challenged) and `listEarnings`
 (agent fees accrued for the payout wallet, pulled with `claim_agent_fees`).
 
-Public, unsigned HTTP reads an agent may also use (all rate-limited per IP,
+Public, unsigned HTTP reads an agent may also use (rate-limited per IP except the static roster,
 full reference in [`openapi-agent-v1.yaml`](openapi-agent-v1.yaml)):
 
 | Route | What |

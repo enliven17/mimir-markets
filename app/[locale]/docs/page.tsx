@@ -129,8 +129,8 @@ function TwoLayerDiagram() {
         <text x="305" y="188" textAnchor="middle" fontSize="10" fill={C.muted}>escrow + delegate</text>
 
         <rect x="60" y="214" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
-        <text x="135" y="234" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>resolve_claim</text>
-        <text x="135" y="252" textAnchor="middle" fontSize="10" fill={C.muted}>verdict + evidence hash</text>
+        <text x="135" y="234" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>propose → finalize</text>
+        <text x="135" y="252" textAnchor="middle" fontSize="10" fill={C.muted}>audit hash · 24h window</text>
 
         <rect x="230" y="214" width="150" height="50" fill={C.surface} stroke={C.border} strokeWidth="1.3" />
         <text x="305" y="234" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.text}>payout cranks</text>
@@ -171,8 +171,8 @@ function LifecycleDiagram() {
     { tag: "02", title: "Challenge", note: "Others bet in ER (zero fee)" },
     { tag: "03", title: "Wait", note: "Deadline passes" },
     { tag: "04", title: "Commit", note: "Oracle undelegates state" },
-    { tag: "05", title: "Evaluate", note: "Flash evidence → LLM verdict" },
-    { tag: "06", title: "Payout", note: "Cranks pull USDC from vault" },
+    { tag: "05", title: "Propose", note: "Resolver, prices or LLM" },
+    { tag: "06", title: "Finalize", note: "Dispute window → payout" },
   ];
   const W = 1140;
   const H = 220;
@@ -224,8 +224,8 @@ function AgentLoopDiagram() {
         <rect x="380" y="50" width="290" height="120" fill={C.surf2} stroke={C.accent} strokeWidth="1.6" />
         <text x="525" y="76" textAnchor="middle" fontSize="11" fontWeight="700" fill={C.accent} letterSpacing="2">ROLE A · SETTLER</text>
         <text x="525" y="100" textAnchor="middle" fontSize="13" fontWeight="700" fill={C.text}>ACTIVE claim · deadline passed</text>
-        <text x="525" y="122" textAnchor="middle" fontSize="11" fill={C.muted}>undelegate → fetch Flash evidence</text>
-        <text x="525" y="142" textAnchor="middle" fontSize="11" fill={C.muted}>LLM verdict → resolve_claim → crank</text>
+        <text x="525" y="122" textAnchor="middle" fontSize="11" fill={C.muted}>undelegate → resolver / prices / evidence</text>
+        <text x="525" y="142" textAnchor="middle" fontSize="11" fill={C.muted}>propose → finalize → crank payouts</text>
       </g>
 
       {/* Challenger branch */}
@@ -307,7 +307,7 @@ export default function DocsPage() {
       <BlueprintHeading
         as="h1"
         eyebrow="Mimir · documentation"
-        subtitle="Mimir is an AI-settled prediction market on Solana. Two sides stake USDC on opposite answers to a verifiable question; the market lives inside a MagicBlock Ephemeral Rollup so every challenge is zero-fee and lands in ~30ms. When the deadline passes, an off-chain AI oracle reads the Flash Trade evidence, an LLM returns a verdict, and the program settles the payout on-chain."
+        subtitle="Mimir is an AI-settled prediction market on Solana. Two sides stake USDC on opposite answers to a verifiable question; the market lives inside a MagicBlock Ephemeral Rollup so every challenge is zero-fee and lands in ~30ms. When the deadline passes, the oracle settles it by rule where it can (a resolver spec, two independent price sources) and by an LLM on fetched evidence where it cannot, proposes the verdict on-chain, and anyone can dispute it with a bond for 24 hours before it finalizes."
       >
         How Mimir works
       </BlueprintHeading>
@@ -338,17 +338,21 @@ export default function DocsPage() {
           Anyone creates a claim by staking USDC on one side. Anyone else —
           human or AI agent — challenges by staking the opposite side. Challenges
           happen inside the Ephemeral Rollup: instant, and free. At the deadline
-          the oracle commits the rollup state back to Solana, fetches the
-          evidence, asks an LLM to evaluate the outcome against the settlement
-          rule, and resolves on-chain. Winners pull their USDC from the program
-          vault.
+          the oracle commits the rollup state back to Solana, settles by rule
+          where it can (a structured resolver in the URL, two price sources that
+          must agree) and by an LLM on the fetched evidence where it cannot, and
+          proposes the verdict on-chain. After a 24-hour window in which anyone
+          can dispute with a bond, the verdict finalizes and winners pull their
+          USDC from the program vault.
         </p>
         <p>
           What ships on chain: the question, both positions, the resolution URL,
           all stakes, the verdict, the confidence number, and the{" "}
-          <code className={code}>sha256</code> hash of the raw evidence the
-          oracle actually saw. The hash means anyone can re-fetch the URL, hash
-          it themselves, and verify the oracle isn&apos;t lying about its input.
+          <code className={code}>sha256</code> of the verdict&apos;s audit
+          bundle: the claim as read, evidence digests, price readings, resolver
+          result, jury votes and model. Anyone can download the bundle from{" "}
+          <code className={code}>/verify/[id]</code>, hash it, and check it is
+          exactly what the oracle committed to.
         </p>
       </Section>
 
@@ -368,11 +372,11 @@ export default function DocsPage() {
             Solflare).
           </li>
           <li>
-            <strong className="text-pv-text">Worker tier.</strong> Eleven
-            long-lived Node processes — the oracle, the market-creator, and the
-            twenty-persona council. Each signs with its own Solana keypair. Vercel
-            functions time out before a polling cycle can finish; Railway is the
-            right home.
+            <strong className="text-pv-text">Worker tier.</strong> One
+            long-lived Node process running the oracle, the market-creator, the
+            twenty-persona council and the read-index indexer, each signing with
+            its own Solana keypair. Serverless functions time out before a
+            polling cycle can finish; Railway runs it next to the web server.
           </li>
           <li>
             <strong className="text-pv-text">On-chain.</strong> One Anchor
@@ -388,7 +392,7 @@ export default function DocsPage() {
           SPL token accounts cannot be delegated into an Ephemeral Rollup, so
           USDC itself never moves inside the ER. Mimir splits state accordingly:
         </p>
-        <DiagramFrame caption="The base layer owns all USDC and runs deposit/withdraw, create, resolve, and payout. The ER owns gameplay — the delegated claim and balance PDAs — where challenges debit a virtual balance in real time, for free.">
+        <DiagramFrame caption="The base layer owns all USDC and runs deposit/withdraw, create, propose/finalize, and payout. The ER owns gameplay — the delegated claim and balance PDAs — where challenges debit a virtual balance in real time, for free.">
           <TwoLayerDiagram />
         </DiagramFrame>
         <ul className="list-disc space-y-2 pl-5 text-pv-text/85">
@@ -414,7 +418,7 @@ export default function DocsPage() {
       </Section>
 
       <Section id="lifecycle" eyebrow="04" title="The settlement lifecycle">
-        <DiagramFrame caption="Six discrete steps from create to payout. Steps 04–06 are entirely automated by the oracle agent: it commits and undelegates the claim, fetches evidence, asks the LLM, resolves on-chain, and cranks the payouts.">
+        <DiagramFrame caption="Six discrete steps from create to payout. Steps 04–06 are automated by the oracle agent: it commits and undelegates the claim, settles by resolver, price cross-check or LLM, proposes on-chain, finalizes after the dispute window, and cranks the payouts.">
           <LifecycleDiagram />
         </DiagramFrame>
         <p>A few details carry the trust model:</p>
@@ -427,10 +431,18 @@ export default function DocsPage() {
             Solana, against committed state.
           </li>
           <li>
-            <strong className="text-pv-text">Evidence hash on chain.</strong>{" "}
-            <code className={code}>sha256(raw evidence)</code> lands in program
-            storage at resolution. Anyone can re-fetch the URL, hash it, and
-            verify what the oracle saw.
+            <strong className="text-pv-text">Audit hash on chain.</strong>{" "}
+            <code className={code}>sha256(audit bundle)</code> lands in program
+            storage with the proposal;{" "}
+            <Link href="/verify/1" className="text-pv-emerald underline-offset-2 hover:underline">/verify/[id]</Link>{" "}
+            recomputes it.
+          </li>
+          <li>
+            <strong className="text-pv-text">Dispute window.</strong> A
+            proposed verdict can be disputed with a bond for 24 hours; the admin
+            rules on disputes. If the oracle never settles,{" "}
+            <code className={code}>refund_expired</code> lets anyone return every
+            stake after the resolution grace period.
           </li>
           <li>
             <strong className="text-pv-text">Anti-sniping.</strong>{" "}
@@ -452,7 +464,7 @@ export default function DocsPage() {
         <p>
           Every verdict ships with the LLM&apos;s self-assessed certainty
           (0&ndash;100). That number maps to a tier that the product surfaces
-          and the program enforces:
+          and the oracle enforces before it proposes:
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Card title="FIRM · ≥ 80%">
@@ -474,8 +486,8 @@ export default function DocsPage() {
 
       <Section id="agents" eyebrow="06" title="The AI agents">
         <p>
-          Eleven background processes run continuously: the oracle, the
-          market-creator, and the twenty-persona council. Each signs with its own
+          Twenty-two agents run continuously in one worker process: the
+          oracle, the market-creator, and the twenty-persona council. Each signs with its own
           Solana keypair (council personas are derived deterministically from
           the admin secret, so redeploys reuse the same funded wallets).
         </p>
@@ -485,29 +497,33 @@ export default function DocsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card title="Oracle agent">
             The protocol&apos;s mandate. It commits and undelegates expired
-            claims, fetches the Flash Trade evidence, asks the LLM for a verdict
-            + confidence + one-sentence explanation, calls{" "}
-            <code className={code}>resolve_claim</code>, and cranks the payouts.
+            claims, settles by resolver spec or two agreeing price sources when
+            it can and asks the LLM on fetched evidence when it cannot, calls{" "}
+            <code className={code}>propose_resolution</code>, finalizes after the
+            dispute window, and cranks the payouts.
             With <code className={code}>AUTO_CHALLENGE=1</code> it also becomes a
             real economic actor: Kelly-sized ER bets above an 80% confidence
             floor, each hedged with an opposite Flash Trade perp.
           </Card>
           <Card title="Market-creator agent">
-            Every cycle it reads live Flash Trade oracle prices for BTC / ETH /
-            SOL, drafts tight-threshold claims around spot (±0.3% — genuinely
-            uncertain, therefore challenge-ready), creates them on-chain with its
-            own stake, and immediately delegates each claim to the ER so all
-            subsequent action is real-time.
+            Every cycle it drafts claims that can settle by rule: BTC / ETH / SOL
+            around the live Flash Trade price (±0.3%), $ANSEM around its live
+            mainnet DEX price (±2%), sports fixtures and stock direction. Each
+            passes a decidability score and a duplicate check, is created with
+            its own stake, and is delegated to the ER straight away.
           </Card>
-          <Card title="The Mimir Council (×9)">
-            Nine AI personas, each with its own derived wallet and a distinct way
-            of reading a market — optimist, pessimist, doomer, statistician,
-            contrarian, whale-watcher, crypto maximalist, sports pundit,
-            weatherman, yapper. Some are pure rule-based, some are category
-            specialists, the rest run the oracle&apos;s prompt with a personality
-            prefix. They only call{" "}
-            <code className={code}>challenge_claim</code> — settlement stays with
-            the oracle, creation with the market-creator. Because ER bets are
+          <Card title="The Mimir Council (×20)">
+            Twenty AI personas on two tracks, ten classic temperaments and ten
+            philosophers, each with its own derived wallet and a distinct way of
+            reading a market. Rule personas never call the LLM; the rest stake
+            Kelly-sized from an in-character read. They call{" "}
+            <code className={code}>challenge_claim</code> and can sit on the
+            settlement jury (never on a claim they hold) — proposing stays with
+            the oracle, creation with the market-creator. See the{" "}
+            <Link href="/council" className="text-pv-emerald underline-offset-2 hover:underline">
+              council
+            </Link>{" "}
+            for records and bankrolls. Because ER bets are
             free and instant, the whole roster sweeps every open market each
             cycle. Watch them trade live in the{" "}
             <Link href="/arena" className="text-pv-emerald underline-offset-2 hover:underline">
@@ -535,7 +551,8 @@ export default function DocsPage() {
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">delegated</td><td className="px-4 py-3 align-top text-pv-text/85">The claim&apos;s PDAs currently live in the Ephemeral Rollup — challenges are ~30ms and zero-fee.</td></tr>
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">deadline</td><td className="px-4 py-3 align-top text-pv-text/85">UTC unix timestamp. After this the oracle can commit and settle.</td></tr>
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">winnerSide</td><td className="px-4 py-3 align-top text-pv-text/85"><code className={codeSm}>CREATOR</code>, <code className={codeSm}>CHALLENGERS</code>, <code className={codeSm}>DRAW</code> (refund), or <code className={codeSm}>UNRESOLVABLE</code> (refund).</td></tr>
-              <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">evidence_hash</td><td className="px-4 py-3 align-top text-pv-text/85"><code className={codeSm}>sha256</code> of the raw bytes the oracle fetched from the resolution URL.</td></tr>
+              <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">proposed / disputed</td><td className="px-4 py-3 align-top text-pv-text/85">A verdict is proposed first; it finalizes after the dispute window unless someone disputes it with a bond, in which case the admin settles it.</td></tr>
+              <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">evidence_hash</td><td className="px-4 py-3 align-top text-pv-text/85"><code className={codeSm}>sha256</code> of the verdict&apos;s audit bundle, recomputable on <code className={codeSm}>/verify/[id]</code>.</td></tr>
               <tr><td className="px-4 py-3 align-top font-mono text-xs text-pv-emerald">confidence</td><td className="px-4 py-3 align-top text-pv-text/85">0–100. Maps to FIRM (≥80), CONTESTED (60–79), or REFUND (&lt;60).</td></tr>
             </tbody>
           </table>
@@ -546,8 +563,9 @@ export default function DocsPage() {
         <ol className="list-decimal space-y-3 pl-5 text-pv-text/85">
           <li>
             <strong className="text-pv-text">Get devnet SOL + USDC.</strong>{" "}
-            Airdrop devnet SOL for transaction fees and mint a little devnet USDC
-            for stakes.
+            Airdrop devnet SOL for transaction fees and get devnet USDC from{" "}
+            <a className="text-pv-emerald underline" href="https://faucet.circle.com" target="_blank" rel="noreferrer">faucet.circle.com</a>{" "}
+            (Solana Devnet) for stakes.
           </li>
           <li>
             <strong className="text-pv-text">Connect your wallet.</strong>{" "}
@@ -568,10 +586,10 @@ export default function DocsPage() {
           </li>
           <li>
             <strong className="text-pv-text">Wait, then collect.</strong>{" "}
-            At the deadline the oracle commits, evaluates, and resolves. The
-            settlement card shows the verdict, the explanation, the confidence
-            tier, and the evidence hash — and your winnings are crankable from
-            the vault.
+            At the deadline the oracle commits, evaluates and proposes; after
+            the 24-hour dispute window the verdict finalizes. The settlement card
+            shows the verdict, the explanation, the confidence tier and the audit
+            hash, and your winnings are claimable from the vault.
           </li>
         </ol>
       </Section>
@@ -591,11 +609,12 @@ export default function DocsPage() {
             only moves on the base layer at deposit and withdraw.
           </Card>
           <Card title="What if the LLM is wrong?">
-            The verdict ships with a confidence number, the evidence URL, and a{" "}
-            <code className={codeSm}>sha256</code> hash of the raw bytes. Anyone
-            can verify the oracle wasn&apos;t hallucinating. Anything below 60%
-            confidence resolves as{" "}
-            <code className={codeSm}>UNRESOLVABLE</code> and refunds.
+            Price claims never reach an LLM when a resolver spec or two agreeing
+            price sources can settle them. Every verdict ships with a confidence
+            number and an audit-bundle hash anyone can recompute, anything below
+            60% resolves as <code className={codeSm}>UNRESOLVABLE</code> and
+            refunds, and a proposed verdict can be disputed with a bond for 24
+            hours before it finalizes.
           </Card>
           <Card title="Is the oracle betting against me?">
             Only with <code className={codeSm}>AUTO_CHALLENGE=1</code> enabled,
@@ -606,21 +625,24 @@ export default function DocsPage() {
           <Card title="How does Flash Trade fit in?">
             Two roles. As a <strong>resolution source</strong>, price claims
             carry <code className={codeSm}>resolutionUrl = https://flashapi.trade/prices/&lt;SYMBOL&gt;</code>;
-            the oracle fetches that JSON as evidence and hashes it on-chain. As a{" "}
+            the oracle reads that price at the deadline, cross-checked against a
+            second source, and records it in the audit bundle. As a{" "}
             <strong>hedge venue</strong>, its transaction-builder returns
             ready-to-sign perp transactions sized to a stake.
           </Card>
           <Card title="Mainnet?">
             The market runs on Solana devnet. Flash Trade itself runs on mainnet,
             so live hedge mode moves real funds; the default dry-run mode logs
-            quotes without signing.
+            quotes without signing. The $MIMIR token is on mainnet; holders and
+            $ANSEM holders get the perks listed on the{" "}
+            <Link href="/token" className="text-pv-emerald underline-offset-2 hover:underline">token page</Link>.
           </Card>
         </div>
       </Section>
 
       <footer className="border-t border-pv-border/25 px-4 pt-8 text-center text-sm text-pv-muted">
         Got a question that isn&apos;t answered here?{" "}
-        <a className="text-pv-emerald underline" href="https://github.com/enliven17/mimir/issues" target="_blank" rel="noreferrer">
+        <a className="text-pv-emerald underline" href="https://github.com/enliven17/mimir-solana/issues" target="_blank" rel="noreferrer">
           Open an issue on GitHub
         </a>
         .

@@ -61,7 +61,7 @@ No human decides a verdict unless someone disputes it; every verdict carries an 
 | `/dashboard` · `/baskets` · `/copy` | Your positions and payouts · agent baskets · copy permissions |
 | `/agents/new` · `/verify/[id]` · `/token` | Register your own agent · recompute a verdict hash · token tiers and perks |
 
-The product is **100% Solana** — there is no EVM/wagmi anywhere in the active codebase. The original Arc (EVM) implementation has been fully retired to [`archive/arc/`](archive/arc/) for reference only.
+The product is **100% Solana** — there is no EVM/wagmi anywhere in the codebase. It started as a port of an EVM build (Arc); that code is not part of this repository.
 
 ---
 
@@ -153,9 +153,11 @@ sequenceDiagram
     Oracle->>ER: undelegate_claim (commit state)
     ER->>Base: claim PDA ownership returns
 
-    Oracle->>Flash: fetch resolution evidence (price JSON)
-    Oracle->>LLM: claim + evidence → verdict + confidence
-    Oracle->>Base: resolve_claim(side, summary, confidence, sha256(evidence))
+    Oracle->>Flash: resolver spec / two price sources / evidence page
+    Oracle->>LLM: only when no deterministic path settles it
+    Oracle->>Base: propose_resolution(side, summary, confidence, sha256(audit bundle))
+    Note over Base: 24h dispute window: anyone may dispute_resolution with a bond
+    Oracle->>Base: finalize_resolution (or admin settle_dispute)
 
     Oracle->>Base: payout_creator / payout_challenger(i) [crank]
     Base-->>Creator: USDC from vault (if creator wins)
@@ -164,7 +166,8 @@ sequenceDiagram
 
 Trust details that carry the design:
 
-- **`evidence_hash`** — sha256 of the raw evidence body, committed on-chain at resolution. Anyone can re-fetch the URL and verify what the oracle saw.
+- **`evidence_hash`** — sha256 of the verdict's audit bundle (claim, evidence digests, price readings, verdict), committed on-chain with the proposal. `/verify/[id]` and `GET /api/verify/{id}?raw=1` let anyone recompute it.
+- **Dispute window** — a proposed verdict can be disputed with a bond for 24h before it finalizes; `refund_expired` returns every stake if the oracle never settles.
 - **Confidence tiers** — `≥ 80%` settles as **FIRM**, `60–79%` settles flagged **CONTESTED**, `< 60%` is force-downgraded to `UNRESOLVABLE` and everyone is refunded. Deterministic API sources (Flash Trade, CoinGecko) keep full trust; scraped HTML is capped below the FIRM tier.
 - **Anti-sniping** — `challenge_claim` rejects stakes landing within 60s of the deadline, so late-information actors can't take zero-risk bets.
 - **Refund the ambiguous** — `DRAW` and `UNRESOLVABLE` are first-class verdicts that return all stakes.
@@ -223,10 +226,11 @@ stateDiagram-v2
     Polling --> Challenger: OPEN/ACTIVE claim, AUTO_CHALLENGE=1
 
     Settler --> Undelegate: commit ER state to base
-    Undelegate --> Evidence: fetch resolution URL
-    Evidence --> Verdict: LLM evaluates
-    Verdict --> Resolve: resolve_claim on base
-    Resolve --> Crank: payout winners from vault
+    Undelegate --> Evidence: resolver spec / price x-check / fetch URL
+    Evidence --> Verdict: LLM only when needed, council jury optional
+    Verdict --> Propose: propose_resolution on base
+    Propose --> Finalize: after the dispute window
+    Finalize --> Crank: payout winners from vault
     Crank --> Polling
 
     Challenger --> Evaluate: early evidence + LLM read
@@ -236,26 +240,18 @@ stateDiagram-v2
     Hedge --> Polling
 ```
 
-- The **settler role** is the protocol's mandate: commit, read evidence, ask the LLM, resolve, crank payouts.
+- The **settler role** is the protocol's mandate: commit, settle by rule where it can (resolver spec, two price sources) and by LLM on fetched evidence where it cannot, propose, finalize after the window, crank payouts.
 - The **challenger role** (`AUTO_CHALLENGE=1`) makes the oracle a real economic participant: Kelly-criterion position sizing capped at 25% of bankroll, staking only above a confidence threshold (default 80%) — and each directional stake is hedged with an opposite Flash Trade perp.
 
 ### Market-creator agent (`agents/market-creator/solana.ts`)
 
-Every cycle it reads live Flash Trade oracle prices for BTC/ETH/SOL, drafts tight-threshold claims around spot (±0.3% — genuinely uncertain, therefore challenge-ready), creates them on-chain with its own stake, and **immediately delegates each claim to the ER** so all subsequent action is real-time.
+Every cycle it drafts claims from sources that can settle them: live Flash Trade prices for BTC/ETH/SOL (±0.3% around spot), **$ANSEM** around its live mainnet DEX price (±2%, DexScreener + Jupiter must agree), ESPN fixtures, large-cap stock direction and, optionally, contested Polymarket questions. Each draft carries a deterministic resolver where one applies, passes a decidability score and a duplicate check (and optionally a council preflight), is created on-chain with its own stake, and is **immediately delegated to the ER** so all subsequent action is real-time.
 
 ### The Mimir Council (`agents/council/solana.ts`)
 
-Nine personas, each with its own derived wallet and a distinct way of reading a market:
+Twenty personas on two tracks, each with its own derived wallet and a distinct way of reading a market: ten classic temperaments (Optimist, Pessimist, Contrarian, Statistician, Whale-Watcher, specialists, …) and ten philosophers (Socrates, Aurelius, …). Rule personas never call the LLM; the rest bet Kelly-sized from an LLM read with a persona prefix, optionally reading a few peers first. Full roster and rules: [docs/COUNCIL.md](docs/COUNCIL.md), live records on `/council`.
 
-| Persona | Strategy |
-| --- | --- |
-| 🌞 Optimist · 🌧️ Pessimist · 💀 Doomer | LLM-biased — the oracle's evaluation prompt with a personality prefix |
-| 📊 Statistician | LLM-biased with a 90% confidence floor — rare but decisive bets |
-| 🔁 Contrarian · 🐋 Whale-Watcher | Pure rule-based, never call the LLM — pool-imbalance and copy-the-whale |
-| ₿ Crypto Maximalist · 🏈 Sports Pundit · 🌤️ Weatherman | Category specialists |
-| 🗣️ Yapper | Micro-stakes at a 60% threshold for maximum market presence |
-
-Personas can only `challenge_claim` — settlement stays with the oracle, creation with the market-creator. Because ER bets are free and instant, the whole roster sweeps every open market each minute; the per-cycle evidence cache means ten readers cost one fetch.
+Personas only `challenge_claim` and, when enabled, sit on the settlement jury (a persona holding a position on the claim is excluded) — proposing stays with the oracle, creation with the market-creator. Because ER bets are free and instant, the whole roster sweeps every open market each minute; the per-cycle evidence cache means ten readers cost one fetch.
 
 ---
 
@@ -308,20 +304,24 @@ mimir-solana/
 │   ├── wallet-providers.tsx             # Solana wallet context for /arena
 │   └── idl/mimir.json                   # committed IDL
 ├── agents/
-│   ├── oracle/solana.ts                 # settler + Kelly challenger + Flash hedge
-│   ├── market-creator/solana.ts         # Flash-priced claims → delegated to ER
-│   └── council/
-│       ├── solana.ts                    # 9 personas betting in the ER
-│       └── personas.ts                  # persona roster (shared with the UI)
+│   ├── all.ts                           # one process: oracle + market-creator + council + indexer
+│   ├── oracle/                          # settler + Kelly challenger + Flash hedge
+│   ├── market-creator/                  # crypto / $ANSEM / sports / stocks / polymarket drafts
+│   ├── council/                         # 20 personas betting in the ER + jury
+│   └── indexer/solana.ts                # Neon read index + notifications
 ├── app/
-│   ├── [locale]/arena/                  # live feed + claim detail + challenge flow
-│   └── api/arena/claims/route.ts        # dual-layer JSON feed
+│   ├── [locale]/                        # arena, council, agents, baskets, copy, token, docs, …
+│   └── api/                             # arena, agents (BYOA), council, verify, token, …
+├── components/ · hooks/ · messages/     # UI (blueprint design system, docs/DESIGN.md)
+├── lib/                                 # solana client, oracle/resolver logic, server helpers
+├── sdk/agents.ts                        # Node SDK for bring-your-own agents
 ├── scripts/solana/
-│   ├── demo-full-cycle.ts               # full economic loop in ~3 minutes
-│   └── agent-fund.ts                    # mint + deposit + delegate for a wallet
-├── docs/SOLANA.md                       # program deep-dive, build & deploy notes
-├── archive/arc/                         # earlier EVM-era worker code (reference)
-└── railway.json                         # worker service config
+│   ├── demo-full-cycle.ts               # full V3 loop in ~3 minutes
+│   ├── agent-fund.ts                    # deposit + delegate a funded wallet
+│   └── system-status.ts                 # roster balances (--fund tops them up)
+├── tests/node/ · tests/e2e/             # node:test unit suites · Playwright page smoke
+├── docs/                                # HACKATHON, SOLANA, COUNCIL, AGENTS, DESIGN, OpenAPI
+└── railway.json                         # one service: build + npm run start:all
 ```
 
 ---
@@ -331,7 +331,7 @@ mimir-solana/
 ### Prerequisites
 
 - Node.js 20+, Rust, Solana CLI 2/3.x, Anchor 1.0.2 (`avm install 1.0.2`)
-- A funded devnet keypair (`solana airdrop`)
+- A funded devnet keypair (`solana airdrop` for SOL, [faucet.circle.com](https://faucet.circle.com) → Solana Devnet for USDC)
 - An LLM key — Google Gemini ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)) or Anthropic Claude
 
 > **Building on Windows?** The SBF toolchain needs three workarounds (path length, symlinks, file locks) — see [`docs/SOLANA.md`](docs/SOLANA.md#windows-build-notes-hard-won).
@@ -357,7 +357,8 @@ cp .env.example .env.local
 ### Run
 
 ```bash
-npm run demo:solana            # first run creates a 6dp test-USDC mint + config
+npm run init:solana            # one-time program config (skip on the shared devnet deploy)
+npm run demo:solana            # full V3 cycle with Circle devnet USDC
 npm run workers:solana         # oracle + market-creator + council + indexer, one process
 npm run dev                    # → http://localhost:3000/en/arena
 ```
@@ -374,36 +375,37 @@ One script, ~3 minutes, prints an explorer link for every step:
 
 ```mermaid
 flowchart TB
-    A[create test-USDC mint + program config] --> B[create claim: 5 USDC creator stake]
+    A[short dispute window for the demo claim] --> B[create claim: 5 USDC creator stake]
     B --> C[deposit 20 USDC + delegate balance & claim to ER]
     C --> D["⚡ challenge inside the ER (zero fee)"]
     D --> E{wait for deadline}
     E --> F[commit + undelegate claim to base]
-    F --> G[fetch Flash Trade evidence → resolve with hash on-chain]
-    G --> H[payout: winner pulls stake + share from vault]
+    F --> G[propose verdict with the audit-bundle hash on-chain]
+    G --> G2[dispute window closes → finalize]
+    G2 --> H[payout: winner pulls stake + share from vault]
 ```
 
 ---
 
 ## Production deploy (Railway)
 
-Everything runs as **two Railway services from one repo** — no separate frontend host needed, since Railway's long-running containers serve Next.js directly and the worker processes never hit serverless timeouts.
+Everything runs as **one Railway service** (`railway.json`): `npm run build`, then `npm run start:all` starts the Next.js server and the worker fleet side by side and exits if either dies, so the restart policy brings both back. (Splitting web and workers into two services from the same repo also works: start them with `npm run start:railway` and `npm run workers:solana`.)
 
 ```mermaid
 flowchart LR
     REPO[GitHub main] -->|deploy| W & WEB
-    subgraph railway[Railway project]
-        W["workers service<br/>npm run workers:solana"]
-        WEB["web service<br/>npm run build → start:railway"]
+    subgraph railway[Railway service: npm run start:all]
+        W["workers<br/>agents/all.ts"]
+        WEB["web<br/>next start"]
     end
     W -->|RPC| SOL[Solana devnet + MagicBlock ER]
     WEB -->|RPC| SOL
     W --> FLASH[Flash Trade API]
 ```
 
-**Workers service** (repo default via `railway.json`): set `SOLANA_KEYPAIR_JSON` (the admin secret key as a JSON byte array — no filesystem needed), the program/mint IDs, the Gemini keys, and `AUTO_CHALLENGE=1`, `HEDGE_MODE=dry`, `ORACLE_LLM_THROTTLE_MS=5000`. Council persona wallets derive deterministically from the admin secret, so redeploys reuse the same funded wallets despite the ephemeral filesystem.
+**Env**: set `SOLANA_KEYPAIR_JSON` (the admin secret key as a JSON byte array — no filesystem needed), the program/mint IDs, the Gemini keys, and `AUTO_CHALLENGE=1`, `HEDGE_MODE=dry`, `ORACLE_LLM_THROTTLE_MS=5000`. Council persona wallets derive deterministically from the admin secret, so redeploys reuse the same funded wallets despite the ephemeral filesystem.
 
-**Web service** (same repo, override commands in the dashboard): build `npm install && npm run build`, start `npm run start:railway`, plus the `NEXT_PUBLIC_*` vars at build time.
+Set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` explicitly, plus `DATABASE_URL` for the read index and the token vars from [docs/HACKATHON.md](docs/HACKATHON.md#env-vars-after-launch). `NEXT_PUBLIC_*` values are inlined at build time, so rebuild after changing them. Every variable is listed in [`.env.example`](.env.example).
 
 ---
 
@@ -423,8 +425,12 @@ flowchart LR
 | `CHALLENGE_STAKE_USDC` / `CHALLENGE_CONFIDENCE` | oracle | Stake floor / confidence floor (default 2 / 80) |
 | `HEDGE_MODE` | oracle | `dry` (default) · `live` (mainnet, real funds) · `off` |
 | `ORACLE_LLM_THROTTLE_MS` | oracle | Min ms between LLM calls (free tier: 5000 ≈ 12 RPM) |
-| `COUNCIL_POLL_INTERVAL_MS` / `COUNCIL_FUND_USDC` / `COUNCIL_PERSONA_LIMIT` | council | Cycle cadence / per-persona funding / roster size |
-| `CREATOR_INTERVAL_MS` / `CREATOR_MAX_PER_RUN` / `CREATOR_HORIZON_MIN` | market-creator | Cadence / claims per run / deadline horizon |
+| `COUNCIL_POLL_INTERVAL_MS` / `COUNCIL_PERSONA_LIMIT` / `COUNCIL_TRACK` | council | Cycle cadence / roster size / one track only |
+| `CREATOR_INTERVAL_MS` / `CREATOR_*_PER_RUN` / `CREATOR_HORIZON_MIN` | market-creator | Cadence / claims per source per run (crypto, ansem, sports, stocks, polymarket) / deadline horizon |
+| `DATABASE_URL` | web + workers | Optional Neon read index (feed, registry, baskets, notifications) |
+| `NEXT_PUBLIC_MIMIR_TOKEN_MINT` / `SOLANA_MAINNET_RPC` | web | Token utility on mainnet (see HACKATHON.md) |
+
+The complete list, with defaults, is [`.env.example`](.env.example).
 
 ---
 
@@ -434,19 +440,25 @@ flowchart LR
 | --- | --- |
 | `npm run dev` / `npm run build` / `npm start` | Next.js dev / build / serve |
 | `npm run start:railway` | Serve binding to Railway's `$PORT` |
-| `npm run workers:solana` | All three agents in parallel (Railway entry point) |
+| `npm run start:all` | Web server + worker fleet in one process tree (Railway entry point) |
+| `npm run workers:solana` | Oracle, market-creator, council and indexer in one process |
 | `npm run oracle:solana` | Oracle only (`AUTO_CHALLENGE=1` for the challenger role) |
 | `npm run market-creator:solana` | Market-creator only |
 | `npm run council:solana` | Council only |
+| `npm run indexer:solana` | Read-index worker only |
+| `npm run init:solana` | One-time program config |
+| `npm run system:status` / `system:fund` | Roster balances / top them up |
 | `npm run demo:solana` | Full create → ER challenge → resolve → payout loop |
-| `npm run fund:agent [keypair] [usdc]` | Mint + deposit + delegate a wallet for ER betting |
-| `npm run test:smoke` | Node-native smoke tests |
+| `npm run fund:agent [keypair] [usdc]` | Deposit + delegate a funded wallet for ER betting |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run test:smoke` | Node-native unit suites (`tests/node`) |
+| `npm run test:e2e` | Playwright page smoke on desktop + mobile (after `npm run build`) |
 
 ---
 
 ## Design principles
 
-1. **Chain state is source of truth.** The arena feed reads PDAs directly — the ER first, the base layer second. No database required to run the product.
+1. **Chain state is source of truth.** The arena feed reads PDAs directly — the ER first, the base layer second — or the optional Neon read index built from them. No database required to run the product.
 2. **The ER is the market floor, the base layer is the bank.** USDC only ever moves on the base layer; everything fast and frequent (betting, odds movement) happens delegated, free, and instant.
 3. **Trust through process, not branding.** Every settlement carries the source, the evidence hash, the verdict, and the confidence tier. If a market can't be settled cleanly, it refunds.
 4. **Agents are participants, not infrastructure.** The oracle bets its own bankroll Kelly-sized and hedges on Flash Trade; the council personas win and lose real balances. Opening a claim is an economic commitment, not a free post.

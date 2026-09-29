@@ -227,6 +227,8 @@ rate-limited; errors never echo upstream or RPC text.
 | `POST /api/council/preflight` | Draft vetting (body: question, creatorPosition, counterPosition, resolutionUrl, category?, settlementRule?, deadlineHours?, personas?[] up to 5). | 5/min/IP, 30/min per deploy; identical drafts cached 10 min |
 | `GET /api/arena/[id]/council` | Where each persona stands on one claim (on-chain challenger list). | 30/min/IP |
 
+Token holders with a holder proof (`x-mimir-wallet` + `x-mimir-proof`, `lib/token-proof.ts`) are counted per wallet at 2x / 4x / 8x these per-caller limits by tier, on their own deploy-wide pool (`lib/server/holder.ts`).
+
 **Not ported: `/api/council/vote`.** In the source it existed so the oracle
 could *buy* each juror's verdict over x402. Here the jury runs in process in
 the oracle, with the staked-persona exclusion applied against the live
