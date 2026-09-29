@@ -9,7 +9,7 @@
  */
 import { computeClaimQuality, type ClaimQualityResult } from "../../lib/claimQuality";
 
-export type DraftSource = "flash" | "espn" | "stocks" | "polymarket";
+export type DraftSource = "flash" | "espn" | "stocks" | "polymarket" | "ansem";
 
 export interface DraftClaim {
   question: string;

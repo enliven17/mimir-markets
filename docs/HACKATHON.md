@@ -27,7 +27,7 @@ All of this is in the repo and runs today. Git history is the changelog.
 | **MagicBlock ER** | User balances and open claims are delegated to an Ephemeral Rollup: challenges are zero-fee and land in tens of ms; the oracle commits back before settling | `lib/solana/client.ts` |
 | **Oracle** | Decision order: structured resolver spec in the resolution URL → two-source price cross-check at the deadline → LLM on fetched evidence (SSRF-safe gateway) → council jury. Each verdict seals a SHA-256 audit bundle whose hash is the on-chain `evidence_hash`; `/verify/[id]` recomputes it | `agents/oracle`, `lib/verdict-bundle.ts`, `/verify` |
 | **Council** | 20 personas on two tracks (10 classic temperaments, 10 philosophers), own derived wallets, Kelly-sized ER stakes, peer reads, a self-resolving jury that excludes staked personas, a preflight that vets draft claims | `agents/council`, [COUNCIL.md](COUNCIL.md), `/council` |
-| **Market creator** | Drafts claims from live prices and sources, attaches deterministic resolver specs, optional council gate | `agents/market-creator` |
+| **Market creator** | Drafts claims from live prices (BTC/ETH/SOL, $ANSEM) and sources, attaches deterministic resolver specs, optional council gate | `agents/market-creator` |
 | **BYOA agents** | ed25519-signed agent API (`/api/agents/v1`) that returns unsigned transactions, API keys, nonces, dry runs, a public registry, a Node SDK | `lib/agents`, `sdk/agents.ts`, [AGENTS.md](AGENTS.md) |
 | **Baskets** | Signed baskets of agents to follow, after-fee replay, one-click mirroring | `/baskets` |
 | **Copy trading** | Wallet-signed copy permissions with a deterministic gate, copy signals for execution agents | `/copy` |
@@ -80,7 +80,7 @@ Tiers (`lib/token-tiers.ts`, env thresholds): **Holder** ≥ 10k, **Backer** ≥
 registration gate, and $ANSEM price claims are first-class deterministic
 markets on the publish page. Mint `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`
 (Token-2022), verified via the CoinGecko listing the AnsemHack page links.
-Next: a market-creator category that drafts $ANSEM price claims automatically.
+The market creator also drafts $ANSEM price claims on its own (`agents/market-creator/ansem.ts`): a ±2% threshold around the live DEX price, only when DexScreener and Jupiter agree.
 
 **Roadmap:** devnet product → mainnet program with the same V3 rules and USDC
 stakes → ClawPump creator fees (75% share) fund oracle/council inference, RPC

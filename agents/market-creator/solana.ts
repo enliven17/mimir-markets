@@ -11,6 +11,8 @@
  *   2. SPORTS     — scheduled World Cup / Premier League / Champions League /
  *                   NFL / NBA games from ESPN, betting closes at kickoff.
  *   3. STOCKS     — large-cap day direction, read off stockanalysis.com.
+ *   2b. ANSEM     — $ANSEM price claims around the live mainnet DEX price
+ *                   (DexScreener + Jupiter), same deterministic resolver.
  *   4. POLYMARKET — live, contested binary markets (MARKET_CREATOR_POLYMARKET=1);
  *                   the oracle waits for the UMA resolution before settling.
  *
@@ -27,6 +29,8 @@
  *      CREATOR_CRYPTO_PER_RUN    (default 2)
  *      CREATOR_SPORTS_PER_RUN    (default 3; falls back to CREATOR_WORLDCUP_PER_RUN)
  *      CREATOR_STOCKS_PER_RUN    (default 1)
+ *      CREATOR_ANSEM_PER_RUN     (default 1; 0 turns the $ANSEM category off)
+ *      CREATOR_ANSEM_SKEW        (threshold distance from spot, default 0.02 = 2%)
  *      CREATOR_POLYMARKET_PER_RUN (default 2, only with MARKET_CREATOR_POLYMARKET=1)
  *      CREATOR_STAKE_USDC        (default 3)
  *      CREATOR_HORIZON_MIN       (crypto deadline horizon in minutes, default 30)
@@ -46,6 +50,7 @@ import { reportingPoll } from "../../lib/ops/heartbeat";
 import { gatherCouncilPreflight, preflightKeeps, preflightPersonas } from "./council-preflight";
 import { draftProblem, scoreDraft, type DraftClaim } from "./draft";
 import { draftCryptoClaims } from "./crypto";
+import { draftAnsemClaims } from "./ansem";
 import { draftSportsClaims } from "./sports";
 import { draftStockClaims } from "./stocks";
 import { fetchPolymarketCandidates, isPolymarketEnabled, polymarketDraft } from "./polymarket";
@@ -59,6 +64,7 @@ const INTERVAL_MS = envNum("CREATOR_INTERVAL_MS", "3600000");
 const CRYPTO_PER_RUN = envNum("CREATOR_CRYPTO_PER_RUN", "2");
 const SPORTS_PER_RUN = Number(process.env.CREATOR_SPORTS_PER_RUN ?? process.env.CREATOR_WORLDCUP_PER_RUN ?? "3");
 const STOCKS_PER_RUN = envNum("CREATOR_STOCKS_PER_RUN", "1");
+const ANSEM_PER_RUN = envNum("CREATOR_ANSEM_PER_RUN", "1");
 const POLYMARKET_PER_RUN = envNum("CREATOR_POLYMARKET_PER_RUN", "2");
 const STAKE_USDC = envNum("CREATOR_STAKE_USDC", "3");
 const HORIZON_MIN = envNum("CREATOR_HORIZON_MIN", "30");
@@ -103,8 +109,9 @@ async function vetDrafts(drafts: DraftClaim[]): Promise<DraftClaim[]> {
 
 /** Everything the sources offer this cycle, before any filtering. */
 async function gatherDrafts(): Promise<DraftClaim[]> {
-  const [crypto, sports, polymarket] = await Promise.all([
+  const [crypto, ansem, sports, polymarket] = await Promise.all([
     draftCryptoClaims(CRYPTO_PER_RUN, HORIZON_MIN),
+    draftAnsemClaims(ANSEM_PER_RUN, HORIZON_MIN),
     draftSportsClaims(SPORTS_PER_RUN, SPORTS_MAX_HOURS),
     isPolymarketEnabled() && POLYMARKET_PER_RUN > 0 ? fetchPolymarketCandidates() : Promise.resolve([]),
   ]);
@@ -114,10 +121,10 @@ async function gatherDrafts(): Promise<DraftClaim[]> {
     .filter((d): d is DraftClaim => d !== null)
     .slice(0, POLYMARKET_PER_RUN);
   console.log(
-    `[creator] sources: crypto=${crypto.length} sports=${sports.length} stocks=${stocks.length} ` +
+    `[creator] sources: crypto=${crypto.length} ansem=${ansem.length} sports=${sports.length} stocks=${stocks.length} ` +
       `polymarket=${borrowed.length}${isPolymarketEnabled() ? "" : " (off)"}`,
   );
-  return [...sports, ...borrowed, ...stocks, ...crypto];
+  return [...sports, ...borrowed, ...stocks, ...ansem, ...crypto];
 }
 
 /** Chain limits and the decidability floor; logs every drop and every score. */
@@ -245,12 +252,12 @@ async function main(): Promise<void> {
   const cfg = await client.getConfig();
 
   console.log("═══════════════════════════════════════════════");
-  console.log("  Mimir Market-Creator — crypto · sports · stocks · polymarket");
+  console.log("  Mimir Market-Creator — crypto · ansem · sports · stocks · polymarket");
   console.log(`  Program  : ${client.base.programId.toBase58()}`);
   console.log(`  Creator  : ${client.publicKey.toBase58()}`);
   console.log(`  Claims   : ${cfg?.claimCount ?? "config missing!"}`);
   console.log(
-    `  Cadence  : every ${INTERVAL_MS / 60000} min · ${CRYPTO_PER_RUN} crypto + ${SPORTS_PER_RUN} sports + ` +
+    `  Cadence  : every ${INTERVAL_MS / 60000} min · ${CRYPTO_PER_RUN} crypto + ${ANSEM_PER_RUN} ansem + ${SPORTS_PER_RUN} sports + ` +
       `${STOCKS_PER_RUN} stocks${isPolymarketEnabled() ? ` + ${POLYMARKET_PER_RUN} polymarket` : ""}/run`,
   );
   console.log(`  Stake    : ${STAKE_USDC} USDC · crypto horizon ${HORIZON_MIN} min · quality ≥ ${MIN_QUALITY}`);
