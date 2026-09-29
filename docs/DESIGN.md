@@ -127,6 +127,29 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
   `cubic-bezier(.77,0,.175,1)`, `ease-spring` `cubic-bezier(.22,1,.36,1)`,
   `ease-overshoot` `cubic-bezier(.22,1.25,.36,1)`.
 
+## Shell
+
+- Header (`components/Header.tsx`): pandock's morphing nav. `--nav-p` (0 → 1)
+  drives height, width (1320 → 980px), radius, border, shadow, glass and
+  blur (`.nav-shell` / `.nav-bar` in `app/globals.css`). Scrubbed over the
+  first 160px on `/`, held at 1 on every other route, flipped at 80px under
+  reduced motion. Pill: wordmark, Arena · Council · Portfolio · More, then
+  Create, notifications and the wallet chip. `components/nav-items.ts` is the
+  single source for the pill, the More sheet (`NavMoreMenu.tsx`), the mobile
+  panel and the footer; labels live in `messages/en.json` under `nav`.
+- Footer (`components/Footer.tsx`): closer on `/` only, link columns, live
+  devnet slot, fine print, a climbing wordmark, and `footer/InfoModal.tsx`
+  for How it works / About / Disclaimer.
+- Routes: `app/[locale]/template.tsx` plays `.route-enter` and
+  `components/motion/RouteEffects.tsx` lands each navigation at the top.
+  `PageFrame` is the width container (`wrap` 1180, `narrow` 920).
+- Wallet (`components/wallet/`): `WalletSheetProvider` (`useWalletSheet()`
+  opens the sheet), `ConnectSheet` (detected Wallet Standard wallets, install
+  links, phone deep links, per-row connecting / error states), `WalletChip`
+  (address, balances, tier, copy, explorer, disconnect) and
+  `ConnectWalletButton` for page gates. Shell code reads the wallet through
+  `hooks/useMimirWallet.ts` so a kit switch touches one file.
+
 ## Accessibility
 
 Focus is a 2px coral outline with a 3px offset everywhere. Selection is red

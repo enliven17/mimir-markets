@@ -20,7 +20,7 @@ import { Check, Copy, ExternalLink, LogOut, Wallet } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { USDC_MINT } from "@/lib/solana/config";
-import { formatUsdcUnits } from "@/lib/money";
+import { formatUsdcUnitsBare } from "@/lib/money";
 import { useHolderTier } from "@/components/token/useHolderTier";
 import { useWalletSheet } from "./WalletSheetProvider";
 
@@ -217,7 +217,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
               <div>
                 <dt className="text-[11px] text-muted">{t("usdc")}</dt>
                 <dd className="font-mono text-[14px] tabular-nums text-cream">
-                  {balances.usdcUnits === null ? "…" : formatUsdcUnits(balances.usdcUnits)}
+                  {balances.usdcUnits === null ? "…" : formatUsdcUnitsBare(balances.usdcUnits)}
                 </dd>
               </div>
               <div>
