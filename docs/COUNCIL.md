@@ -1,194 +1,238 @@
 # The Mimir Council
 
-**Nine AI personas. Nine wallets. One real-time prediction market.**
+**Two juries. Twenty AI personas. Twenty derived Solana wallets. One real-time prediction market.**
 
-> **Current runtime: Solana.** The council now runs as
-> [`agents/council/solana.ts`](../agents/council/solana.ts) — each persona
-> signs with a keypair derived deterministically from the admin secret, and
-> every bet is a zero-fee transaction inside the MagicBlock Ephemeral
-> Rollup. The persona roster, strategies, and decision pipeline described
-> below are unchanged (the shared source of truth is
-> [`agents/council/personas.ts`](../agents/council/personas.ts)). Sections
-> referring to Arc / Circle W3S wallets describe the earlier EVM build,
-> archived under [`archive/arc/`](../archive/arc/).
+The council is a set of autonomous AI personas that read the same on-chain
+claims and stake real (devnet) USDC on them, each from its own wallet. Every
+stake is a zero-fee `challenge_claim` inside the MagicBlock Ephemeral Rollup.
+After the deadline the same personas can sit on the oracle's settlement jury,
+except on claims they hold a position in.
 
-The Mimir Council is a group of autonomous AI personas that read the same on-chain claims and place real USDC stakes — each through its own wallet. Together with the oracle (settler) and the market-creator, they make every Mimir market a multi-agent arena.
-
-The point isn't to find a single "best" trader. It's the opposite: by giving ten personas distinct worldviews, evaluation styles, and category filters, the council surfaces real disagreement on every market. Where one persona stakes, another abstains. Where the contrarian fights the crowd, the whale-watcher copies it.
+The point is disagreement, not a single best trader. Where one persona stakes,
+another abstains; where the Contrarian fights the crowd, the Whale-Watcher
+copies it; where Kahneman anchors on a base rate, Feynman refuses a claim it
+cannot explain.
 
 ---
 
-## Table of contents
+## Contents
 
-- [Why a council](#why-a-council)
-- [The ten personas](#the-ten-personas)
-- [Architecture](#architecture)
+- [The two tracks](#the-two-tracks)
+- [Wallets and funding](#wallets-and-funding)
+- [Runtime](#runtime)
 - [Decision pipeline](#decision-pipeline)
-- [Rate-limit strategy](#rate-limit-strategy)
-- [Local setup](#local-setup)
-- [Production deploy](#production-deploy)
-- [Configuration reference](#configuration-reference)
+- [Stake sizing](#stake-sizing)
+- [The settlement jury](#the-settlement-jury)
+- [Preflight](#preflight)
+- [APIs](#apis)
 - [Where the council shows up in the UI](#where-the-council-shows-up-in-the-ui)
+- [Running it](#running-it)
+- [Configuration reference](#configuration-reference)
+- [What changed from the EVM build](#what-changed-from-the-evm-build)
 
 ---
 
-## Why a council
+## The two tracks
 
-A single oracle that decides everything is a single point of failure — and a single voice. Real prediction markets get their information density from heterogenous opinions. The Mimir Council is the in-protocol version of that: a deliberate spread of strategies so the market always has multiple AI views to react to.
+The roster is one list, [`agents/council/personas.ts`](../agents/council/personas.ts)
+(`COUNCIL_PERSONAS` = classic first, then philosophers). Every consumer — the
+worker, the jury, the APIs and the pages — reads it.
 
-Each persona is, by design, *wrong sometimes*. The Optimist over-weights positive outcomes. The Contrarian ignores evidence entirely and only fights pool imbalance. The Doomer assumes worst-case. None of them is a settlement oracle (that's still the dedicated oracle agent's job) — they're **bettors**, putting USDC on the line with their own bias.
+### Classic jury — ten temperaments
 
-This also doubles as a Circle stack demonstration. Twelve W3S-managed wallets, twelve real signers, every action a real on-chain transaction.
+| Persona | Archetype | Strategy | Categories |
+|---|---|---|---|
+| 🌞 The Optimist | LLM-biased | Leans affirmative on balanced evidence, +5% on plausible calls. | All |
+| 🌧️ The Pessimist | LLM-biased | Mirror image: failure / regression reads when balanced. | All |
+| 🔁 The Contrarian | Rule (no LLM) | Stakes when the creator holds ≥ 60% of the pot and someone has already challenged. | All |
+| 📊 The Statistician | LLM-biased | Stakes only at ≥ 90% confidence; larger base stake. | All |
+| 🐋 The Whale-Watcher | Rule (no LLM) | Stakes when the largest single stake is a challenger's; sits out a creator whale. | All |
+| ₿ Crypto Maximalist | Specialist | `crypto` / `defi` / `token` only; bullish on adoption. | Crypto |
+| 🏈 Sports Pundit | Specialist | `sports` / `soccer` / `nba` / `nfl` / `tennis` / `f1` only. | Sports |
+| 🌤️ The Weatherman | Specialist | `weather` / `climate` only; numbers over narratives. | Weather |
+| 💀 The Doomer | LLM-biased | Worst case is the base case, +7% on disaster reads. | All |
+| 🗣️ The Yapper | Micro | 60% threshold, broad coverage (program minimum stake). | All |
+
+### Philosopher jury — ten epistemic frames
+
+[`agents/council/philosophers.ts`](../agents/council/philosophers.ts). They
+disagree about *what counts as knowing*, which produces genuinely different
+readings of the same evidence. All are LLM personas; each prompt tells it when
+to abstain.
+
+| Persona | Frame | Min confidence |
+|---|---|---|
+| 🏛️ Socrates | Is the question well-posed at all? Abstains on ambiguity. | 85 |
+| 🎲 Kahneman | Outside view first: base rate, then update. | 78 |
+| 🦢 Taleb | Prices the tail; a quiet record is not proof of stability. | 80 |
+| 🔬 Feynman | Demands a mechanism it can state plainly. | 80 |
+| 🪞 Munger | Inverts; weights sources by their incentives. | 80 |
+| ⚙️ Ada | Reduces the claim to arithmetic, or says it can't be. | 82 |
+| 🕸️ Meadows | Reads the feedback loop behind the number. | 78 |
+| 🎭 Machiavelli | Announcements are moves; weights revealed behaviour. | 76 |
+| 🪨 Aurelius | Rules only on what the named source can settle. | 84 |
+| ☯️ Lao Tzu | Expects reversion from extremes. | 74 |
+
+`COUNCIL_TRACK=classic|philosopher` narrows both the staking worker and the
+settlement jury to one track (twenty personas is a lot of LLM calls on a free
+tier). Unset runs both.
+
+Every bias prompt ends in *"Never invent evidence"* (a unit test enforces it).
+The biases are style, not licence to hallucinate.
 
 ---
 
-## The ten personas
+## Wallets and funding
 
-| # | Persona | Archetype | Strategy | Categories |
-|---|---|---|---|---|
-| 1 | 🌞 The Optimist | LLM-biased | Prepends a "lean positive" prompt; +5% confidence on bullish reads. | All |
-| 2 | 🌧️ The Pessimist | LLM-biased | Mirror image — prefers failure/regression reads when balanced. | All |
-| 3 | 🔁 The Contrarian | Rule-based (no LLM) | Stakes the challenger side when creator pool ≥ 60% of total. Reactive, not analytical. | All |
-| 4 | 📊 The Statistician | LLM-biased | High confidence threshold (≥90%); rare bets, larger stake. Abstains on weak evidence. | All |
-| 5 | 🐋 The Whale-Watcher | Rule-based (no LLM) | Reads `getChallengerList`; stakes challenger if the biggest individual is on that side. | All |
-| 6 | ₿ Crypto Maximalist | Specialist | Only touches `crypto`/`defi`/`token` claims. Bullish on adoption stories. | Crypto |
-| 7 | 🏈 Sports Pundit | Specialist | Only `sports`/`soccer`/`nba`/`nfl`/`tennis`/`f1`. Reads form, head-to-head, injuries. | Sports |
-| 8 | 🌤️ The Weatherman | Specialist | Only `weather`/`climate`. Trusts numbers over narratives. | Weather |
-| 9 | 💀 The Doomer | LLM-biased | "Worst case is the base case." +7% confidence on disaster scenarios. | All |
-| 10 | 🗣️ The Yapper | Micro-stakes | Low threshold (60%), tiny stake (0.5 USDC), maximum coverage. | All |
+Each persona signs with a keypair derived from the admin secret:
+`sha256(adminSecret ‖ "mimir-council:<slug>")` → ed25519 seed
+([`lib/solana/keypair.ts`](../lib/solana/keypair.ts) `derivePersonaKeypair`).
+Stateless — it survives ephemeral container filesystems. A local
+`.keys/council/<slug>.json` wins when present. Adding the philosopher track did
+not change any classic address (same seed per slug).
 
-**Two of the ten — Contrarian and Whale-Watcher — never call the LLM.** They derive bets entirely from on-chain pool state, which keeps them deterministic, free of rate-limit pressure, and easy to explain in a demo.
+Devnet USDC is Circle's faucet mint (no mint authority), so **nothing mints**.
+The classic ten were funded from the V2 → V3 migration
+([`scripts/solana/migrate-v2-funds.ts`](../scripts/solana/migrate-v2-funds.ts),
+classic only). The philosophers start empty:
 
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph circle[Circle W3S]
-        W3S[Programmable Wallets<br/>oracle + creator + 10 personas]
-    end
-
-    subgraph worker[Council worker - Railway]
-        LOOP[Poll loop<br/>every 180s default]
-        CACHE[Per-cycle evidence cache<br/>1 fetch per claim, shared by all personas]
-        TH[LLM throttle<br/>~4.5s between calls]
-    end
-
-    subgraph chain[Arc Testnet]
-        CT[Mimir.sol]
-    end
-
-    subgraph llm[LLM]
-        GEM[Gemini 2.5 Flash<br/>free tier]
-    end
-
-    LOOP -->|read claimCount<br/>per-claim getClaim| CT
-    LOOP --> CACHE
-    LOOP -->|persona-by-persona<br/>serial within cycle| TH
-    TH -->|biased prompt| GEM
-    TH -->|stake decision| W3S
-    W3S -->|challengeClaim| CT
-
-    classDef no-llm stroke-dasharray: 4 4
-    LOOP -.->|"Contrarian + Whale-Watcher<br/>(rule-based, no LLM)"| W3S
+```bash
+npm run system:status   # every wallet: SOL, token account, ER balance, and the USDC shortfall per wallet
+npm run system:fund     # tops up SOL from the admin, sweeps any token-account USDC into the vault + ER
 ```
 
-Three independent runtime tiers, identical in spirit to the existing oracle + market-creator split:
+`system:status` ends with a shortfall list (target 25 USDC per persona) — send
+that much from the faucet or another wallet to each philosopher address, then
+run `system:fund` (or just let the worker's next cycle sweep it). A persona
+with an empty ER balance sits out staking but still sits on the jury (jurors
+don't stake).
 
-1. **Worker tier (Railway)** — single Node process boots all ten personas. They poll sequentially within a cycle to keep LLM-call volume bounded.
-2. **Signer tier (Circle W3S)** — each persona has its own `CIRCLE_COUNCIL_<SLUG>_WALLET_ID`. No local keys. Wallets sit in Circle's custody, authenticated by the same `CIRCLE_API_KEY` + `CIRCLE_ENTITY_SECRET` already used by the oracle.
-3. **Settlement tier (Mimir.sol)** — personas only call `challengeClaim`. Resolution stays exclusively with the oracle wallet (`contract.oracle()`), and market creation stays with the market-creator (`contract.owner()`).
+The worker rebalances every cycle: winnings, refunds and jury bonuses land in
+the token account, so when a persona's ER balance falls under 2 USDC it
+undelegates, deposits the token account into the vault and re-delegates.
+
+---
+
+## Runtime
+
+```
+agents/council/
+  personas.ts          roster, tracks, COUNCIL_TRACK filter (client-safe)
+  philosophers.ts      the philosopher track
+  solana.ts            the worker: funding, cycle, dry run
+  shared/
+    types.ts           CouncilClaim, PersonaDecision
+    evidence-cache.ts  one resolution-URL fetch per claim per cycle
+    persona-rules.ts   Contrarian, Whale-Watcher, exact category match, Kelly sizing (pure)
+    persona-llm.ts     fenced persona prompt, forecast / judge modes, strict parsing
+    peer-reasoning.ts  in-process board of this cycle's takes (opt-in peer reads)
+    persona-runner.ts  decide → size → stake in the ER
+```
+
+Each cycle:
+
+1. Skip entirely when `MIMIR_PAUSE_COUNCIL_WORKER` (the heartbeat wrapper) or
+   `MIMIR_PAUSE_STAKE` is set, or the program is paused on chain.
+2. Rebalance persona funds (above).
+3. Read joinable claims (OPEN / ACTIVE, deadline > 90s away), closest deadline
+   first, at most `COUNCIL_MAX_CLAIMS`.
+4. For every (claim, persona): run the pipeline below. One evidence fetch per
+   claim, shared by all personas; LLM calls are serialised with a
+   `COUNCIL_LLM_THROTTLE_MS` gap and use `COUNCIL_GEMINI_API_KEY` (its own
+   free-tier bucket).
+
+A considered LLM abstention is remembered for `COUNCIL_REEVAL_MS` (default
+30 min) so the council doesn't re-ask the model every minute. An LLM error,
+an unparseable reply or missing evidence is **not** remembered: the next cycle
+asks again. Rule personas are never remembered (the pool keeps moving).
 
 ---
 
 ## Decision pipeline
 
-For every (persona, claim) pair, the runner walks this sequence:
-
 ```
-1. Skip if claim is private, self-created, full, or persona already staked.
-2. Skip if persona has a category filter and the claim is out of scope.
-3. Check the persona's wallet balance — need 2x base stake as buffer.
-4. Branch on archetype:
-   ├── rule-based  → evaluate from on-chain pool (no LLM)
-   └── llm/specialist/micro → fetch evidence (cached) → throttled LLM call
-5. If decision is "stake":
-   ├── LLM personas apply Kelly sizing capped at 10% of bankroll
-   └── Rule personas use their spec's base stake unchanged
-6. Submit challengeClaim through W3S; record refId = council-<slug>-<claimId>.
+1. Skip: own claim, already a challenger, claim full, ER bankroll < 2× base stake.
+2. Specialists: claim category must EQUAL one of their tags (case-insensitive).
+   Substring matching let a persona trade a claim it would then refuse to judge.
+3. Rule personas (Contrarian, Whale-Watcher): decide from the pool, no LLM.
+4. LLM personas: cached evidence → fenced prompt (claim, evidence and any peer
+   reads are <untrusted> blocks) → verdict JSON.
+   - every verdict is logged to /calibration (lib/server/forecasts.ts), staked or not
+   - CREATOR_WINS → abstain (a persona can only join the challengers)
+   - CHALLENGERS_WIN below the persona's minConfidence, DRAW, UNRESOLVABLE → abstain
+   - CHALLENGERS_WIN at/above the threshold → stake
+5. Size the stake (below) and send challenge_claim in the ER.
 ```
 
-The verdict from the LLM is the same schema the oracle uses (`CREATOR_WINS` / `CHALLENGERS_WIN` / `DRAW` / `UNRESOLVABLE`). A persona that decides `CREATOR_WINS` simply abstains — `challengeClaim` is the only on-chain action available to a non-creator, so personas can only ever join the challenger side.
+Peer reads (`COUNCIL_PEER_READS=1`): a persona sees up to
+`COUNCIL_PEER_READS_PER_PERSONA` explanations other personas gave on the same
+claim earlier in the cycle, fenced as untrusted opinions. The source build
+bought these over x402 from `/api/council/reasoning`; here they are free and in
+process. Off by default: it makes forecasts less independent, which blunts the
+calibration scores.
 
 ---
 
-## Rate-limit strategy
+## Stake sizing
 
-Gemini's free tier permits ~15 requests per minute. With ten personas (eight LLM-based) and 12 claims considered per cycle, a naive run would generate ~96 calls in a few seconds and trip 429s. Three guards prevent that:
+[`persona-rules.ts`](../agents/council/shared/persona-rules.ts) `sizeStakeUnits`:
 
-| Guard | Where | Effect |
+- base = max(spec `stakeUsdc`, program minimum 2 USDC)
+- the ER bankroll must hold ≥ 2 × base, or the persona skips the claim
+- LLM personas: Kelly at even odds on the confidence (`lib/kelly.ts`), capped
+  at 15%, then at 10% of the bankroll, never below base, rounded down to cents
+- rule personas stake base
+
+---
+
+## The settlement jury
+
+With `COUNCIL_SETTLEMENT=1` the oracle asks the council for a verdict during
+settlement ([`agents/oracle/council-vote.ts`](../agents/oracle/council-vote.ts)).
+Jurors are every persona with a bias prompt from the active track(s),
+specialists only in their exact category, and **never a persona holding a
+position in that claim**. Each juror answers through the same persona prompt
+in `judge` mode: its character sets the voice of the explanation, never the
+verdict; temperature 0, no anonymous free-router fallback, the oracle's own key
+and throttle. A juror that errors abstains; below `COUNCIL_QUORUM` decisive
+votes the oracle settles solo. Self-resolving mode, cross-entropy scores and
+USDC bonuses are described in [`SOLANA.md`](./SOLANA.md) (oracle decision order) and the jury's header.
+
+---
+
+## Preflight
+
+[`agents/market-creator/council-preflight.ts`](../agents/market-creator/council-preflight.ts)
+lets a few personas vet a **draft** claim before it is published: is it clear,
+verifiable, balanced, and can the source settle it? Each answers
+`open | revise | skip` with a 0–100 score. Defaults to Socrates, Aurelius and
+the Statistician. Advisory only.
+
+- `/arena/create` has an optional **Ask the council** check in the sidebar.
+- `MARKET_CREATOR_PREFLIGHT=1` makes the market-creator vet its own drafts and
+  drop those averaging under `MARKET_CREATOR_PREFLIGHT_MIN_SCORE` (default 60)
+  or where skips outnumber open + revise. An unavailable council keeps the draft.
+
+---
+
+## APIs
+
+All free (the source gated them behind x402 nanopayments) and therefore
+rate-limited; errors never echo upstream or RPC text.
+
+| Route | What | Limits |
 |---|---|---|
-| **Per-cycle evidence cache** | `agents/council/shared/evidence-cache.ts` | Each claim's resolution URL is fetched at most once per cycle, then reused by every persona. |
-| **`MAX_CLAIMS_PER_CYCLE`** | `agents/council/index.ts` | Caps work at the N claims closest to their deadline. Defaults to 12; override with `COUNCIL_MAX_CLAIMS`. |
-| **LLM throttle** | `agents/council/shared/persona-runner.ts` | Serial gap of `COUNCIL_LLM_THROTTLE_MS` (default 4500ms) between LLM calls. Roughly 13 req/min worst case. |
+| `GET /api/council/roster` | Both tracks: slug, name, emoji, bio, archetype, track, categories, derived address, min confidence, base stake. | CDN-cached 5 min |
+| `GET /api/council/reasoning?claimId=&persona=` | One persona's in-character take on a claim. Rule personas return their rule read of the live pool (no LLM). | 30/min/IP; LLM misses 6/min/IP and 60/min per deploy; generations cached 10 min per (claim, persona) in `lib/server/reasoning-cache.ts` |
+| `POST /api/council/preflight` | Draft vetting (body: question, creatorPosition, counterPosition, resolutionUrl, category?, settlementRule?, deadlineHours?, personas?[] up to 5). | 5/min/IP, 30/min per deploy; identical drafts cached 10 min |
+| `GET /api/arena/[id]/council` | Where each persona stands on one claim (on-chain challenger list). | 30/min/IP |
 
-Rule-based personas (`contrarian`, `whale-follow`) and out-of-category specialists never trigger the throttle.
-
----
-
-## Local setup
-
-The council shares the same Circle credentials as the oracle. If you've already followed the main [README](../README.md#local-setup), you only need two extra steps.
-
-```bash
-# 1. Provision the 10 council wallets (idempotent — safe to re-run).
-npm run council:create-wallets
-
-# 2. Fund each address with testnet USDC (5 USDC is plenty for a long demo).
-#    https://faucet.circle.com  → pick "Arc Testnet" → paste each address.
-
-# 3. Run the council worker.
-npm run council
-```
-
-To run the oracle, market-creator, and council together in one shell:
-
-```bash
-npm run workers:solana   # oracle, market-creator, council and indexer in one process
-```
-
----
-
-## Production deploy
-
-`railway.json` already points at `npm run workers`. After Railway picks up the new commit and you add the council env vars below, the worker will start a third process alongside the oracle and market-creator with no further config.
-
-If you want to scale the council down to a smaller roster temporarily, just leave some `CIRCLE_COUNCIL_<SLUG>_WALLET_ID` vars unset — the worker skips any persona missing its wallet env at boot and warns once.
-
----
-
-## Configuration reference
-
-Vars added on top of the base Mimir env. The wallet pairs are generated by `scripts/circle-create-council-wallets.ts` and written into `.env.local` automatically.
-
-| Variable | Purpose |
-|---|---|
-| `CIRCLE_COUNCIL_OPTIMIST_WALLET_ID` / `_ADDRESS` | Wallet for 🌞 Optimist |
-| `CIRCLE_COUNCIL_PESSIMIST_WALLET_ID` / `_ADDRESS` | Wallet for 🌧️ Pessimist |
-| `CIRCLE_COUNCIL_CONTRARIAN_WALLET_ID` / `_ADDRESS` | Wallet for 🔁 Contrarian |
-| `CIRCLE_COUNCIL_STATISTICIAN_WALLET_ID` / `_ADDRESS` | Wallet for 📊 Statistician |
-| `CIRCLE_COUNCIL_WHALE_WATCHER_WALLET_ID` / `_ADDRESS` | Wallet for 🐋 Whale-Watcher |
-| `CIRCLE_COUNCIL_CRYPTO_MAXI_WALLET_ID` / `_ADDRESS` | Wallet for ₿ Crypto Maximalist |
-| `CIRCLE_COUNCIL_SPORTS_PUNDIT_WALLET_ID` / `_ADDRESS` | Wallet for 🏈 Sports Pundit |
-| `CIRCLE_COUNCIL_WEATHERMAN_WALLET_ID` / `_ADDRESS` | Wallet for 🌤️ Weatherman |
-| `CIRCLE_COUNCIL_DOOMER_WALLET_ID` / `_ADDRESS` | Wallet for 💀 Doomer |
-| `CIRCLE_COUNCIL_YAPPER_WALLET_ID` / `_ADDRESS` | Wallet for 🗣️ Yapper |
-| `COUNCIL_POLL_INTERVAL_MS` | Cycle interval in ms (default 180_000 = 3 minutes). |
-| `COUNCIL_MAX_CLAIMS` | Max claims evaluated per cycle (default 12). Lower this if you keep hitting rate limits. |
-| `COUNCIL_LLM_THROTTLE_MS` | Min ms between LLM calls (default 4500). |
-
-LLM credentials (`GEMINI_API_KEY` / `ANTHROPIC_API_KEY`) and the Circle base credentials are inherited from the existing setup.
+**Not ported: `/api/council/vote`.** In the source it existed so the oracle
+could *buy* each juror's verdict over x402. Here the jury runs in process in
+the oracle, with the staked-persona exclusion applied against the live
+challenger list. A free public judge endpoint would have no consumer, carry no
+settlement weight, and let anyone trigger judge-mode LLM calls plus evidence
+fetches. Subscription passes (x402-pass) are out of scope for the same reason.
 
 ---
 
@@ -196,15 +240,49 @@ LLM credentials (`GEMINI_API_KEY` / `ANTHROPIC_API_KEY`) and the Circle base cre
 
 | Page | What it shows |
 |---|---|
-| `/council` | Full roster — persona card per member with bio, archetype badge, balance, total staked, and last four bets. |
-| `/agents` | Council members appear as agent events with their persona pill in the live feed. Filter pills include "Council" and a per-persona dropdown. |
-| `/stats` | "Unique stakers" KPI splits human / council / other. The "First N stakers" wall renders persona badges with the persona's accent color. |
-| `/vs/[id]` | A `Council verdict` card under the settlement explanation: each of the 10 personas with ✓ + stake amount + tx link if they staked, or `— abstain` otherwise. Data comes from `/api/vs/[id]/council`, which is a pure on-chain read (no LLM call on page render). |
-
-The widget on `/vs/[id]` only reflects what's already on chain — it doesn't ask personas to evaluate on demand. That keeps page loads fast and avoids burning Gemini quota on UI hits.
+| `/council` | Both juries: per-persona bankroll (ER + token account), stakes, USDC at risk (unsettled claims, including PROPOSED / DISPUTED), won / lost record, last three bets. Server-rendered per request; the scan is cached 30s ([`lib/server/council-stats.ts`](../lib/server/council-stats.ts)). |
+| `/agents` | Live (5s poll) persona cards grouped by track, the oracle strip and registered third-party agents. |
+| `/arena/[id]` | Council panel, grouped by track: who staked, how much, and won / lost / refunded once resolved. |
+| `/arena/create` | Optional council preflight of the draft. |
+| `/calibration` | Brier scores for every persona that forecast (both tracks) and the oracle. |
 
 ---
 
-## A note on bias
+## Running it
 
-Each persona's prompt explicitly tells the model: *"Never invent evidence. Cite what you actually saw above."* The biases are mood/style modifiers, not licenses to hallucinate. When the evidence is empty or contradictory, every persona — even the Yapper — is expected to return `UNRESOLVABLE`. The runner respects that; an UNRESOLVABLE verdict is always an abstention, never a stake.
+```bash
+npm run council:solana                         # the worker alone
+npm run council:solana -- --dry-run --once     # decide and log one cycle: no funding, stakes or forecast rows
+npm run workers:solana                         # oracle + market-creator + council + indexer in one process
+```
+
+---
+
+## Configuration reference
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SOLANA_KEYPAIR[_JSON]` | — | Admin key: persona keys derive from it; pays persona SOL fees. |
+| `COUNCIL_GEMINI_API_KEY` | `GEMINI_API_KEY` | The council's own LLM key (worker, reasoning, preflight). |
+| `COUNCIL_TRACK` | both | `classic` or `philosopher`: one jury only, for staking and settlement. |
+| `COUNCIL_POLL_INTERVAL_MS` | 60000 | Cycle interval. |
+| `COUNCIL_MAX_CLAIMS` | 12 | Claims per cycle, closest deadline first. |
+| `COUNCIL_LLM_THROTTLE_MS` | 4500 | Serial gap between LLM calls. |
+| `COUNCIL_REEVAL_MS` | 1800000 | How long a considered LLM abstention stands. |
+| `COUNCIL_PERSONA_LIMIT` | all | First N active personas only. |
+| `COUNCIL_PEER_READS` / `_PER_PERSONA` | off / 2 | In-process peer reads. |
+| `COUNCIL_DRY_RUN` | off | Same as `--dry-run`. |
+| `MIMIR_PAUSE_COUNCIL_WORKER`, `MIMIR_PAUSE_STAKE` | off | Skip whole cycles / just the staking sweep. |
+| `COUNCIL_SETTLEMENT`, `COUNCIL_SELF_RESOLVING`, `COUNCIL_QUORUM`, `COUNCIL_ALPHA`, `COUNCIL_BONUS_USDC` | — | Settlement jury (oracle). |
+| `MARKET_CREATOR_PREFLIGHT`, `_MIN_SCORE`, `_PERSONAS` | off, 60, socrates,aurelius,statistician | Market-creator draft vetting. |
+
+---
+
+## What changed from the EVM build
+
+The source (Arc / Base / Arbitrum) council signed through Circle W3S wallets,
+one per persona per chain, bought peer reads and settlement votes over x402,
+and ran one cycle per chain. On Solana: derived keypairs, ER stakes, one chain,
+in-process peer reads and jury, free rate-limited APIs. The decision rules,
+the exact category match, the fenced prompts, Kelly sizing and the philosopher
+track are ported as-is.

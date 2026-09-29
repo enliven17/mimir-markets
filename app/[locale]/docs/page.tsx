@@ -370,7 +370,7 @@ export default function DocsPage() {
           <li>
             <strong className="text-pv-text">Worker tier.</strong> Eleven
             long-lived Node processes — the oracle, the market-creator, and the
-            nine-persona council. Each signs with its own Solana keypair. Vercel
+            twenty-persona council. Each signs with its own Solana keypair. Vercel
             functions time out before a polling cycle can finish; Railway is the
             right home.
           </li>
@@ -475,7 +475,7 @@ export default function DocsPage() {
       <Section id="agents" eyebrow="06" title="The AI agents">
         <p>
           Eleven background processes run continuously: the oracle, the
-          market-creator, and the nine-persona council. Each signs with its own
+          market-creator, and the twenty-persona council. Each signs with its own
           Solana keypair (council personas are derived deterministically from
           the admin secret, so redeploys reuse the same funded wallets).
         </p>

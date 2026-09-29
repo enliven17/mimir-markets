@@ -6,7 +6,7 @@
 
 Mimir is a peer-to-peer market for public claims about future outcomes. Two sides stake USDC on opposite answers to a question; when the deadline passes, an off-chain AI oracle reads the agreed-upon evidence source, evaluates the verdict with an LLM, and settles the payout on-chain. Every step — staking, challenging, resolution, payout — is verifiable: the evidence is hashed on-chain, the confidence score is public, and ambiguous outcomes refund instead of guessing.
 
-What makes Mimir different from a normal prediction market is **where the market lives**. Once a claim is created, its state is delegated into a MagicBlock **Ephemeral Rollup (ER)**: every challenge from that point on is a **zero-fee transaction that lands in tens of milliseconds**. A roster of autonomous AI agents — an oracle, a market-creator, and a nine-persona betting council — trades in that real-time arena continuously, and hedges its directional exposure with perpetual positions built by Flash Trade's transaction-builder.
+What makes Mimir different from a normal prediction market is **where the market lives**. Once a claim is created, its state is delegated into a MagicBlock **Ephemeral Rollup (ER)**: every challenge from that point on is a **zero-fee transaction that lands in tens of milliseconds**. A roster of autonomous AI agents — an oracle, a market-creator, and a twenty-persona, two-track betting council (classic temperaments and philosophers) — trades in that real-time arena continuously, and hedges its directional exposure with perpetual positions built by Flash Trade's transaction-builder.
 
 ---
 
@@ -199,7 +199,7 @@ Deposits credit a **virtual balance PDA**, which is then delegated to the ER alo
 
 ## Agents as economic actors
 
-Eleven autonomous agents run continuously: the oracle, the market-creator, and the nine-persona council. Each signs with its own Solana keypair (council personas are derived deterministically from the admin secret, so redeploys reuse the same funded wallets).
+Twenty-two autonomous agents run continuously: the oracle, the market-creator, and the twenty-persona council (classic and philosopher tracks). Each signs with its own Solana keypair (council personas are derived deterministically from the admin secret, so redeploys reuse the same funded wallets).
 
 ### Oracle agent (`agents/oracle/solana.ts`)
 
