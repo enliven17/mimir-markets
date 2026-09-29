@@ -419,7 +419,9 @@ async function fetchEspnSnapshot(
   let response: Response;
   try {
     response = await fetch(url.toString(), {
-      headers: { Accept: "application/json", "User-Agent": "Mimir-Bot/1.0 (+https://mimir.app)" },
+      // ESPN answers 403 to a "*-Bot" user agent, which silently sent every
+      // sports claim down the generic Jina path.
+      headers: { Accept: "application/json", "User-Agent": "Mimir-Oracle/1.0" },
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
