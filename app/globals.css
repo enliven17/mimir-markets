@@ -1,364 +1,918 @@
-@import "@fontsource/maple-mono/400.css";
-@import "@fontsource/maple-mono/500.css";
-@import "@fontsource/maple-mono/600.css";
-@import "@fontsource/maple-mono/700.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Purple blueprint tokens (RGB triplets consumed by tailwind `pv-*`).
-   The blueprint look: a deep violet "drafting sheet" ruled with thin ink
-   lines (`pv-border` at /25), sharp corners, framed sections. `pv-border` is
-   the INK colour — white on dark, deep violet on light — so every hairline
-   (`border-pv-border/25`, `bg-pv-border/[0.04]`) works in both themes.
-   Accent = Solana purple (#9945FF family); `gold` = Solana green (#14F195),
-   used sparingly for money/payout figures. All text pairs meet WCAG AA
-   (>= 4.5:1) against bg/surface/surface2 — see docs/DESIGN.md.
-   :root = light, .dark = dark (default; set before paint in app/layout.tsx).
+   Mimir tokens, taken from radio (Patio Tokyo). Dark only. See docs/DESIGN.md
+   and docs/REDESIGN.md section 1.
+
+   Hex tokens are for plain CSS; the `*-rgb` triplets feed Tailwind colours so
+   `/alpha` modifiers work (`bg-cream/10`). The `--pv-*` names are aliases of
+   the old purple blueprint: they now point at the radio values so pages that
+   still use `pv-*` / `bp-*` classes keep rendering until phase P6.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
-  --pv-bg:       248 245 255;  /* #F8F5FF — lavender drafting paper */
-  --pv-surface:  241 235 255;  /* #F1EBFF */
-  --pv-surface2: 231 221 255;  /* #E7DDFF */
-  --pv-border:   42 20 102;    /* #2A1466 — violet ink (use at /25) */
-  --pv-text:     21 10 48;     /* #150A30 */
-  --pv-muted:    90 74 130;    /* #5A4A82 */
-  --pv-accent:   123 47 232;   /* #7B2FE8 — Solana purple, darkened for AA */
-  --pv-accent2:  153 69 255;   /* #9945FF — Solana purple (fills/glows) */
-  --pv-gold:     3 107 75;     /* #036B4B — Solana green, darkened for AA */
-  --pv-danger:   180 26 26;    /* #B41A1A */
-  --pv-rule:     197 189 217;  /* #C5BDD9 — opaque ink/25 over bg */
-  color-scheme: light;
-}
-
-.dark {
-  --pv-bg:       14 7 36;      /* #0E0724 — deep violet night */
-  --pv-surface:  20 11 48;     /* #140B30 */
-  --pv-surface2: 27 16 62;     /* #1B103E */
-  --pv-border:   255 255 255;  /* white ink (use at /25) */
-  --pv-text:     255 255 255;  /* #FFFFFF */
-  --pv-muted:    180 165 218;  /* #B4A5DA */
-  --pv-accent:   180 125 255;  /* #B47DFF — purple, lifted for AA on dark */
-  --pv-accent2:  153 69 255;   /* #9945FF — Solana purple */
-  --pv-gold:     20 241 149;   /* #14F195 — Solana green */
-  --pv-danger:   255 107 114;  /* #FF6B72 */
-  --pv-rule:     74 69 91;     /* #4A455B — opaque ink/25 over bg */
   color-scheme: dark;
+
+  --ink: #110f0e;
+  --ink-deep: #0a0808;
+  --panel: #1c1817;
+  --panel-2: #272120;
+  --panel-raised: #211718;
+  --maroon: #4a2322;
+  --cream: #f3ead6;
+  --text-app: #f7f1ef;
+  --muted: #a89d93;
+  --dim: #7a706a;
+  --red: #ff2b2b;
+  --coral: #ff5148;
+  --coral-hi: #ff746c;
+  --deep: #8f0e17;
+  --danger: #ff938c;
+  --win: #9fd6a8;
+  --pending: #ffb3ad;
+  --pending-bg: rgba(255, 43, 43, 0.14);
+  --line: rgba(243, 234, 214, 0.12);
+  --line-strong: rgba(243, 234, 214, 0.3);
+  --dash: 1px dashed rgb(235 220 216 / 0.28);
+
+  --glass: rgb(14 7 9 / 0.66);
+  --glass-card: rgba(36, 24, 25, 0.62);
+  --glass-deep: rgb(14 7 9 / 0.72);
+
+  --ink-rgb: 17 15 14;
+  --ink-deep-rgb: 10 8 8;
+  --panel-rgb: 28 24 23;
+  --panel-2-rgb: 39 33 32;
+  --panel-raised-rgb: 33 23 24;
+  --maroon-rgb: 74 35 34;
+  --cream-rgb: 243 234 214;
+  --muted-rgb: 168 157 147;
+  --dim-rgb: 122 112 106;
+  --red-rgb: 255 43 43;
+  --coral-rgb: 255 81 72;
+  --coral-hi-rgb: 255 116 108;
+  --deep-rgb: 143 14 23;
+  --danger-rgb: 255 147 140;
+  --win-rgb: 159 214 168;
+  --pending-rgb: 255 179 173;
+
+  /* Legacy aliases (removed in P6). */
+  --pv-bg: var(--ink-rgb);
+  --pv-surface: var(--panel-rgb);
+  --pv-surface2: var(--panel-2-rgb);
+  --pv-border: var(--cream-rgb); /* use at /opacity for hairlines */
+  --pv-text: var(--cream-rgb);
+  --pv-muted: var(--muted-rgb);
+  --pv-accent: var(--coral-rgb);
+  --pv-accent2: var(--red-rgb);
+  --pv-gold: var(--cream-rgb);
+  --pv-danger: var(--danger-rgb);
+  --pv-rule: 74 70 64; /* opaque cream/25 over ink */
+
+  --pixel: var(--font-geist-pixel-square), var(--font-geist-mono), ui-monospace, monospace;
+  --grotesk: var(--font-terminal-grotesque), "Arial Narrow", Arial, sans-serif;
+  --mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --gut: clamp(16px, 4vw, 40px);
+  --wrap: 1180px;
+  --wrap-narrow: 920px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-overshoot: cubic-bezier(0.22, 1.25, 0.36, 1);
+
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
 @layer base {
-  /**
-   * Evita scroll horizontal en mobile (elementos 100vw, márgenes negativos, etc.).
-   * Aplicar en html + body es el patrón habitual; el contenido sigue scrolleando en Y.
-   */
   html {
     @apply antialiased overflow-x-hidden;
+    background: var(--ink);
   }
 
   body {
-    @apply bg-pv-bg text-pv-text font-body overflow-x-hidden;
-    min-height: 100vh;
     position: relative;
+    isolation: isolate;
+    min-height: 100vh;
     width: 100%;
     max-width: 100%;
+    overflow-x: hidden;
+    background: transparent;
+    color: var(--cream);
+    font-family: var(--pixel);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
   }
 
-  /* Grain texture overlay */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    pointer-events: none;
-    opacity: 0.025;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    background-repeat: repeat;
-    background-size: 256px 256px;
+  /* Headings are never bold in radio; Terminal Grotesque ships 400 only. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
 
-  /* Vignette effect */
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    pointer-events: none;
-    background: radial-gradient(
-      ellipse at 50% 50%,
-      transparent 60%,
-      rgb(var(--pv-accent2) / 0.12) 100%
-    );
+  a {
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 3px;
+    border-radius: 4px;
   }
 
   ::selection {
-    background: rgb(var(--pv-accent) / 0.35);
-    color: rgb(var(--pv-text));
+    background: var(--red);
+    color: var(--cream);
   }
 
-  /**
-   * Puntero tipo “mano” en botones nativos. El preflight de Tailwind no lo aplica por defecto,
-   * y sin esto el cursor suele quedar en flecha aunque el elemento sea clicable.
-   */
   button:enabled {
     cursor: pointer;
   }
   button:disabled {
     cursor: not-allowed;
   }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* ── Backdrop: 4px dot screen over a dark vertical gradient (radio .wall).
+   Mimir has no photo of its own yet, so a faint coral bloom stands in. ── */
+.wall {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.55) 1px, transparent 1.4px) 0 0 / 4px 4px,
+    linear-gradient(180deg, rgba(17, 15, 14, 0.8), rgba(17, 15, 14, 0.9) 60%, rgba(17, 15, 14, 0.97)),
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(143, 14, 23, 0.35), transparent 70%),
+    var(--ink);
+  filter: saturate(0.8);
+}
+
+/* ── Lenis (pandock/web/src/index.css:26-27) ── */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+/* ── Numbers. Geist Pixel has no tabular figures: box each digit. ── */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.tn {
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
+}
+
+/* SplitText line masks: room for ascenders/descenders, cancelled out of the layout. */
+.split-line-mask {
+  padding: 0.1em 0.04em 0.16em;
+  margin: -0.1em -0.04em -0.16em;
+}
+
+.magnetic {
+  display: inline-block;
+}
+
+/* Dither reveal: hidden before the hook takes over, only with JS and motion.
+   `motion-timeout` (set by the inline head script after 3s) is a failsafe. */
+@media (prefers-reduced-motion: no-preference) {
+  html.js:not(.motion-timeout) [data-dither]:not([data-dither-ready]) {
+    opacity: 0;
+  }
+}
+[data-dither] {
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+/* ── Route enter (radio route-panel-enter) ── */
+@keyframes route-panel-enter {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+.route-enter {
+  animation: route-panel-enter 400ms var(--ease-spring) both;
+}
+
+/* Card enter, staggered by --i (radio live-card-in). */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.card-in {
+  animation: card-in 520ms var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* Small enter used by popovers/menus/list swaps that framer-motion used to do. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 160ms var(--ease-out) both;
+}
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-rise {
+  animation: fade-rise 280ms var(--ease-out) both;
+}
+
+/* Collapsible height without JS measuring (grid 0fr → 1fr). */
+.collapse-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 340ms var(--ease-out), opacity 220ms ease;
+}
+.collapse-grid > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.collapse-grid[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Value flash on change (radio .stat dd.flash): red, eases back over 700ms. */
+.flashable {
+  transition: color 700ms var(--ease-out);
+}
+.flashable.is-flash {
+  color: var(--red);
+  transition: none;
+}
+
+@keyframes live-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+@keyframes px-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes wordmark-heat {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 @layer components {
-  /* ── Buttons ── */
-  .btn-primary {
-    @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-pv-emerald text-pv-bg
-           transition-[transform,box-shadow,filter] duration-200 ease-out
-           hover:-translate-y-px hover:brightness-[1.06]
-           hover:shadow-[0_6px_20px_-4px_rgba(153,69,255,0.32)]
-           active:translate-y-0 active:scale-[0.98] active:shadow-none
-           disabled:opacity-40 disabled:cursor-not-allowed;
+  /* ── Surfaces ── */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(5px) saturate(1.08);
+    backdrop-filter: blur(5px) saturate(1.08);
+  }
+  .glass-card {
+    background: var(--glass-card);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1);
+    backdrop-filter: blur(8px) saturate(1.1);
+  }
+  .glass-deep {
+    background: var(--glass-deep);
+    -webkit-backdrop-filter: blur(7px) saturate(108%);
+    backdrop-filter: blur(7px) saturate(108%);
+  }
+  .grain {
+    position: relative;
+    isolation: isolate;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--grain) 0 0 / 200px 200px;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* ── Buttons (radio .btn / .primary-action / .secondary-action) ── */
+  .btn-primary,
+  .btn-emerald {
+    @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg
+           disabled:cursor-not-allowed disabled:opacity-40;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: #160909;
+    background: linear-gradient(100deg, #e73f39, #ff5148 48%, #ff746c);
+    box-shadow: 0 10px 30px -12px rgba(255, 81, 72, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    transition: transform 160ms var(--ease-out), background 280ms ease;
+  }
+  .btn-primary::after,
+  .btn-emerald::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--grain) 0 0 / 200px 200px;
+    opacity: 0.16;
+    mix-blend-mode: overlay;
+    pointer-events: none;
   }
 
   .btn-ghost {
-    @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-transparent text-pv-muted border border-pv-border/[0.15]
-           transition-[transform,box-shadow,border-color,color,background-color] duration-200 ease-out
-           hover:-translate-y-px hover:border-pv-border/[0.28] hover:text-pv-text
-           hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)]
-           active:translate-y-0 active:scale-[0.98]
+    @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg text-cream
            disabled:cursor-not-allowed disabled:opacity-40;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(5px) saturate(1.08);
+    backdrop-filter: blur(5px) saturate(1.08);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px rgb(0 0 0 / 0.22);
+    transition: transform 160ms var(--ease-out), background 200ms ease;
   }
 
-  .btn-cyan {
-    @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-transparent text-pv-cyan border border-pv-cyan/[0.3]
-           transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out
-           hover:-translate-y-px hover:bg-pv-cyan hover:text-pv-bg hover:border-pv-cyan
-           hover:shadow-[0_6px_20px_-4px_rgba(153,69,255,0.22)]
-           active:translate-y-0 active:scale-[0.98]
-           disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-
+  .btn-cyan,
   .btn-fuch {
-    @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-transparent text-pv-fuch border border-pv-fuch/[0.3]
-           transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out
-           hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:border-pv-fuch
-           hover:shadow-[0_6px_20px_-4px_rgba(153,69,255,0.2)]
-           active:translate-y-0 active:scale-[0.98]
-           disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-
-  .btn-emerald {
-    @apply w-full py-4 px-6 rounded font-display font-bold text-base
-           bg-pv-emerald text-pv-bg
-           transition-[transform,box-shadow,filter] duration-200 ease-out
-           hover:-translate-y-px hover:brightness-[1.06]
-           hover:shadow-[0_6px_20px_-4px_rgba(153,69,255,0.32)]
-           active:translate-y-0 active:scale-[0.98] active:shadow-none
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg text-cream
+           disabled:cursor-not-allowed disabled:opacity-40;
+    background: var(--panel-raised);
+    border: 1px solid var(--line);
+    transition: transform 160ms var(--ease-out), border-color 200ms ease, color 200ms ease;
   }
 
   .btn-danger {
-    @apply w-full py-4 px-6 rounded font-bold text-base
-           bg-pv-danger/[0.06] text-pv-danger border border-pv-danger/[0.2]
-           transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out
-           hover:-translate-y-px hover:bg-pv-danger/[0.12]
-           hover:shadow-[0_4px_16px_-4px_rgba(239,68,68,0.2)]
-           active:translate-y-0 active:scale-[0.98]
+    @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg
            disabled:cursor-not-allowed disabled:opacity-40;
+    background: var(--danger);
+    color: #170504;
+    transition: transform 160ms var(--ease-out), filter 200ms ease;
   }
 
-  /* Navbar / compact emerald actions (not full-width) */
   .btn-compact-primary {
-    @apply rounded font-bold text-pv-bg bg-pv-emerald
-           transition-[transform,box-shadow,filter] duration-200 ease-out
-           hover:-translate-y-px hover:brightness-[1.06]
-           hover:shadow-[0_4px_14px_-4px_rgba(153,69,255,0.3)]
-           active:translate-y-0 active:scale-[0.98] active:shadow-none
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-50;
+    background: var(--coral);
+    color: #160909;
+    transition: transform 160ms var(--ease-out), background 200ms ease;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .btn-primary,
-    .btn-ghost,
-    .btn-cyan,
-    .btn-fuch,
-    .btn-emerald,
-    .btn-danger,
-    .btn-compact-primary {
-      @apply hover:translate-y-0 hover:shadow-none;
-      transition-duration: 0.01ms;
+  .btn-light {
+    @apply inline-flex items-center justify-center gap-2.5 rounded-full px-6 font-display text-xl
+           disabled:cursor-not-allowed disabled:opacity-40;
+    min-height: 48px;
+    background: var(--cream);
+    color: var(--ink);
+    transition: transform 160ms var(--ease-out), background 240ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .btn-primary:hover:not(:disabled),
+    .btn-emerald:hover:not(:disabled) {
+      background: linear-gradient(100deg, #ef4640, #ff5b52 48%, #ff8078);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      background: rgba(34, 20, 22, 0.78);
+    }
+    .btn-cyan:hover:not(:disabled),
+    .btn-fuch:hover:not(:disabled) {
+      border-color: var(--coral);
+    }
+    .btn-danger:hover:not(:disabled) {
+      filter: brightness(1.06);
+    }
+    .btn-compact-primary:hover:not(:disabled) {
+      background: #ff665e;
+    }
+    .btn-light:hover:not(:disabled) {
+      background: #fff6e4;
     }
   }
 
-  /* ── Card ── */
+  .btn-primary:active:not(:disabled),
+  .btn-emerald:active:not(:disabled),
+  .btn-ghost:active:not(:disabled),
+  .btn-cyan:active:not(:disabled),
+  .btn-fuch:active:not(:disabled),
+  .btn-danger:active:not(:disabled),
+  .btn-compact-primary:active:not(:disabled),
+  .btn-light:active:not(:disabled),
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* ── Cards ── */
   .card {
-    @apply bg-pv-surface border border-pv-border/25 overflow-hidden relative
-           transition-all duration-200;
+    @apply relative overflow-hidden rounded-2xl;
+    background: var(--glass-card);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1);
+    backdrop-filter: blur(8px) saturate(1.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+    transition: transform 280ms var(--ease-overshoot), box-shadow 280ms ease, background 200ms ease;
   }
-
   .card-hover {
-    @apply hover:border-pv-border/45 hover:bg-pv-surface/80;
+    @apply cursor-pointer;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .card-hover:hover {
+      background: rgba(44, 30, 31, 0.7);
+    }
   }
 
-  /* ── Blueprint frame system (see docs/DESIGN.md) ──
-     .bp-frame  framed surface: ink hairline, page bg, sharp corners
-     .bp-rails  left/right column rails only
-     .bp-grid   cells separated by 1px ink rules (gap-px on an ink bg);
-                children should be .bp-cell so they paint the page bg
-     .bp-label  mono eyebrow label above figures / blocks
-     .bp-paper  faint graph-paper ruling for hero / CTA surfaces */
+  /* ── Blueprint frame system (legacy, removed in P6). Re-tinted to cream
+     hairlines; frames now carry a soft radius. ── */
   .bp-frame {
-    @apply border border-pv-border/25 bg-pv-bg;
+    @apply border border-pv-border/[0.12] bg-transparent;
   }
   .bp-rails {
-    @apply border-x border-pv-border/25;
+    @apply border-x border-pv-border/[0.12];
   }
   .bp-grid {
-    @apply grid gap-px bg-pv-border/25;
+    @apply grid gap-px bg-pv-border/[0.12];
   }
-  /* Card grids with a ragged last row: each cell draws a 1px ring in the
-     opaque rule colour into the 1px gaps; the container clips the outer
-     ring (rails + a border-b supply the frame) and a partial last row just
-     shows the page bg instead of an ink block. */
   .bp-cells {
     @apply grid gap-px overflow-hidden;
   }
   .bp-cells > * {
-    box-shadow: 0 0 0 1px rgb(var(--pv-rule));
+    box-shadow: 0 0 0 1px var(--line);
   }
   .bp-cell {
     @apply bg-pv-bg;
   }
   .bp-label {
-    @apply font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-pv-muted;
+    @apply font-pixel text-[11px] uppercase tracking-[0.06em] text-dim;
   }
-  /* Inside PageFrame the frame already draws the rails — drop the inner
-     rails of headings/sections so the column line stays single. */
   .bp-page [data-bp-rails] {
     border-left-width: 0;
     border-right-width: 0;
   }
   .bp-paper {
-    background-image:
-      linear-gradient(rgb(var(--pv-border) / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(var(--pv-border) / 0.05) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-image: none;
   }
 
-  /* ── Form elements ── */
+  /* ── Form elements (pill / well language) ── */
   .input {
-    @apply w-full px-4 py-3.5 rounded bg-pv-surface2 border border-pv-border/[0.1]
-           text-pv-text placeholder:text-pv-muted font-body text-[15px]
-           focus:border-pv-emerald/60 focus:border
-           transition-colors duration-150 outline-none;
+    @apply w-full rounded-full px-5 py-3.5 font-body text-[15px] text-cream placeholder:text-dim outline-none;
+    background: var(--panel-2);
+    border: 0;
+    box-shadow: inset 0 1px 5px rgb(0 0 0 / 0.42);
+    transition: box-shadow 200ms ease;
+  }
+  textarea.input {
+    @apply rounded-lg;
+  }
+  .input:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 2px;
   }
 
-  /**
-   * Select nativo: flecha gris (pv-muted), centrada en altura; evita el chevron del SO en blanco / descolocado.
-   * Usar junto a `.form-field-pv` o preferir `.select-field-pv` en /vs/create.
-   */
   .select-pv {
     @apply cursor-pointer appearance-none bg-no-repeat pr-10;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'%3E%3Cpath stroke='%239391A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'%3E%3Cpath stroke='%23a89d93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 0.875rem center;
     background-size: 1rem 1rem;
   }
 
-  /**
-   * Selects de Market type / Odds mode: mismo sistema que `.form-field-pv` + chevron + altura táctil y hover suave.
-   */
   .select-field-pv {
-    @apply w-full min-h-[3.25rem] cursor-pointer appearance-none rounded-xl border border-pv-border/[0.12]
-           bg-pv-bg/90 bg-no-repeat px-4 py-3 pr-11 font-body text-sm font-medium tracking-tight
-           text-pv-text antialiased outline-none transition-[border-color,box-shadow,background-color]
-           duration-200 hover:border-pv-border/[0.22] hover:bg-pv-surface/[0.4]
-           focus-visible:border-pv-emerald/50 focus-visible:ring-1 focus-visible:ring-pv-emerald/25
-           focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath stroke='%23A8A4B8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-position: right 0.75rem center;
+    @apply w-full min-h-[3.25rem] cursor-pointer appearance-none rounded-full bg-no-repeat px-5 py-3 pr-11 font-body text-sm
+           text-cream outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: var(--panel-2);
+    box-shadow: inset 0 1px 5px rgb(0 0 0 / 0.42);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath stroke='%23ff5148' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.9rem center;
     background-size: 1.125rem 1.125rem;
   }
 
-  /**
-   * Campos de texto/select/textarea alineados con la URL de verificación en /vs/create:
-   * `rounded-xl`, borde blanco suave, foco con anillo fino (sin duplicar borde verde grueso de `.input`).
-   */
   .form-field-pv {
-    @apply w-full rounded-xl border border-pv-border/[0.12] bg-pv-bg/90 px-4 py-3.5
-           font-body text-sm text-pv-text
-           placeholder:text-pv-muted/50
-           outline-none transition-[border-color,box-shadow]
-           focus-visible:border-pv-emerald/50 focus-visible:ring-1 focus-visible:ring-pv-emerald/25
-           focus-visible:outline-none;
+    @apply w-full rounded-full px-5 py-3.5 font-body text-sm text-cream placeholder:text-dim outline-none;
+    background: var(--panel-2);
+    box-shadow: inset 0 1px 5px rgb(0 0 0 / 0.42);
+  }
+  textarea.form-field-pv {
+    @apply rounded-lg;
   }
 
   .label {
-    @apply block text-[11px] font-bold uppercase tracking-[0.12em] text-pv-muted mb-2;
+    @apply mb-2 block text-[12px] uppercase tracking-[0.06em] text-muted;
   }
 
   .chip {
-    @apply px-3.5 py-1.5 rounded border border-pv-border/[0.15] bg-transparent
-           text-sm font-semibold cursor-pointer transition-all duration-150;
+    @apply inline-flex min-h-[30px] cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors duration-200;
+    background: var(--glass);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px rgb(0 0 0 / 0.22);
   }
 
-  /* ── Ambient rivalry glow (VS detail) — soft blush, light theme ── */
-  .rivalry-bg {
-    background:
-      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.18) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(153,69,255,0.22) 0%, transparent 70%);
-  }
-
+  /* ── Legacy ambient glows, recoloured to maroon/coral ── */
+  .rivalry-bg,
   .rivalry-card-ambient {
     background:
-      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(153,69,255,0.16) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(153,69,255,0.18) 0%, transparent 70%);
+      radial-gradient(ellipse 60% 40% at 0% 30%, rgba(255, 81, 72, 0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 100% 70%, rgba(143, 14, 23, 0.16) 0%, transparent 70%);
   }
-
-  /* ── Glow utilities (re-tinted to the blush palette) ── */
   .glow-cyan {
-    background: radial-gradient(
-      ellipse at 0% 50%,
-      rgba(153, 69, 255, 0.22),
-      transparent 65%
-    );
+    background: radial-gradient(ellipse at 0% 50%, rgba(255, 81, 72, 0.12), transparent 65%);
   }
-
   .glow-fuch {
-    background: radial-gradient(
-      ellipse at 100% 50%,
-      rgba(153, 69, 255, 0.22),
-      transparent 65%
-    );
+    background: radial-gradient(ellipse at 100% 50%, rgba(255, 43, 43, 0.12), transparent 65%);
   }
-
   .glow-emerald {
-    background: radial-gradient(
-      ellipse at 50% 50%,
-      rgba(153, 69, 255, 0.18),
-      transparent 65%
-    );
+    background: radial-gradient(ellipse at 50% 50%, rgba(255, 81, 72, 0.1), transparent 65%);
   }
-
   .glow-gold {
-    background: radial-gradient(
-      ellipse at 50% 50%,
-      rgba(20, 241, 149, 0.14),
-      transparent 65%
-    );
+    background: radial-gradient(ellipse at 50% 50%, rgba(243, 234, 214, 0.06), transparent 65%);
   }
 
-  /* ── Focus ring for accessibility ── */
   .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/40
-           focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral;
+  }
+
+  /* ── Radio primitives that need pseudo-elements ── */
+  .eyebrow {
+    @apply inline-flex items-center gap-2.5 text-eyebrow text-red;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    background: var(--red);
+    flex: none;
+  }
+
+  .live-dot {
+    position: relative;
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--red);
+    opacity: 0.5;
+    animation: live-ring 2.2s var(--ease-out) infinite;
+  }
+  .px-dot {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    background: var(--red);
+    animation: px-blink 1.2s steps(1, end) infinite;
+  }
+
+  .segmented {
+    position: relative;
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(243, 234, 214, 0.06);
+    box-shadow: inset 0 1px 5px rgb(0 0 0 / 0.42);
+  }
+  .segmented::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / var(--n, 2));
+    border-radius: 999px;
+    background: var(--cream);
+    transform: translateX(calc(var(--i, 0) * 100%));
+    transition: transform 320ms var(--ease-in-out);
+  }
+  .segmented[data-tone="maroon"]::before {
+    background: linear-gradient(145deg, rgb(91 54 55 / 0.92), rgb(54 34 35 / 0.9));
+    box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.08), 0 4px 14px rgb(0 0 0 / 0.2);
+  }
+  .segmented > button {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 14px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 14px;
+    white-space: nowrap;
+    transition: color 200ms ease;
+  }
+  .segmented > button:hover {
+    color: #eee5e2;
+  }
+  .segmented > button[aria-selected="true"],
+  .segmented > button[aria-pressed="true"] {
+    color: var(--ink);
+  }
+  .segmented[data-tone="maroon"] > button[aria-selected="true"],
+  .segmented[data-tone="maroon"] > button[aria-pressed="true"] {
+    color: var(--cream);
+  }
+
+  .disclosure {
+    @apply rounded-lg;
+    padding: 13px 15px;
+    background: var(--glass-deep);
+    -webkit-backdrop-filter: blur(18px) saturate(115%);
+    backdrop-filter: blur(18px) saturate(115%);
+  }
+  .disclosure > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #d9ccca;
+    cursor: pointer;
+    font-size: 12px;
+    list-style: none;
+  }
+  .disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+  .disclosure > summary .disclosure-chevron {
+    color: var(--coral);
+    transition: transform 260ms var(--ease-spring);
+  }
+  .disclosure[open] > summary .disclosure-chevron {
+    transform: rotate(180deg);
+  }
+  .disclosure-body {
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid rgb(255 255 255 / 0.07);
+  }
+
+  .kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    margin: 0;
+    border-radius: 14px;
+    background: rgba(243, 234, 214, 0.035);
+  }
+  .kv > dt,
+  .kv > dd {
+    margin: 0;
+    padding: 10px 14px;
+  }
+  .kv > dt {
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .kv > dd {
+    font-family: var(--mono);
+    font-size: 13px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .strip {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    border-block: 1px solid var(--line);
+    background: rgba(17, 15, 14, 0.6);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .strip-cell {
+    display: grid;
+    gap: 4px;
+    padding: 16px 18px;
+    border-left: 1px solid var(--line);
+    min-width: 0;
+  }
+  .strip-cell:first-child {
+    border-left: 0;
+  }
+  .strip-cell > dt {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .strip-cell > dd {
+    margin: 0;
+    font-size: 18px;
+  }
+  @media (max-width: 620px) {
+    .strip-cell {
+      padding: 12px 10px;
+    }
+    .strip-cell > dd {
+      font-size: 15px;
+    }
+  }
+
+  .progress-steps {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 6px;
+  }
+  .progress-steps > span {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--dim);
+    transition: color 240ms ease;
+  }
+  .progress-steps > span::before {
+    content: "";
+    height: 3px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    transition: background-color 240ms ease;
+  }
+  .progress-steps > span[data-done="true"] {
+    color: var(--muted);
+  }
+  .progress-steps > span[data-done="true"]::before {
+    background: var(--coral);
+  }
+
+  .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 16px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--coral) 0 var(--fill, 0%), var(--panel-2) var(--fill, 0%) 100%);
+  }
+  .slider::-moz-range-track {
+    height: 4px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--coral) 0 var(--fill, 0%), var(--panel-2) var(--fill, 0%) 100%);
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--cream);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+  .slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--cream);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+
+  .rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: min(380px, 84vw);
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+  .rail > * {
+    scroll-snap-align: start;
+  }
+
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18em;
+    font-family: var(--grotesk);
+    font-size: 25px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .wordmark-fill {
+    background: linear-gradient(180deg, #8f0e17 0%, #e93b37 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .wordmark-heat {
+    background: linear-gradient(100deg, #a90f19, #ff5148 38%, #fff4f0 68%, #bd1620);
+    background-size: 240% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: wordmark-heat 8s ease-in-out -3s infinite alternate;
+  }
+
+  .marquee {
+    overflow: hidden;
+  }
+  .marquee-track {
+    display: flex;
+    width: max-content;
+  }
+  .marquee-track > * {
+    flex: none;
   }
 }
 
-/* ── Staggered animation delays ── */
+/* ── Staggered animation delays (legacy) ── */
 .delay-1 { animation-delay: 0.07s; }
 .delay-2 { animation-delay: 0.14s; }
 .delay-3 { animation-delay: 0.21s; }
@@ -367,21 +921,61 @@
 .delay-6 { animation-delay: 0.42s; }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgb(var(--pv-accent) / 0.55); border-radius: 0; }
-::-webkit-scrollbar-thumb:hover { background: rgb(var(--pv-accent)); }
+::-webkit-scrollbar-thumb { background: rgb(var(--cream-rgb) / 0.18); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--cream-rgb) / 0.3); }
+
+/* ── Reduced motion (docs/REDESIGN.md 2.8; radio globals.css:1480-1517) ── */
+@media (prefers-reduced-motion: reduce) {
+  .route-enter,
+  .card-in,
+  .pop-in,
+  .fade-rise,
+  .wordmark-heat,
+  .marquee-track {
+    animation: none;
+  }
+  .live-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+  .px-dot {
+    animation: none;
+  }
+  .segmented::before,
+  .collapse-grid,
+  .flashable,
+  .card {
+    transition: none;
+  }
+  .btn-primary:active,
+  .btn-emerald:active,
+  .btn-ghost:active,
+  .btn-cyan:active,
+  .btn-fuch:active,
+  .btn-danger:active,
+  .btn-compact-primary:active,
+  .btn-light:active,
+  .press:active {
+    transform: none !important;
+  }
+  .animate-shimmer,
+  .animate-pulse {
+    animation: none !important;
+  }
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Wallet Adapter — button, connected dropdown and selection modal, reskinned
-   to the purple blueprint via the pv-* variables (so they track light/dark):
-   sharp corners, ink hairlines, Maple Mono. The vendor stylesheet loads after
+   to the radio palette via the pv-* aliases (replaced by our own sheet in P2):
+   pill trigger, glass menus, pixel type. The vendor stylesheet loads after
    this file, so every selector is prefixed with :root to win on specificity
    without !important.
    ────────────────────────────────────────────────────────────────────────── */
 :root .wallet-adapter-button {
-  font-family: "Maple Mono", var(--font-display), ui-monospace, monospace;
-  border-radius: 0;
+  font-family: var(--grotesk);
+  border-radius: 999px;
 }
 :root .wallet-adapter-button:not([disabled]):focus-visible,
 :root .wallet-adapter-modal-button-close:focus-visible,
@@ -432,14 +1026,14 @@
 :root .wallet-adapter-dropdown-list {
   background: rgb(var(--pv-bg));
   border: 1px solid rgb(var(--pv-border) / 0.25);
-  border-radius: 0;
+  border-radius: 12px;
   box-shadow: 0 12px 32px -12px rgb(var(--pv-border) / 0.35);
   padding: 0;
   grid-row-gap: 0;
-  font-family: "Maple Mono", ui-monospace, monospace;
+  font-family: var(--pixel);
 }
 :root .wallet-adapter-dropdown-list-item {
-  border-radius: 0;
+  border-radius: 8px;
   color: rgb(var(--pv-text));
   font-size: 12px;
   font-weight: 500;
@@ -463,21 +1057,19 @@
 }
 :root .wallet-adapter-modal-overlay { background: transparent; }
 :root .wallet-adapter-modal-wrapper {
-  background: rgb(var(--pv-bg));
-  background-image:
-    linear-gradient(rgb(var(--pv-border) / 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--pv-border) / 0.04) 1px, transparent 1px);
-  background-size: 24px 24px;
-  border: 1px solid rgb(var(--pv-border) / 0.25);
-  border-radius: 0;
-  box-shadow: 0 24px 64px -24px rgb(var(--pv-border) / 0.45);
+  background: rgb(14 7 9 / 0.91);
+  -webkit-backdrop-filter: blur(7px) saturate(108%);
+  backdrop-filter: blur(7px) saturate(108%);
+  border: 0;
+  border-radius: 30px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 28px 90px rgb(0 0 0 / 0.62);
   color: rgb(var(--pv-text));
-  font-family: "Maple Mono", ui-monospace, monospace;
+  font-family: var(--pixel);
   max-width: 420px;
 }
 :root .wallet-adapter-modal-title {
   color: rgb(var(--pv-text));
-  font-family: "Maple Mono", ui-monospace, monospace;
+  font-family: var(--pixel);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -495,7 +1087,7 @@
   padding: 10px;
   background: transparent;
   border: 1px solid rgb(var(--pv-border) / 0.25);
-  border-radius: 0;
+  border-radius: 50%;
   transition: border-color 0.15s ease-out;
 }
 :root .wallet-adapter-modal-button-close svg {
@@ -544,7 +1136,7 @@
 }
 :root .wallet-adapter-modal-list-more {
   color: rgb(var(--pv-muted));
-  font-family: "Maple Mono", ui-monospace, monospace;
+  font-family: var(--pixel);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -559,9 +1151,9 @@
 :root .wallet-adapter-modal-middle svg { color: rgb(var(--pv-accent)); }
 :root .wallet-adapter-modal-middle-button {
   background: rgb(var(--pv-accent));
-  border-radius: 0;
+  border-radius: 999px;
   color: rgb(var(--pv-bg));
-  font-family: "Maple Mono", ui-monospace, monospace;
+  font-family: var(--pixel);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;

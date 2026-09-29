@@ -1,10 +1,8 @@
 import type { Config } from "tailwindcss";
+import defaultColors from "tailwindcss/colors";
 
 const config: Config = {
-  // Class-based dark mode: the `dark` class on <html> is set before paint by
-  // the inline script in app/layout.tsx (dark is the default) and flipped by
-  // ThemeToggle. Never auto-triggered from the OS preference.
-  darkMode: "class",
+  // Dark only (docs/REDESIGN.md section 1). No `dark` class, no light theme.
   content: [
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,12 +11,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Purple blueprint palette, driven by CSS variables (RGB triplets in
-        // app/globals.css) so the same `pv-*` utilities switch between light
-        // and dark via the `dark` class on <html>. `border` is the ink colour
-        // (white on dark, violet on light) — use it at /25 for hairlines.
-        // Legacy accent names (cyan/fuch/emerald) resolve to the Solana
-        // purple family; `gold` is the Solana green (money figures only).
+        // Radio-derived palette; RGB triplets live on :root in app/globals.css.
+        ink:            "rgb(var(--ink-rgb) / <alpha-value>)",
+        "ink-deep":     "rgb(var(--ink-deep-rgb) / <alpha-value>)",
+        panel:          "rgb(var(--panel-rgb) / <alpha-value>)",
+        "panel-2":      "rgb(var(--panel-2-rgb) / <alpha-value>)",
+        "panel-raised": "rgb(var(--panel-raised-rgb) / <alpha-value>)",
+        maroon:         "rgb(var(--maroon-rgb) / <alpha-value>)",
+        cream:          "rgb(var(--cream-rgb) / <alpha-value>)",
+        muted:          "rgb(var(--muted-rgb) / <alpha-value>)",
+        dim:            "rgb(var(--dim-rgb) / <alpha-value>)",
+        // Keep Tailwind's red scale (red-400/500 are still used) next to the token.
+        red:            { ...defaultColors.red, DEFAULT: "rgb(var(--red-rgb) / <alpha-value>)" },
+        coral:          "rgb(var(--coral-rgb) / <alpha-value>)",
+        "coral-hi":     "rgb(var(--coral-hi-rgb) / <alpha-value>)",
+        deep:           "rgb(var(--deep-rgb) / <alpha-value>)",
+        danger:         "rgb(var(--danger-rgb) / <alpha-value>)",
+        win:            "rgb(var(--win-rgb) / <alpha-value>)",
+        pending:        "rgb(var(--pending-rgb) / <alpha-value>)",
+        line:           "rgb(var(--cream-rgb) / 0.12)",
+        "line-strong":  "rgb(var(--cream-rgb) / 0.30)",
+        // Legacy purple-blueprint names. They now resolve to the radio tokens
+        // so pages not yet rewritten keep rendering; removed in phase P6.
         pv: {
           bg:       "rgb(var(--pv-bg) / <alpha-value>)",
           surface:  "rgb(var(--pv-surface) / <alpha-value>)",
@@ -34,32 +48,82 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["'Maple Mono'", "var(--font-display)", "ui-monospace", "monospace"],
-        body:    ["'Maple Mono'", "var(--font-body)",    "ui-monospace", "monospace"],
-        mono:    ["'Maple Mono'", "var(--font-mono)",    "ui-monospace", "monospace"],
+        // Geist Pixel Square is the UI voice, Terminal Grotesque the display
+        // face (400 only, never bold), Geist Mono for addresses and numbers.
+        sans:    ["var(--font-geist-pixel-square)", "var(--font-geist-mono)", "ui-monospace", "monospace"],
+        body:    ["var(--font-geist-pixel-square)", "var(--font-geist-mono)", "ui-monospace", "monospace"],
+        pixel:   ["var(--font-geist-pixel-square)", "var(--font-geist-mono)", "ui-monospace", "monospace"],
+        display: ["var(--font-terminal-grotesque)", "Arial Narrow", "Arial", "sans-serif"],
+        mono:    ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
-      // Blueprint look: sharp corners everywhere. Pills/dots/avatars keep
-      // their roundness via `rounded-full`.
+      fontSize: {
+        // Landing scale (marketing pages, page heroes)
+        "display-xl":   ["clamp(46px, 7.2vw, 104px)", { lineHeight: "0.95", letterSpacing: "-0.01em" }],
+        "display-hero": ["clamp(24px, 5.8vw, 78px)",  { lineHeight: "0.95" }],
+        "display-lg":   ["clamp(40px, 6vw, 76px)",    { lineHeight: "1", letterSpacing: "-0.01em" }],
+        "display-md":   ["clamp(34px, 4vw, 46px)",    { lineHeight: "1" }],
+        title:          ["28px", { lineHeight: "1.1" }],
+        "title-sm":     ["24px", { lineHeight: "1.1" }],
+        lead:           ["clamp(14px, 1.45vw, 20px)", { lineHeight: "1.45" }],
+        sub:            ["17px", { lineHeight: "1.5" }],
+        body:           ["16px", { lineHeight: "1.5", letterSpacing: "-0.01em" }],
+        "card-title":   ["17px", { lineHeight: "1.3" }],
+        small:          ["14px", { lineHeight: "1.45" }],
+        "small-xs":     ["13px", { lineHeight: "1.45" }],
+        micro:          ["12px", { lineHeight: "1.4", letterSpacing: "0.06em" }],
+        "micro-xs":     ["11px", { lineHeight: "1.4", letterSpacing: "0.06em" }],
+        stat:           ["18px", { lineHeight: "1.2" }],
+        eyebrow:        ["14px", { lineHeight: "1.2" }],
+        // App scale (dense screens)
+        "app-h1":       ["clamp(1.85rem, 7vw, 2.8rem)", { lineHeight: "1", letterSpacing: "-0.02em" }],
+        "app-hero":     ["clamp(2.15rem, 9vw, 3.8rem)", { lineHeight: "0.95", letterSpacing: "-0.07em" }],
+        section:        ["clamp(1.8rem, 4vw, 3rem)",    { lineHeight: "0.94" }],
+        status:         [".74rem",  { lineHeight: "1.2", letterSpacing: ".09em" }],
+        copy:           [".86rem",  { lineHeight: "1.55" }],
+        meta:           [".88rem",  { lineHeight: "1.45" }],
+        button:         [".82rem",  { lineHeight: "1" }],
+        "button-lg":    ["1.05rem", { lineHeight: "1" }],
+        "label-xs":     [".7rem",   { lineHeight: "1.3" }],
+      },
+      // Radio is round: pills for every control, soft cards.
       borderRadius: {
-        DEFAULT: "0px",
+        DEFAULT: "8px",
         none:  "0px",
-        sm:    "0px",
-        md:    "0px",
-        lg:    "0px",
-        xl:    "0px",
-        "2xl": "0px",
-        "3xl": "0px",
-        "4xl": "0px",
-        full:  "9999px",
+        xs:    "4px",
+        sm:    "8px",
+        md:    "12px",
+        lg:    "16px",
+        xl:    "20px",
+        "2xl": "22px",
+        "3xl": "28px",
+        "4xl": "32px",
+        full:  "999px",
       },
       boxShadow: {
-        glow:           "0 0 40px rgba(153,69,255,0.32)",
-        "glow-fuch":    "0 0 40px rgba(153,69,255,0.28)",
-        "glow-emerald": "0 0 40px rgba(153, 69, 255,0.18)",
-        "glow-gold":    "0 0 40px rgba(20,241,149,0.12)",
-        "glow-lg":      "0 0 60px rgba(153,69,255,0.36)",
-        "glow-fuch-lg": "0 0 60px rgba(153,69,255,0.32)",
-        "glow-emerald-lg": "0 0 60px rgba(153, 69, 255,0.22)",
+        chip:    "inset 0 1px 0 rgb(255 255 255 / .06), 0 10px 30px rgb(0 0 0 / .22)",
+        card:    "inset 0 1px 0 rgba(255,255,255,.07), 0 24px 60px -20px rgba(0,0,0,.6)",
+        sheet:   "inset 0 1px 0 rgb(255 255 255 / .055), 0 28px 80px rgb(0 0 0 / .32)",
+        shelf:   "inset 0 1px 0 rgb(255 255 255 / .055), 0 18px 54px rgb(0 0 0 / .28)",
+        menu:    "0 14px 34px rgb(0 0 0 / .48)",
+        modal:   "inset 0 1px 0 rgb(255 255 255 / .045), 0 28px 90px rgb(0 0 0 / .62)",
+        primary: "0 10px 30px -12px rgba(255,81,72,.8), inset 0 1px 0 rgba(255,255,255,.25)",
+        bubble:  "inset 0 1px 0 rgb(255 255 255 / .15), inset 0 -2px 5px rgb(0 0 0 / .2), 0 14px 30px rgb(0 0 0 / .32)",
+        "bubble-hover": "inset 0 1px 0 rgb(255 255 255 / .24), inset 0 -2px 5px rgb(0 0 0 / .2), 0 22px 42px rgb(0 0 0 / .44)",
+        well:    "inset 0 1px 5px rgb(0 0 0 / .42)",
+        // Legacy glow names, recoloured to coral until their callers go.
+        glow:              "0 0 40px rgba(255,81,72,0.28)",
+        "glow-fuch":       "0 0 40px rgba(255,43,43,0.24)",
+        "glow-emerald":    "0 0 40px rgba(255,81,72,0.16)",
+        "glow-gold":       "0 0 40px rgba(243,234,214,0.10)",
+        "glow-lg":         "0 0 60px rgba(255,81,72,0.32)",
+        "glow-fuch-lg":    "0 0 60px rgba(255,43,43,0.28)",
+        "glow-emerald-lg": "0 0 60px rgba(255,81,72,0.2)",
+      },
+      transitionTimingFunction: {
+        out:       "cubic-bezier(0.23, 1, 0.32, 1)",
+        "in-out":  "cubic-bezier(0.77, 0, 0.175, 1)",
+        spring:    "cubic-bezier(0.22, 1, 0.36, 1)",
+        overshoot: "cubic-bezier(0.22, 1.25, 0.36, 1)",
       },
       keyframes: {
         fadeUp: {
@@ -80,8 +144,8 @@ const config: Config = {
           "100%": { opacity: "0", transform: "translateY(100vh) rotate(600deg)" },
         },
         pulseGlow: {
-          "0%, 100%": { boxShadow: "0 0 20px rgba(20,241,149,0.06)" },
-          "50%":      { boxShadow: "0 0 50px rgba(20,241,149,0.18)" },
+          "0%, 100%": { boxShadow: "0 0 20px rgba(255,81,72,0.06)" },
+          "50%":      { boxShadow: "0 0 50px rgba(255,81,72,0.18)" },
         },
         blink: {
           "0%, 100%": { opacity: "1" },

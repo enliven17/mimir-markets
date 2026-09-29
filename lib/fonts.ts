@@ -1,25 +1,31 @@
-import { Space_Grotesk, Inter, Space_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import { GeistMono, GeistSans } from "geist/font";
+import { GeistPixelSquare } from "geist/font/pixel";
 
-export const fontDisplay = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "500", "600", "700"],
+/**
+ * Mimir type (docs/REDESIGN.md 1.3):
+ * - Geist Pixel Square: UI voice (body, labels, stats). var --font-geist-pixel-square
+ * - Terminal Grotesque: display (wordmark, headings, buttons), 400 only, SIL OFL
+ *   (app/fonts/TERMINAL-GROTESQUE-LICENSE.md). var --font-terminal-grotesque
+ * - Geist Mono: addresses, hex, ticking numbers. var --font-geist-mono
+ * - Geist Sans: fallback only. var --font-geist-sans
+ */
+export const fontDisplay = localFont({
+  src: "../app/fonts/terminal-grotesque.ttf",
+  weight: "400",
+  variable: "--font-terminal-grotesque",
   display: "swap",
-  fallback: ["system-ui", "sans-serif"],
+  fallback: ["Arial Narrow", "Arial", "sans-serif"],
 });
 
-export const fontBody = Inter({
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  fallback: ["system-ui", "sans-serif"],
-});
+export const fontPixel = GeistPixelSquare;
+export const fontMono = GeistMono;
+export const fontSans = GeistSans;
 
-export const fontMono = Space_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  weight: ["400", "700"],
-  display: "swap",
-  fallback: ["monospace"],
-});
+/** Every font variable class, for the <html> element. */
+export const fontVariables = [
+  fontPixel.variable,
+  fontDisplay.variable,
+  fontMono.variable,
+  fontSans.variable,
+].join(" ");

@@ -342,7 +342,7 @@ export default function HomePage() {
                   </motion.span>
                   <motion.span
                     variants={kineticLetter}
-                    className="inline-block italic text-pv-emerald drop-shadow-[0_0_18px_rgba(153,69,255,0.45)]"
+                    className="inline-block italic text-pv-emerald drop-shadow-[0_0_18px_rgba(255,81,72,0.45)]"
                   >
                     Mimir.
                   </motion.span>

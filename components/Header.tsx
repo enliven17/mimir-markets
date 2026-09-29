@@ -15,7 +15,6 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Menu, Plus, X } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import TierChip from "./token/TierChip";
 import NavMoreMenu from "./NavMoreMenu";
@@ -108,7 +107,6 @@ export default function Header() {
               <TierChip />
             </span>
             <NotificationBell />
-            <ThemeToggle />
             <Link
               href={NAV_CTA.href}
               aria-current={ctaActive ? "page" : undefined}
@@ -128,7 +126,6 @@ export default function Header() {
           <div className="ml-auto flex shrink-0 items-center gap-2 lg:hidden">
             <TierChip />
             <NotificationBell />
-            <ThemeToggle />
             <div className="hidden sm:block">
               <WalletButton />
             </div>

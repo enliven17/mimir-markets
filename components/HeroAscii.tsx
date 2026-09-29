@@ -34,13 +34,13 @@ export function HeroAscii() {
     let cols = 0;
     let rows = 0;
     let base: RGB = [255, 255, 255];
-    let peak: RGB = [153, 69, 255];
+    let peak: RGB = [255, 43, 43];
     let isDark = true;
 
     function readColors() {
-      isDark = document.documentElement.classList.contains("dark");
+      isDark = true; // dark only (docs/REDESIGN.md 1)
       base = readToken("--pv-border", [255, 255, 255]);
-      peak = readToken("--pv-accent2", [153, 69, 255]);
+      peak = readToken("--pv-accent2", [255, 43, 43]);
     }
 
     function resize() {

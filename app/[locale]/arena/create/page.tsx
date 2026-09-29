@@ -468,7 +468,7 @@ export default function CreateMarketPage() {
                         aria-pressed={stake === amount && presetStakeHighlight}
                         className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                           stake === amount && presetStakeHighlight
-                            ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                            ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                             : "border border-pv-border/25 bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                         }`}
                       >
@@ -477,7 +477,7 @@ export default function CreateMarketPage() {
                     ))}
                     <div className={`flex min-h-[2.75rem] w-full min-w-0 items-center justify-center rounded-lg border px-1.5 py-1.5 transition-[border-color,background-color,color,box-shadow] sm:min-h-[3.25rem] sm:px-2 sm:py-2 ${
                       customStakeFocused || !isPresetStakeAmount(stake)
-                        ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                        ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                         : "border border-pv-border/25 bg-pv-surface text-pv-muted"
                     }`}>
                       <div className="inline-flex max-w-full items-center justify-center gap-0.5 sm:gap-1">
@@ -535,7 +535,7 @@ export default function CreateMarketPage() {
                           aria-pressed={selected}
                           className={`min-w-0 rounded-lg border px-1.5 py-2 font-display text-[11px] font-bold leading-tight transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-bg sm:px-2 sm:py-2.5 sm:text-xs ${
                             selected
-                              ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                              ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                               : "border border-pv-border/25 bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                           }`}
                         >
@@ -666,7 +666,7 @@ export default function CreateMarketPage() {
                               aria-pressed={selected}
                               className={`rounded-lg border px-3 py-2.5 text-left font-display text-[11px] font-bold capitalize transition-[border-color,background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/35 sm:text-xs ${
                                 selected
-                                  ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(153,69,255,0.3)]"
+                                  ? "border-pv-emerald bg-pv-emerald/[0.12] text-pv-emerald shadow-[0_0_16px_-8px_rgba(255,81,72,0.3)]"
                                   : "border border-pv-border/25 bg-pv-surface text-pv-muted hover:border-pv-emerald/35 hover:text-pv-emerald"
                               }`}
                             >

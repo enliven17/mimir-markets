@@ -426,7 +426,7 @@ export default function ArenaClaimPage() {
                       )}
                       {claim.delegated && (
                         <span className="inline-flex items-center gap-1.5 border border-pv-fuch/35 bg-pv-fuch/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-fuch">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-fuch shadow-[0_0_8px_rgba(255,43,43,0.7)]" />
                           Live on MagicBlock ER
                         </span>
                       )}
@@ -574,7 +574,7 @@ export default function ArenaClaimPage() {
                 {/* Footer: oracle note + evidence link */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-pv-border/25 px-5 py-3 sm:px-8">
                   <div className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-pv-emerald shadow-[0_0_8px_rgba(153,69,255,0.6)]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-pv-emerald shadow-[0_0_8px_rgba(255,81,72,0.6)]" />
                     <span className="text-xs text-pv-muted">
                       {isFlashOracle ? "Resolves via the Flash Trade oracle" : "Settled by the Mimir AI oracle"}
                     </span>
@@ -738,7 +738,7 @@ export default function ArenaClaimPage() {
                         <button
                           onClick={onChallenge}
                           disabled={!!busy || Number(stake) < 2}
-                          className="inline-flex items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg transition-[transform,box-shadow,background-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(124,58,237,0.4)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-pv-text"
+                          className="inline-flex items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg transition-[transform,box-shadow,background-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-fuch hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(255,43,43,0.4)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-pv-text"
                         >
                           {busy ? "Working…" : "⚡ Challenge in the ER"}
                         </button>
