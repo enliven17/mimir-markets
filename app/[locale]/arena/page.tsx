@@ -22,6 +22,7 @@ import PageTransition, { AnimatedItem } from "@/components/PageTransition";
 import { ArenaCardSkeleton } from "@/components/ui";
 import { BlueprintHeading, BlueprintStat } from "@/components/BlueprintGrid";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
+import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
@@ -410,6 +411,10 @@ export default function ArenaPage() {
           <BlueprintStat value={stats.totalResolved} label="Resolved" />
           <BlueprintStat value={`$${usdc(stats.openPool)}`} label="Open pool" tone="gold" />
         </div>
+      </AnimatedItem>
+
+      <AnimatedItem>
+        <OnboardingChecklist className="mx-4 my-5 sm:mx-6" />
       </AnimatedItem>
 
       {/* z-20: filter dropdowns (absolute z-[100]) must stack above

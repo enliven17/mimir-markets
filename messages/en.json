@@ -1415,5 +1415,63 @@
     "refunded": "Refunded: “{q}”",
     "claimable": "{amount} ready to pull from “{q}”",
     "cancelled": "Cancelled: “{q}”"
+  },
+  "onboarding": {
+    "title": "Your first stake on Solana devnet",
+    "complete": "You are set up: every step done",
+    "progress": "{done}/{total}",
+    "progressAria": "{done} of {total} steps done",
+    "show": "Show",
+    "hide": "Hide",
+    "dismiss": "Dismiss",
+    "dismissAria": "Dismiss the onboarding checklist",
+    "stepDone": "done",
+    "stepPending": "pending",
+    "loading": "Reading balance…",
+    "steps": {
+      "connect": {
+        "title": "Connect a Solana wallet",
+        "desc": "Phantom or Solflare, switched to Devnet in the wallet settings.",
+        "action": "Connect wallet",
+        "connecting": "Connecting…"
+      },
+      "sol": {
+        "title": "Get devnet SOL",
+        "desc": "A little SOL pays transaction fees and account rent. 0.01 SOL is enough to start.",
+        "action": "Solana faucet",
+        "aria": "Open the Solana devnet faucet in a new tab",
+        "balance": "Wallet: {amount} SOL"
+      },
+      "usdc": {
+        "title": "Get devnet USDC",
+        "desc": "Pick Solana Devnet on the Circle faucet and paste your address. The minimum stake is 2 USDC.",
+        "action": "Circle faucet",
+        "aria": "Open the Circle USDC faucet in a new tab",
+        "balance": "Wallet: {amount}"
+      },
+      "deposit": {
+        "title": "Deposit and delegate to the Ephemeral Rollup",
+        "desc": "Move USDC into your Mimir balance, then delegate it to MagicBlock so challenges land in milliseconds with zero fees. You can withdraw it any time.",
+        "action": "Deposit & delegate",
+        "amountLabel": "Amount in USDC",
+        "done": "Deposited {amount} and delegated to the rollup",
+        "busy": {
+          "undelegate": "Bringing your balance back…",
+          "deposit": "Depositing…",
+          "delegate": "Delegating…"
+        },
+        "balance": {
+          "none": "Mimir balance: none yet",
+          "base": "Mimir balance: {amount} on the base layer (not delegated)",
+          "er": "Mimir balance: {amount} in the rollup"
+        }
+      },
+      "stake": {
+        "title": "Take your first position",
+        "desc": "Challenge a live claim in the arena, or publish your own and stake on it.",
+        "explore": "Browse the arena",
+        "create": "Publish a claim"
+      }
+    }
   }
 }
