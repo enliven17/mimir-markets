@@ -121,6 +121,8 @@ revenue share or price promises.
   3. Review the quote and pay from the wallet: **0.012 SOL** launch cost, **0.018 SOL** with an initial buy, plus the purchase and network fees.
   4. Fee split: **75%** of trading fees to the creator payout wallet, **25%** to ClawPump (per their docs, part of it buys $CLAW and $ANSEM).
   5. Set the env vars below on Railway (web + workers) and redeploy.
+- [ ] **Railway:** set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` explicitly (web + workers), rebuild, and check `/api/health` is 200 with every worker reporting.
+- [ ] **Top up the council** (`npm run system:status`, then fund the shortfall from faucet.circle.com and `npm run system:fund`).
 - [ ] **Post on X** (draft below) and **follow @clawpumptech**.
 - [ ] README top section and this file linked in the submission.
 - [ ] Record the 5-minute demo; rehearse the Q&A.
