@@ -1,7 +1,7 @@
 # Design system
 
-Mimir takes its visual language from `radio` (Patio Tokyo) and its motion
-from `pandock` / `juxtai`. The full plan, with source references, is
+Mimir is dark, round and pixel-voiced: warm ink surfaces, cream type, a red
+accent, glass cards and scroll-driven motion. The full plan is
 `docs/REDESIGN.md`; this file describes what is in the code today.
 
 Dark only. There is no light theme and no theme toggle; tokens stay CSS
@@ -35,7 +35,7 @@ an alpha (`bg-cream/10`).
 
 Surfaces (CSS variables and classes): `--glass` / `.glass` (chips, ghost
 buttons), `--glass-card` / `.glass-card` / `.card` (cards), `--glass-deep` /
-`.glass-deep` (sheets, dialogs). `.grain` adds radio's turbulence overlay.
+`.glass-deep` (sheets, dialogs). `.grain` adds a fine turbulence grain overlay.
 The fixed `.wall` behind the page is a 4px dot screen over a dark gradient.
 
 Money figures are cream in Geist Mono, never green. Numbers that tick use
@@ -87,7 +87,7 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 
 | Component | What |
 |---|---|
-| `Button` (`primary`, `ghost`, `light`, `secondary`, `danger`; `sm` / `md` / `lg`), `buttonClass()` for links | radio pills, press scale .97 |
+| `Button` (`primary`, `ghost`, `light`, `secondary`, `danger`; `sm` / `md` / `lg`), `buttonClass()` for links | pill buttons, press scale .97 |
 | `Card`, `Panel`, `Sheet`, `FeedCard` (`Card.tsx`) | glass card, solid panel, focused-job sheet, glossy feed card |
 | `Chip`, `StatusPill`, `LiveDot`, `Pending`, `Badge`, `Eyebrow` | pills and status language |
 | `Input`, `Textarea`, `ListboxField`, `Slider` | pill / well inputs |
@@ -110,7 +110,7 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
   numbers snap, CSS entrances off.
 - Primitives: `SplitReveal` (masked line reveal), `Magnetic`, `RollingNumber`
   (with red `flash`), `Marquee` (velocity-driven ticker), `useDitherReveal`
-  (radio Bayer reveal, `data-dither`), `useRiseBatch` (`data-rise` batch),
+  (ordered-dither Bayer reveal, `data-dither`), `useRiseBatch` (`data-rise` batch),
   `usePrefersReducedMotion`, `useInViewOnce`. `PageTransition` /
   `AnimatedItem` are thin `data-rise` wrappers.
 - Use `useGSAP` with a `scope` for every timeline and `gsap.matchMedia()` with
@@ -129,7 +129,7 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 
 ## Shell
 
-- Header (`components/Header.tsx`): pandock's morphing nav. `--nav-p` (0 → 1)
+- Header (`components/Header.tsx`): morphing glass navbar. `--nav-p` (0 → 1)
   drives height, width (1320 → 980px), radius, border, shadow, glass and
   blur (`.nav-shell` / `.nav-bar` in `app/globals.css`). Scrubbed over the
   first 160px on `/`, held at 1 on every other route, flipped at 80px under
@@ -155,3 +155,37 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 Focus is a 2px coral outline with a 3px offset everywhere. Selection is red
 on cream. Every text pair used for body copy meets AA on the three surfaces
 above; `dim` is for 13px+ labels and decoration.
+
+## Landing (`app/[locale]/page.tsx`, `components/landing/`)
+
+A server page composing client sections around one arena feed
+(`LandingFeed.tsx`: `GET /api/arena/claims` on mount, polled every 15s while
+the tab is visible; sections read `status` for loading / empty / offline).
+Pure selectors live in `lib/landing.ts` (tested in `tests/node/landing.test.ts`).
+Styles are the `l-*` classes in `components/landing/landing.css`. Every number
+is real; nothing falls back to a made-up value.
+
+1. **Hero**: `Don't argue. Settle.` dithers in, a pixel scribble draws under
+   the accent word, one line of copy, two magnetic CTAs, the slim ASCII field
+   (`components/HeroAscii.tsx`) behind; the copy drifts up on scroll.
+2. **Live strip + ticker**: markets, open pool and live on the ER (numbers roll
+   up once in view and flash on change), then a velocity marquee of the newest
+   claims.
+3. **How it settles**: pinned, scrubbed, snapping timeline over four steps with
+   a rolling numeral and a filling path.
+4. **One claim**: a real live claim as an inspector card.
+5. **Council dial**: pinned; scrolling turns "Stake a side" into "Let the
+   council decide" (real roster from `/api/council/roster`).
+6. **Ledger**: the last settled claims on a snap rail, tagged Firm /
+   Contested / Refund.
+
+The footer's closer is the page's only closing CTA. `EdgeFog` blurs the
+viewport edges while the page moves.
+
+Pinned layouts exist only while their timeline sets `data-pinned` /
+`data-dial`, so the server HTML, no-JS and reduced motion get plain stacked
+sections. Pinned sections sit inside a wrapper `div` so GSAP's pin spacer is
+never a React sibling, and every section stays mounted through loading.
+Sections that change height call `requestScrollRefresh()`. Avoid
+`position: sticky` on the landing (the body's `overflow-x` clip breaks it);
+use a pin.
