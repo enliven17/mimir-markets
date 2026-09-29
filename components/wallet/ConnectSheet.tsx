@@ -8,7 +8,7 @@
  *   can load on demand (`Loadable`: Mobile Wallet Adapter on Android,
  *   WalletConnect when configured), each with the adapter's own icon.
  * - "Not installed": Phantom, Solflare and Backpack install links for the
- *   ones this browser does not have. Shown open when nothing is detected,
+ *   ones this browser does not have. Shown open until a wallet is installed,
  *   behind "I don't have a wallet" otherwise.
  * - Phones without an injected wallet (iOS Safari, Android Chrome): "Open in
  *   Phantom / Solflare" browse deep links that reopen this page inside the
@@ -167,7 +167,9 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const detectedNames = new Set(detected.map((w) => w.adapter.name.toLowerCase()));
   const missing = KNOWN_WALLETS.filter((w) => !detectedNames.has(w.name.toLowerCase()));
   const browseable = platform.mobile && !hasInstalled ? KNOWN_WALLETS.filter((w) => w.browse) : [];
-  const installOpen = showInstall || detected.length === 0;
+  // Loadable-only options (WalletConnect, Mobile Wallet Adapter) do not count
+  // as having a wallet: keep the install links in view until one is installed.
+  const installOpen = showInstall || !hasInstalled;
 
   const choose = (option: MimirWalletOption) => {
     const name = option.adapter.name;
@@ -269,7 +271,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
 
       {missing.length > 0 ? (
         <section aria-labelledby="wallet-install" className="mt-5">
-          {detected.length > 0 ? (
+          {hasInstalled ? (
             <button
               type="button"
               id="wallet-install"
@@ -291,7 +293,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
             </h3>
           )}
           {installOpen ? (
-            <ul id="wallet-install-list" className={`grid gap-2 ${detected.length > 0 ? "mt-2" : ""}`}>
+            <ul id="wallet-install-list" className={`grid gap-2 ${hasInstalled ? "mt-2" : ""}`}>
               {missing.map((w) => (
                 <li key={w.name}>
                   <a
