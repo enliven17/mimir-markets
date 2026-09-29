@@ -155,6 +155,76 @@
     },
     "backToAgents": "← the agents"
   },
+  "token": {
+    "eyebrow": "${symbol} · Solana mainnet",
+    "title": "The Mimir token",
+    "subtitle": "Mimir runs on Solana devnet; its token lives on Solana mainnet, launched on ClawPump (pump.fun). Your connected wallet is the same key on both, so what you hold on mainnet unlocks perks in the app.",
+    "launchingTitle": "Launching on ClawPump",
+    "launchingBody": "The token is not live yet. Until its mint is set, no price, supply or tier is shown and the MIMIR-based perks stay off. $ANSEM holders are already recognised.",
+    "launchingCta": "Open ClawPump",
+    "tradeCta": "Trade on ClawPump",
+    "price": "Price (DEX)",
+    "supply": "Supply",
+    "fdv": "Fully diluted value",
+    "mint": "Mint",
+    "unavailable": "unavailable",
+    "yourTier": "Your tier",
+    "connect": "Connect a wallet to see your tier. Only its public mainnet balances are read.",
+    "loading": "Reading mainnet balances…",
+    "readFailed": "Mainnet could not be read right now.",
+    "held": "{symbol}: {mimir} · ANSEM: {ansem}",
+    "prove": "Sign holder proof",
+    "proving": "Waiting for your wallet…",
+    "proven": "Holder proof stored in this browser for 24h: council APIs count this wallet at its tier.",
+    "proofHelp": "Signing proves you control this wallet so the council APIs can apply your tier. It moves no funds.",
+    "noSign": "This wallet cannot sign messages.",
+    "chipTitle": "Your Mimir token tier",
+    "tier": {
+      "none": "No tier",
+      "holder": "Holder",
+      "backer": "Backer",
+      "oracle-circle": "Oracle circle"
+    },
+    "perksTitle": "What it does",
+    "perksSubtitle": "Only perks that exist and are enforced server-side are listed. Each shows whether it is on for this deployment.",
+    "on": "on",
+    "off": "off",
+    "where": "Enforced in",
+    "perk": {
+      "council": {
+        "title": "Council priority",
+        "body": "With a holder proof, council reasoning and preflight are counted per wallet at {x2}× / {x4}× / {x8}× the anonymous limit (holder / backer / oracle circle) and draw on their own deploy-wide pool."
+      },
+      "register": {
+        "title": "Agent registration anti-spam",
+        "body": "Registering a BYOA agent can require the owner wallet to hold {mimir} {symbol} or {ansem} ANSEM on mainnet. The owner signature already proves the wallet.",
+        "unset": "not configured"
+      },
+      "baskets": {
+        "title": "Holder-composed baskets",
+        "body": "Composing a basket can be reserved for the {tier} tier and up. The composer signature proves the wallet."
+      },
+      "prices": {
+        "title": "Deterministic token price markets",
+        "body": "Claims like “Will $ANSEM trade above $0.25?” (and ${symbol} once launched) settle from DexScreener + Jupiter mainnet prices through the resolver spec, not an LLM."
+      }
+    },
+    "tiersTitle": "Tiers",
+    "tiersSubtitle": "Read from mainnet balances, cached for a minute.",
+    "tierCol": "Tier",
+    "needs": "Needs",
+    "orAnsem": "or ≥ {n} ANSEM",
+    "ansemTitle": "$ANSEM inside Mimir",
+    "ansemBody": "$ANSEM (The Black Bull) holders of at least {n} ANSEM count as holders, can satisfy the agent registration gate, and $ANSEM price claims settle deterministically from mainnet DEX data.",
+    "roadmapTitle": "Roadmap",
+    "roadmap": {
+      "now": "Now: product on Solana devnet (V3 program, MagicBlock rollup challenges, oracle with audit bundles); token on mainnet; perks enforced off-chain by the API.",
+      "next": "Next: mainnet program deploy with the same optimistic resolution, dispute bonds and profit-only fees; USDC markets for real stakes.",
+      "fees": "Fees: the creator share of ClawPump trading fees funds oracle and council inference, RPC and audits. Protocol fee revenue on mainnet is intended for the same, plus buybacks if and when that is decided in the open.",
+      "honest": "No yield, revenue share or price promises. The token unlocks product perks; it is not an investment."
+    },
+    "back": "← back to the arena"
+  },
   "claimSettle": {
     "working": "Working…",
     "you": "you",
