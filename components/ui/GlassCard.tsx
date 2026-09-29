@@ -1,58 +1,45 @@
-"use client";
-
-import { motion, type HTMLMotionProps } from "framer-motion";
+import type { HTMLAttributes, ReactNode } from "react";
 
 type GlowSide = "cyan" | "fuch" | "both" | "emerald" | "none";
 
-interface GlassCardProps extends Omit<HTMLMotionProps<"div">, "children"> {
-  children: React.ReactNode;
+interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
   glow?: GlowSide;
   hoverable?: boolean;
   noPad?: boolean;
   glass?: boolean;
 }
 
-const glowStyles: Record<GlowSide, React.ReactNode> = {
-  cyan: (
-    <div className="absolute top-0 left-0 w-3/5 h-full glow-cyan pointer-events-none" />
-  ),
-  fuch: (
-    <div className="absolute top-0 right-0 w-3/5 h-full glow-fuch pointer-events-none" />
-  ),
+const glowStyles: Record<GlowSide, ReactNode> = {
+  cyan: <div className="glow-cyan pointer-events-none absolute left-0 top-0 h-full w-3/5" />,
+  fuch: <div className="glow-fuch pointer-events-none absolute right-0 top-0 h-full w-3/5" />,
   both: (
     <>
-      <div className="absolute top-0 left-0 w-1/2 h-full bg-[radial-gradient(ellipse_at_0%_40%,rgba(153,69,255,0.07),transparent_65%)] pointer-events-none" />
-      <div className="absolute top-0 right-0 w-1/2 h-full bg-[radial-gradient(ellipse_at_100%_40%,rgba(124,58,237,0.07),transparent_65%)] pointer-events-none" />
+      <div className="glow-cyan pointer-events-none absolute left-0 top-0 h-full w-1/2" />
+      <div className="glow-fuch pointer-events-none absolute right-0 top-0 h-full w-1/2" />
     </>
   ),
-  emerald: (
-    <div className="absolute inset-0 glow-emerald pointer-events-none" />
-  ),
+  emerald: <div className="glow-emerald pointer-events-none absolute inset-0" />,
   none: null,
 };
 
+/**
+ * @deprecated Use `Card` from `components/ui/Card`. Kept so existing pages
+ * compile; now a radio glass card (no framer-motion).
+ */
 export default function GlassCard({
   children,
   glow = "none",
   hoverable = false,
   noPad = false,
-  glass = false,
+  glass: _glass = false,
   className = "",
   ...props
 }: GlassCardProps) {
-  const baseClass = glass
-    ? "bg-pv-surface border border-pv-border/25 overflow-hidden relative transition-all duration-200"
-    : "card";
-
   return (
-    <motion.div
-      className={`${baseClass} ${hoverable ? "card-hover cursor-pointer" : ""} ${className}`}
-      {...props}
-    >
+    <div className={`card ${hoverable ? "card-hover" : ""} ${className}`} {...props}>
       {glowStyles[glow]}
       <div className={`relative ${noPad ? "" : "p-6"}`}>{children}</div>
-    </motion.div>
+    </div>
   );
 }
-  
-

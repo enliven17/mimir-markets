@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 export type ListboxFieldOption = { value: string; label: string };
@@ -109,8 +108,9 @@ export default function ListboxField({
     open &&
     pos &&
     createPortal(
-      <motion.div
+      <div
         ref={menuRef}
+        data-lenis-prevent
         id={listboxId}
         role="listbox"
         aria-labelledby={labelId}
@@ -121,10 +121,7 @@ export default function ListboxField({
           width: pos.width,
           zIndex: 80,
         }}
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.85)]"
+        className="pop-in grid max-h-[60vh] gap-[3px] overflow-y-auto rounded-md bg-panel p-[5px] shadow-menu"
       >
         {options.map((opt) => (
           <button
@@ -136,22 +133,22 @@ export default function ListboxField({
               onChange(opt.value);
               setOpen(false);
             }}
-            className={`flex w-full items-center px-4 py-2.5 text-left font-body text-sm transition-colors ${
+            className={`flex min-h-[38px] w-full items-center rounded-sm px-2.5 text-left font-body text-[14px] transition-colors ${
               value === opt.value
-                ? "bg-pv-emerald/[0.12] font-medium text-pv-emerald"
-                : "text-pv-muted hover:bg-pv-border/[0.05] hover:text-pv-text"
+                ? "bg-panel-raised text-cream"
+                : "text-muted hover:bg-panel-raised hover:text-cream focus-visible:bg-panel-raised"
             }`}
           >
             {opt.label}
           </button>
         ))}
-      </motion.div>,
+      </div>,
       document.body
     );
 
   return (
     <div ref={wrapRef} className="min-w-0 space-y-2">
-      <label id={labelId} htmlFor={triggerId} className="block text-[10px] font-bold uppercase tracking-[0.16em] text-pv-muted">
+      <label id={labelId} htmlFor={triggerId} className="block text-[12px] uppercase tracking-[0.06em] text-muted">
         {label}
       </label>
       <button
@@ -162,12 +159,12 @@ export default function ListboxField({
         aria-haspopup="listbox"
         aria-controls={listboxId}
         onClick={() => setOpen((o) => !o)}
-        className="input flex h-11 min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 bg-pv-bg py-0 pr-3 text-left font-body text-sm text-pv-text transition-[border-color,box-shadow] hover:border-pv-border/25"
+        className="input flex h-11 min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 py-0 pr-4 text-left font-body text-sm text-cream"
       >
         <span className="min-w-0 truncate">{selectedLabel}</span>
         <ChevronDown
           size={18}
-          className={`shrink-0 text-pv-muted transition-transform duration-200 ${
+          className={`shrink-0 text-coral transition-transform duration-200 ${
             open ? "rotate-180" : ""
           }`}
           aria-hidden

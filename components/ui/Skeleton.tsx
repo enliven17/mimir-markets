@@ -3,15 +3,12 @@ interface SkeletonProps {
   lines?: number;
 }
 
+/** `--panel-2` block with a slow opacity pulse (off under reduced motion). */
 function SkeletonLine({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`h-4 rounded-lg bg-pv-surface2 animate-shimmer ${className}`}
-      style={{
-        backgroundImage:
-          "linear-gradient(90deg, transparent 0%, rgb(var(--pv-border) / 0.06) 50%, transparent 100%)",
-        backgroundSize: "200% 100%",
-      }}
+      aria-hidden
+      className={`h-4 rounded-md bg-panel-2 motion-safe:animate-[skeleton-pulse_1.8s_ease-in-out_infinite] ${className}`}
     />
   );
 }
@@ -24,10 +21,7 @@ export default function Skeleton({ className = "", lines = 1 }: SkeletonProps) {
   return (
     <div className={`space-y-3 ${className}`}>
       {Array.from({ length: lines }).map((_, i) => (
-        <SkeletonLine
-          key={i}
-          className={i === lines - 1 ? "w-3/4" : "w-full"}
-        />
+        <SkeletonLine key={i} className={i === lines - 1 ? "w-3/4" : "w-full"} />
       ))}
     </div>
   );
@@ -35,25 +29,25 @@ export default function Skeleton({ className = "", lines = 1 }: SkeletonProps) {
 
 export function VSCardSkeleton() {
   return (
-    <div className="card p-5 space-y-3">
+    <div className="card space-y-3 p-5">
       <div className="flex justify-between">
-        <SkeletonLine className="w-20 h-5" />
-        <SkeletonLine className="w-12 h-5" />
+        <SkeletonLine className="h-5 w-20" />
+        <SkeletonLine className="h-5 w-12" />
       </div>
-      <SkeletonLine className="w-full h-6" />
-      <SkeletonLine className="w-3/4 h-6" />
+      <SkeletonLine className="h-6 w-full" />
+      <SkeletonLine className="h-6 w-3/4" />
       <div className="flex gap-3">
-        <SkeletonLine className="flex-1 h-16" />
-        <SkeletonLine className="flex-1 h-16" />
+        <SkeletonLine className="h-16 flex-1" />
+        <SkeletonLine className="h-16 flex-1" />
       </div>
     </div>
   );
 }
 
-/** Matches ArenaCard layout (LIVE ARENA) for loading grids. */
+/** Matches the arena claim card layout for loading grids. */
 export function ArenaCardSkeleton() {
   return (
-    <div className="bp-cell relative flex h-full flex-col gap-6 overflow-hidden p-6 sm:gap-8 sm:p-8">
+    <div className="card relative flex h-full flex-col gap-6 p-6 sm:gap-8 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SkeletonLine className="h-6 w-20" />
         <SkeletonLine className="h-6 w-24" />
@@ -63,7 +57,7 @@ export function ArenaCardSkeleton() {
         <SkeletonLine className="h-7 w-[85%]" />
         <SkeletonLine className="mt-2 h-4 w-full" />
       </div>
-      <div className="mt-auto space-y-4 border-t border-pv-border/25 pt-6">
+      <div className="mt-auto space-y-4 border-t border-line pt-6">
         <SkeletonLine className="h-3 w-28" />
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex -space-x-2.5">
@@ -71,7 +65,7 @@ export function ArenaCardSkeleton() {
             <SkeletonLine className="h-8 w-8 rounded-full" />
             <SkeletonLine className="h-8 w-8 rounded-full" />
           </div>
-          <SkeletonLine className="h-9 w-32" />
+          <SkeletonLine className="h-9 w-32 rounded-full" />
         </div>
       </div>
     </div>

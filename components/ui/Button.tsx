@@ -1,53 +1,78 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "framer-motion";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
-type ButtonVariant =
+/**
+ * Radio pill buttons (landing `.btn-primary` / `.btn-ghost` / `.mock-btn`,
+ * app `.primary-action` / `.secondary-action`). Press = scale(.97) in CSS.
+ *
+ * - primary   coral gradient + grain, ink label (white only at 21px+)
+ * - ghost     glass pill
+ * - light     cream fill, ink label
+ * - secondary panel-raised with a hairline, border turns coral on hover
+ * - danger    danger fill, dark label
+ * Legacy names: `emerald` = primary, `cyan` / `fuch` = secondary.
+ */
+export type ButtonVariant =
   | "primary"
-  | "cyan"
-  | "fuch"
-  | "emerald"
   | "ghost"
-  | "danger";
+  | "light"
+  | "secondary"
+  | "danger"
+  | "emerald"
+  | "cyan"
+  | "fuch";
 
-interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
-  children: React.ReactNode;
+export type ButtonSize = "sm" | "md" | "lg";
+
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: "btn-primary",
+  emerald: "btn-primary",
+  ghost: "btn-ghost",
+  light: "btn-light",
+  secondary: "btn-cyan",
+  cyan: "btn-cyan",
+  fuch: "btn-fuch",
+  danger: "btn-danger",
+};
+
+const sizeClasses: Record<ButtonSize, string> = {
+  // Dense app UI (radio .primary-action): 46px, .82rem.
+  sm: "!min-h-[46px] !py-2.5 !px-5 !text-[15px]",
+  md: "min-h-[3.25rem]",
+  // Landing hero (radio .hero .btn): 23px, 17px/31px padding.
+  lg: "!py-[17px] !px-[31px] !text-[23px]",
+};
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  children: ReactNode;
   variant?: ButtonVariant;
-  size?: "md" | "sm";
+  size?: ButtonSize;
   loading?: boolean;
   fullWidth?: boolean;
 }
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary: "btn-primary",
-  cyan:    "btn-cyan",
-  fuch:    "btn-fuch",
-  emerald: "btn-emerald",
-  ghost:   "btn-ghost",
-  danger:  "btn-danger",
-};
-
-export default function Button({
-  children,
-  variant = "primary",
-  size = "md",
-  loading = false,
-  fullWidth = true,
-  className = "",
-  disabled,
-  ...props
-}: ButtonProps) {
-  const sizeClass  = size === "sm" ? "!py-2.5 !px-4 !text-sm" : "";
-  const widthClass = fullWidth ? "" : "!w-auto";
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    children,
+    variant = "primary",
+    size = "md",
+    loading = false,
+    fullWidth = true,
+    className = "",
+    disabled,
+    type = "button",
+    ...props
+  },
+  ref,
+) {
   const isDisabled = Boolean(disabled || loading);
-
   return (
-    <motion.button
-      whileTap={isDisabled ? undefined : { scale: 0.97 }}
-      className={`${variantClasses[variant]} ${sizeClass} ${widthClass} flex min-h-[3.25rem] items-center justify-center gap-2.5 focus-ring ${
-        loading
-          ? "disabled:!cursor-wait disabled:!opacity-100"
-          : ""
+    <button
+      ref={ref}
+      type={type}
+      className={`${variantClasses[variant]} ${sizeClasses[size]} ${fullWidth ? "" : "!w-auto"} ${
+        loading ? "disabled:!cursor-wait disabled:!opacity-100" : ""
       } ${className}`}
       disabled={isDisabled}
       aria-busy={loading || undefined}
@@ -60,6 +85,13 @@ export default function Button({
         />
       ) : null}
       {children}
-    </motion.button>
+    </button>
   );
+});
+
+export default Button;
+
+/** Same look for links: `<a className={buttonClass("ghost")}>`. */
+export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md", fullWidth = false) {
+  return `${variantClasses[variant]} ${sizeClasses[size]} ${fullWidth ? "" : "!w-auto"}`;
 }

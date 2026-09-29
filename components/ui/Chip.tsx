@@ -1,15 +1,21 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface ChipProps {
-  children: React.ReactNode;
+  children: ReactNode;
   active?: boolean;
   color?: string;
   onClick?: () => void;
   className?: string;
-  /** Si se pasa, anula el `aria-pressed` derivado de `active` (p. ej. filtros URL). */
+  /** Overrides the `aria-pressed` derived from `active` (e.g. URL filters). */
   "aria-pressed"?: boolean;
 }
 
+/**
+ * Toggle chip: 30px glass pill (radio `.wallet-chip` / `.gas-indicator`).
+ * Active = cream fill with ink label, like the segmented thumb.
+ */
 export default function Chip({
   children,
   active = false,
@@ -18,14 +24,7 @@ export default function Chip({
   className = "",
   "aria-pressed": ariaPressedProp,
 }: ChipProps) {
-  const dynamicStyle = color
-    ? {
-        borderColor:     active ? `${color}40` : undefined,
-        backgroundColor: active ? `${color}12` : undefined,
-        color:           active ? color : undefined,
-      }
-    : {};
-
+  const dynamicStyle = color && active ? { color, boxShadow: `inset 0 0 0 1px ${color}66` } : {};
   const ariaPressed = ariaPressedProp ?? active;
 
   return (
@@ -33,12 +32,8 @@ export default function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={ariaPressed}
-      className={`chip focus-ring whitespace-nowrap ${
-        active && !color
-          ? "bg-pv-text/[0.07] text-pv-text border-pv-border/25"
-          : !color
-          ? "text-pv-muted hover:text-pv-text hover:border-pv-border/25"
-          : "text-pv-muted"
+      className={`chip press whitespace-nowrap ${
+        active && !color ? "!bg-cream text-ink" : "text-muted hover:text-cream"
       } ${className}`}
       style={dynamicStyle}
     >
