@@ -1,10 +1,8 @@
 /**
- * Blueprint building blocks — framed section headings and ruled sections.
- *
- * Every blueprint section draws its own borders (there are no separate fixed
- * rails): a heading band has full-bleed rules above and below plus
- * column-width side borders, so the vertical column lines stay continuous
- * from section to section. See docs/DESIGN.md.
+ * @deprecated Legacy blueprint building blocks, restyled for the radio system
+ * (docs/REDESIGN.md P1) so existing pages keep their exports. New code uses
+ * `Eyebrow`, `Strip` / `StripCell` and plain headings with the `app-h1`
+ * type token. Removed in P6.
  */
 import type { ReactNode } from "react";
 
@@ -22,8 +20,8 @@ interface BlueprintHeadingProps {
   className?: string;
 }
 
-// Centered section title framed by full-bleed rules above AND below it
-// (blueprint header band) plus column-width side borders.
+// Left-aligned heading: optional red eyebrow, Terminal Grotesque title at the
+// app-h1 size (page) or section size (h2/h3), one muted line under it. No rules.
 export function BlueprintHeading({
   children,
   as: Tag = "h2",
@@ -32,35 +30,16 @@ export function BlueprintHeading({
   id,
   className = "",
 }: BlueprintHeadingProps) {
+  const size = Tag === "h1" ? "text-app-h1" : Tag === "h2" ? "text-section" : "text-title";
   return (
-    <div
-      data-bp-rails
-      className={`relative border-x border-pv-border/25 px-4 py-5 text-center sm:py-6 ${className}`}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-px w-screen -translate-x-1/2 bg-pv-border/25"
-      />
-      {eyebrow ? (
-        <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-pv-emerald">
-          {eyebrow}
-        </p>
-      ) : null}
-      <Tag
-        id={id}
-        className="break-words font-display text-2xl font-bold uppercase tracking-tighter text-pv-text sm:text-3xl md:text-4xl"
-      >
+    <div data-bp-rails className={`relative px-0 pb-6 pt-8 text-left sm:pt-10 ${className}`}>
+      {eyebrow ? <p className="eyebrow mb-3">{eyebrow}</p> : null}
+      <Tag id={id} className={`break-words font-display font-normal text-cream ${size}`}>
         {children}
       </Tag>
       {subtitle ? (
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-pv-muted">
-          {subtitle}
-        </p>
+        <p className="mt-3 max-w-[60ch] truncate text-copy text-muted sm:text-[15px]">{subtitle}</p>
       ) : null}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-1/2 h-px w-screen -translate-x-1/2 bg-pv-border/25"
-      />
     </div>
   );
 }
@@ -88,14 +67,14 @@ export function BlueprintSection({
   return (
     <section className="relative">
       <BlueprintHeading {...heading}>{title}</BlueprintHeading>
-      <div data-bp-rails className={`border-x border-pv-border/25 ${bodyClassName}`}>
+      <div data-bp-rails className={bodyClassName}>
         {children}
       </div>
     </section>
   );
 }
 
-/** Single ruled stat cell for `.bp-grid` rows (value + mono label). */
+/** Stat cell in the radio Strip style: micro dim label over a mono value. */
 export function BlueprintStat({
   value,
   label,
@@ -107,22 +86,13 @@ export function BlueprintStat({
   tone?: "accent" | "gold" | "text" | "danger";
   className?: string;
 }) {
-  const toneClass =
-    tone === "gold"
-      ? "text-pv-gold"
-      : tone === "text"
-        ? "text-pv-text"
-        : tone === "danger"
-          ? "text-pv-danger"
-          : "text-pv-emerald";
+  const toneClass = tone === "danger" ? "text-danger" : tone === "accent" ? "text-coral" : "text-cream";
   return (
-    <div className={`bp-cell p-5 text-center sm:p-6 ${className}`}>
-      <div className={`font-display text-3xl font-bold tracking-tight sm:text-4xl ${toneClass}`}>
-        {value}
+    <div className={`bp-cell flex flex-col gap-1 px-[18px] py-4 text-left ${className}`}>
+      <div className="order-2 font-mono text-[22px] tabular-nums leading-tight sm:text-[26px]">
+        <span className={toneClass}>{value}</span>
       </div>
-      <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-pv-muted">
-        {label}
-      </div>
+      <div className="order-1 text-[11px] uppercase tracking-[0.06em] text-muted">{label}</div>
     </div>
   );
 }

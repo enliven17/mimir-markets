@@ -6,3 +6,4 @@ export { default as RollingNumber } from "./RollingNumber";
 export { default as Marquee } from "./Marquee";
 export { useDitherReveal } from "./useDitherReveal";
 export { useRiseBatch } from "./useRiseBatch";
+export { usePrefersReducedMotion, useInViewOnce } from "./hooks";

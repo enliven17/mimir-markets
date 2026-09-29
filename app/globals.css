@@ -527,7 +527,7 @@ html.lenis body {
     @apply bg-pv-bg;
   }
   .bp-label {
-    @apply font-pixel text-[11px] uppercase tracking-[0.06em] text-dim;
+    @apply font-pixel text-[11px] uppercase tracking-[0.06em] text-muted;
   }
   .bp-page [data-bp-rails] {
     border-left-width: 0;
@@ -785,7 +785,7 @@ html.lenis body {
     font-size: 11px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--dim);
+    color: var(--muted); /* dim fails AA at 11px */
   }
   .strip-cell > dd {
     margin: 0;

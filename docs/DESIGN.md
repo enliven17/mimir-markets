@@ -1,119 +1,134 @@
-# Design system — purple blueprint
+# Design system
 
-Mimir's UI is a "blueprint" sheet: a deep violet drafting surface ruled with
-thin ink lines, sharp corners, framed sections and rails that run the full
-height of the page. It is the source repo's navy blueprint re-tinted to the
-Solana palette, with a light and a dark theme (dark is the default).
+Mimir takes its visual language from `radio` (Patio Tokyo) and its motion
+from `pandock` / `juxtai`. The full plan, with source references, is
+`docs/REDESIGN.md`; this file describes what is in the code today.
+
+Dark only. There is no light theme and no theme toggle; tokens stay CSS
+variables so one could return.
 
 ## Tokens
 
-Defined as RGB triplets in `app/globals.css` (`:root` = light, `.dark` = dark)
-and exposed to Tailwind as `pv-*` colours in `tailwind.config.ts`, so every
-utility accepts opacity (`bg-pv-emerald/10`).
+Hex values and `*-rgb` triplets live on `:root` in `app/globals.css`; the
+triplets feed Tailwind colours (`tailwind.config.ts`), so every utility takes
+an alpha (`bg-cream/10`).
 
-| Token | Light | Dark | Use |
+| Token | Value | Use |
+|---|---|---|
+| `ink` | `#110f0e` | page background |
+| `ink-deep` | `#0a0808` | deepest wells, code |
+| `panel` | `#1c1817` | solid raised surface, menus |
+| `panel-2` | `#272120` | inputs, tracks, rails |
+| `panel-raised` | `#211718` | menu hover, secondary buttons, close buttons |
+| `maroon` | `#4a2322` | active step fill |
+| `cream` | `#f3ead6` | primary text, light buttons, segmented thumb |
+| `muted` | `#a89d93` | secondary text, small labels |
+| `dim` | `#7a706a` | 13px+ labels and decoration only (3.96:1) |
+| `red` | `#ff2b2b` | eyebrows, live dots, accent words |
+| `coral` | `#ff5148` | primary action, fills, focus ring, links |
+| `coral-hi` | `#ff746c` | gradient end |
+| `deep` | `#8f0e17` | gradient start |
+| `danger` | `#ff938c` | errors, losses |
+| `win` | `#9fd6a8` | text only: a payout the viewer received / FIRM wins |
+| `pending` | `#ffb3ad` on `red/14` | pending and live pills |
+| `line` / `line-strong` | cream at 12% / 30% | hairlines, hover borders |
+
+Surfaces (CSS variables and classes): `--glass` / `.glass` (chips, ghost
+buttons), `--glass-card` / `.glass-card` / `.card` (cards), `--glass-deep` /
+`.glass-deep` (sheets, dialogs). `.grain` adds radio's turbulence overlay.
+The fixed `.wall` behind the page is a 4px dot screen over a dark gradient.
+
+Money figures are cream in Geist Mono, never green. Numbers that tick use
+`font-mono tabular-nums` (Geist Pixel has no tabular figures; `.tn` boxes a
+digit when it must stay pixel).
+
+Contrast on `ink` / `panel` / `panel-2` (WCAG): cream 16.0 / 14.7 / 13.3,
+muted 7.2 / 6.6 / 6.0, coral 5.9 / 5.5 / 4.9, danger 8.9 / 8.2 / 7.4,
+win 11.5 / 10.6 / 9.6. Coral buttons carry an ink label (`#160909`, 6.1);
+white on coral (3.2) only at 21px+ Terminal Grotesque.
+
+### Legacy aliases
+
+`pv-*` colours and `.bp-*` classes from the purple blueprint still exist and
+now point at the tokens above (`pv-bg` = ink, `pv-surface` = panel,
+`pv-surface2` = panel-2, `pv-border` / `pv-text` / `pv-gold` = cream,
+`pv-muted` = muted, `pv-emerald` / `pv-cyan` = coral, `pv-fuch` = red,
+`pv-danger` = danger). `components/BlueprintGrid.tsx` is deprecated. Do not
+use any of them in new code; they go in P6.
+
+## Type
+
+| Face | Loaded by | Class | Use |
 |---|---|---|---|
-| `pv-bg` | `#F8F5FF` | `#0E0724` | page / cell background |
-| `pv-surface` | `#F1EBFF` | `#140B30` | raised surfaces, hover |
-| `pv-surface2` | `#E7DDFF` | `#1B103E` | inputs, code, tracks |
-| `pv-border` | `#2A1466` | `#FFFFFF` | **ink** — always use with opacity (`/25` hairlines, `/40` emphasis, `/[0.04]` fills) |
-| `pv-text` | `#150A30` | `#FFFFFF` | body text |
-| `pv-muted` | `#5A4A82` | `#B4A5DA` | secondary text, labels |
-| `pv-emerald` / `pv-cyan` | `#7B2FE8` | `#B47DFF` | accent (Solana purple, AA-tuned) — text, lines, buttons |
-| `pv-fuch` | `#9945FF` | `#9945FF` | Solana purple for fills / glows |
-| `pv-gold` | `#036B4B` | `#14F195` | Solana green — money / payout figures only, use sparingly |
-| `pv-danger` | `#B41A1A` | `#FF6B72` | errors, losses |
-| `--pv-rule` | `#C5BDD9` | `#4A455B` | opaque ink/25 over bg (used by `.bp-cells`) |
+| Geist Pixel Square | `geist/font/pixel` (`lib/fonts.ts`) | `font-sans` / `font-body` / `font-pixel` (body default) | UI voice |
+| Terminal Grotesque 400 | `next/font/local`, `app/fonts/terminal-grotesque.ttf` (SIL OFL) | `font-display` | wordmark, headings, buttons |
+| Geist Mono | `geist/font` | `font-mono` | addresses, hex, live numbers |
+| Geist Sans | `geist/font` | fallback only | |
 
-The legacy names `emerald`, `cyan`, `fuch` all map to the purple family, so old
-classes keep working. Never hardcode `black/…` or `white/…` for lines — use
-`pv-border/…` so the line flips with the theme.
+Headings are never bold. Sizes are Tailwind `fontSize` tokens:
+`display-xl`, `display-hero`, `display-lg`, `display-md`, `title`, `lead`,
+`sub`, `body`, `card-title`, `small`, `micro`, `stat`, `eyebrow` (landing) and
+`app-h1`, `app-hero`, `section`, `status`, `copy`, `meta`, `button`,
+`label-xs` (app).
 
-Contrast (WCAG AA, ≥ 4.5:1 for normal text) against `bg`, `surface` and
-`surface2`: text 14.5–19.5, muted 5.9–8.7, accent 4.7–6.8, gold 5.0–13, danger 5.3–7.1. Buttons: `text-pv-bg` on `bg-pv-emerald` is 5.7 (light) / 6.8 (dark).
-Faded variants (`text-pv-muted/60`) are for decoration only.
+## Shape
 
-Radius: every `rounded*` step is `0` (sharp corners). `rounded-full` stays
-round for dots, avatars and progress tracks. Font: Maple Mono everywhere.
+Round, not sharp: `rounded-full` for every control and pill, `rounded-4xl`
+(32px) sheets, `rounded-3xl` (28px) shelves and dialogs, `rounded-2xl` (22px)
+cards, `rounded-xl` (20px) panels, `rounded-lg` (16px) disclosures,
+`rounded-md` (12px) menus, `rounded-sm` (8px) menu items. Separate with glass
+and shadow (`shadow-chip`, `card`, `sheet`, `shelf`, `menu`, `modal`,
+`primary`, `bubble`, `well`), hairlines only for strips, tables and dividers.
 
-Theme: the inline script in `app/layout.tsx` adds `dark` to `<html>` before
-paint unless `localStorage["mimir-theme"] === "light"`; `components/ThemeToggle`
-flips it. Canvas/SVG that need colours read the CSS variables
-(`rgb(var(--pv-accent))` works in SVG presentation attributes; `HeroAscii`
-reads them with `getComputedStyle` and re-reads on toggle).
+Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
+(`--wrap`), detail and forms 920px (`--wrap-narrow`).
 
-## Layout frame
+## Primitives (`components/ui/`)
 
-- `app/[locale]/layout.tsx` — `<main>` is the 1200px column; content sits in
-  `components/PageFrame.tsx`.
-- `PageFrame` — left/right rails on every page except `/` (the landing draws
-  its own section borders). It pads the page to sit flush under the navbar, so
-  a page that opens with a `BlueprintHeading` shares one line with the header.
-- `Header` / `Footer` — framed on the same column as the rails. Nav items live
-  in `components/nav-items.ts`: `NAV_PRIMARY` (the ~5 links in the desktop
-  row), `NAV_MORE_GROUPS` (the "More" menu, `components/NavMoreMenu.tsx`) and
-  `NAV_CTA`; add new pages to a More group. The row shows from `lg` up
-  (Publish collapses to its icon below `xl`), a grouped menu sheet below
-  that. Active links get `aria-current="page"`.
-- Use `Link` from `@/i18n/navigation` with unprefixed paths (`/arena/42`) —
-  never build `/${locale}/…` by hand.
-
-## Components (`components/BlueprintGrid.tsx`)
-
-- `BlueprintHeading` (alias `SectionHeading`) — centred uppercase title in a
-  band with full-bleed rules above and below. Props: `as` (`h1` for page
-  titles, default `h2`), `eyebrow`, `subtitle`, `id`, `className`. Start every
-  page with `<BlueprintHeading as="h1" …>`.
-- `BlueprintSection` — heading + railed body (`bodyClassName` for padding or a
-  grid).
-- `BlueprintStat` — one ruled stat cell (value + mono label, `tone` accent /
-  gold / text / danger). Put them in a `.bp-grid` or `.bp-cells` row.
-
-Inside `PageFrame`, headings/sections drop their own side rails
-(`.bp-page [data-bp-rails]`) so the column line stays single.
-
-## Utility classes (`app/globals.css`)
-
-| Class | What |
+| Component | What |
 |---|---|
-| `.bp-frame` | framed surface: ink hairline, page bg |
-| `.bp-rails` | left/right rails only |
-| `.bp-grid` + `.bp-cell` | ruled grid for **full** rows: `gap-px` over an ink background, cells paint `bg` |
-| `.bp-cells` | ruled grid that tolerates a ragged last row (card feeds): each child draws a 1px ring into the gaps; pair with `border-b` (or `border`) on the container |
-| `.bp-label` | mono eyebrow label |
-| `.bp-paper` | faint graph-paper ruling for hero / CTA / empty states |
-| `.card`, `.card-hover` | framed surface on `pv-surface` |
-| `.btn-*`, `.input`, `.label`, `.chip`, `.focus-ring` | unchanged APIs, blueprint-styled |
+| `Button` (`primary`, `ghost`, `light`, `secondary`, `danger`; `sm` / `md` / `lg`), `buttonClass()` for links | radio pills, press scale .97 |
+| `Card`, `Panel`, `Sheet`, `FeedCard` (`Card.tsx`) | glass card, solid panel, focused-job sheet, glossy feed card |
+| `Chip`, `StatusPill`, `LiveDot`, `Pending`, `Badge`, `Eyebrow` | pills and status language |
+| `Input`, `Textarea`, `ListboxField`, `Slider` | pill / well inputs |
+| `Segmented` | pill track with sliding thumb, tabs or toggles, arrow keys |
+| `Disclosure` | `<details>` with a coral chevron: progressive disclosure |
+| `KeyValue`, `Strip` + `StripCell`, `Progress`, `Meter` | data rows |
+| `Modal` (`dialog` / `sheet`) | focus trap, Esc, return focus, Lenis paused |
+| `EmptyState`, `SlotPlaceholder`, `Skeleton` | empty and loading |
+| `Rail`, `Wordmark` | snap rail with round nav, gradient wordmark |
 
-Typical patterns:
+## Motion (`lib/motion.ts`, `components/motion/`)
 
-```tsx
-<BlueprintHeading as="h1" eyebrow="Oracle analytics" subtitle="…">Stats</BlueprintHeading>
-<div className="bp-cells grid-cols-2 border-b border-pv-border/25 lg:grid-cols-4">
-  <BlueprintStat value={12} label="Markets" />
-  …
-</div>
-<div className="px-4 py-8 sm:px-6 lg:px-8">…page body…</div>
-```
+- One Lenis instance on GSAP's ticker (`startSmoothScroll`), started by
+  `MotionProvider` in the root layout; ScrollTrigger updates on Lenis scroll
+  and refreshes after `document.fonts.ready` and each route change. Plugins
+  register once; the instance lives on `globalThis` so HMR never adds a
+  second ticker callback.
+- Reduced motion: no Lenis (torn down live if the setting flips), no
+  SplitText, no dither (300ms fade), no marquee, no magnetic, no hover lifts,
+  numbers snap, CSS entrances off.
+- Primitives: `SplitReveal` (masked line reveal), `Magnetic`, `RollingNumber`
+  (with red `flash`), `Marquee` (velocity-driven ticker), `useDitherReveal`
+  (radio Bayer reveal, `data-dither`), `useRiseBatch` (`data-rise` batch),
+  `usePrefersReducedMotion`, `useInViewOnce`. `PageTransition` /
+  `AnimatedItem` are thin `data-rise` wrappers.
+- Use `useGSAP` with a `scope` for every timeline and `gsap.matchMedia()` with
+  `(prefers-reduced-motion: no-preference)` in new code. Never import
+  `lib/motion.ts` from a server component.
+- Pre-animation states are hidden only under `html.js` and
+  `prefers-reduced-motion: no-preference`; the head script adds
+  `motion-timeout` after 3s as a failsafe.
+- Scrollable inner areas get `data-lenis-prevent` (Lenis also runs with
+  `allowNestedScroll`).
+- CSS helpers: `.route-enter`, `.card-in` (stagger with `--i`), `.pop-in`,
+  `.fade-rise`, `.collapse-grid[data-open]`, `.flashable`.
+- Easings: `ease-out` `cubic-bezier(.23,1,.32,1)`, `ease-in-out`
+  `cubic-bezier(.77,0,.175,1)`, `ease-spring` `cubic-bezier(.22,1,.36,1)`,
+  `ease-overshoot` `cubic-bezier(.22,1.25,.36,1)`.
 
-Tables: `border border-pv-border/25` wrapper with `overflow-x-auto`,
-`divide-y divide-pv-border/25` rows, mono uppercase `text-pv-muted` headers.
+## Accessibility
 
-## Avatars
-
-`lib/avatars.ts` → `openPeepsAvatar(seed)` returns a DiceBear open-peeps URL
-on a lavender background (legible in both themes). Render with
-`components/ui/PeepAvatar.tsx`:
-
-- `PeepAvatar` — `seed`, `size`, `shape` (`circle` | `square`), `tone`
-  (`neutral` | `accent` | `gold`), optional `alt`.
-- `PeepStack` — overlapping challenger portraits with dashed empty slots.
-
-Seed conventions: `creator-<pubkey>`, `challenger-<pubkey>`,
-`council-<persona slug>`, `oracle-mimir`.
-
-## Hero
-
-`components/HeroAscii.tsx` — ASCII wave field (ink → Solana purple at the
-peaks), client-only via `next/dynamic`, pauses offscreen, static under
-`prefers-reduced-motion`.
+Focus is a 2px coral outline with a 3px offset everywhere. Selection is red
+on cream. Every text pair used for body copy meets AA on the three surfaces
+above; `dim` is for 13px+ labels and decoration.
