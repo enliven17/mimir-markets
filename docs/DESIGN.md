@@ -114,4 +114,4 @@ Seed conventions: `creator-<pubkey>`, `challenger-<pubkey>`,
 
 `components/HeroAscii.tsx` — ASCII wave field (ink → Solana purple at the
 peaks), client-only via `next/dynamic`, pauses offscreen, static under
-`prefers-reduced-motion`. The old Plasma WebGL backdrop is no longer used.
+`prefers-reduced-motion`.
