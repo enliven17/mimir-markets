@@ -13,7 +13,7 @@
  * everyone rather than picking a winner by coin flip.
  */
 
-export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "flashtrade";
+export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "flashtrade" | "dexscreener" | "jupiter";
 
 export interface PriceReading {
   source: PriceSourceId;

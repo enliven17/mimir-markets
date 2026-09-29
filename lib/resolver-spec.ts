@@ -23,6 +23,7 @@
  *
  * Pure: no network. The oracle supplies the price readings or fetched JSON.
  */
+import { mimirMint, mimirSymbol } from "./token-config";
 
 export type ResolverOp = ">" | ">=" | "<" | "<=" | "==" | "!=";
 
@@ -217,9 +218,10 @@ export function deterministicPriceOption(draft: {
   defaultSource: (symbol: string) => string;
 }): { spec: Extract<ResolverSpec, { kind: "price" }>; resolutionUrl: string } | null {
   const text = draft.question;
-  const symbolMatch = SYMBOLS.find((s) => s.pattern.test(text));
+  const symbols = priceSymbols();
+  const symbolMatch = symbols.find((s) => s.pattern.test(text));
   const thresholds = [...text.matchAll(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*([kKmM]))?/g)];
-  if (!symbolMatch || thresholds.length !== 1 || SYMBOLS.filter((s) => s.pattern.test(text)).length !== 1) return null;
+  if (!symbolMatch || thresholds.length !== 1 || symbols.filter((s) => s.pattern.test(text)).length !== 1) return null;
   const suffix = thresholds[0][2]?.toLowerCase();
   const threshold = Number(thresholds[0][1].replace(/,/g, "")) * (suffix === "k" ? 1_000 : suffix === "m" ? 1_000_000 : 1);
   const spec = priceSpecFromQuestion(text, symbolMatch.symbol, threshold);
@@ -231,10 +233,20 @@ export function deterministicPriceOption(draft: {
   return resolutionUrl.length <= MAX_RESOLUTION_URL ? { spec, resolutionUrl } : null;
 }
 
-const SYMBOLS: Array<{ symbol: string; pattern: RegExp }> = [
+const MAJOR_SYMBOLS: Array<{ symbol: string; pattern: RegExp }> = [
   { symbol: "BTC", pattern: /\b(btc|bitcoin)\b/i },
   { symbol: "ETH", pattern: /\b(eth|ethereum|ether)\b/i },
   { symbol: "SOL", pattern: /\b(sol|solana)\b/i },
   { symbol: "LINK", pattern: /\b(link|chainlink)\b/i },
   { symbol: "AVAX", pattern: /\b(avax|avalanche)\b/i },
 ];
+
+/**
+ * Majors plus the mainnet tokens priced from DEX data ($ANSEM, and the Mimir
+ * token once its mint is set). The Mimir ticker only matches with its `$`
+ * so "Mimir" in ordinary prose never reads as a price claim.
+ */
+function priceSymbols(): Array<{ symbol: string; pattern: RegExp }> {
+  const mimir = mimirMint() ? [{ symbol: mimirSymbol(), pattern: new RegExp(`\\$${mimirSymbol()}\\b`, "i") }] : [];
+  return [...MAJOR_SYMBOLS, { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i }, ...mimir];
+}

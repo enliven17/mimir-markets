@@ -46,6 +46,7 @@ import ResolverToggle from "@/components/arena/ResolverToggle";
 import CouncilPreflight from "@/components/council/CouncilPreflight";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
 import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
+import { dexMintFor, dexSourceUrl } from "@/lib/token-config";
 
 const STAKE_PRESET_AMOUNTS = [MIN_STAKE, 5, 10, 25] as const;
 
@@ -162,7 +163,9 @@ export default function CreateMarketPage() {
         counterPosition: opponentPos,
         resolutionUrl: url,
         defaultSource: (symbol) =>
-          (FLASH_CLAIM_SYMBOLS as readonly string[]).includes(symbol)
+          dexMintFor(symbol)
+            ? dexSourceUrl(dexMintFor(symbol)!)
+            : (FLASH_CLAIM_SYMBOLS as readonly string[]).includes(symbol)
             ? flashResolutionUrl(symbol)
             : `https://api.coingecko.com/api/v3/simple/price?ids=${symbol === "AVAX" ? "avalanche-2" : "chainlink"}&vs_currencies=usd`,
       }),

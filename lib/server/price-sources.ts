@@ -9,6 +9,10 @@
  * they do not, something is wrong. Flash Trade only serves the live price, so
  * it joins only when the oracle runs within minutes of the deadline.
  *
+ * $ANSEM and the Mimir token (mainnet mints, lib/token-config.ts) are priced
+ * from DexScreener + Jupiter (lib/server/dex-prices.ts), plus CoinGecko where
+ * listed; historical reads for them only have CoinGecko.
+ *
  * Both are best-effort. A source being down degrades the settlement to a single
  * reading, which is what the oracle did before this existed; it never blocks it.
  */
@@ -16,6 +20,8 @@
 import type { PriceReading } from "../price-consensus";
 import { CHAINLINK_FEEDS, fetchChainlinkPrice } from "./chainlink";
 import { FLASH_CLAIM_SYMBOLS, getFlashPrice } from "../solana/flashtrade";
+import { dexMintFor } from "../token-config";
+import { fetchDexReadings } from "./dex-prices";
 
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CMC_BASE = "https://pro-api.coinmarketcap.com/v1";
@@ -33,6 +39,7 @@ const COINGECKO_IDS: Record<string, string> = {
   LINK: "chainlink",
   MATIC: "matic-network",
   DOT: "polkadot",
+  ANSEM: "the-black-bull",
 };
 
 export function coingeckoIdFor(symbol: string): string | null {
@@ -195,6 +202,15 @@ async function fetchCmcPriceAt(symbol: string, atMs: number): Promise<PriceReadi
  */
 export async function fetchPriceReadings(symbol: string, atMs?: number): Promise<PriceReading[]> {
   const historical = atMs !== undefined && Date.now() - atMs > 5 * 60 * 1000;
+  // $ANSEM / the Mimir token: mainnet DEX prices (live only), plus CoinGecko where listed.
+  const mint = dexMintFor(symbol);
+  if (mint) {
+    const [dex, gecko] = await Promise.all([
+      historical ? Promise.resolve([]) : fetchDexReadings(mint),
+      historical ? fetchCoinGeckoPriceAt(symbol, atMs) : fetchCoinGeckoPrice(symbol),
+    ]);
+    return [...dex, ...(gecko ? [gecko] : [])];
+  }
   const results = await Promise.all(
     historical
       ? [fetchCoinGeckoPriceAt(symbol, atMs), fetchCmcPriceAt(symbol, atMs), fetchChainlinkPrice(symbol, atMs)]
@@ -203,10 +219,11 @@ export async function fetchPriceReadings(symbol: string, atMs?: number): Promise
   return results.filter((r): r is PriceReading => r !== null);
 }
 
-/** CMC needs a key; Chainlink and Flash Trade are keyless but only cover some assets. */
+/** CMC needs a key; Chainlink, Flash Trade and the DEX pair (token mints) are keyless but only cover some assets. */
 export function hasSecondPriceSource(symbol?: string): boolean {
   if (process.env.CMC_API_KEY?.trim()) return true;
   if (symbol === undefined) return false;
   const s = symbol.toUpperCase();
+  if (dexMintFor(s)) return true; // DexScreener + Jupiter
   return s in CHAINLINK_FEEDS || (FLASH_CLAIM_SYMBOLS as readonly string[]).includes(s);
 }
