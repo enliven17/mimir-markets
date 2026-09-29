@@ -40,6 +40,8 @@ import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 import { COUNCIL_PERSONAS, type PersonaSpec } from "./personas";
+import { recordForecast } from "../../lib/server/forecasts";
+import { probabilityFromVerdict } from "../../lib/calibration";
 import { MimirSolanaClient, type OnchainClaim } from "../../lib/solana/client";
 import {
   SOLANA_RPC,
@@ -276,7 +278,7 @@ async function cycle(members: CouncilMember[], oracleReader: MimirSolanaClient) 
       if (claim.challengers.length >= claim.maxChallengers) break;
       if (
         spec.categoryFilter &&
-        !spec.categoryFilter.some((cat) => claim.category.toLowerCase().includes(cat))
+        !spec.categoryFilter.some((cat) => claim.category.trim().toLowerCase() === cat.toLowerCase())
       ) {
         continue;
       }
@@ -294,6 +296,17 @@ async function cycle(members: CouncilMember[], oracleReader: MimirSolanaClient) 
         const d = await llmDecision(spec, claim, evidence.text);
         go = d.challenge && d.confidence >= (spec.minConfidence ?? 75);
         why = `${d.confidence}% — ${d.reason}`;
+        // A persona can only take the challenger side, so only a CHALLENGE
+        // call is a directional forecast for /calibration.
+        if (d.challenge) {
+          await recordForecast({
+            claimId: Number(claim.id),
+            forecaster: spec.slug,
+            pChallengers: probabilityFromVerdict("CHALLENGERS_WIN", d.confidence),
+            verdict: "CHALLENGERS_WIN",
+            confidence: d.confidence,
+          }).catch(() => undefined);
+        }
       }
 
       if (!go) continue;
