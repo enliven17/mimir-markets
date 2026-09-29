@@ -26,7 +26,8 @@
     "system:fund": "tsx --env-file-if-exists=.env.local scripts/solana/system-status.ts --fund",
     "init:solana": "tsx --env-file-if-exists=.env.local scripts/solana/initialize.ts",
     "indexer:solana": "tsx --env-file-if-exists=.env.local agents/indexer/solana.ts",
-    "start:all": "node scripts/start-all.mjs"
+    "start:all": "node scripts/start-all.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -58,6 +59,7 @@
     "ws": "^8.20.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

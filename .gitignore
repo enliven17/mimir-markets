@@ -91,3 +91,7 @@ artifacts/
 # Solana / Anchor
 onchain/target/
 .keys/
+
+# Playwright
+/test-results/
+/playwright-report/
