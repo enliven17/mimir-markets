@@ -19,8 +19,38 @@ export interface RosterEntry {
 
 let cached: RosterEntry[] | null = null;
 
+/**
+ * Web deploys that must not hold the admin secret pass the derived public
+ * addresses instead: COUNCIL_ADDRESSES = {"optimist":"<base58>", ...}
+ * (print them with `npm run system:status`).
+ */
+function publicAddresses(): Record<string, string> | null {
+  const raw = process.env.COUNCIL_ADDRESSES?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function councilRoster(): RosterEntry[] {
   if (cached) return cached;
+  const known = publicAddresses();
+  if (known) {
+    cached = COUNCIL_PERSONAS.map((p) => ({
+      slug: p.slug,
+      displayName: p.displayName,
+      emoji: p.emoji,
+      bio: p.bio,
+      archetype: p.archetype,
+      track: trackOf(p),
+      address: typeof known[p.slug] === "string" ? known[p.slug] : "",
+      categoryFilter: p.categoryFilter,
+    }));
+    return cached;
+  }
   let admin;
   try {
     admin = loadAgentKeypair();
