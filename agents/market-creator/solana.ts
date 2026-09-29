@@ -29,6 +29,7 @@ import {
   getFlashPrice,
 } from "../../lib/solana/flashtrade";
 import { draftWorldCupClaims } from "../../lib/solana/worldcup";
+import { priceSpecFromQuestion, withResolverFragment } from "../../lib/resolver-spec";
 import { isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 
@@ -72,13 +73,17 @@ async function draftCryptoClaims(count: number): Promise<DraftClaim[]> {
       const skew = direction === "above" ? 1.003 : 0.997;
       const threshold = round2(px.priceUi * skew);
       const name = SYMBOL_NAMES[symbol] ?? symbol;
+      const question = `Will ${name} (${symbol}) trade ${direction} $${fmt(threshold)} at the deadline, per the Flash Trade oracle price?`;
+      // Structured resolver in the URL fragment: the oracle settles these from
+      // deadline prices across independent feeds, no model involved.
+      const spec = priceSpecFromQuestion(question, symbol, threshold);
       out.push({
         label: `${symbol} ${direction} $${fmt(threshold)}`,
         category: "crypto",
-        question: `Will ${name} (${symbol}) trade ${direction} $${fmt(threshold)} at the deadline, per the Flash Trade oracle price?`,
+        question,
         creatorPosition: `Yes — ${symbol} will be ${direction} $${fmt(threshold)}`,
         counterPosition: `No — ${symbol} will not be ${direction} $${fmt(threshold)}`,
-        resolutionUrl: flashResolutionUrl(symbol),
+        resolutionUrl: spec ? withResolverFragment(flashResolutionUrl(symbol), spec) : flashResolutionUrl(symbol),
       });
     } catch (err: any) {
       console.warn(`[draft] ${symbol} price fetch failed:`, err?.message ?? err);
