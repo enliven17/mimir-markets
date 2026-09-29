@@ -95,3 +95,6 @@ onchain/target/
 # Playwright
 /test-results/
 /playwright-report/
+
+# Local planning docs
+docs/REDESIGN.md
