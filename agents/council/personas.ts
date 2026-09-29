@@ -1,17 +1,22 @@
 /**
- * Mimir Council — 10 AI personas that bet on prediction markets.
+ * Mimir Council — two juries of AI personas that bet on prediction markets.
  *
  * Each persona is an autonomous economic actor with:
- *   - Its own W3S-managed wallet (signed via Circle, no local key)
+ *   - Its own Solana keypair, derived from the admin secret + slug
+ *     (lib/solana/keypair.ts), staking from a balance delegated to the
+ *     MagicBlock Ephemeral Rollup
  *   - A distinct decision-making strategy:
- *       • LLM-biased — uses Gemini with a personality prompt prefix
+ *       • LLM-biased — an LLM call with a personality prompt prefix
  *       • Rule-based — pure logic, no LLM call (cheap, deterministic)
  *       • Specialist — only bets on a specific claim category
  *       • Micro      — small stakes, broad coverage
  *
- * The shared persona-runner reads this list and runs each one with
- * staggered timing to stay under Gemini free-tier rate limits.
+ * The runtime in agents/council/shared/ reads this list; the worker is
+ * agents/council/solana.ts. Client pages import this module, so it must stay
+ * free of server-only code.
  */
+
+import { PHILOSOPHER_PERSONAS } from "./philosophers";
 
 export type PersonaArchetype =
   | "llm-biased"
@@ -25,9 +30,17 @@ export type RuleEvaluator =
   /** Copies the side staked by the wallet with the largest individual stake. */
   | "whale-follow";
 
+/**
+ * Which jury a persona belongs to. The classic track disagrees about mood, the
+ * philosopher track about what counts as knowing.
+ */
+export type CouncilTrack = "classic" | "philosopher";
+
 export interface PersonaSpec {
-  /** Lowercase-kebab identifier. Used for env var names and URLs. */
+  /** Lowercase-kebab identifier. Used for key derivation and URLs. */
   slug:           string;
+  /** Jury this persona sits on. Defaults to the classic track when unset. */
+  track?:         CouncilTrack;
   /** Display name shown in the UI. */
   displayName:    string;
   /** Single emoji used in cards/badges. */
@@ -40,7 +53,7 @@ export interface PersonaSpec {
   archetype:      PersonaArchetype;
   /** For llm-biased / specialist personas — prepended to the oracle's claim prompt. */
   promptBias?:    string;
-  /** For specialists — only bet claims whose category is in this list (case-insensitive). */
+  /** For specialists — only bet claims whose category exactly equals one of these (case-insensitive). */
   categoryFilter?: string[];
   /** For rule-based personas — which rule to evaluate. */
   ruleEvaluator?: RuleEvaluator;
@@ -58,11 +71,11 @@ export interface PersonaSpec {
 }
 
 /**
- * 10 personas — kept here so wallet creation, runtime config, and UI all
+ * The classic ten — kept here so key derivation, runtime config and UI all
  * share one source of truth. Order matters: the Council page renders in
- * this order and the staggered runner offsets by index.
+ * this order.
  */
-export const COUNCIL_PERSONAS: PersonaSpec[] = [
+export const CLASSIC_PERSONAS: PersonaSpec[] = [
   {
     slug:        "optimist",
     displayName: "The Optimist",
@@ -120,7 +133,7 @@ export const COUNCIL_PERSONAS: PersonaSpec[] = [
     bio:           "Rare but decisive. Only bets when the data is overwhelming.",
     longBio:       "Demands rigorous evidence before staking. The Statistician skips most claims but bets larger when it does move. Lean toward UNRESOLVABLE-equivalent abstention if data is sparse.",
     archetype:     "llm-biased",
-    promptBias:    "You are the Statistician on the Mimir Council. Demand rigorous, citable evidence before asserting a verdict. Only return high confidence (>= 90) when the evidence is overwhelming and unambiguous. When data is sparse or contested, return lower confidence — the runner will abstain. Cite base rates and historical priors when possible.",
+    promptBias:    "You are the Statistician on the Mimir Council. Demand rigorous, citable evidence before asserting a verdict. Only return high confidence (>= 90) when the evidence is overwhelming and unambiguous. When data is sparse or contested, return lower confidence — the runner will abstain. Cite base rates and historical priors when possible. Never invent evidence or numbers that are not in the source.",
     minConfidence: 90,
     stakeUsdc:     3,
     accent: {
@@ -172,7 +185,7 @@ export const COUNCIL_PERSONAS: PersonaSpec[] = [
     longBio:       "A sports-only analyst. Treats every claim like a pre-game studio show. Looks at recent form, head-to-head record, and noted absences in the evidence. Confident when the data is clear, abstains when it's noise.",
     archetype:     "specialist",
     categoryFilter: ["sports", "soccer", "nba", "nfl", "tennis", "f1"],
-    promptBias:    "You are the Sports Pundit on the Mimir Council. Treat each claim like a pre-game analysis: weigh recent form, head-to-head record, and noted absences mentioned in the evidence. Be confident when the data is clear. Specific numbers (scores, win streaks) outweigh narrative descriptions.",
+    promptBias:    "You are the Sports Pundit on the Mimir Council. Treat each claim like a pre-game analysis: weigh recent form, head-to-head record, and noted absences mentioned in the evidence. Be confident when the data is clear. Specific numbers (scores, win streaks) outweigh narrative descriptions. Never invent evidence or a scoreline the source does not state.",
     minConfidence: 72,
     stakeUsdc:     2,
     accent: {
@@ -190,7 +203,7 @@ export const COUNCIL_PERSONAS: PersonaSpec[] = [
     longBio:       "Reads weather data like a meteorologist. Specific values (temperature, precipitation, wind) carry decisive weight; descriptive language gets discounted. Doesn't touch markets outside its domain.",
     archetype:     "specialist",
     categoryFilter: ["weather", "climate"],
-    promptBias:    "You are the Weatherman on the Mimir Council. Read weather data with a meteorologist's eye. Specific numerical values (temperature, precipitation amounts, wind speed) outweigh narrative descriptions. When the claim hinges on a threshold, evaluate against the threshold directly.",
+    promptBias:    "You are the Weatherman on the Mimir Council. Read weather data with a meteorologist's eye. Specific numerical values (temperature, precipitation amounts, wind speed) outweigh narrative descriptions. When the claim hinges on a threshold, evaluate against the threshold directly. Never invent evidence or a reading the source does not report.",
     minConfidence: 72,
     stakeUsdc:     2,
     accent: {
@@ -237,34 +250,39 @@ export const COUNCIL_PERSONAS: PersonaSpec[] = [
 ];
 
 /**
- * SLUG_UPPER for env var names: "crypto-maxi" -> "CRYPTO_MAXI".
+ * The full roster: both juries, classic first.
+ *
+ * Everything downstream (key derivation, the worker, the jury, the UI) reads
+ * this one list. A persona with no ER balance sits out staking, so the
+ * philosopher track rolls out as its wallets are funded.
  */
-export function personaEnvSlug(persona: PersonaSpec): string {
-  return persona.slug.replace(/-/g, "_").toUpperCase();
+export const COUNCIL_PERSONAS: PersonaSpec[] = [...CLASSIC_PERSONAS, ...PHILOSOPHER_PERSONAS];
+
+export function trackOf(persona: Pick<PersonaSpec, "track">): CouncilTrack {
+  return persona.track ?? "classic";
 }
 
-export function personaWalletIdEnv(persona: PersonaSpec): string {
-  return `CIRCLE_COUNCIL_${personaEnvSlug(persona)}_WALLET_ID`;
+export function personasForTrack(track: CouncilTrack): PersonaSpec[] {
+  return COUNCIL_PERSONAS.filter((p) => trackOf(p) === track);
 }
 
-export function personaAddressEnv(persona: PersonaSpec): string {
-  return `CIRCLE_COUNCIL_${personaEnvSlug(persona)}_ADDRESS`;
+/** "classic" | "philosopher" | anything else (both tracks) → the track filter, or null. */
+export function parseTrack(raw: string | undefined): CouncilTrack | null {
+  const t = raw?.trim().toLowerCase();
+  return t === "classic" || t === "philosopher" ? t : null;
+}
+
+/**
+ * The personas this process runs: COUNCIL_TRACK narrows both the staking
+ * worker and the settlement jury to one track (twenty personas is a lot of
+ * LLM calls on a free tier). Unset means both.
+ */
+export function activePersonas(env: Record<string, string | undefined> = process.env): PersonaSpec[] {
+  const track = parseTrack(env.COUNCIL_TRACK);
+  return track ? personasForTrack(track) : COUNCIL_PERSONAS;
 }
 
 /** Look up by slug. Returns null if not in roster. */
 export function getPersonaBySlug(slug: string): PersonaSpec | null {
   return COUNCIL_PERSONAS.find((p) => p.slug === slug) ?? null;
-}
-
-/** Look up by on-chain address (case-insensitive). Returns null if not a council member. */
-export function getPersonaByAddress(
-  address: string,
-  envLookup: (key: string) => string | undefined = (k) => process.env[k],
-): PersonaSpec | null {
-  const lower = address.toLowerCase();
-  for (const p of COUNCIL_PERSONAS) {
-    const a = envLookup(personaAddressEnv(p))?.toLowerCase();
-    if (a && a === lower) return p;
-  }
-  return null;
 }

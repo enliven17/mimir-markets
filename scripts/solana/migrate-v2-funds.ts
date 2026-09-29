@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import legacyIdl from "./idl/mimir-v2.json";
 import { KeypairWallet, MimirSolanaClient } from "../../lib/solana/client";
 import { derivePersonaKeypair, loadAgentKeypair, loadCreatorKeypair } from "../../lib/solana/keypair";
-import { COUNCIL_PERSONAS } from "../../agents/council/personas";
+import { CLASSIC_PERSONAS } from "../../agents/council/personas";
 import {
   LEGACY_MIMIR_PROGRAM_ID,
   MAGICBLOCK_ER_RPC,
@@ -204,7 +204,8 @@ async function main() {
   const rows: WalletRow[] = [{ role: "admin/oracle", kp: admin, erBettor: true }];
   if (!creatorKp.publicKey.equals(admin.publicKey)) rows.push({ role: "market-creator", kp: creatorKp, erBettor: false });
   else console.log("  (market-creator key not available locally — set CREATOR_KEYPAIR[_JSON] to migrate it)");
-  for (const p of COUNCIL_PERSONAS) rows.push({ role: `council ${p.slug}`, kp: derivePersonaKeypair(admin, p.slug), erBettor: true });
+  // Only the classic ten existed under the old program.
+  for (const p of CLASSIC_PERSONAS) rows.push({ role: `council ${p.slug}`, kp: derivePersonaKeypair(admin, p.slug), erBettor: true });
   let total = 0n;
   for (const row of rows) {
     try {

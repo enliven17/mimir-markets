@@ -4,7 +4,7 @@
  * challenger addresses back to a persona — without ever exposing a secret key.
  */
 import { loadAgentKeypair, derivePersonaKeypair } from "@/lib/solana/keypair";
-import { COUNCIL_PERSONAS } from "@/agents/council/personas";
+import { COUNCIL_PERSONAS, trackOf, type CouncilTrack } from "@/agents/council/personas";
 
 export interface RosterEntry {
   slug: string;
@@ -12,6 +12,7 @@ export interface RosterEntry {
   emoji: string;
   bio: string;
   archetype: string;
+  track: CouncilTrack;
   address: string;
   categoryFilter?: string[];
 }
@@ -32,6 +33,7 @@ export function councilRoster(): RosterEntry[] {
       emoji: p.emoji,
       bio: p.bio,
       archetype: p.archetype,
+      track: trackOf(p),
       address: "",
       categoryFilter: p.categoryFilter,
     }));
@@ -42,6 +44,7 @@ export function councilRoster(): RosterEntry[] {
     emoji: p.emoji,
     bio: p.bio,
     archetype: p.archetype,
+    track: trackOf(p),
     address: derivePersonaKeypair(admin, p.slug).publicKey.toBase58(),
     categoryFilter: p.categoryFilter,
   }));

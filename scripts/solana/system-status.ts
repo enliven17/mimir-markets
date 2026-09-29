@@ -1,7 +1,7 @@
 /**
  * System wallet roster: prints every wallet the system uses (admin/oracle,
- * market-creator, 9 council personas) with SOL, USDC-ATA and ER virtual
- * balances.
+ * market-creator, both council tracks) with SOL, USDC-ATA and ER virtual
+ * balances, and how much USDC each wallet is short of its target.
  *
  * USDC comes from https://faucet.circle.com (Solana Devnet) — send it to
  * the addresses this script prints. With --fund the script then:
@@ -10,6 +10,10 @@
  *     delegate the balance PDA to the Ephemeral Rollup
  * The market-creator keeps its USDC in its token account (it stakes from
  * there directly), so for it there is nothing to sweep.
+ *
+ * Devnet USDC is Circle's faucet mint (no mint authority), so this script
+ * never mints: a wallet short of USDC is only reported, with the amount it
+ * needs, for someone to send from the faucet or another wallet.
  *
  * Run:  npx tsx --env-file-if-exists=.env.local scripts/solana/system-status.ts [--fund]
  */
@@ -90,6 +94,8 @@ async function main() {
     })),
   ];
 
+  const shortfalls: { role: string; address: string; needUsdc: number }[] = [];
+
   console.log("Mimir system wallets" + (FUND ? " — FUNDING PASS" : ""));
   console.log(`  mint: ${USDC_MINT.toBase58()}  ·  rpc: ${SOLANA_RPC}\n`);
 
@@ -147,6 +153,18 @@ async function main() {
       `  ${row.role.padEnd(28)} ${pk.toBase58()}  SOL=${sol.toFixed(3)}  ` +
         `ATA=${ata < 0 ? "—" : ata}  ER=${er}`
     );
+    const held = Math.max(ata, 0) + er;
+    if (held < row.targetUsdc) {
+      shortfalls.push({ role: row.role, address: pk.toBase58(), needUsdc: Math.round((row.targetUsdc - held) * 100) / 100 });
+    }
+  }
+
+  if (shortfalls.length) {
+    const total = shortfalls.reduce((s, r) => s + r.needUsdc, 0);
+    console.log(`\nUSDC shortfall (target ${PERSONA_USDC} per persona, ${CREATOR_USDC} for the creator) — ${total.toFixed(2)} USDC across ${shortfalls.length} wallet(s):`);
+    for (const r of shortfalls) console.log(`  ${r.role.padEnd(28)} ${r.address}  needs ${r.needUsdc.toFixed(2)} USDC`);
+  } else {
+    console.log("\nEvery wallet is at or above its USDC target.");
   }
 
   console.log(
