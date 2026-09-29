@@ -2,6 +2,7 @@
 
 import { Link } from "@/i18n/navigation";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
+import SettlementDataSection from "@/components/SettlementDataSection";
 
 /* ───────────────────────────────────────────────────────────────────────────
  * Mimir docs — 100% Solana.
@@ -639,6 +640,8 @@ export default function DocsPage() {
           </Card>
         </div>
       </Section>
+
+      <SettlementDataSection />
 
       <footer className="border-t border-pv-border/25 px-4 pt-8 text-center text-sm text-pv-muted">
         Got a question that isn&apos;t answered here?{" "}

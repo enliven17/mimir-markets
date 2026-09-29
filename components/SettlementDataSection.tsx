@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Landing section: what price settlement actually reads, and who provides it
+ * Docs section: what price settlement actually reads, and who provides it
  * (lib/server/price-sources.ts). Doubles as the CoinMarketCap attribution for
  * the data the oracle uses from its API.
  */
