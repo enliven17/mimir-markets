@@ -1399,5 +1399,21 @@
       "culture": "Culture",
       "custom": "Custom"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "aria": "Notifications",
+    "ariaUnread": "Notifications, {count} unread",
+    "empty": "Nothing yet. Challenges on your claims, verdicts and payouts you can pull show up here.",
+    "challenged": "New challenger on “{q}”",
+    "proposedFor": "Verdict proposed in your favour: “{q}”. Final when the dispute window closes.",
+    "proposedAgainst": "Verdict proposed against you: “{q}”. You can dispute it before the window closes.",
+    "proposedRefund": "Refund proposed: “{q}”",
+    "disputed": "Verdict disputed: “{q}”. The arbiter decides.",
+    "won": "You won “{q}”",
+    "lost": "Settled against you: “{q}”",
+    "refunded": "Refunded: “{q}”",
+    "claimable": "{amount} ready to pull from “{q}”",
+    "cancelled": "Cancelled: “{q}”"
   }
 }

@@ -14,7 +14,9 @@
 import { PublicKey } from "@solana/web3.js";
 import { loadAgentKeypair } from "../../lib/solana/keypair";
 import { MimirSolanaClient } from "../../lib/solana/client";
-import { isIndexEnabled, upsertClaim } from "../../lib/server/solana-index";
+import { isIndexEnabled, upsertClaim, type SolanaClaimRow } from "../../lib/server/solana-index";
+import { claimEvents, type NotificationEvent } from "../../lib/notifications";
+import { loadClaimSnapshots, recordNotifications } from "../../lib/server/notifications";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 
 /** PublicKey.default (all zeros) means "none" on-chain; store it as ''. */
@@ -38,6 +40,13 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
   const allIds: bigint[] = [];
   for (let id = 1n; id <= cfg.claimCount; id++) allIds.push(id);
   const delegatedMap = await client.isDelegatedBatch(allIds);
+  // What the index held before this sweep: each re-read claim is diffed
+  // against it to derive notifications (new challenger, proposed, settled…).
+  const previous = await loadClaimSnapshots().catch((err) => {
+    console.warn("[indexer] could not load previous snapshots:", String(err).slice(0, 120));
+    return null;
+  });
+  const events: NotificationEvent[] = [];
 
   for (const id of allIds) {
     const delegated = delegatedMap.get(id) ?? false;
@@ -48,7 +57,7 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
       if (CLAIM_FETCH_DELAY_MS > 0) await new Promise((r) => setTimeout(r, CLAIM_FETCH_DELAY_MS));
       continue;
     }
-    await upsertClaim({
+    const row: SolanaClaimRow = {
       id: Number(claim.id),
       creator: claim.creator.toBase58(),
       question: claim.question,
@@ -88,11 +97,18 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
       platform_fee_bps: claim.platformFeeBps,
       agent_fee_bps: claim.agentFeeBps,
       total_fees: claim.totalFees.toString(),
-    });
+    };
+    await upsertClaim(row);
+    if (previous) events.push(...claimEvents(previous.get(row.id) ?? null, row));
     written++;
     if (CLAIM_FETCH_DELAY_MS > 0) await new Promise((r) => setTimeout(r, CLAIM_FETCH_DELAY_MS));
   }
-  console.log(`[indexer] ${new Date().toISOString()} — synced ${written}/${cfg.claimCount} claims`);
+  // After the sweep, so a slow webhook never delays indexing.
+  const fresh = await recordNotifications(events).catch((err) => {
+    console.warn("[indexer] notifications failed:", String(err).slice(0, 120));
+    return 0;
+  });
+  console.log(`[indexer] ${new Date().toISOString()} — synced ${written}/${cfg.claimCount} claims, ${fresh} new notifications`);
 }
 
 async function main(): Promise<void> {

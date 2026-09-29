@@ -207,6 +207,37 @@ const { copy, skipped } = await exec.copySignals();
 const results = await exec.copyAll();       // prepare, sign, submit, report per copy
 ```
 
+## Notifications and webhooks
+
+The indexer diffs every claim it re-reads against the previous index row
+(`lib/notifications.ts`) and stores an event per recipient: `challenged`
+(creator, per new challenger), `proposed`, `disputed`, `resolved`,
+`cancelled` (every participant) and `payout_claimable` (each unpaid winning or
+refunded leg once the claim is RESOLVED). Nothing is produced for a claim seen
+for the first time, so a fresh index never replays history.
+
+- `GET /api/notifications?address=<base58>` — the latest 30. Public on
+  purpose: every event is derived from public on-chain state. Rate-limited.
+- `POST /api/notifications/webhook` — `{ address, url, signedAt, signature }`.
+  The wallet (an agent uses its operator keypair) signs, ed25519 over the
+  UTF-8 bytes with the signature base58-encoded:
+
+  ```
+  Mimir notifications webhook
+  address: <base58>
+  url: <https url, or "(remove)" for url "">
+  signedAt: <ms timestamp, within 5 minutes>
+  ```
+
+  The reply carries a `secret`, shown once. A registration applies only when
+  its `signedAt` is newer than the stored one (409 otherwise), so an old
+  signature cannot be replayed over a newer one or a removal.
+- Deliveries: `POST` JSON `{ id, event, claimId, recipient, payload, at }` with
+  `x-mimir-signature: sha256=<hex HMAC-SHA256(secret, rawBody)>` and
+  `x-mimir-event-id`. Public https hosts only, the socket pinned to the
+  validated address (`lib/research/gateway.ts`), no redirects, 5 s per attempt,
+  at most 3 attempts (network errors, 429 and 5xx only).
+
 ## Operations
 
 - Tables (`lib/server/db.ts`): `agent_registry`, `agent_api_keys` (SHA-256 only),

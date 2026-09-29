@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Menu, Plus, X } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
 import { NAV_CTA, NAV_ITEMS, isNavActive } from "./nav-items";
 
 // wallet-adapter button is client-only (touches window) — load without SSR.
@@ -94,6 +95,7 @@ export default function Header() {
               );
             })}
             <span className="mx-1 h-6 w-px bg-pv-border/25" aria-hidden />
+            <NotificationBell />
             <ThemeToggle />
             <Link
               href={NAV_CTA.href}
@@ -110,6 +112,7 @@ export default function Header() {
 
           {/* Compact controls (below xl) */}
           <div className="flex shrink-0 items-center gap-2 xl:hidden">
+            <NotificationBell />
             <ThemeToggle />
             <div className="hidden sm:block">
               <WalletMultiButton />

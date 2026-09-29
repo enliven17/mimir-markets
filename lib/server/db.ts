@@ -217,6 +217,30 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   // One executed copy per claim per permission: a repeated report cannot double-count spend.
   `CREATE UNIQUE INDEX IF NOT EXISTS copy_executions_executed_uniq
      ON copy_executions (permission_id, claim_id) WHERE executed`,
+  // ── Notifications (lib/server/notifications.ts) ────────────────────────────
+  // Derived by the indexer from read-index changes; the unique key makes a
+  // re-read of the same change a no-op. Recipients are base58, never lowercased.
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id         BIGSERIAL PRIMARY KEY,
+    program    TEXT NOT NULL,
+    recipient  TEXT NOT NULL,
+    claim_id   BIGINT NOT NULL,
+    kind       TEXT NOT NULL,
+    dedupe     TEXT NOT NULL,
+    payload    TEXT NOT NULL,
+    created_at BIGINT NOT NULL DEFAULT 0,
+    UNIQUE (program, recipient, claim_id, kind, dedupe)
+  )`,
+  `CREATE INDEX IF NOT EXISTS notifications_recipient_idx ON notifications (recipient, created_at DESC)`,
+  // One webhook per wallet, set with an ed25519 signature; deliveries are
+  // HMAC-SHA256 signed with the secret handed out once at registration.
+  `CREATE TABLE IF NOT EXISTS notification_webhooks (
+    address    TEXT PRIMARY KEY,
+    url        TEXT NOT NULL,
+    secret     TEXT NOT NULL,
+    signed_at  BIGINT NOT NULL DEFAULT 0,
+    created_at BIGINT NOT NULL DEFAULT 0
+  )`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
