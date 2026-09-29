@@ -219,6 +219,34 @@ pre-deadline forecast (oracle and personas) lands in `forecasts`;
 `/calibration` shows Brier scores once claims resolve. `ORACLE_DRY_RUN=1`
 decides and logs without writing anything.
 
+### How the market creator drafts (`agents/market-creator/`)
+
+Every draft is built by rule from a source that can settle it — no model
+writes the question, threshold, date or URL:
+
+| Source | Claim | Resolution URL | Deadline |
+| --- | --- | --- | --- |
+| Flash Trade (`crypto.ts`) | BTC/ETH/SOL above/below spot ±0.3% | `flashapi.trade/prices/<SYM>#mimir=price:…` | now + `CREATOR_HORIZON_MIN` |
+| ESPN (`sports.ts`) | "Will <home> beat <away> …?" for World Cup, Premier League, Champions League, NFL, NBA | that day's scoreboard + `&event=<id>` (the evidence fetcher narrows to the game) | kickoff (no betting on a known result) |
+| stockanalysis.com (`stocks.ts`) | a large-cap closes above its previous close | the quote page | next NY close + 20 min |
+| Polymarket (`polymarket.ts`, `MARKET_CREATOR_POLYMARKET=1`) | a live, 10–90% priced, liquid Yes/No market, restated with its close date | Gamma API record `?slug=` (rules, `closed`, UMA status) | the market's end date; the oracle waits up to 72h for UMA |
+
+Then: the program's byte limits, a decidability floor (`lib/claimQuality.ts`,
+`CREATOR_MIN_QUALITY`, default 60), a duplicate guard against joinable claims
+and within the run (same category + normalised question or same source;
+`dedupe.ts`), a cap on joinable claims (`MAX_ACTIVE_CLAIMS`), the optional
+council preflight, and the USDC check. Each claim is created, staked and
+delegated to the ER; the creator's expired unchallenged claims are cancelled
+first. `MARKET_CREATOR_DRY_RUN=1` (or `--dry-run`, with `--once` for a single
+cycle) drafts and logs without writing.
+
+The same worker rebuilds the arena's **challenge opportunities** every 6h
+(`lib/server/challenge-opportunities.ts`, table `challenge_opportunities`):
+the best LLM-drafted candidate per source page, scored on decidability; one
+that repeats a live claim links to it. Served by `GET /api/challenge-opportunities`
+(curated seeds without a DB) and shown under the arena feed, behind
+`NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`.
+
 ### V2 → V3 migration (done 2026-09-28)
 
 `scripts/solana/migrate-v2-funds.ts --execute` on the legacy program:
