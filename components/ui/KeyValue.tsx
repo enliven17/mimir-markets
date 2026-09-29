@@ -8,7 +8,7 @@ export type KeyValueRow = {
 };
 
 /**
- * Two-column `dl` in a faint well (radio `.insp-rows`): `dt` dim 13px,
+ * Two-column `dl` in a faint well: `dt` dim 13px,
  * `dd` mono 13px right-aligned with tabular figures.
  */
 export default function KeyValue({ rows, className = "" }: { rows: KeyValueRow[]; className?: string }) {

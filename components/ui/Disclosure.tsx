@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * Progressive disclosure on a native `<details>` (radio
- * `.stream-transport-proof`): glass, `rounded-lg`, summary with a coral
+ * Progressive disclosure on a native `<details>`: glass, `rounded-lg`, summary with a coral
  * chevron that turns 180deg, body split from the summary by a hairline.
  * Keyboard and screen-reader support come from the element itself.
  */

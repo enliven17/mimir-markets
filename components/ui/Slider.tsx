@@ -3,7 +3,7 @@
 import { forwardRef, type InputHTMLAttributes } from "react";
 
 /**
- * Range input in radio's look (`.slider`): 4px `--panel-2` rail, coral fill
+ * Range input (`.slider`): 4px `--panel-2` rail, coral fill
  * up to the thumb, 16px cream thumb. Native `<input type="range">`, so
  * keyboard and screen readers work as usual.
  */

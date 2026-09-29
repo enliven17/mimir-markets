@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 /**
- * Dashed glass box with one line and at most one action (radio
- * `.live-directory-empty`). `SlotPlaceholder` is the card-sized dashed box
- * for a missing item in a rail (`.live-slot-placeholder`).
+ * Dashed glass box with one line and at most one action.
+ * `SlotPlaceholder` is the card-sized dashed box
+ * for a missing item in a rail.
  */
 export default function EmptyState({
   children,

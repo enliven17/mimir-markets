@@ -4,10 +4,10 @@ import { useRef, type ReactNode } from "react";
 import { getLenis, gsap, reducedMotion, useGSAP } from "@/lib/motion";
 
 /**
- * Scroll ticker (pandock/web/src/components/Marquee.tsx): the content is
+ * Scroll ticker: the content is
  * rendered twice and slides on GSAP's ticker; Lenis scroll velocity speeds it
- * up and flips it with the scroll direction. Pauses while hovered (radio
- * ticker). Reduced motion: a static row, the duplicate is not rendered.
+ * up and flips it with the scroll direction. Pauses while hovered.
+ * Reduced motion: a static row, the duplicate is not rendered.
  *
  * Decorative by default (`aria-hidden`); pass `label` to expose it.
  */

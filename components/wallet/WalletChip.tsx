@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Header wallet chip (radio `wallet-chip.tsx`, `.wallet-chip` /
- * `.wallet-menu`). Disconnected: a glass "Connect" pill that opens the
+ * Header wallet chip (`.wallet-chip` / `.wallet-menu`). Disconnected: a glass "Connect" pill that opens the
  * connect sheet. Connected: the short address in mono with a chevron; the
  * menu holds the wallet's devnet balances, its token tier (moved here from
  * the header), copy address, explorer, "Manage balance" and disconnect.

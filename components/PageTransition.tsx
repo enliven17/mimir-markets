@@ -11,7 +11,7 @@ interface PageTransitionProps {
 /**
  * Page entrance on GSAP: every `AnimatedItem` inside is a
  * `[data-rise]` element that rises in once when it scrolls into view
- * (components/motion/useRiseBatch.ts, juxtai timing). Reduced motion: static.
+ * (components/motion/useRiseBatch.ts). Reduced motion: static.
  *
  * Kept with the same API so existing pages compile; later phases can drop the
  * wrapper and put `data-rise` straight on their sections.

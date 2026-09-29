@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * The one place the UI shell touches the wallet kit (docs/REDESIGN.md 4.4
- * step 5). Today it is a thin facade over `@solana/wallet-adapter-react`; a
+ * The one place the UI shell touches the wallet kit. Today it is a thin facade over `@solana/wallet-adapter-react`; a
  * future switch (ConnectorKit, AppKit) rewrites this file and the shell
  * (components/wallet) keeps compiling. Existing feature code still calls
  * `useWallet` / `useConnection` directly; that is fine, the hooks are the

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Radio footer modal (`site-footer.tsx`, `.footer-modal*`): short "How it
+ * Footer modal (`.footer-modal*`): short "How it
  * works", "About" and "Disclaimer" copy in a glass dialog instead of long
  * pages. Built on the shared Modal (focus trap, Esc, return focus).
  */

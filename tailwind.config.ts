@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss";
 import defaultColors from "tailwindcss/colors";
 
 const config: Config = {
-  // Dark only (docs/REDESIGN.md section 1). No `dark` class, no light theme.
+  // Dark only. No `dark` class, no light theme.
   content: [
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,7 +11,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Radio-derived palette; RGB triplets live on :root in app/globals.css.
+        // Palette; RGB triplets live on :root in app/globals.css.
         ink:            "rgb(var(--ink-rgb) / <alpha-value>)",
         "ink-deep":     "rgb(var(--ink-deep-rgb) / <alpha-value>)",
         panel:          "rgb(var(--panel-rgb) / <alpha-value>)",
@@ -31,7 +31,7 @@ const config: Config = {
         pending:        "rgb(var(--pending-rgb) / <alpha-value>)",
         line:           "rgb(var(--cream-rgb) / 0.12)",
         "line-strong":  "rgb(var(--cream-rgb) / 0.30)",
-        // Legacy purple-blueprint names. They now resolve to the radio tokens
+        // Legacy purple-blueprint names. They now resolve to the current tokens
         // so pages not yet rewritten keep rendering; removed in phase P6.
         pv: {
           bg:       "rgb(var(--pv-bg) / <alpha-value>)",
@@ -85,7 +85,7 @@ const config: Config = {
         "button-lg":    ["1.05rem", { lineHeight: "1" }],
         "label-xs":     [".7rem",   { lineHeight: "1.3" }],
       },
-      // Radio is round: pills for every control, soft cards.
+      // Round: pills for every control, soft cards.
       borderRadius: {
         DEFAULT: "8px",
         none:  "0px",

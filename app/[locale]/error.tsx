@@ -1,6 +1,6 @@
 "use client";
 
-/** Route error (radio `.error-page`): one centred sheet, one line, two actions. */
+/** Route error page: one centred sheet, one line, two actions. */
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";

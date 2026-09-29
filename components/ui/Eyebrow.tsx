@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** 14px red label with an 8px red square in front (radio `.eyebrow`). */
+/** 14px red label with an 8px red square in front (`.eyebrow`). */
 export default function Eyebrow({
   children,
   as: Tag = "p",

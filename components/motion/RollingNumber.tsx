@@ -6,11 +6,11 @@ import { gsap, reducedMotion } from "@/lib/motion";
 const defaultFormat = (n: number) => Math.round(n).toString();
 
 /**
- * A number that rolls to its new value instead of snapping
- * (pandock/web/src/components/RollingNumber.tsx). `format` renders each
+ * A number that rolls to its new value instead of snapping.
+ * `format` renders each
  * frame; keep it stable (module scope or useCallback) so a re-render does not
  * restart the tween. With `flash`, the value turns red on change and eases
- * back over 700ms (radio `.stat dd.flash`). Reduced motion: snaps, no flash.
+ * back over 700ms (`.flashable`). Reduced motion: snaps, no flash.
  *
  * Renders in Geist Mono with tabular figures so ticking values never jiggle.
  */

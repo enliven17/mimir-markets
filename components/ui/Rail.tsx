@@ -3,7 +3,7 @@
 import { useRef, type ReactNode } from "react";
 
 /**
- * Horizontal snap list (radio `.news` + `.news-nav`): columns of
+ * Horizontal snap list: columns of
  * `min(380px, 84vw)`, hidden scrollbar, optional 44px round glass prev/next
  * buttons that scroll by one card.
  */

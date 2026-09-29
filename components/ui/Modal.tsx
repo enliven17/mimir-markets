@@ -9,7 +9,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Dialog base (radio `.footer-modal*`): light blurred backdrop, deep glass
+ * Dialog base: light blurred backdrop, deep glass
  * dialog `rounded-3xl` with shadow-modal and a 30px round close button.
  *
  * - `variant="dialog"`: centred card, max 460px.

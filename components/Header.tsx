@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Header: pandock's morphing nav in radio glass (docs/REDESIGN.md 2.4, 3.1).
+ * Header: morphing glass nav.
  *
  * One CSS variable, `--nav-p` (0 → 1), drives every property of the bar (see
  * `.nav-shell` in app/globals.css). On `/` it is scrubbed over the first

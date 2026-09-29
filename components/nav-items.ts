@@ -1,6 +1,6 @@
 /**
  * Site navigation: the single source for the header pill, the "More" sheet,
- * the mobile panel and the footer (docs/REDESIGN.md 3.1).
+ * the mobile panel and the footer.
  *
  * - `NAV_PRIMARY` sits in the pill: Arena, Council, Portfolio. Keep it at 3.
  * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the

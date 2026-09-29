@@ -10,8 +10,8 @@ export type SegmentedOption<T extends string> = {
 };
 
 /**
- * Pill track with a sliding thumb (radio landing `.seg`, app
- * `.segmented-control`). `tone="cream"` = cream thumb + ink label (landing),
+ * Pill track with a sliding thumb.
+ * `tone="cream"` = cream thumb + ink label (landing),
  * `tone="maroon"` = maroon gradient thumb + cream label (app).
  *
  * `role="tablist"` when it switches views (tabs), otherwise a group of

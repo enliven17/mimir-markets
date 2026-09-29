@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from "react";
 import { canHover, gsap, reducedMotion, useGSAP } from "@/lib/motion";
 
 /**
- * Magnetic wrapper (pandock/web/src/components/Magnetic.tsx): the child leans
+ * Magnetic wrapper: the child leans
  * toward the pointer on gsap.quickTo with an elastic settle. Hover devices
  * only, off under reduced motion. Use for the landing CTAs and the closer CTA.
  */

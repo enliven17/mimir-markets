@@ -3,7 +3,7 @@
 import { usePathname } from "@/i18n/navigation";
 
 /**
- * Page width container (docs/REDESIGN.md 1.7): 1180px for feeds, 920px for
+ * Page width container: 1180px for feeds, 920px for
  * detail and forms, with the shared gutter, clearing the floating pill.
  * The landing `/` is full bleed: its sections set their own width and the
  * hero runs under the docked bar.

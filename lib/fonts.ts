@@ -3,7 +3,7 @@ import { GeistMono, GeistSans } from "geist/font";
 import { GeistPixelSquare } from "geist/font/pixel";
 
 /**
- * Mimir type (docs/REDESIGN.md 1.3):
+ * Mimir type:
  * - Geist Pixel Square: UI voice (body, labels, stats). var --font-geist-pixel-square
  * - Terminal Grotesque: display (wordmark, headings, buttons), 400 only, SIL OFL
  *   (app/fonts/TERMINAL-GROTESQUE-LICENSE.md). var --font-terminal-grotesque

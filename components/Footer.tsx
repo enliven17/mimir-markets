@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Global footer (docs/REDESIGN.md 2.5): pandock's structure in radio's voice.
+ * Global footer.
  *
  * 1. Closer (home only): one huge line that reveals by line + a magnetic CTA.
  * 2. Columns: brand, Product, Explore, Build, Network (cluster, program, live
@@ -9,7 +9,7 @@
  * 3. Fine print.
  * 4. Giant wordmark whose letters climb in once per entry (played, not
  *    scrubbed, so a letter is never left half-risen).
- * 5. Bottom line: "Beta · Devnet" and radio's info-modal buttons.
+ * 5. Bottom line: "Beta · Devnet" and the info-modal buttons.
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";

@@ -2,7 +2,7 @@
 
 /**
  * "More" in the header pill: one button that opens a sheet with every page
- * that is not in the pill, grouped (docs/REDESIGN.md 3.1). The sheet is the
+ * that is not in the pill, grouped. The sheet is the
  * shared Modal: focus moves to the first link, Tab stays inside, Esc or the
  * backdrop closes it and focus returns to the button, Lenis pauses while it
  * is open.

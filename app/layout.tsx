@@ -5,7 +5,7 @@ import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
 import { Toaster } from "sonner";
 
-// Dark only (docs/REDESIGN.md 1): radio's colour scheme and theme colour.
+// Dark only: the site's colour scheme and theme colour.
 export const viewport: Viewport = {
   colorScheme: "dark",
   themeColor: "#110f0e",

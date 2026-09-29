@@ -3,7 +3,7 @@
 import { forwardRef, useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 /**
- * Inputs follow radio's pill/well language: `--panel-2` fill, inset
+ * Inputs follow the pill/well language: `--panel-2` fill, inset
  * shadow-well, cream text, dim placeholder, 2px coral focus ring. Single-line
  * fields are pills, textareas `rounded-lg`.
  */

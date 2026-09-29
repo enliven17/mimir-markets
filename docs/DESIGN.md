@@ -1,8 +1,8 @@
 # Design system
 
 Mimir is dark, round and pixel-voiced: warm ink surfaces, cream type, a red
-accent, glass cards and scroll-driven motion. The full plan is
-`docs/REDESIGN.md`; this file describes what is in the code today.
+accent, glass cards and scroll-driven motion. This file describes what
+is in the code today.
 
 Dark only. There is no light theme and no theme toggle; tokens stay CSS
 variables so one could return.

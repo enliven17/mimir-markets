@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from "react";
 import { gsap, reducedMotion, SplitText, useGSAP } from "@/lib/motion";
 
 /**
- * Masked line reveal (pandock/web/src/components/SplitReveal.tsx). Splits the
+ * Masked line reveal. Splits the
  * first child into lines once fonts are ready, then slides each line up from
  * behind its mask. Reverts the split on unmount. Reduced motion: static text.
  *

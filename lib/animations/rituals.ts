@@ -2,7 +2,7 @@
  * Ritual motion presets, framework-neutral GSAP vars. Each preset is
  * a `{ from, to }` pair of GSAP vars, used as
  * `gsap.fromTo(el, ritual.from, ritual.to)` inside `useGSAP` (lib/motion.ts),
- * plus CSS easing strings that match radio's motion tokens.
+ * plus CSS easing strings that match the motion tokens.
  * Callers must skip them under reduced motion (`reducedMotion()`).
  */
 

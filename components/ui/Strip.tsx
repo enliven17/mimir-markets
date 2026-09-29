@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * KPI row (radio `.strip` / `.stat`): full-bleed grid split by hairlines on a
+ * KPI row: full-bleed grid split by hairlines on a
  * translucent band; each cell a `dt` micro label over a `dd` value. Pair the
  * value with `RollingNumber flash` so it turns red on change.
  */

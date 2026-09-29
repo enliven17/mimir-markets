@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * Radio status language.
+ * Status language.
  * - LiveDot: 7px red dot with an expanding ring (`.dot`), or `pixel` blinking square (`.pxdot`).
  * - StatusPill: 30px glass pill with an optional dot (`.gas-indicator`, `.wallet-chip`).
  * - Pending: red-tinted pill for pending / live states (`.pending`).

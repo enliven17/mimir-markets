@@ -2,7 +2,7 @@
 
 /**
  * Last-resort boundary: replaces the root layout, so no i18n, fonts or
- * providers are available. Radio `.error-page` layout on the plain tokens.
+ * providers are available. The route error layout on the plain tokens.
  */
 import { useEffect } from "react";
 import "./globals.css";

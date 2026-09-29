@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 /**
- * Surfaces in radio's language: separated by glass and shadow, not borders.
+ * Surfaces: separated by glass and shadow, not borders.
  *
  * - Card   `rounded-2xl` glass card + shadow-card (landing `.pool-card`, `.inspector`)
  * - Panel  `rounded-xl` solid panel with a hairline and faint grain (landing `.panel`)

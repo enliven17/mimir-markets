@@ -1,4 +1,4 @@
-// Radio primitives (docs/REDESIGN.md 1.9)
+// UI primitives
 export { default as Button, buttonClass } from "./Button";
 export { default as Card, Panel, Sheet, FeedCard } from "./Card";
 export { default as Chip } from "./Chip";

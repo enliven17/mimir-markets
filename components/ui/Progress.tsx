@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * Step progress (radio `.progress`): equal segments with a 3px bar, done
+ * Step progress: equal segments with a 3px bar, done
  * segments turn coral. `current` is the 0-based index of the active step;
  * every step up to and including it counts as done.
  */
@@ -34,7 +34,7 @@ export default function Progress({
   );
 }
 
-/** Single 3px meter (radio `.dial-meter`), value 0..1. */
+/** Single 3px meter, value 0..1. */
 export function Meter({ value, className = "" }: { value: number; className?: string }) {
   const v = Math.max(0, Math.min(1, value));
   return (

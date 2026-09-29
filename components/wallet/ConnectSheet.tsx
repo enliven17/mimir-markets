@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Connect sheet: Family ConnectKit's flow in radio's look (docs/REDESIGN.md
- * 4.4 step 3).
+ * Connect sheet in the glass look, following Family ConnectKit's flow.
  *
  * - Detected wallets first (Wallet Standard, `Installed`), then wallets that
  *   can load on demand (`Loadable`: Mobile Wallet Adapter on Android,

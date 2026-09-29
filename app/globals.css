@@ -3,12 +3,11 @@
 @tailwind utilities;
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Mimir tokens, taken from radio (Patio Tokyo). Dark only. See docs/DESIGN.md
-   and docs/REDESIGN.md section 1.
+   Mimir tokens. Dark only. See docs/DESIGN.md.
 
    Hex tokens are for plain CSS; the `*-rgb` triplets feed Tailwind colours so
    `/alpha` modifiers work (`bg-cream/10`). The `--pv-*` names are aliases of
-   the old purple blueprint: they now point at the radio values so pages that
+   the old purple blueprint: they now point at the current values so pages that
    still use `pv-*` / `bp-*` classes keep rendering until phase P6.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
@@ -108,7 +107,7 @@
     letter-spacing: -0.01em;
   }
 
-  /* Headings are never bold in radio; Terminal Grotesque ships 400 only, so
+  /* Headings are never bold; Terminal Grotesque ships 400 only, so
      never let the browser fake a bold weight for it. */
   h1,
   h2,
@@ -149,7 +148,7 @@
   }
 }
 
-/* ── Backdrop: 4px dot screen over a dark vertical gradient (radio .wall).
+/* ── Backdrop: 4px dot screen over a dark vertical gradient.
    Mimir has no photo of its own yet, so a faint coral bloom stands in. ── */
 .wall {
   position: fixed;
@@ -164,7 +163,7 @@
   filter: saturate(0.8);
 }
 
-/* ── Lenis (pandock/web/src/index.css:26-27) ── */
+/* ── Lenis ── */
 html.lenis,
 html.lenis body {
   height: auto;
@@ -217,7 +216,7 @@ html.lenis body {
   mask-repeat: repeat;
 }
 
-/* ── Route enter (radio route-panel-enter) ── */
+/* ── Route enter ── */
 @keyframes route-panel-enter {
   from {
     opacity: 0;
@@ -236,7 +235,7 @@ html.lenis body {
   animation: route-panel-enter 400ms var(--ease-spring) backwards;
 }
 
-/* Card enter, staggered by --i (radio live-card-in). */
+/* Card enter, staggered by --i. */
 @keyframes card-in {
   from {
     opacity: 0;
@@ -296,7 +295,7 @@ html.lenis body {
   opacity: 1;
 }
 
-/* Value flash on change (radio .stat dd.flash): red, eases back over 700ms. */
+/* Value flash on change: red, eases back over 700ms. */
 .flashable {
   transition: color 700ms var(--ease-out);
 }
@@ -394,7 +393,7 @@ html.lenis body {
     border-radius: inherit;
   }
 
-  /* ── Buttons (radio .btn / .primary-action / .secondary-action) ── */
+  /* ── Buttons (primary / secondary pills) ── */
   .btn-primary,
   .btn-emerald {
     @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg
@@ -622,7 +621,7 @@ html.lenis body {
     @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral;
   }
 
-  /* ── Radio primitives that need pseudo-elements ── */
+  /* ── UI primitives that need pseudo-elements ── */
   .eyebrow {
     @apply inline-flex items-center gap-2.5 text-eyebrow text-red;
   }
@@ -941,7 +940,7 @@ html.lenis body {
 ::-webkit-scrollbar-thumb { background: rgb(var(--cream-rgb) / 0.18); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--cream-rgb) / 0.3); }
 
-/* ── Reduced motion (docs/REDESIGN.md 2.8; radio globals.css:1480-1517) ── */
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .route-enter,
   .card-in,
@@ -982,8 +981,7 @@ html.lenis body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Wallet chip and menu (radio .wallet-chip / .wallet-menu, globals.css
-   225-360). Used by components/wallet/WalletChip.tsx.
+   Wallet chip and menu. Used by components/wallet/WalletChip.tsx.
    ────────────────────────────────────────────────────────────────────────── */
 .wallet-chip {
   display: inline-flex;
@@ -1091,7 +1089,7 @@ html.lenis body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Header (pandock index.css:48-81 in radio glass). Everything is a function
+   Header: morphing glass nav. Everything is a function
    of --nav-p: 0 = docked transparent bar, 1 = floating glass pill. Home
    scrubs it with scroll (components/Header.tsx); other routes hold it at 1.
    ────────────────────────────────────────────────────────────────────────── */
@@ -1119,7 +1117,7 @@ html.lenis body {
   gap: 16px;
   margin: 0 auto;
   height: calc(64px - var(--nav-p) * 12px);
-  /* Pill width: 980px, not pandock's 800, so Create + bell + a connected chip fit
+  /* Pill width: 980px, so Create + bell + a connected chip fit
      the right column and the links stay centred. */
   max-width: calc(1320px - var(--nav-p) * 340px);
   padding: 0 calc(var(--gut) - var(--nav-p) * (var(--gut) - 10px));
@@ -1239,8 +1237,7 @@ html.lenis body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Footer (pandock index.css:424-452 + radio site-footer, globals.css
-   3177-3201). components/Footer.tsx.
+   Footer. components/Footer.tsx.
    ────────────────────────────────────────────────────────────────────────── */
 .footer-closer {
   display: grid;

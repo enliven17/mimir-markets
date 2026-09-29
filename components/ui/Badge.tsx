@@ -9,7 +9,7 @@ interface BadgeProps {
 }
 
 /**
- * Claim status pill in radio's tones: open/live read as the red `pending`
+ * Claim status pill: open/live read as the red `pending`
  * pill, settled/won as `win`, losses as `danger`, the rest muted on glass.
  */
 const STATUS_CLASSES: Record<string, string> = {

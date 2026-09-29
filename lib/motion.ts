@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Motion core (pandock/web/src/motion.ts, identical in juxtai/src/motion.ts),
- * adapted for the App Router: plugins register once in the browser, one Lenis
+ * Motion core for the App Router: plugins register once in the browser, one Lenis
  * instance runs on GSAP's ticker so smooth scroll and ScrollTrigger share a
  * clock, and nothing runs under prefers-reduced-motion.
  *

@@ -13,7 +13,7 @@ interface ChipProps {
 }
 
 /**
- * Toggle chip: 30px glass pill (radio `.wallet-chip` / `.gas-indicator`).
+ * Toggle chip: 30px glass pill.
  * Active = cream fill with ink label, like the segmented thumb.
  */
 export default function Chip({

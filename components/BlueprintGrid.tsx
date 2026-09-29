@@ -1,6 +1,6 @@
 /**
- * @deprecated Legacy blueprint building blocks, restyled for the radio system
- * (docs/REDESIGN.md P1) so existing pages keep their exports. New code uses
+ * @deprecated Legacy blueprint building blocks, restyled for the current
+ * design system so existing pages keep their exports. New code uses
  * `Eyebrow`, `Strip` / `StripCell` and plain headings with the `app-h1`
  * type token. Removed in P6.
  */
@@ -74,7 +74,7 @@ export function BlueprintSection({
   );
 }
 
-/** Stat cell in the radio Strip style: micro dim label over a mono value. */
+/** Stat cell in the Strip style: micro dim label over a mono value. */
 export function BlueprintStat({
   value,
   label,

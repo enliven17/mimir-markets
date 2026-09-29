@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { gsap, MOTION_OK_QUERY, ScrollTrigger, useGSAP } from "@/lib/motion";
 
 /**
- * `[data-rise]` batch (pandock/web/src/Landing.tsx:32-39): every marked
+ * `[data-rise]` batch: every marked
  * element inside `scope` rises in once when it scrolls into view, batched so
  * neighbours stagger. Only inside `gsap.matchMedia(no-preference)`, so it
  * reverts on its own when reduced motion is switched on.

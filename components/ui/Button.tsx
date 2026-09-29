@@ -3,8 +3,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 /**
- * Radio pill buttons (landing `.btn-primary` / `.btn-ghost` / `.mock-btn`,
- * app `.primary-action` / `.secondary-action`). Press = scale(.97) in CSS.
+ * Pill buttons (`.btn-primary` / `.btn-ghost`). Press = scale(.97) in CSS.
  *
  * - primary   coral gradient + grain, ink label (white only at 21px+)
  * - ghost     glass pill
@@ -37,10 +36,10 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  // Dense app UI (radio .primary-action): 46px, .82rem.
+  // Dense app UI: 46px, .82rem.
   sm: "!min-h-[46px] !py-2.5 !px-5 !text-[15px]",
   md: "min-h-[3.25rem]",
-  // Landing hero (radio .hero .btn): 23px, 17px/31px padding.
+  // Landing hero: 23px, 17px/31px padding.
   lg: "!py-[17px] !px-[31px] !text-[23px]",
 };
 

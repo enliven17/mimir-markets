@@ -1,6 +1,6 @@
 /**
- * Mimir wordmark in Terminal Grotesque with radio's gradient-clipped fill
- * (landing `.wordmark`, app `globals.css:160-222`): "Mi" deep→red, "mir"
+ * Mimir wordmark in Terminal Grotesque with a gradient-clipped fill:
+ * "Mi" deep→red, "mir"
  * animated heat gradient (static under reduced motion).
  */
 export default function Wordmark({ className = "" }: { className?: string }) {

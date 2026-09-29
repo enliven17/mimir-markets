@@ -4,8 +4,7 @@ import { useEffect, type RefObject } from "react";
 import { reducedMotion } from "@/lib/motion";
 
 /**
- * Radio's signature entrance (radio/apps/landing/src/landing.src.html,
- * script lines 17-98): an 8x8 ordered-dither (Bayer) mask stepped from empty
+ * Dither entrance: an 8x8 ordered-dither (Bayer) mask stepped from empty
  * to solid, with a small rise from the scroll direction. Reversible: leave the
  * viewport and the element dithers out, come back and it dithers in again.
  *
