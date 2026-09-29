@@ -28,32 +28,19 @@ import {
   getVirtualBalance,
 } from "@/lib/solana/browser-client";
 import CouncilVotes from "@/components/arena/CouncilVotes";
+import DisputePanel from "@/components/arena/settlement/DisputePanel";
+import PayoutPanel from "@/components/arena/settlement/PayoutPanel";
+import FeeTermsCard from "@/components/arena/settlement/FeeTermsCard";
+import BalanceCard from "@/components/arena/settlement/BalanceCard";
+import type { ApiClaim } from "@/lib/server/arena-claim";
+import { claimPhase, isPendingVerdict, PHASE_LABEL, SIDE_LABEL } from "@/lib/claim-status";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 
-interface ArenaClaim {
-  id: number;
-  creator: string;
-  question: string;
-  creatorPosition: string;
-  counterPosition: string;
-  resolutionUrl: string;
-  category: string;
-  creatorStake: string;
-  totalChallengerStake: string;
-  deadline: number;
-  state: number;
-  winnerSide: number;
-  resolutionSummary: string;
-  confidence: number;
-  maxChallengers?: number;
-  delegated: boolean;
-  challengers: { addr: string; stake: string; paid: boolean }[];
-}
+type ArenaClaim = ApiClaim;
 
-const SIDE_LABELS = ["—", "Creator wins", "Challengers win", "Draw — refunded", "Unresolvable — refunded"];
 
 /** Phase nav steps — mirrors the original Created/Accepted/Verifying/Proven bar. */
 const PHASE_STEPS = ["Created", "Accepted", "Verifying", "Proven"];
@@ -89,13 +76,14 @@ function confidenceTone(c: number): { label: string; cls: string; dot: string; t
  * Phase progress nav — reproduces the original ProgressBar:
  * an expanding fill bar over four labelled step cells. Cancelled hides it.
  *   open → step 0 (Created), live/active → step 1 (Accepted),
- *   resolved → step 3 (Proven). Step 2 (Verifying) shows when expired & unresolved.
+ *   resolved → step 3 (Proven). Step 2 (Verifying) covers an expired claim
+ *   waiting for the oracle and a PROPOSED / DISPUTED verdict not final yet.
  */
 function PhaseProgress({ state, expired }: { state: number; expired: boolean }) {
   if (state === 3) return null; // cancelled
 
   const total = PHASE_STEPS.length;
-  const stepIndex = state === 2 ? 3 : state === 1 ? (expired ? 2 : 1) : 0;
+  const stepIndex = state === 2 ? 3 : isPendingVerdict(state) ? 2 : state === 1 ? (expired ? 2 : 1) : 0;
   const isResolved = stepIndex >= 3;
   const progressPercent = isResolved ? 100 : ((stepIndex + 1) / total) * 100;
 
@@ -185,12 +173,9 @@ export default function ArenaClaimPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/arena/claims");
+      const res = await fetch(`/api/arena/${encodeURIComponent(params.id)}`);
       const json = await res.json();
-      if (json.success) {
-        const found = json.data.claims.find((c: ArenaClaim) => c.id === Number(params.id));
-        if (found) setClaim(found);
-      }
+      if (json.success && json.data) setClaim(json.data as ArenaClaim);
     } catch {}
     if (mimir) {
       try {
@@ -258,6 +243,9 @@ export default function ArenaClaimPage() {
   const isResolved = claim.state === 2;
   const isCancelled = claim.state === 3;
   const isOpen = claim.state === 0;
+  const pendingVerdict = isPendingVerdict(claim.state);
+  const phase = claimPhase(claim.state, claim.deadline);
+  const viewer = wallet.publicKey?.toBase58() ?? null;
   const conf = confidenceTone(claim.confidence);
 
   const sourceHost = (() => {
@@ -336,7 +324,7 @@ export default function ArenaClaimPage() {
                           <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald">
                             ⚖ Verdict
                           </div>
-                          <div className="text-lg font-semibold text-pv-text">{SIDE_LABELS[claim.winnerSide]}</div>
+                          <div className="text-lg font-semibold text-pv-text">{SIDE_LABEL[claim.winnerSide] ?? "—"}</div>
                           <p className="mt-2 text-sm leading-relaxed text-pv-muted">
                             {claim.resolutionSummary?.trim() || "No summary recorded."}
                           </p>
@@ -420,6 +408,10 @@ export default function ArenaClaimPage() {
                       ) : isCancelled ? (
                         <span className="border border-pv-border/25 bg-pv-border/[0.04] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-muted">
                           Cancelled
+                        </span>
+                      ) : pendingVerdict ? (
+                        <span className="border border-pv-gold/35 bg-pv-gold/[0.10] px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-pv-gold">
+                          {PHASE_LABEL[phase]}
                         </span>
                       ) : (
                         duelPill("Accepted")
@@ -677,13 +669,20 @@ export default function ArenaClaimPage() {
                 <div className="card border-pv-border/25 bg-pv-surface p-5 text-center sm:p-6">
                   <p className="text-sm text-pv-muted">This claim was cancelled — all stakes were refunded.</p>
                 </div>
-              ) : isResolved ? null : expired ? (
+              ) : isResolved ? (
+                <PayoutPanel claim={claim} mimir={mimir} viewer={viewer} onChanged={refresh} />
+              ) : pendingVerdict ? (
+                <DisputePanel claim={claim} mimir={mimir} viewer={viewer} onChanged={refresh} />
+              ) : expired ? (
                 <div className="card border-pv-gold/25 bg-pv-gold/[0.05] p-5 sm:p-6">
                   <div className="text-sm font-semibold text-pv-text">Deadline passed</div>
                   <p className="mt-1 text-sm text-pv-muted">
-                    The oracle agent will commit the Ephemeral Rollup state to the base layer and settle this claim
-                    shortly.
+                    The oracle agent will commit the Ephemeral Rollup state to the base layer and propose a verdict
+                    shortly. Nothing pays out until its dispute window closes.
                   </p>
+                  <div className="mt-4">
+                    <DisputePanel claim={claim} mimir={mimir} viewer={viewer} onChanged={refresh} />
+                  </div>
                 </div>
               ) : (
                 <div className="card border-pv-border/25 bg-pv-surface">
@@ -775,6 +774,13 @@ export default function ArenaClaimPage() {
           {/* ── Sticky sidebar ── */}
           <aside className="min-w-0 text-pv-text lg:col-span-4">
             <div className="flex flex-col gap-6 lg:sticky lg:top-24">
+              {!isCancelled && (
+                <FeeTermsCard
+                  claim={claim}
+                  stakeUnits={claim.state <= 1 && !expired ? BigInt(Math.max(0, Math.round(Number(stake) * 1e6) || 0)) : 0n}
+                />
+              )}
+              {wallet.connected && <BalanceCard mimir={mimir} balance={balance} onChanged={refresh} />}
               {/* Claim strength card (live, pre-settlement) */}
               {!isResolved && !isCancelled && (
                 <div className="card border-pv-border/25 bg-pv-surface">

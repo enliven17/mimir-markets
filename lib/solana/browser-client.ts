@@ -9,7 +9,10 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import {
   SOLANA_RPC,
   MAGICBLOCK_ER_RPC,
@@ -19,6 +22,7 @@ import {
   balancePda,
   claimPda,
   configPda,
+  feeBalancePda,
 } from "./config";
 import idl from "./idl/mimir.json";
 
@@ -215,4 +219,121 @@ export async function getVirtualBalance(m: BrowserMimir): Promise<bigint> {
     }
   }
   return 0n;
+}
+
+// ── V3 settlement: payout cranks, bond refund, withdraw (pull payments) ────
+
+/** Create the recipient's USDC ATA when missing (the connected wallet pays rent). */
+function ensureAtaIx(m: BrowserMimir, owner: PublicKey) {
+  return createAssociatedTokenAccountIdempotentInstruction(m.owner, ata(owner), owner, USDC_MINT);
+}
+
+const NONE_KEY = PublicKey.default;
+const hasKey = (k: string | null | undefined): k is string => Boolean(k && k !== NONE_KEY.toBase58());
+
+/**
+ * The agent-owner FeeBalance to pass when that leg owes an agent fee, opening
+ * it first when needed. Null when no agent fee is due (the program then
+ * requires the optional account to be absent).
+ */
+async function agentFeeAccount(
+  m: BrowserMimir,
+  agent: string | null | undefined,
+  recipient: string,
+  agentFeeBps: number,
+  hasProfit: boolean
+): Promise<PublicKey | null> {
+  if (!hasKey(agent) || agent === recipient || agentFeeBps === 0 || !hasProfit) return null;
+  const owner = new PublicKey(agent);
+  const pda = feeBalancePda(owner);
+  const info = await m.base.provider.connection.getAccountInfo(pda);
+  if (!info) {
+    await m.base.methods.openFeeAccount(owner).accounts({ payer: m.owner }).rpc();
+  }
+  return pda;
+}
+
+export interface PayoutLegInput {
+  claimId: bigint;
+  /** Base58 of who receives this leg. */
+  recipient: string;
+  /** Base58 agent owner credited on this leg ('' / null = none). */
+  agent?: string | null;
+  agentFeeBps: number;
+  /** Gross above principal: an agent fee (and account) is only due then. */
+  hasProfit: boolean;
+}
+
+/** Permissionless crank: pay the creator's leg of a RESOLVED claim to their USDC ATA. */
+export async function payoutCreator(m: BrowserMimir, leg: PayoutLegInput): Promise<string> {
+  const recipient = new PublicKey(leg.recipient);
+  const agentFees = await agentFeeAccount(m, leg.agent, leg.recipient, leg.agentFeeBps, leg.hasProfit);
+  return m.base.methods
+    .payoutCreator()
+    .accounts({ claim: claimPda(leg.claimId), creatorToken: ata(recipient), agentFees } as any)
+    .preInstructions([ensureAtaIx(m, recipient)])
+    .rpc();
+}
+
+/** Permissionless crank: pay challenger #index of a RESOLVED claim to their USDC ATA. */
+export async function payoutChallenger(m: BrowserMimir, leg: PayoutLegInput & { index: number }): Promise<string> {
+  const recipient = new PublicKey(leg.recipient);
+  const agentFees = await agentFeeAccount(m, leg.agent, leg.recipient, leg.agentFeeBps, leg.hasProfit);
+  return m.base.methods
+    .payoutChallenger(leg.index)
+    .accounts({ claim: claimPda(leg.claimId), challengerToken: ata(recipient), agentFees } as any)
+    .preInstructions([ensureAtaIx(m, recipient)])
+    .rpc();
+}
+
+/** Permissionless crank: return a refundable dispute bond to the disputer's ATA. */
+export async function refundBond(m: BrowserMimir, claimId: bigint, disputer: string): Promise<string> {
+  const owner = new PublicKey(disputer);
+  return m.base.methods
+    .refundBond()
+    .accounts({ claim: claimPda(claimId), disputerToken: ata(owner) })
+    .preInstructions([ensureAtaIx(m, owner)])
+    .rpc();
+}
+
+/** Is this account currently owned by the delegation program (i.e. in the ER)? */
+async function isDelegatedAccount(m: BrowserMimir, address: PublicKey): Promise<boolean> {
+  const info = await m.base.provider.connection.getAccountInfo(address);
+  return Boolean(info && !info.owner.equals(m.base.programId));
+}
+
+async function waitUntilOnBase(m: BrowserMimir, address: PublicKey, tries = 20): Promise<boolean> {
+  for (let i = 0; i < tries; i++) {
+    if (!(await isDelegatedAccount(m, address))) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
+}
+
+/** refund_expired, undelegating the claim from the ER first when it is still there. */
+export async function refundExpiredFromAnywhere(m: BrowserMimir, claimId: bigint): Promise<string> {
+  const pda = claimPda(claimId);
+  if (await isDelegatedAccount(m, pda)) {
+    await undelegateClaim(m, claimId);
+    if (!(await waitUntilOnBase(m, pda))) throw new Error("The claim is still in the rollup — try again in a minute.");
+  }
+  return refundExpired(m, claimId);
+}
+
+/**
+ * Pull the whole free virtual balance back to the wallet: commit + undelegate
+ * the balance from the ER when needed, then withdraw on the base layer.
+ * Returns the withdrawn amount (base units) and the withdraw signature.
+ */
+export async function withdrawAllBalance(m: BrowserMimir): Promise<{ units: bigint; sig: string | null }> {
+  const pda = balancePda(m.owner);
+  if (await isDelegatedAccount(m, pda)) {
+    await undelegateBalance(m);
+    if (!(await waitUntilOnBase(m, pda))) throw new Error("Your balance is still in the rollup — try again in a minute.");
+  }
+  const b: any = await (m.base.account as any).userBalance.fetchNullable(pda);
+  const units = b ? BigInt(b.amount.toString()) : 0n;
+  if (units === 0n) return { units, sig: null };
+  const sig = await withdrawUsdc(m, units);
+  return { units, sig };
 }
