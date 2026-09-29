@@ -34,6 +34,8 @@ import {
 } from "../lib/agents/api";
 import { signAgentMessage } from "../lib/agents/signature";
 import { followMessage, type MirrorSignal } from "../lib/baskets";
+import { copyPermissionMessage, followerProofMessage } from "../lib/copy-trading";
+import type { CopyDraft } from "../lib/copy-form";
 
 /** Returns a base58 ed25519 signature over the UTF-8 message. */
 export type SignMessage = (message: string) => Promise<string> | string;
@@ -76,6 +78,24 @@ export interface PreparedTransaction {
   lastValidBlockHeight: number;
 }
 
+export interface CopySignalsResponse {
+  ok: true;
+  executionAgentId: string;
+  signer: string;
+  permissions: number;
+  copy: Array<{
+    permissionId: string;
+    claimId: number;
+    signalAgentId: string;
+    question: string;
+    category: string;
+    layer: "base" | "er";
+    stakeUsdc: number;
+    stakeUnits: string;
+  }>;
+  skipped: Array<{ permissionId: string; claimId: number; reason: string; message: string }>;
+}
+
 export interface WriteResponse {
   ok: true;
   action: AgentWriteAction;
@@ -94,10 +114,11 @@ async function postEnvelope(
   baseUrl: string,
   envelope: AgentEnvelope,
   apiKey?: string,
+  path = `/api/agents/v1/${envelope.action}`,
 ): Promise<Record<string, unknown>> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
-  const res = await doFetch(`${baseUrl.replace(/\/+$/, "")}/api/agents/v1/${envelope.action}`, {
+  const res = await doFetch(`${baseUrl.replace(/\/+$/, "")}${path}`, {
     method: "POST",
     headers,
     body: JSON.stringify(envelope),
@@ -153,7 +174,7 @@ export class MimirAgentClient {
   async call<T = Record<string, unknown>>(
     action: AgentAction,
     body: Record<string, unknown> = {},
-    { owner = false }: { owner?: boolean } = {},
+    { owner = false, path }: { owner?: boolean; path?: string } = {},
   ): Promise<T> {
     const envelope = newEnvelope(this.agentId, action, body);
     const message = agentRequestMessage(envelope);
@@ -164,7 +185,7 @@ export class MimirAgentClient {
       if (!this.operator) throw new Error(`${action} needs a signature, but neither apiKey nor operator was set`);
       envelope.signature = signAgentMessage(message, this.operator.secretKey);
     }
-    return (await postEnvelope(this.fetchImpl, this.baseUrl, envelope, owner ? undefined : this.apiKey)) as T;
+    return (await postEnvelope(this.fetchImpl, this.baseUrl, envelope, owner ? undefined : this.apiKey, path)) as T;
   }
 
   // ── Reads ────────────────────────────────────────────────────────────────
@@ -370,6 +391,104 @@ export class MimirAgentClient {
       }
     }
     return results;
+  }
+
+  // ── Copy trading: execute a follower's signed permissions ────────────────
+
+  /**
+   * What this agent may copy right now under the permissions naming it as the
+   * executor: `copy[]` sized to the follower's caps, `skipped[]` with reasons.
+   */
+  copySignals() {
+    return this.call<CopySignalsResponse>("heartbeat", {}, { path: "/api/copy/signals" });
+  }
+
+  /** Re-gate one copy and get its unsigned challenge transaction(s). */
+  prepareCopy(permissionId: string, claimId: number) {
+    return this.call<WriteResponse & { stakeUsdc: number; stakeUnits: string }>(
+      "heartbeat",
+      { prepare: { permissionId, claimId } },
+      { path: "/api/copy/signals" },
+    );
+  }
+
+  /** Record a copy's outcome; an executed one is checked against the claim on chain. */
+  reportCopy(report: {
+    permissionId: string;
+    claimId: number;
+    executed: boolean;
+    signature?: string;
+    skipReason?: string;
+  }) {
+    return this.call("heartbeat", { report }, { path: "/api/copy/signals" });
+  }
+
+  /**
+   * Place every allowed copy: prepare, sign with the operator key, submit,
+   * report. One failure does not stop the rest; each outcome is returned.
+   */
+  async copyAll(): Promise<Array<{ permissionId: string; claimId: number; signatures?: string[]; error?: string }>> {
+    if (!this.operator) throw new Error("copyAll signs transactions, but no operator was set");
+    const { copy } = await this.copySignals();
+    const results: Array<{ permissionId: string; claimId: number; signatures?: string[]; error?: string }> = [];
+    for (const c of copy) {
+      try {
+        const prepared = await this.prepareCopy(c.permissionId, c.claimId);
+        const signatures: string[] = [];
+        for (const tx of prepared.transactions) signatures.push(await this.submit(tx));
+        await this.reportCopy({
+          permissionId: c.permissionId,
+          claimId: c.claimId,
+          executed: true,
+          signature: signatures[signatures.length - 1],
+        });
+        results.push({ permissionId: c.permissionId, claimId: c.claimId, signatures });
+      } catch (err) {
+        results.push({
+          permissionId: c.permissionId,
+          claimId: c.claimId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Grant a copy permission as the operator wallet (a self-operated agent is
+   * its own follower). `draft.follower` is overwritten with the operator key.
+   */
+  async grantCopyPermission(draft: Omit<CopyDraft, "follower" | "signedAt" | "active">): Promise<Record<string, unknown>> {
+    if (!this.operator) throw new Error("grantCopyPermission signs with the operator key, but no operator was set");
+    const signed: CopyDraft = {
+      ...draft,
+      follower: this.operator.publicKey.toBase58(),
+      active: true,
+      signedAt: Date.now(),
+    };
+    const signature = signAgentMessage(copyPermissionMessage(signed), this.operator.secretKey);
+    return this.basketRequest("/api/copy/permissions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...signed, signature }),
+    });
+  }
+
+  /** The operator wallet's own permissions, with their recent copy audit. */
+  listCopyPermissions(): Promise<Record<string, unknown>> {
+    return this.basketRequest(`/api/copy/permissions?${this.followerProof("list")}`);
+  }
+
+  revokeCopyPermission(id: string): Promise<Record<string, unknown>> {
+    return this.basketRequest(`/api/copy/permissions?${this.followerProof("revoke", id)}`, { method: "DELETE" });
+  }
+
+  private followerProof(action: "list" | "revoke", id = ""): string {
+    if (!this.operator) throw new Error("follower proofs sign with the operator key, but no operator was set");
+    const follower = this.operator.publicKey.toBase58();
+    const at = Date.now();
+    const signature = signAgentMessage(followerProofMessage(action, follower, at, id), this.operator.secretKey);
+    return new URLSearchParams({ ...(id ? { id } : {}), follower, at: String(at), signature }).toString();
   }
 
   private async basketRequest(path: string, init?: RequestInit): Promise<Record<string, unknown>> {

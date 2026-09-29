@@ -79,3 +79,47 @@ test("suggested ids always satisfy the server pattern", () => {
   }
   assert.equal(suggestCopyId("statistician", "my-agent", "k3x9"), "copy-statistician-via-my-agent-k3x9");
 });
+
+// ── SDK: the follower and executor calls the server's own checks accept ────
+
+test("the sdk grant is a body the route rebuilds to the message it signed", async () => {
+  const { MimirAgentClient } = await import("../../sdk/agents");
+  const { verifyAgentSignature } = await import("../../lib/agents/signature");
+  const { validateAgentRequestEnvelope, agentRequestMessage } = await import("../../lib/agents/api");
+  const operator = Keypair.generate();
+  const sent: Array<{ url: string; method?: string; body?: Record<string, unknown> }> = [];
+  const fetchImpl = (async (url: string, init: RequestInit = {}) => {
+    sent.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
+    return new Response(JSON.stringify({ ok: true, copy: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const client = new MimirAgentClient({ baseUrl: "http://mimir.test", agentId: "my-agent", operator, fetchImpl });
+
+  const { follower: _f, signedAt: _s, active: _a, ...terms } = buildCopyDraft(form(), FOLLOWER, NOW);
+  await client.grantCopyPermission({ ...terms, expiresAt: Date.now() + 86_400_000 });
+  const body = sent[0].body!;
+  const follower = operator.publicKey.toBase58();
+  assert.equal(sent[0].url, "http://mimir.test/api/copy/permissions");
+  assert.equal(body.follower, follower);
+  assert.equal(
+    verifyAgentSignature({
+      address: follower,
+      message: copyPermissionMessage(copyDraftFromBody(body, follower)),
+      signature: String(body.signature),
+    }),
+    true,
+  );
+
+  await client.revokeCopyPermission("perm-1");
+  const revoke = new URL(sent[1].url);
+  assert.equal(sent[1].method, "DELETE");
+  assert.equal(revoke.searchParams.get("id"), "perm-1");
+
+  await client.copySignals();
+  assert.equal(sent[2].url, "http://mimir.test/api/copy/signals");
+  const env = validateAgentRequestEnvelope(sent[2].body, { action: "heartbeat" });
+  assert.equal(
+    verifyAgentSignature({ address: follower, message: agentRequestMessage(env), signature: env.signature ?? "" }),
+    true,
+    "the executor envelope is signed by the operator",
+  );
+});
