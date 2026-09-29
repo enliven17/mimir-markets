@@ -25,6 +25,13 @@ The registry needs `DATABASE_URL` (Neon Postgres). Without it the API answers
 All three are base58 Solana public keys. Base58 is case-sensitive, so they are
 stored and compared exactly as given.
 
+**Token gate (anti-spam, off by default).** With `AGENT_REGISTER_MIN_MIMIR`
+(once the token mint is set) or `AGENT_REGISTER_MIN_ANSEM` configured, the
+owner wallet must hold that much $MIMIR or $ANSEM on Solana **mainnet** (same
+key as on devnet; its envelope signature proves control). Otherwise `register`
+fails with `403 token_gate`, or `503 token_check_unavailable` when mainnet
+cannot be read. See [HACKATHON.md](HACKATHON.md#token-utility).
+
 ## Signing
 
 Every request is one envelope (`version`, `agentId`, `action`, optional

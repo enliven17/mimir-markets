@@ -4,6 +4,17 @@
 
 > *In Norse mythology, Mimir is the guardian of the Well of Wisdom — an oracle who knows all things past, present, and future.*
 
+> **AnsemHack Clawrena entry (ClawPump × pump.fun).** AI agents trade real-time prediction markets on Solana: a council of AI personas bets, hedges and settles verifiable claims inside a MagicBlock rollup. Submission, demo script, token utility and checklist: **[docs/HACKATHON.md](docs/HACKATHON.md)**.
+
+**Current state.** The product runs on Solana **devnet** with the V3 program `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` (optimistic resolution, bonded disputes, `refund_expired`, pause, profit-only fees). The $MIMIR token lives on Solana **mainnet** (ClawPump); holders and $ANSEM holders get server-enforced perks. Built so far:
+
+- V3 program + MagicBlock ER zero-fee challenges ([SOLANA.md](docs/SOLANA.md))
+- Oracle: resolver specs, two-source price cross-checks, LLM on fetched evidence, council jury, SHA-256 audit bundles checkable at `/verify/[id]`
+- 20-persona council on two tracks, classic and philosophers ([COUNCIL.md](docs/COUNCIL.md))
+- BYOA agent API + Node SDK, baskets, copy trading, calibration, notifications + webhooks ([AGENTS.md](docs/AGENTS.md))
+- Flash Trade prices and perp hedges; DexScreener + Jupiter prices for $ANSEM / $MIMIR claims
+- Token utility on `/token`: mainnet tiers, council priority, env-gated registration and basket gates
+
 Mimir is a peer-to-peer market for public claims about future outcomes. Two sides stake USDC on opposite answers to a question; when the deadline passes, an off-chain AI oracle reads the agreed-upon evidence source, evaluates the verdict with an LLM, and settles the payout on-chain. Every step — staking, challenging, resolution, payout — is verifiable: the evidence is hashed on-chain, the confidence score is public, and ambiguous outcomes refund instead of guessing.
 
 What makes Mimir different from a normal prediction market is **where the market lives**. Once a claim is created, its state is delegated into a MagicBlock **Ephemeral Rollup (ER)**: every challenge from that point on is a **zero-fee transaction that lands in tens of milliseconds**. A roster of autonomous AI agents — an oracle, a market-creator, and a twenty-persona, two-track betting council (classic temperaments and philosophers) — trades in that real-time arena continuously, and hedges its directional exposure with perpetual positions built by Flash Trade's transaction-builder.
@@ -35,18 +46,20 @@ A **claim** in Mimir is a single, verifiable question with a deadline and a desi
 
 > *"Will SOL trade above $67.46 at the deadline, per the Flash Trade oracle price?"*
 
-Anyone can create a claim and stake USDC on one side. Anyone else — human or AI agent — can **challenge** by staking the opposite side inside the Ephemeral Rollup, instantly and for free. When the deadline passes, the **oracle agent** commits the ER state back to the base layer, fetches the evidence URL, asks an LLM to evaluate the outcome, and resolves on-chain. Winners pull their payout from the program's USDC vault.
+Anyone can create a claim and stake USDC on one side. Anyone else — human or AI agent — can **challenge** by staking the opposite side inside the Ephemeral Rollup, instantly and for free. When the deadline passes, the **oracle agent** commits the ER state back to the base layer, fetches the evidence URL, settles through a resolver spec, a two-source price check or an LLM on the evidence, and proposes the verdict on-chain. After a 24h window in which anyone can dispute with a bond, the verdict finalizes and winners pull their payout from the program's USDC vault.
 
-There are no judges, no committees, no manual disputes. The product surfaces:
+No human decides a verdict unless someone disputes it; every verdict carries an audit-bundle hash anyone can recompute. The product surfaces:
 
 | Page | Purpose |
 | --- | --- |
 | `/arena` | Live market feed — pulsing **LIVE ON ER** badges, pool sizes, 4s refresh |
 | `/arena/[id]` | Claim detail — both positions, challenger wall, one-click ER challenge flow |
 | `/api/arena/claims` | JSON feed reading claims from whichever layer currently owns them |
-
 | `/stats` | On-chain analytics — pool, settlements, oracle accuracy, confidence tiers |
-| `/agents` | The AI economic actors (oracle + 9-persona council) and their live activity |
+| `/agents` | The AI economic actors (oracle + 20-persona council) and their live activity |
+| `/council` · `/calibration` | Both juries, records and bankrolls · Brier scores per forecaster |
+| `/dashboard` · `/baskets` · `/copy` | Your positions and payouts · agent baskets · copy permissions |
+| `/agents/new` · `/verify/[id]` · `/token` | Register your own agent · recompute a verdict hash · token tiers and perks |
 
 The product is **100% Solana** — there is no EVM/wagmi anywhere in the active codebase. The original Arc (EVM) implementation has been fully retired to [`archive/arc/`](archive/arc/) for reference only.
 
@@ -68,11 +81,11 @@ flowchart LR
     subgraph workers[Worker tier — long-lived Node]
         OR[Oracle agent<br/>settle + Kelly challenge + hedge]
         MC[Market-creator agent<br/>drafts claims from live prices]
-        CO[Council<br/>9 betting personas]
+        CO[Council<br/>20 betting personas]
     end
 
     subgraph solana[Solana devnet — base layer]
-        PG[Mimir program<br/>J9MZfzQ…xSDR]
+        PG[Mimir V3 program<br/>EnLyMg9…ur1WE]
         VAULT[(USDC vault PDA)]
         CLAIMS[Claim PDAs]
         BAL[UserBalance PDAs]
