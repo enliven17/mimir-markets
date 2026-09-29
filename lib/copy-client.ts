@@ -60,15 +60,15 @@ async function request<T>(url: string, init?: RequestInit): Promise<CopyApiResul
 }
 
 /**
- * Whether the copy endpoints are on, without asking for a signature: the
- * route checks the flag first, so a bare GET answers 404 feature_disabled
- * when off and 400 bad_wallet when on.
+ * Whether the copy endpoints are on, without asking for a signature:
+ * `?probe=1` answers 200 `{ enabled }` either way, so the check logs no
+ * browser error.
  */
 export async function probeCopyTrading(): Promise<"enabled" | "disabled" | "unknown"> {
-  const result = await request<unknown>(PERMISSIONS_URL);
+  const result = await request<{ enabled?: boolean }>(`${PERMISSIONS_URL}?probe=1`);
   if (result.kind === "disabled") return "disabled";
-  if (result.kind === "error" && result.status === 0) return "unknown";
-  return "enabled";
+  if (result.kind !== "ok") return "unknown";
+  return result.data.enabled ? "enabled" : "disabled";
 }
 
 export function listCopyPermissions(follower: string, at: number, signature: string) {

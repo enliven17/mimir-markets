@@ -79,10 +79,14 @@ function publicPermission(p: CopyPermission) {
 }
 
 export async function GET(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  // Feature probe for the page: 200 either way, so the check logs no browser error.
+  if (url.searchParams.get("probe") === "1") {
+    return json({ ok: true, enabled: isFeatureEnabled("copy_trading") });
+  }
   if (!isFeatureEnabled("copy_trading")) return disabled();
   if (!(await allowRequest("copy-list", clientIp(req), 30, 60_000))) return tooManyRequests(60);
 
-  const url = new URL(req.url);
   const follower = normalizeAddress(url.searchParams.get("follower"));
   if (!follower) return fail(400, "bad_wallet", "follower must be a Solana public key");
   const proof = followerProofError(url, "list", follower);
