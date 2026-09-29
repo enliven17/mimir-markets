@@ -49,6 +49,35 @@
     "claimAsRead": "The claim as the oracle read it",
     "positions": "Creator: {creator} · Challengers: {challengers}"
   },
+  "settlementPreview": {
+    "title": "How this claim will settle",
+    "titleSettled": "How it was settled",
+    "verifyLink": "Verify this verdict →",
+    "crossCheck": "{symbol} price at the deadline is cross-checked across independent feeds against ${threshold}. Sources that disagree refund instead of settling.",
+    "tier": {
+      "deterministic": "Deterministic",
+      "firm": "Firm",
+      "contested": "Contested",
+      "refunded": "Refunded"
+    },
+    "hint": {
+      "deterministic": "Settled by the structured resolver from price or JSON data, not by a model.",
+      "firm": "The oracle was at least 80% confident on unambiguous evidence.",
+      "contested": "Settled on weaker evidence (60-79% confidence, or scraped sources).",
+      "refunded": "The evidence did not determine the outcome, so every stake is returned."
+    }
+  },
+  "marketPrice": {
+    "title": "Market price",
+    "unpricedTitle": "Nobody has taken the other side yet.",
+    "unpricedBody": "Until someone stakes against it there is no price, only the creator's conviction. The first challenger takes the whole creator stake if they are right.",
+    "poolExplainer": "Pari-mutuel: each side's share of the pot is what the money already here implies. Staking against a crowded side pays more, because the crowd's stake is what you win.",
+    "contrarian": "The money is {pct}% on “{crowded}”. If “{thin}” is right, a challenger is paid {multiple}x."
+  },
+  "resolverToggle": {
+    "title": "Settle deterministically from price feeds",
+    "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko, Chainlink and Flash Trade at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
+  },
   "claimSettle": {
     "working": "Working…",
     "you": "you",

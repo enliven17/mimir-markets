@@ -32,6 +32,9 @@ import DisputePanel from "@/components/arena/settlement/DisputePanel";
 import PayoutPanel from "@/components/arena/settlement/PayoutPanel";
 import FeeTermsCard from "@/components/arena/settlement/FeeTermsCard";
 import BalanceCard from "@/components/arena/settlement/BalanceCard";
+import SettlementPreviewCard from "@/components/arena/SettlementPreviewCard";
+import MarketPricePanel from "@/components/arena/MarketPricePanel";
+import PriceCrossCheckNote from "@/components/arena/PriceCrossCheckNote";
 import type { ApiClaim } from "@/lib/server/arena-claim";
 import { claimPhase, isPendingVerdict, PHASE_LABEL, SIDE_LABEL } from "@/lib/claim-status";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
@@ -565,6 +568,7 @@ export default function ArenaClaimPage() {
                       {isFlashOracle ? "Resolves via the Flash Trade oracle" : "Settled by the Mimir AI oracle"}
                     </span>
                   </div>
+                  <PriceCrossCheckNote question={claim.question} resolutionUrl={claim.resolutionUrl} className="w-full" />
                   {claim.resolutionUrl && (
                     <a
                       href={resolutionHref}
@@ -576,6 +580,12 @@ export default function ArenaClaimPage() {
                     </a>
                   )}
                 </div>
+              </div>
+            )}
+
+            {!isResolved && !isCancelled && (
+              <div className="mb-6 sm:mb-8">
+                <MarketPricePanel claim={claim} />
               </div>
             )}
 
@@ -780,6 +790,7 @@ export default function ArenaClaimPage() {
                   stakeUnits={claim.state <= 1 && !expired ? BigInt(Math.max(0, Math.round(Number(stake) * 1e6) || 0)) : 0n}
                 />
               )}
+              {!isCancelled && <SettlementPreviewCard claim={claim} />}
               {wallet.connected && <BalanceCard mimir={mimir} balance={balance} onChanged={refresh} />}
               {/* Claim strength card (live, pre-settlement) */}
               {!isResolved && !isCancelled && (
