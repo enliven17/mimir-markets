@@ -1,164 +1,95 @@
 "use client";
 
 /**
- * "More" disclosure for the desktop nav row. A button with aria-expanded that
- * opens a framed panel of grouped links.
- * Keyboard: Enter/Space/ArrowDown opens and focuses the first link,
- * ArrowUp/ArrowDown/Home/End move between links, Escape closes and returns
- * focus to the button, and tabbing out or clicking outside closes it.
+ * "More" in the header pill: one button that opens a sheet with every page
+ * that is not in the pill, grouped (docs/REDESIGN.md 3.1). The sheet is the
+ * shared Modal: focus moves to the first link, Tab stays inside, Esc or the
+ * backdrop closes it and focus returns to the button, Lenis pauses while it
+ * is open.
  */
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { ArrowUpRight } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
-import { NAV_MORE, NAV_MORE_GROUPS, isNavActive } from "./nav-items";
+import Modal from "@/components/ui/Modal";
+import { NAV_MORE, NAV_MORE_GROUPS, activeNavHref } from "./nav-items";
+
+export function NavMoreLinks({ onNavigate, compact = false }: { onNavigate?: () => void; compact?: boolean }) {
+  const t = useTranslations("nav");
+  const active = activeNavHref(usePathname());
+  return (
+    <div className={`grid gap-x-4 sm:grid-cols-2 ${compact ? "grid-cols-2 gap-y-4" : "gap-y-5"}`}>
+      {NAV_MORE_GROUPS.map((group) => (
+        <section key={group.key} aria-labelledby={`nav-group-${group.key}`}>
+          <h3 id={`nav-group-${group.key}`} className="mb-1.5 px-3 text-[11px] uppercase tracking-[0.06em] text-muted">
+            {t(`groups.${group.key}`)}
+          </h3>
+          <ul className="grid gap-1">
+            {group.items.map((item) => {
+              const isActive = active === item.href;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={onNavigate}
+                    className={`group flex items-start justify-between gap-3 rounded-md px-3 py-2.5 transition-colors ${
+                      isActive ? "bg-cream/[0.07]" : "hover:bg-panel-raised"
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className={`block font-display text-[1.2rem] leading-none ${isActive ? "text-coral" : "text-cream"}`}>
+                        {t(`items.${item.key}.label`)}
+                      </span>
+                      {compact ? null : (
+                        <span className="mt-1 block text-[12px] leading-snug text-muted">{t(`items.${item.key}.hint`)}</span>
+                      )}
+                    </span>
+                    <ArrowUpRight
+                      size={14}
+                      aria-hidden
+                      className={`mt-0.5 flex-none transition-colors ${isActive ? "text-coral" : "text-dim group-hover:text-coral"}`}
+                    />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 export default function NavMoreMenu({ triggerClassName }: { triggerClassName: string }) {
+  const t = useTranslations("nav");
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
-  const activeItem = NAV_MORE.find((item) => isNavActive(pathname, item));
-
-  const links = () => Array.from(panelRef.current?.querySelectorAll<HTMLAnchorElement>("a[href]") ?? []);
-
-  const focusLink = (index: number) => {
-    const all = links();
-    if (!all.length) return;
-    all[(index + all.length) % all.length].focus();
-  };
-
-  const close = useCallback((returnFocus: boolean) => {
-    setOpen(false);
-    if (returnFocus) buttonRef.current?.focus();
-  }, []);
-
-  useEffect(() => setOpen(false), [pathname]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) close(false);
-    };
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") close(true);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, close]);
-
-  const openAndFocus = (index: number) => {
-    setOpen(true);
-    // The panel renders on the next frame.
-    requestAnimationFrame(() => focusLink(index));
-  };
-
-  const onButtonKey = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      openAndFocus(0);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      openAndFocus(-1);
-    }
-  };
-
-  const onPanelKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const all = links();
-    const current = all.indexOf(document.activeElement as HTMLAnchorElement);
-    const moves: Record<string, number> = {
-      ArrowDown: current + 1,
-      ArrowUp: current - 1,
-      Home: 0,
-      End: all.length - 1,
-    };
-    if (e.key in moves) {
-      e.preventDefault();
-      focusLink(moves[e.key]);
-    }
-  };
+  const active = activeNavHref(pathname);
+  const inMore = NAV_MORE.some((item) => item.href === active);
 
   return (
-    <div
-      ref={rootRef}
-      className="relative"
-      onBlur={(e) => {
-        if (open && !rootRef.current?.contains(e.relatedTarget as Node | null)) close(false);
-      }}
-    >
+    <>
       <button
-        ref={buttonRef}
         type="button"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => (open ? close(false) : setOpen(true))}
-        onKeyDown={onButtonKey}
-        className={`${triggerClassName} inline-flex items-center gap-1.5 ${
-          open || activeItem
-            ? "border-pv-border/40 bg-pv-border/[0.06] text-pv-text"
-            : "border-transparent text-pv-muted hover:border-pv-border/25 hover:text-pv-text"
-        }`}
+        onClick={() => setOpen(true)}
+        className={`${triggerClassName} ${inMore || open ? "is-active" : ""}`}
       >
-        More
-        <ChevronDown
-          size={13}
-          aria-hidden
-          className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        />
+        {t("more")}
       </button>
-
-      <div
-        ref={panelRef}
-        id={panelId}
-        hidden={!open}
-        onKeyDown={onPanelKey}
-        className="absolute left-1/2 top-[calc(100%+13px)] z-50 w-[560px] -translate-x-1/2 border border-pv-border/25 bg-pv-bg shadow-[0_24px_48px_-24px_rgb(var(--pv-border)/0.45)]"
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t("moreTitle")}
+        variant="sheet"
+        closeLabel={t("closeMore")}
+        initialFocus="a[href]"
+        className="sm:!max-w-[640px]"
       >
-        <div className="grid grid-cols-3 gap-px bg-pv-border/15">
-          {NAV_MORE_GROUPS.map((group) => (
-            <div key={group.label} className="bg-pv-bg p-2">
-              <p className="px-3 pb-1.5 pt-2 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted">
-                {group.label}
-              </p>
-              <ul>
-                {group.items.map((item) => {
-                  const active = isNavActive(pathname, item);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        onClick={() => setOpen(false)}
-                        className={`block border border-transparent px-3 py-2.5 transition-colors focus-ring ${
-                          active ? "bg-pv-border/[0.06]" : "hover:border-pv-border/15 hover:bg-pv-surface"
-                        }`}
-                      >
-                        <span
-                          className={`block whitespace-nowrap font-mono text-[13px] font-medium ${
-                            active ? "text-pv-emerald" : "text-pv-text"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-                        {item.hint && (
-                          <span className="mt-1 block font-mono text-[11px] leading-snug text-pv-muted">
-                            {item.hint}
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+        <NavMoreLinks onNavigate={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }

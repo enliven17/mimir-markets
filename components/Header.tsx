@@ -1,194 +1,205 @@
 "use client";
 
 /**
- * Mimir header — Solana-native, blueprint frame.
- * The bar sits on the same column as the page rails (border-x lines up with
- * PageFrame), so the rails read as running straight through the navbar.
+ * Header: pandock's morphing nav in radio glass (docs/REDESIGN.md 2.4, 3.1).
  *
- * From `lg` up: logo, the primary links, a "More" menu for the rest, then the
- * controls (tier, notifications, theme, Publish, wallet). Publish collapses to
- * its icon between lg and xl so the row never overflows at 1024–1279.
- * Below `lg`: a framed menu sheet listing every link, grouped.
- * Wallet connection is @solana/wallet-adapter; no EVM anywhere.
+ * One CSS variable, `--nav-p` (0 → 1), drives every property of the bar (see
+ * `.nav-shell` in app/globals.css). On `/` it is scrubbed over the first
+ * 160px of scroll, so the docked, transparent bar becomes a floating glass
+ * pill; on every other route it is held at 1. Reduced motion flips it at 80px
+ * without a scrub. It never hides on scroll.
+ *
+ * Pill: wordmark, Arena · Council · Portfolio · More (centred), then Create,
+ * notifications and the wallet chip. Below `lg`, a burger opens a panel under
+ * the pill with every link; Tab stays inside the header while it is open,
+ * Esc closes it and Lenis pauses.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
+import { Plus } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
-import { Menu, Plus, X } from "lucide-react";
+import { ScrollTrigger, gsap, setScrollLocked, useGSAP } from "@/lib/motion";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import Wordmark from "@/components/ui/Wordmark";
 import NotificationBell from "./NotificationBell";
-import TierChip from "./token/TierChip";
-import NavMoreMenu from "./NavMoreMenu";
-import { NAV_CTA, NAV_PRIMARY, NAV_SHEET_GROUPS, isNavActive } from "./nav-items";
+import NavMoreMenu, { NavMoreLinks } from "./NavMoreMenu";
+import { NAV_CTA, NAV_PRIMARY, activeNavHref } from "./nav-items";
 
-// wallet-adapter button is client-only (touches window) — load without SSR.
-// The placeholder keeps the bar from shifting while it loads.
-const WalletButton = dynamic(() => import("./wallet/WalletChip"), {
+// The chip reads the wallet (window-only); the placeholder keeps the bar from shifting.
+const WalletChip = dynamic(() => import("./wallet/WalletChip"), {
   ssr: false,
-  loading: () => <span aria-hidden className="inline-block h-9 w-[98px] rounded-full bg-cream/5" />,
+  loading: () => <span aria-hidden className="inline-block h-9 w-[104px] rounded-full bg-cream/5" />,
 });
 
-const linkBase =
-  "whitespace-nowrap border px-3 py-1.5 font-mono text-[12.5px] font-medium transition-colors focus-ring";
-const linkActive = "border-pv-border/40 bg-pv-border/[0.06] text-pv-text";
-const linkIdle = "border-transparent text-pv-muted hover:border-pv-border/25 hover:text-pv-text";
-
 export default function Header() {
+  const t = useTranslations("nav");
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const shellRef = useRef<HTMLElement>(null);
   const isHome = pathname === "/";
+  const active = activeNavHref(pathname);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  // Entrance, once per page load: the bar drops in, then its contents settle.
+  // fromTo with explicit end states so a remount mid-flight never strands it.
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap
+          .timeline({ delay: 0.1 })
+          .fromTo(".nav-bar", { yPercent: -140, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 1.1, ease: "expo.out" })
+          .fromTo(
+            ".nav-stagger",
+            { y: -14, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.8, ease: "expo.out", stagger: 0.06, clearProps: "transform,opacity" },
+            "-=0.75",
+          );
+      });
+      return () => mm.revert();
+    },
+    { scope: shellRef },
+  );
+
+  // The morph. Home scrubs --nav-p with scroll; app routes hold the pill.
+  useGSAP(
+    () => {
+      const el = shellRef.current;
+      if (!el) return;
+      if (!isHome) {
+        el.style.setProperty("--nav-p", "1");
+        return;
+      }
+      const p = { v: 0 };
+      const set = () => el.style.setProperty("--nav-p", p.v.toFixed(4));
+      set();
+      const mm = gsap.matchMedia();
+      mm.add(
+        { motion: "(prefers-reduced-motion: no-preference)", reduce: "(prefers-reduced-motion: reduce)" },
+        (ctx) => {
+          if (ctx.conditions?.reduce) {
+            const st = ScrollTrigger.create({
+              start: 80,
+              end: "max",
+              onToggle: (self) => {
+                p.v = self.isActive ? 1 : 0;
+                set();
+              },
+            });
+            p.v = st.isActive ? 1 : 0;
+            set();
+            return;
+          }
+          gsap.to(p, { v: 1, ease: "none", onUpdate: set, scrollTrigger: { start: 0, end: 160, scrub: 0.6 } });
+        },
+      );
+      return () => mm.revert();
+    },
+    { dependencies: [isHome], revertOnUpdate: true },
+  );
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
   useEffect(() => {
     if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
+    setScrollLocked(true);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onWide = () => mq.matches && setMobileOpen(false);
+    mq.addEventListener("change", onWide);
+    return () => {
+      setScrollLocked(false);
+      mq.removeEventListener("change", onWide);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
 
-  const solid = scrolled || mobileOpen || !isHome;
-  const ctaActive = pathname === NAV_CTA.href;
+  useFocusTrap(shellRef, mobileOpen, { onEscape: closeMobile, initialFocus: "#mobile-nav a[href]" });
+
+  const linkClass = (isActive: boolean) => `nav-link nav-stagger ${isActive ? "is-active" : ""}`;
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-        <nav
-          aria-label="Main"
-          className={`flex h-14 min-w-0 items-center gap-4 border-x border-b px-4 transition-[background-color,border-color] duration-300 ease-out sm:px-5 xl:gap-6 ${
-            solid
-              ? "border-pv-border/25 bg-pv-bg/85 backdrop-blur-[14px]"
-              : "border-x-pv-border/25 border-b-transparent bg-transparent"
-          }`}
-        >
-          <Link href="/" className="flex shrink-0 items-center gap-2.5 focus-ring">
-            <span className="group font-display text-lg font-bold tracking-tight text-pv-text sm:text-xl">
-              Mimir
-              <span
-                className="ml-[1px] inline-block text-pv-emerald transition-transform duration-300 ease-out group-hover:-rotate-6 group-hover:scale-125"
-                aria-hidden
-              >
-                .
-              </span>
-            </span>
-          </Link>
+    <header ref={shellRef} className="nav-shell" data-home={isHome || undefined} data-open={mobileOpen || undefined}>
+      <nav aria-label={t("main")} className="nav-bar">
+        <Link href="/" aria-label={t("home")} className="nav-stagger justify-self-start rounded-xs">
+          <Wordmark />
+        </Link>
 
-          {/* Desktop links (lg up) */}
-          <div className="hidden min-w-0 flex-1 items-center gap-1 lg:flex">
-            <span className="mr-2 h-6 w-px bg-pv-border/25 xl:mr-3" aria-hidden />
-            {NAV_PRIMARY.map((item) => {
-              const active = isNavActive(pathname, item);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`${linkBase} ${active ? linkActive : linkIdle}`}
-                >
-                  {item.label}
+        <ul className="hidden items-center gap-[calc(24px-var(--nav-p)*6px)] lg:flex">
+          {NAV_PRIMARY.map((item) => {
+            const isActive = active === item.href;
+            return (
+              <li key={item.href}>
+                <Link href={item.href} aria-current={isActive ? "page" : undefined} className={linkClass(isActive)}>
+                  {t(`items.${item.key}.label`)}
                 </Link>
+              </li>
+            );
+          })}
+          <li>
+            <NavMoreMenu triggerClassName="nav-link nav-stagger" />
+          </li>
+        </ul>
+
+        <div className="col-start-3 flex items-center justify-self-end gap-2">
+          <Link
+            href={NAV_CTA.href}
+            aria-current={active === NAV_CTA.href ? "page" : undefined}
+            className="nav-cta nav-stagger hidden lg:inline-flex"
+          >
+            <Plus size={15} aria-hidden />
+            {t("items.create.short")}
+          </Link>
+          <span className="nav-stagger">
+            <NotificationBell />
+          </span>
+          <span className="nav-stagger">
+            <WalletChip />
+          </span>
+          <button
+            type="button"
+            className={`nav-burger nav-stagger lg:hidden ${mobileOpen ? "is-open" : ""}`}
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
+            aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
+          >
+            <span />
+            <span />
+          </button>
+        </div>
+      </nav>
+
+      {mobileOpen ? (
+        <div id="mobile-nav" className="nav-panel lg:hidden" data-lenis-prevent>
+          <ul className="grid gap-1">
+            {NAV_PRIMARY.map((item) => {
+              const isActive = active === item.href;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={closeMobile}
+                    className={`block rounded-[14px] px-4 py-3 font-display text-[1.75rem] leading-none transition-colors ${
+                      isActive ? "bg-cream/[0.07] text-coral" : "text-cream hover:bg-panel-raised"
+                    }`}
+                  >
+                    {t(`items.${item.key}.label`)}
+                  </Link>
+                </li>
               );
             })}
-            <NavMoreMenu triggerClassName={linkBase} />
+          </ul>
+          <div className="mt-4 border-t border-line pt-4">
+            <NavMoreLinks onNavigate={closeMobile} compact />
           </div>
-
-          {/* Desktop controls (lg up) */}
-          <div className="hidden shrink-0 items-center gap-2 lg:flex">
-            <span className="hidden xl:contents">
-              <TierChip />
-            </span>
-            <NotificationBell />
-            <Link
-              href={NAV_CTA.href}
-              aria-current={ctaActive ? "page" : undefined}
-              aria-label={NAV_CTA.label}
-              title={NAV_CTA.mobileLabel}
-              className={`ml-1 flex h-[34px] items-center gap-1.5 whitespace-nowrap border border-pv-emerald/60 px-2.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-emerald transition-colors hover:bg-pv-emerald/10 focus-ring xl:px-3 ${
-                ctaActive ? "bg-pv-emerald/10" : ""
-              }`}
-            >
-              <Plus size={14} aria-hidden />
-              <span className="hidden xl:inline">{NAV_CTA.label}</span>
-            </Link>
-            <WalletButton />
-          </div>
-
-          {/* Compact controls (below lg) */}
-          <div className="ml-auto flex shrink-0 items-center gap-2 lg:hidden">
-            <TierChip />
-            <NotificationBell />
-            <div className="hidden sm:block">
-              <WalletButton />
-            </div>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center border border-pv-border/25 text-pv-text transition-colors hover:border-pv-emerald/50 hover:text-pv-emerald focus-ring"
-              onClick={() => setMobileOpen((v) => !v)}
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-nav"
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-            >
-              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
-          </div>
-        </nav>
-
-        {mobileOpen && (
-          <div
-            id="mobile-nav"
-            className="max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-y-auto border-x border-b border-pv-border/25 bg-pv-bg/95 backdrop-blur-[14px] lg:hidden"
-          >
-            {NAV_SHEET_GROUPS.map((group) => (
-              <section key={group.label} aria-label={group.label} className="border-b border-pv-border/25 last:border-b-0">
-                <p className="px-5 pb-2 pt-4 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted">
-                  {group.label}
-                </p>
-                <div className="grid gap-px border-t border-pv-border/15 bg-pv-border/15 sm:grid-cols-2">
-                  {group.items.map((item) => {
-                    const active = isNavActive(pathname, item);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        className={`flex items-center justify-between bg-pv-bg px-5 py-3.5 font-mono text-sm transition-colors focus-ring ${
-                          active ? "text-pv-emerald" : "text-pv-text/85 hover:bg-pv-surface hover:text-pv-text"
-                        }`}
-                      >
-                        {item.label}
-                        <span aria-hidden className={active ? "text-pv-emerald" : "text-pv-muted/60"}>
-                          {active ? "●" : "→"}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-            <div className="flex flex-col gap-3 border-t border-pv-border/25 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <Link
-                href={NAV_CTA.href}
-                className="flex items-center justify-center gap-1.5 border border-pv-emerald bg-pv-emerald px-3 py-2.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg focus-ring"
-              >
-                <Plus size={13} aria-hidden />
-                {NAV_CTA.mobileLabel}
-              </Link>
-              <div className="sm:hidden [&_.wallet-adapter-button-trigger]:w-full [&_.wallet-adapter-button-trigger]:justify-center [&_.wallet-adapter-dropdown]:w-full">
-                <WalletButton />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+          <Link href={NAV_CTA.href} onClick={closeMobile} className="btn-primary mt-5 !py-3.5 !text-[1.2rem]">
+            <Plus size={16} aria-hidden />
+            {t("items.create.label")}
+          </Link>
+        </div>
+      ) : null}
     </header>
   );
 }

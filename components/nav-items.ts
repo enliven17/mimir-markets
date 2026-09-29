@@ -1,74 +1,88 @@
 /**
- * Header navigation — single source for the desktop row, the "More" menu,
- * the mobile sheet and the footer.
+ * Site navigation: the single source for the header pill, the "More" sheet,
+ * the mobile panel and the footer (docs/REDESIGN.md 3.1).
  *
- * - `NAV_PRIMARY` sits in the desktop row. Keep it to ~5 entries.
- * - `NAV_MORE_GROUPS` go into the "More" menu on desktop and are listed as
- *   their own groups in the mobile sheet. New pages usually belong here.
+ * - `NAV_PRIMARY` sits in the pill: Arena, Council, Portfolio. Keep it at 3.
+ * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the
+ *   footer). New pages usually belong here.
+ *
+ * Labels are next-intl keys under `nav.items.<key>` (`label`, `hint`) and
+ * `nav.groups.<key>`.
  */
 export interface NavItem {
   href: string;
-  label: string;
-  /** One-line hint shown in the "More" menu. */
-  hint?: string;
+  key: string;
   /** Also mark active on nested routes (e.g. /arena/42). */
   matchNested?: boolean;
 }
 
 export interface NavGroup {
-  label: string;
+  key: string;
   items: readonly NavItem[];
 }
 
 export const NAV_PRIMARY: readonly NavItem[] = [
-  { href: "/arena", label: "Arena", matchNested: true },
-  { href: "/council", label: "Council" },
-  { href: "/agents", label: "Agents" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/token", label: "Token" },
+  { href: "/arena", key: "arena", matchNested: true },
+  { href: "/council", key: "council" },
+  // Portfolio is the old Dashboard: label change only, the route stays.
+  { href: "/dashboard", key: "portfolio" },
 ];
 
 export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
-    label: "Analytics",
+    key: "agents",
     items: [
-      { href: "/stats", label: "Stats", hint: "Markets, volume and settlements" },
-      { href: "/calibration", label: "Calibration", hint: "How well the oracle's confidence holds up" },
+      { href: "/agents", key: "agents" },
+      { href: "/agents/new", key: "agentsNew" },
     ],
   },
   {
-    label: "Strategies",
+    key: "strategies",
     items: [
-      { href: "/baskets", label: "Baskets", hint: "Bundles of claims to follow", matchNested: true },
-      { href: "/copy", label: "Copy", hint: "Mirror another wallet's positions" },
+      { href: "/baskets", key: "baskets", matchNested: true },
+      { href: "/baskets/new", key: "basketsNew" },
+      { href: "/copy", key: "copy" },
     ],
   },
+  { key: "token", items: [{ href: "/token", key: "token" }] },
   {
-    label: "Build",
+    key: "data",
     items: [
-      { href: "/agents/new", label: "Connect agent", hint: "Register an AI agent that trades" },
-      { href: "/docs", label: "Docs", hint: "How claims are settled on-chain" },
+      { href: "/stats", key: "stats" },
+      { href: "/calibration", key: "calibration" },
     ],
   },
+  { key: "docs", items: [{ href: "/docs", key: "docs" }] },
 ];
 
 export const NAV_MORE: readonly NavItem[] = NAV_MORE_GROUPS.flatMap((g) => g.items);
 
+/** Primary call to action: the coral pill next to the links. */
+export const NAV_CTA: NavItem = { href: "/arena/create", key: "create" };
+
 /** Every nav entry, primary first. */
-export const NAV_ITEMS: readonly NavItem[] = [...NAV_PRIMARY, ...NAV_MORE];
+export const NAV_ITEMS: readonly NavItem[] = [...NAV_PRIMARY, ...NAV_MORE, NAV_CTA];
 
-/** Groups for the mobile sheet: primary links first, then the "More" groups. */
-export const NAV_SHEET_GROUPS: readonly NavGroup[] = [
-  { label: "Explore", items: NAV_PRIMARY },
-  ...NAV_MORE_GROUPS,
-];
+function matches(pathname: string, item: NavItem): boolean {
+  if (pathname === item.href) return true;
+  return Boolean(item.matchNested && pathname.startsWith(item.href + "/"));
+}
 
-/** Primary call to action shown as a filled chip next to the nav. */
-export const NAV_CTA = { href: "/arena/create", label: "Publish", mobileLabel: "Publish a challenge" };
+/**
+ * The one nav entry that owns `pathname`: an exact match wins, then the
+ * longest nested match, so /baskets/new lights "New basket", not "Baskets",
+ * and /arena/create lights the CTA, not "Arena".
+ */
+export function activeNavHref(pathname: string): string | null {
+  let best: NavItem | null = null;
+  for (const item of NAV_ITEMS) {
+    if (!matches(pathname, item)) continue;
+    if (pathname === item.href) return item.href;
+    if (!best || item.href.length > best.href.length) best = item;
+  }
+  return best?.href ?? null;
+}
 
 export function isNavActive(pathname: string, item: NavItem): boolean {
-  if (pathname === item.href) return true;
-  if (!item.matchNested || !pathname.startsWith(item.href + "/")) return false;
-  // The CTA route has its own chip — don't double-highlight it.
-  return pathname !== NAV_CTA.href;
+  return activeNavHref(pathname) === item.href;
 }

@@ -1571,5 +1571,76 @@
         "create": "Publish a claim"
       }
     }
+  },
+  "nav": {
+    "main": "Main",
+    "home": "Mimir, home",
+    "more": "More",
+    "moreTitle": "More",
+    "closeMore": "Close",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "groups": {
+      "agents": "Agents",
+      "strategies": "Strategies",
+      "token": "Token",
+      "data": "Data",
+      "docs": "Docs"
+    },
+    "items": {
+      "arena": {
+        "label": "Arena",
+        "hint": "Open claims and live duels"
+      },
+      "council": {
+        "label": "Council",
+        "hint": "The AI jury that settles claims"
+      },
+      "portfolio": {
+        "label": "Portfolio",
+        "hint": "Your positions and payouts"
+      },
+      "agents": {
+        "label": "Agents",
+        "hint": "AI agents trading on Mimir"
+      },
+      "agentsNew": {
+        "label": "Connect an agent",
+        "hint": "Register your own agent"
+      },
+      "baskets": {
+        "label": "Baskets",
+        "hint": "Bundles of claims to follow"
+      },
+      "basketsNew": {
+        "label": "New basket",
+        "hint": "Compose your own bundle"
+      },
+      "copy": {
+        "label": "Copy",
+        "hint": "Mirror another wallet"
+      },
+      "token": {
+        "label": "Token",
+        "hint": "$MIMIR tiers and perks"
+      },
+      "stats": {
+        "label": "Stats",
+        "hint": "Markets, volume, settlements"
+      },
+      "calibration": {
+        "label": "Calibration",
+        "hint": "How well the oracle is calibrated"
+      },
+      "docs": {
+        "label": "Docs",
+        "hint": "How claims settle on-chain"
+      },
+      "create": {
+        "label": "Create a claim",
+        "short": "Create",
+        "hint": "Publish a claim and stake a side"
+      }
+    }
   }
 }

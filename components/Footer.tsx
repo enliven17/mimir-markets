@@ -12,7 +12,7 @@ const PROGRAM_EXPLORER_URL = `https://explorer.solana.com/address/${PROGRAM_ID}?
 
 const PRODUCT_LINKS = [
   ...NAV_PRIMARY,
-  ...NAV_MORE_GROUPS.filter((g) => g.label !== "Build").flatMap((g) => g.items),
+  ...NAV_MORE_GROUPS.filter((g) => g.key !== "docs").flatMap((g) => g.items),
 ];
 
 type FooterLink = { label: string } & ({ href: string; external?: false } | { url: string; external: true });
@@ -72,7 +72,7 @@ export default function Footer() {
                 {PRODUCT_LINKS.map((item) => (
                   <li key={item.href}>
                     <Link href={item.href} className={linkClass}>
-                      {item.label}
+                      {item.key}
                     </Link>
                   </li>
                 ))}

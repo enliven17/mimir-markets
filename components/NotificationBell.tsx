@@ -132,35 +132,35 @@ export default function NotificationBell() {
         aria-label={unread > 0 ? t("ariaUnread", { count: unread }) : t("aria")}
         aria-expanded={open}
         aria-haspopup="true"
-        className="relative inline-flex h-9 w-9 items-center justify-center border border-pv-border/25 text-pv-muted transition-colors hover:border-pv-emerald/50 hover:text-pv-text focus-ring"
+        className="press glass relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted shadow-chip transition-colors hover:bg-[rgb(24_22_22/.82)] hover:text-cream aria-expanded:text-cream"
       >
         <Bell size={15} aria-hidden />
         {unread > 0 ? (
-          <span className="absolute -right-1.5 -top-1.5 min-w-[16px] rounded-full bg-pv-emerald px-1 text-center font-mono text-[10px] font-bold leading-4 text-pv-bg">
+          <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-coral px-1 text-center font-mono text-[10px] leading-4 text-[#160909] shadow-[0_0_7px_rgb(255_81_72/.58)]">
             {unread > 9 ? "9+" : unread}
           </span>
         ) : null}
       </button>
       {open ? (
-        <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] border border-pv-border/25 bg-pv-bg shadow-xl">
-          <p className="border-b border-pv-border/25 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-pv-muted">
+        <div className="absolute right-0 z-[60] mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-md bg-panel p-[5px] shadow-menu motion-safe:animate-[wallet-menu-in_140ms_ease-out_both]">
+          <p className="px-2.5 pb-1.5 pt-2 text-[11px] uppercase tracking-[0.06em] text-muted">
             {t("title")}
           </p>
           {items.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-pv-muted">{t("empty")}</p>
+            <p className="px-2.5 py-5 text-[13px] leading-snug text-muted">{t("empty")}</p>
           ) : (
-            <ul className="max-h-80 overflow-y-auto">
+            <ul className="grid max-h-80 gap-[3px] overflow-y-auto" data-lenis-prevent>
               {items.map((item) => (
-                <li key={item.id} className="border-b border-pv-border/15 last:border-0">
+                <li key={item.id}>
                   <Link
                     href={`/arena/${item.claimId}`}
                     onClick={() => setOpen(false)}
-                    className={`block px-4 py-3 text-sm transition-colors hover:bg-pv-surface focus-ring ${
-                      item.createdAt > seen ? "text-pv-text" : "text-pv-text/75"
+                    className={`block rounded-sm px-2.5 py-2.5 text-[13px] leading-snug transition-colors hover:bg-panel-raised ${
+                      item.createdAt > seen ? "text-cream" : "text-muted"
                     }`}
                   >
                     {describe(item)}
-                    <span className="mt-0.5 block font-mono text-[10px] text-pv-muted">
+                    <span className="mt-1 block font-mono text-[11px] text-muted">
                       {new Date(item.createdAt).toLocaleString()}
                     </span>
                   </Link>
