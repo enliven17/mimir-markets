@@ -78,6 +78,23 @@
     "title": "Settle deterministically from price feeds",
     "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko, Chainlink and Flash Trade at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
   },
+  "councilPreflight": {
+    "title": "Ask the council",
+    "hint": "Optional: a few council personas judge whether this draft is clear, verifiable and balanced before you publish. Advisory only.",
+    "ask": "Ask",
+    "askAgain": "Ask again",
+    "asking": "Asking…",
+    "needsDraft": "Fill in the question, both sides and a resolution URL first.",
+    "summary": "score {score}/100 · open {open} · revise {revise} · skip {skip}",
+    "stale": "draft changed since",
+    "rateLimited": "Too many checks — try again in a minute.",
+    "unavailable": "The council is unavailable right now.",
+    "decision": {
+      "open": "open",
+      "revise": "revise",
+      "skip": "skip"
+    }
+  },
   "calibration": {
     "eyebrow": "Forecaster calibration",
     "title": "Who forecasts well?",

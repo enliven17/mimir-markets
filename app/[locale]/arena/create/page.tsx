@@ -43,6 +43,7 @@ import {
 } from "@/lib/constants";
 import { txErrorMessage } from "@/lib/tx-errors";
 import ResolverToggle from "@/components/arena/ResolverToggle";
+import CouncilPreflight from "@/components/council/CouncilPreflight";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
 import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
 
@@ -686,6 +687,20 @@ export default function CreateMarketPage() {
                   settlementPreview={ticketSettlementPreview}
                   stakeAmount={stake}
                   walletAddress={walletAddress}
+                />
+
+                <CouncilPreflight
+                  draft={{
+                    question: question.trim(),
+                    creatorPosition: creatorPos.trim(),
+                    counterPosition: opponentPos.trim(),
+                    resolutionUrl: finalResolutionUrl,
+                    category,
+                    settlementRule: settlementRule.trim(),
+                    deadlineHours: customDeadline
+                      ? Math.max(0, Math.round((new Date(customDeadline).getTime() - Date.now()) / 3_600_000))
+                      : 0,
+                  }}
                 />
 
                 {error && (
