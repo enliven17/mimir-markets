@@ -103,3 +103,26 @@ test("create page accepts an opportunity-card prefill link", async ({ page }) =>
   await page.goto(`/en/arena/create?${q}`);
   await expect(page.getByText(/Prefilled from example\.com/)).toBeVisible();
 });
+
+test("desktop More menu opens, moves focus and closes on Escape", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the More menu is desktop-only; mobile uses the sheet");
+  await page.goto("/en/arena");
+  const more = page.getByRole("button", { name: "More" });
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("header").getByRole("link", { name: /^Stats/ })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+});
+
+test("wallet modal lists Phantom and Solflare without an extension", async ({ page, isMobile }) => {
+  await page.goto("/en/arena");
+  if (isMobile) await page.getByRole("button", { name: "Open menu" }).click();
+  await page.locator(".wallet-adapter-button-trigger:visible").first().click();
+  const list = page.locator(".wallet-adapter-modal-list");
+  await expect(list.getByRole("button", { name: /Phantom/ })).toBeVisible();
+  await expect(list.getByRole("button", { name: /Solflare/ })).toBeVisible();
+});

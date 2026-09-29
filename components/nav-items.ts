@@ -1,28 +1,66 @@
 /**
- * Header navigation — single source for the desktop row and the mobile sheet.
- * Later phases append entries here (verify, calibration, council, …); the
- * header shows the full row from `xl` up and a menu below that, so the list
- * can grow without overflowing tablets.
+ * Header navigation — single source for the desktop row, the "More" menu,
+ * the mobile sheet and the footer.
+ *
+ * - `NAV_PRIMARY` sits in the desktop row. Keep it to ~5 entries.
+ * - `NAV_MORE_GROUPS` go into the "More" menu on desktop and are listed as
+ *   their own groups in the mobile sheet. New pages usually belong here.
  */
 export interface NavItem {
   href: string;
   label: string;
+  /** One-line hint shown in the "More" menu. */
+  hint?: string;
   /** Also mark active on nested routes (e.g. /arena/42). */
   matchNested?: boolean;
 }
 
-export const NAV_ITEMS: readonly NavItem[] = [
+export interface NavGroup {
+  label: string;
+  items: readonly NavItem[];
+}
+
+export const NAV_PRIMARY: readonly NavItem[] = [
   { href: "/arena", label: "Arena", matchNested: true },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/stats", label: "Stats" },
-  { href: "/calibration", label: "Calibration" },
   { href: "/council", label: "Council" },
   { href: "/agents", label: "Agents" },
-  { href: "/baskets", label: "Baskets", matchNested: true },
-  { href: "/copy", label: "Copy" },
-  { href: "/agents/new", label: "Connect agent" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/token", label: "Token" },
-  { href: "/docs", label: "Docs" },
+];
+
+export const NAV_MORE_GROUPS: readonly NavGroup[] = [
+  {
+    label: "Analytics",
+    items: [
+      { href: "/stats", label: "Stats", hint: "Markets, volume and settlements" },
+      { href: "/calibration", label: "Calibration", hint: "How well the oracle's confidence holds up" },
+    ],
+  },
+  {
+    label: "Strategies",
+    items: [
+      { href: "/baskets", label: "Baskets", hint: "Bundles of claims to follow", matchNested: true },
+      { href: "/copy", label: "Copy", hint: "Mirror another wallet's positions" },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      { href: "/agents/new", label: "Connect agent", hint: "Register an AI agent that trades" },
+      { href: "/docs", label: "Docs", hint: "How claims are settled on-chain" },
+    ],
+  },
+];
+
+export const NAV_MORE: readonly NavItem[] = NAV_MORE_GROUPS.flatMap((g) => g.items);
+
+/** Every nav entry, primary first. */
+export const NAV_ITEMS: readonly NavItem[] = [...NAV_PRIMARY, ...NAV_MORE];
+
+/** Groups for the mobile sheet: primary links first, then the "More" groups. */
+export const NAV_SHEET_GROUPS: readonly NavGroup[] = [
+  { label: "Explore", items: NAV_PRIMARY },
+  ...NAV_MORE_GROUPS,
 ];
 
 /** Primary call to action shown as a filled chip next to the nav. */

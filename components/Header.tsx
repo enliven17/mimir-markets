@@ -4,8 +4,12 @@
  * Mimir header — Solana-native, blueprint frame.
  * The bar sits on the same column as the page rails (border-x lines up with
  * PageFrame), so the rails read as running straight through the navbar.
- * Full nav row from `xl` up; below that a framed menu sheet. Wallet
- * connection is @solana/wallet-adapter (WalletMultiButton); no EVM anywhere.
+ *
+ * From `lg` up: logo, the primary links, a "More" menu for the rest, then the
+ * controls (tier, notifications, theme, Publish, wallet). Publish collapses to
+ * its icon between lg and xl so the row never overflows at 1024–1279.
+ * Below `lg`: a framed menu sheet listing every link, grouped.
+ * Wallet connection is @solana/wallet-adapter; no EVM anywhere.
  */
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
@@ -14,17 +18,20 @@ import { Menu, Plus, X } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import TierChip from "./token/TierChip";
-import { NAV_CTA, NAV_ITEMS, isNavActive } from "./nav-items";
+import NavMoreMenu from "./NavMoreMenu";
+import { NAV_CTA, NAV_PRIMARY, NAV_SHEET_GROUPS, isNavActive } from "./nav-items";
 
 // wallet-adapter button is client-only (touches window) — load without SSR.
-const WalletMultiButton = dynamic(
-  () =>
-    import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton),
-  { ssr: false }
-);
+// The placeholder keeps the bar from shifting while it loads.
+const WalletButton = dynamic(() => import("./WalletButton"), {
+  ssr: false,
+  loading: () => <span aria-hidden className="inline-block h-[34px] w-[98px] border border-pv-emerald/40" />,
+});
 
-const chipBase =
-  "whitespace-nowrap border px-3 py-1.5 font-mono text-[12px] font-medium transition-colors focus-ring";
+const linkBase =
+  "whitespace-nowrap border px-3 py-1.5 font-mono text-[12.5px] font-medium transition-colors focus-ring";
+const linkActive = "border-pv-border/40 bg-pv-border/[0.06] text-pv-text";
+const linkIdle = "border-transparent text-pv-muted hover:border-pv-border/25 hover:text-pv-text";
 
 export default function Header() {
   const pathname = usePathname();
@@ -58,7 +65,7 @@ export default function Header() {
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
         <nav
           aria-label="Main"
-          className={`flex h-14 min-w-0 items-center justify-between gap-3 border-x border-b px-4 transition-[background-color,border-color] duration-300 ease-out sm:px-6 ${
+          className={`flex h-14 min-w-0 items-center gap-4 border-x border-b px-4 transition-[background-color,border-color] duration-300 ease-out sm:px-5 xl:gap-6 ${
             solid
               ? "border-pv-border/25 bg-pv-bg/85 backdrop-blur-[14px]"
               : "border-x-pv-border/25 border-b-transparent bg-transparent"
@@ -76,49 +83,54 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* Desktop nav (wide screens) */}
-          <div className="hidden min-w-0 items-center gap-2 xl:flex">
-            {NAV_ITEMS.map((item) => {
+          {/* Desktop links (lg up) */}
+          <div className="hidden min-w-0 flex-1 items-center gap-1 lg:flex">
+            <span className="mr-2 h-6 w-px bg-pv-border/25 xl:mr-3" aria-hidden />
+            {NAV_PRIMARY.map((item) => {
               const active = isNavActive(pathname, item);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`${chipBase} ${
-                    active
-                      ? "border-pv-border/40 bg-pv-border/[0.06] text-pv-text"
-                      : "border-transparent text-pv-muted hover:border-pv-border/25 hover:text-pv-text"
-                  }`}
+                  className={`${linkBase} ${active ? linkActive : linkIdle}`}
                 >
                   {item.label}
                 </Link>
               );
             })}
-            <span className="mx-1 h-6 w-px bg-pv-border/25" aria-hidden />
-            <TierChip />
+            <NavMoreMenu triggerClassName={linkBase} />
+          </div>
+
+          {/* Desktop controls (lg up) */}
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
+            <span className="hidden xl:contents">
+              <TierChip />
+            </span>
             <NotificationBell />
             <ThemeToggle />
             <Link
               href={NAV_CTA.href}
               aria-current={ctaActive ? "page" : undefined}
-              className={`flex items-center gap-1.5 whitespace-nowrap border border-pv-emerald bg-pv-emerald px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg transition-[filter] hover:brightness-110 focus-ring ${
-                ctaActive ? "ring-2 ring-pv-emerald/40 ring-offset-2 ring-offset-pv-bg" : ""
+              aria-label={NAV_CTA.label}
+              title={NAV_CTA.mobileLabel}
+              className={`ml-1 flex h-[34px] items-center gap-1.5 whitespace-nowrap border border-pv-emerald/60 px-2.5 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-emerald transition-colors hover:bg-pv-emerald/10 focus-ring xl:px-3 ${
+                ctaActive ? "bg-pv-emerald/10" : ""
               }`}
             >
-              <Plus size={13} aria-hidden />
-              {NAV_CTA.label}
+              <Plus size={14} aria-hidden />
+              <span className="hidden xl:inline">{NAV_CTA.label}</span>
             </Link>
-            <WalletMultiButton />
+            <WalletButton />
           </div>
 
-          {/* Compact controls (below xl) */}
-          <div className="flex shrink-0 items-center gap-2 xl:hidden">
+          {/* Compact controls (below lg) */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 lg:hidden">
             <TierChip />
             <NotificationBell />
             <ThemeToggle />
             <div className="hidden sm:block">
-              <WalletMultiButton />
+              <WalletButton />
             </div>
             <button
               type="button"
@@ -136,30 +148,35 @@ export default function Header() {
         {mobileOpen && (
           <div
             id="mobile-nav"
-            className="border-x border-b border-pv-border/25 bg-pv-bg/95 backdrop-blur-[14px] xl:hidden"
+            className="max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-y-auto border-x border-b border-pv-border/25 bg-pv-bg/95 backdrop-blur-[14px] lg:hidden"
           >
-            <div className="grid gap-px bg-pv-border/25 sm:grid-cols-2">
-              {NAV_ITEMS.map((item) => {
-                const active = isNavActive(pathname, item);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex items-center justify-between bg-pv-bg px-5 py-3.5 font-mono text-sm transition-colors focus-ring ${
-                      active
-                        ? "text-pv-emerald"
-                        : "text-pv-text/85 hover:bg-pv-surface hover:text-pv-text"
-                    }`}
-                  >
-                    {item.label}
-                    <span aria-hidden className={active ? "text-pv-emerald" : "text-pv-muted/60"}>
-                      {active ? "●" : "→"}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+            {NAV_SHEET_GROUPS.map((group) => (
+              <section key={group.label} aria-label={group.label} className="border-b border-pv-border/25 last:border-b-0">
+                <p className="px-5 pb-2 pt-4 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted">
+                  {group.label}
+                </p>
+                <div className="grid gap-px border-t border-pv-border/15 bg-pv-border/15 sm:grid-cols-2">
+                  {group.items.map((item) => {
+                    const active = isNavActive(pathname, item);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center justify-between bg-pv-bg px-5 py-3.5 font-mono text-sm transition-colors focus-ring ${
+                          active ? "text-pv-emerald" : "text-pv-text/85 hover:bg-pv-surface hover:text-pv-text"
+                        }`}
+                      >
+                        {item.label}
+                        <span aria-hidden className={active ? "text-pv-emerald" : "text-pv-muted/60"}>
+                          {active ? "●" : "→"}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
             <div className="flex flex-col gap-3 border-t border-pv-border/25 p-4 sm:flex-row sm:items-center sm:justify-between">
               <Link
                 href={NAV_CTA.href}
@@ -168,8 +185,8 @@ export default function Header() {
                 <Plus size={13} aria-hidden />
                 {NAV_CTA.mobileLabel}
               </Link>
-              <div className="sm:hidden">
-                <WalletMultiButton />
+              <div className="sm:hidden [&_.wallet-adapter-button-trigger]:w-full [&_.wallet-adapter-button-trigger]:justify-center [&_.wallet-adapter-dropdown]:w-full">
+                <WalletButton />
               </div>
             </div>
           </div>

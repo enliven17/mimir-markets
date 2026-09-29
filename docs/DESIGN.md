@@ -50,9 +50,11 @@ reads them with `getComputedStyle` and re-reads on toggle).
   its own section borders). It pads the page to sit flush under the navbar, so
   a page that opens with a `BlueprintHeading` shares one line with the header.
 - `Header` / `Footer` — framed on the same column as the rails. Nav items live
-  in `components/nav-items.ts` (`NAV_ITEMS`, `NAV_CTA`); add new pages there.
-  The full row shows from `xl` up, a menu sheet below that, so the list can
-  grow without overflowing tablets. Active links get `aria-current="page"`.
+  in `components/nav-items.ts`: `NAV_PRIMARY` (the ~5 links in the desktop
+  row), `NAV_MORE_GROUPS` (the "More" menu, `components/NavMoreMenu.tsx`) and
+  `NAV_CTA`; add new pages to a More group. The row shows from `lg` up
+  (Publish collapses to its icon below `xl`), a grouped menu sheet below
+  that. Active links get `aria-current="page"`.
 - Use `Link` from `@/i18n/navigation` with unprefixed paths (`/arena/42`) —
   never build `/${locale}/…` by hand.
 
