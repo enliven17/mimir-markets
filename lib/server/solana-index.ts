@@ -78,8 +78,8 @@ export async function upsertClaim(row: SolanaClaimRow): Promise<void> {
   if (!isDbEnabled()) return;
   const p = await getDb();
   const v3 = V3_COLUMNS.map((c) => row[c]);
-  const v3Params = V3_COLUMNS.map((_, i) => `${21 + i}`).join(",");
-  const v3Set = V3_COLUMNS.map((c, i) => `${c}=${21 + i}`).join(", ");
+  const v3Params = V3_COLUMNS.map((_, i) => `$${21 + i}`).join(",");
+  const v3Set = V3_COLUMNS.map((c, i) => `${c}=$${21 + i}`).join(", ");
   await p.query(
     `INSERT INTO solana_claims (
         id, creator, question, creator_position, counter_position,
