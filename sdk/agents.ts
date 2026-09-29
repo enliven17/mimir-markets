@@ -33,6 +33,7 @@ import {
   type AgentWriteAction,
 } from "../lib/agents/api";
 import { signAgentMessage } from "../lib/agents/signature";
+import { followMessage, type MirrorSignal } from "../lib/baskets";
 
 /** Returns a base58 ed25519 signature over the UTF-8 message. */
 export type SignMessage = (message: string) => Promise<string> | string;
@@ -316,6 +317,72 @@ export class MimirAgentClient {
   /** Owner-signed; `operatorSignature` is the new operator's signature over `operatorProofMessage`. */
   rotateOperator(operatorWallet: string, operatorSignature: string) {
     return this.call("rotateOperator", { operatorWallet, operatorSignature }, { owner: true });
+  }
+
+  // ── Baskets: follow with the operator key, mirror through this API ──────
+
+  /**
+   * Follow (or re-cap, or with 0 unfollow) a basket as this agent's operator
+   * wallet, which is the wallet that stakes the copies. Signed and
+   * timestamped; nothing is deposited.
+   */
+  async followBasket(basketId: string, perMarketCapUsdc: number): Promise<Record<string, unknown>> {
+    if (!this.operator) throw new Error("followBasket signs with the operator key, but no operator was set");
+    const follower = this.operator.publicKey.toBase58();
+    const signedAt = Date.now();
+    const signature = signAgentMessage(
+      followMessage({ basketId, follower, perMarketCapUsdc, signedAt }),
+      this.operator.secretKey,
+    );
+    return this.basketRequest(`/api/baskets/${encodeURIComponent(basketId)}/subscribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ follower, perMarketCapUsdc, signature, signedAt }),
+    });
+  }
+
+  /** Open member positions this operator has not copied yet, sized to its signed cap. */
+  async basketSignals(basketId: string): Promise<{ following: boolean; perMarketCapUsdc: number; signals: MirrorSignal[] }> {
+    const follower = this.operator?.publicKey.toBase58();
+    const qs = follower ? `?follower=${encodeURIComponent(follower)}` : "";
+    const res = await this.basketRequest(`/api/baskets/${encodeURIComponent(basketId)}/signals${qs}`);
+    return res as unknown as { following: boolean; perMarketCapUsdc: number; signals: MirrorSignal[] };
+  }
+
+  /**
+   * Copy every open signal with this agent's own `challenge` action, so the
+   * agent's authority and USDC limits apply to each copy. One failure does not
+   * stop the rest; each outcome is returned.
+   */
+  async mirrorBasket(basketId: string): Promise<Array<{ claimId: number; signatures?: string[]; error?: string }>> {
+    const { following, signals } = await this.basketSignals(basketId);
+    if (!following) throw new Error(`not following ${basketId}: call followBasket first`);
+    const results: Array<{ claimId: number; signatures?: string[]; error?: string }> = [];
+    for (const s of signals) {
+      try {
+        const { signatures } = await this.challenge({
+          claimId: s.claimId,
+          stakeUsdc: Number(BigInt(s.suggestedStakeUnits)) / 1_000_000,
+        });
+        results.push({ claimId: s.claimId, signatures });
+      } catch (err) {
+        results.push({ claimId: s.claimId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return results;
+  }
+
+  private async basketRequest(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
+    const res = await this.fetchImpl(`${this.baseUrl}${path}`, init);
+    const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new MimirAgentApiError(
+        String(parsed.message ?? `HTTP ${res.status}`),
+        res.status,
+        String(parsed.reason ?? "unknown"),
+      );
+    }
+    return parsed;
   }
 
   private connection(layer: "base" | "er", fallback: string): Connection {

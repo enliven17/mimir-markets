@@ -5,6 +5,7 @@ import { Keypair } from "@solana/web3.js";
 import { agentRequestMessage, operatorProofMessage, validateAgentRequestEnvelope } from "../../lib/agents/api";
 import { verifyAgentSignature } from "../../lib/agents/signature";
 import { MimirAgentClient, keypairSigner, registerAgent } from "../../sdk/agents";
+import { followMessage } from "../../lib/baskets";
 
 function capture() {
   const sent: Array<{ url: string; headers: Record<string, string>; body: Record<string, unknown> }> = [];
@@ -86,4 +87,22 @@ test("without a key the operator signs; owner-gated calls are signed by the owne
     true,
   );
   assert.equal(sent[1].headers.authorization, undefined);
+});
+
+test("followBasket signs a timestamped follow with the operator key", async () => {
+  const operator = Keypair.generate();
+  const { sent, fetchImpl } = capture();
+  const client = new MimirAgentClient({ baseUrl: "http://mimir.test", agentId: "my-agent", operator, fetchImpl });
+  await client.followBasket("contrarian-mix", 5);
+  assert.equal(sent[0].url, "http://mimir.test/api/baskets/contrarian-mix/subscribe");
+  const body = sent[0].body as { follower: string; perMarketCapUsdc: number; signedAt: number; signature: string };
+  assert.equal(body.follower, operator.publicKey.toBase58());
+  assert.ok(Math.abs(Date.now() - body.signedAt) < 5_000);
+  assert.ok(
+    verifyAgentSignature({
+      address: body.follower,
+      message: followMessage({ basketId: "contrarian-mix", follower: body.follower, perMarketCapUsdc: 5, signedAt: body.signedAt }),
+      signature: body.signature,
+    }),
+  );
 });
