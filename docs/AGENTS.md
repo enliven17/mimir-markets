@@ -158,11 +158,61 @@ const { signals } = await agent.basketSignals("contrarian-mix");
 const results = await agent.mirrorBasket("contrarian-mix"); // challenge() per signal
 ```
 
+## Copy trading (signed permissions, deterministic gate)
+
+Behind `MIMIR_FEATURE_COPY_TRADING=1`; `/copy` in the app. A follower signs
+one policy and their **own** registered agent mirrors another agent's
+positions inside it. The execution agent must be active and owned or
+operated by the follower wallet, because every copy is a `challenge` from
+that agent's operator balance, signed by that agent's key. Mimir holds no key
+and pools nothing.
+
+- **Grant** (`POST /api/copy/permissions`): the follower signs
+  `copyPermissionMessage` (lib/copy-trading.ts): signal agent, execution
+  agent, per-position / daily / weekly / open-exposure caps, a realized-loss
+  stop, a claim-quality floor, a payout floor, categories, expiry (at most 90
+  days) and `signedAt`. Per position is at least 2 USDC (program minimum).
+  Re-granting an id needs a newer `signedAt` than the grant on file and any
+  revocation, so a replayed grant cannot revive a revoked permission.
+- **List / revoke** (`GET` / `DELETE /api/copy/permissions`): the follower
+  signs `followerProofMessage("list" | "revoke", follower, at, id?)` within 5
+  minutes. Revoking is immediate and costs no fee.
+- **Execute** (`POST /api/copy/signals`, envelope with `action: "heartbeat"`):
+  the execution agent gets `copy[]` (sized) and `skipped[]` (with a named
+  reason) for every permission naming it. Signals are the signal agent's
+  OPEN/ACTIVE challenger positions with a free seat, read through the same
+  query basket mirror signals use. `{ prepare: { permissionId, claimId } }`
+  re-gates one copy, applies the agent's own limits and returns the unsigned
+  challenge transaction(s) (ER when the claim is delegated).
+  `{ report: { permissionId, claimId, executed, signature } }` records it;
+  an executed report is checked against the claim account on chain and
+  recorded at the on-chain stake, once per claim.
+- **The gate** (`evaluateCopy`) is pure and deterministic: global pause
+  (`MIMIR_PAUSE_COPY_EXECUTION`), inactive/expired, self-copy, depth > 1,
+  duplicate position, category, quality and payout floors, realized-loss
+  stop, spent caps, then sizing down to the tightest cap; a copy that would
+  fall under 2 USDC is refused as `below_min_stake`. Usage (spend, open
+  exposure, realized loss) is derived from the `copy_executions` ledger
+  joined to the read index: a creator win is a loss, CANCELLED and other
+  RESOLVED outcomes are settled, PROPOSED/DISPUTED still count as open.
+
+```ts
+const exec = new MimirAgentClient({ baseUrl, agentId: "my-agent", apiKey: key, operator });
+await exec.grantCopyPermission({            // a self-operated agent is its own follower
+  id: "copy-statistician-via-my-agent", signalAgentId: "statistician", executionAgentId: "my-agent",
+  expiresAt: Date.now() + 30 * 86_400_000, maxPerPositionUsdc: 2, maxDailyUsdc: 10, maxWeeklyUsdc: 40,
+  maxOpenExposureUsdc: 20, maxRealizedLossUsdc: 10, allowedCategories: [], minClaimQuality: 60, minPayoutRatio: 1.2,
+});
+const { copy, skipped } = await exec.copySignals();
+const results = await exec.copyAll();       // prepare, sign, submit, report per copy
+```
+
 ## Operations
 
 - Tables (`lib/server/db.ts`): `agent_registry`, `agent_api_keys` (SHA-256 only),
   `agent_api_nonces`, `agent_api_responses`, `agent_request_audit`, and for
-  baskets `baskets` and `basket_subscriptions` (signed intents, no balances).
+  baskets `baskets` and `basket_subscriptions` (signed intents, no balances), and for
+  copy trading `copy_permissions` (signed policies) and `copy_executions` (the ledger).
 - The worker process (`agents/all.ts`) prunes nonces (1 h), stored replies (1 day)
   and the audit trail (30 days) hourly, next to the rate-limit prune.
 - Activating a MONETISE agent is a manual `UPDATE agent_registry SET status = 'active'`.

@@ -390,6 +390,149 @@ paths:
         "429": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
 
+  /api/copy/permissions:
+    get:
+      summary: A follower's own copy permissions, with their recent copy audit
+      description: |
+        Behind `MIMIR_FEATURE_COPY_TRADING` (404 `feature_disabled` when off,
+        checked before anything else). The follower signs `followerProofMessage`
+        (ed25519, base58) within 5 minutes of server time:
+
+            Mimir copy list (Solana)
+            follower: <follower base58>
+            at: <ms>
+      operationId: listCopyPermissions
+      parameters:
+        - { name: follower, in: query, required: true, schema: { type: string } }
+        - { name: at, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "`{ ok, permissions: [{ ...terms, active, signedAt, worstCaseUsdc, recent: [{ claimId, executed, skipReason, stakeUsdc, txSignature, at }] }] }` (signature stripped)" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Grant (or supersede) a copy permission, a signed policy, never a deposit
+      description: |
+        The follower signs `copyPermissionMessage` (lib/copy-trading.ts), every
+        bound spelled out:
+
+            Mimir copy permission (Solana)
+            id: <id>
+            follower: <follower base58>
+            copy: <signalAgentId>
+            executed by: <executionAgentId>
+            per position: <n> USDC
+            per day: <n> USDC
+            per week: <n> USDC
+            open exposure: <n> USDC
+            stop after losing: <n> USDC
+            min claim quality: <n>/100
+            min payout: <n>x
+            categories: <a, b | any>
+            expires: <ISO 8601>
+            signedAt: <ms>
+            Copies are challenges staked from your own agent's balance with its own key.
+            Nothing is deposited and nothing is pooled.
+
+        Rules: `signedAt` within 5 minutes; per position >= 2 USDC (program
+        minimum) and <= per day <= per week; expiry in the future and at most
+        90 days out; min payout >= 1. The execution agent must be registered,
+        active and owned or operated by the follower (`executor_not_yours`);
+        the signal agent must resolve to a staking wallet (persona or
+        registered agent). Re-granting an id only lands with a newer
+        `signedAt` than the grant on file and any revocation (else
+        `signature_replay`).
+      operationId: grantCopyPermission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, follower, signalAgentId, executionAgentId, expiresAt, maxPerPositionUsdc, maxDailyUsdc, maxWeeklyUsdc, maxOpenExposureUsdc, maxRealizedLossUsdc, signedAt, signature]
+              properties:
+                id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$" }
+                follower: { type: string }
+                signalAgentId: { type: string }
+                executionAgentId: { type: string }
+                expiresAt: { type: integer, description: ms epoch }
+                maxPerPositionUsdc: { type: number }
+                maxDailyUsdc: { type: number }
+                maxWeeklyUsdc: { type: number }
+                maxOpenExposureUsdc: { type: number }
+                maxRealizedLossUsdc: { type: number }
+                allowedCategories: { type: array, items: { type: string } }
+                minClaimQuality: { type: number }
+                minPayoutRatio: { type: number }
+                signedAt: { type: integer }
+                signature: { type: string }
+      responses:
+        "201": { description: "`{ ok, id, expiresAt, worstCaseUsdc, custody }`" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Revoke a copy permission, immediately
+      description: |
+        Signed like list, with `Mimir copy revoke (Solana)` and an `id: <id>`
+        line after the follower. A revoke signed before the current grant does
+        not cancel it.
+      operationId: revokeCopyPermission
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: follower, in: query, required: true, schema: { type: string } }
+        - { name: at, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "`{ ok, revoked }`" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/copy/signals:
+    post:
+      summary: Gated copy instructions, unsigned copy transactions and outcome reports for an execution agent
+      description: |
+        A standard signed envelope (or API key) with `action: "heartbeat"`,
+        authenticated as the execution agent. The body picks the mode:
+
+        - `{}`: `{ copy: [{ permissionId, claimId, signalAgentId, question,
+          category, layer, deadline, claimQuality, payoutRatio, stakeUsdc,
+          stakeUnits }], skipped: [{ ..., reason, message }] }` for every
+          active permission naming this agent. Signals are the signal agent's
+          OPEN/ACTIVE challenger positions with a free seat, gated by the
+          deterministic policy (skip reasons: `COPY_SKIP_REASONS` in
+          lib/copy-trading.ts), caps consumed across the batch.
+        - `{ prepare: { permissionId, claimId } }`: re-gates that one copy, then
+          applies the agent's own limits (as a `challenge`) and returns
+          `{ stakeUsdc, stakeUnits, signer, transactions }`: unsigned, fee
+          payer = operator, `er` when the claim is delegated. A refused gate
+          answers 409 with the skip reason.
+        - `{ report: { permissionId, claimId, executed, signature?, skipReason? } }`:
+          records the outcome. `executed: true` is checked against the claim
+          account on chain (409 `not_on_chain` if the operator holds no
+          position) and recorded at the on-chain stake, once per claim.
+
+        Nothing is staked by Mimir and no key is held.
+      operationId: copySignals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Envelope" }
+      responses:
+        "200": { description: "List, prepared transactions, or `{ ok, recorded }`" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     agentApiKey:
