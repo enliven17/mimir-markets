@@ -136,9 +136,11 @@ export default function ChallengeOpportunityCard({
   const settlementPanelId = `opportunity-settlement-${opportunity.id}`;
   const settlementTriggerId = `opportunity-settlement-trigger-${opportunity.id}`;
 
-  const createHref = `/vs/create?source=${encodeURIComponent(
-    opportunity.candidate.primaryResolutionSource
-  )}`;
+  // A candidate that repeats a live claim links to that claim instead.
+  const challengeId = opportunity.action === "challenge" ? opportunity.existingClaimId : undefined;
+  const primaryHref = challengeId
+    ? `/arena/${challengeId}`
+    : `/arena/create?source=${encodeURIComponent(opportunity.candidate.primaryResolutionSource)}`;
   const confidenceKey = resolveConfidenceKey(opportunity.candidate.confidenceScore);
   const confidenceLabel = t(
     `confidence${confidenceKey[0].toUpperCase()}${confidenceKey.slice(1)}`
@@ -295,10 +297,10 @@ export default function ChallengeOpportunityCard({
 
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-0">
         <Link
-          href={createHref}
+          href={primaryHref}
           className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-pv-emerald px-4 py-2 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-bg transition-[transform,box-shadow,background-color] duration-200 ease-out hover:-translate-y-px hover:brightness-110 hover:shadow-[0_10px_28px_-12px_rgba(153,69,255,0.7)]"
         >
-          {t("challengeOpportunityPrimaryCreate")}
+          {challengeId ? t("challengeOpportunityPrimaryChallenge") : t("challengeOpportunityPrimaryCreate")}
         </Link>
         <a
           href={opportunity.sourceUrl}

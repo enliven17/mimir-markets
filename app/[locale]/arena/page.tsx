@@ -23,6 +23,7 @@ import { ArenaCardSkeleton } from "@/components/ui";
 import { BlueprintHeading, BlueprintStat } from "@/components/BlueprintGrid";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
+import ChallengeOpportunities from "@/components/arena/ChallengeOpportunities";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
@@ -830,6 +831,10 @@ export default function ArenaPage() {
             )}
           </AnimatePresence>
         </section>
+      </AnimatedItem>
+
+      <AnimatedItem>
+        <ChallengeOpportunities />
       </AnimatedItem>
     </PageTransition>
   );
