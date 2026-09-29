@@ -104,25 +104,148 @@ test("create page accepts an opportunity-card prefill link", async ({ page }) =>
   await expect(page.getByText(/Prefilled from example\.com/)).toBeVisible();
 });
 
-test("desktop More menu opens, moves focus and closes on Escape", async ({ page, isMobile }) => {
-  test.skip(isMobile, "the More menu is desktop-only; mobile uses the sheet");
+test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobile }) => {
+  test.skip(isMobile, "More lives in the pill on desktop; mobile uses the menu panel");
   await page.goto("/en/arena");
-  const more = page.getByRole("button", { name: "More" });
+  const more = page.locator("header").getByRole("button", { name: "More", exact: true });
   await expect(more).toHaveAttribute("aria-expanded", "false");
   await more.focus();
-  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  const sheet = page.getByRole("dialog", { name: "More" });
+  await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator("header").getByRole("link", { name: /^Stats/ })).toBeFocused();
+  await expect(sheet.getByRole("link", { name: /^Agents/ })).toBeFocused();
+  // Every page that left the pill is one click away.
+  for (const name of ["Connect an agent", "Baskets", "New basket", "Copy", "Token", "Stats", "Calibration", "Docs"]) {
+    await expect(sheet.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();
+  }
   await page.keyboard.press("Escape");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(sheet).toBeHidden();
   await expect(more).toBeFocused();
 });
 
-test("wallet modal lists Phantom and Solflare without an extension", async ({ page, isMobile }) => {
-  await page.goto("/en/arena");
-  if (isMobile) await page.getByRole("button", { name: "Open menu" }).click();
-  await page.locator(".wallet-adapter-button-trigger:visible").first().click();
-  const list = page.locator(".wallet-adapter-modal-list");
-  await expect(list.getByRole("button", { name: /Phantom/ })).toBeVisible();
-  await expect(list.getByRole("button", { name: /Solflare/ })).toBeVisible();
+test("header pill holds on app pages and marks the active link", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop links");
+  await page.goto("/en/dashboard");
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".nav-shell")).toHaveAttribute("style", /--nav-p:\s*1/);
 });
+
+test("mobile menu panel traps focus and closes on Escape", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the burger is mobile-only");
+  await page.goto("/en/arena");
+  const burger = page.getByRole("button", { name: "Open menu" });
+  await burger.click();
+  const panel = page.locator("#mobile-nav");
+  await expect(panel.getByRole("link", { name: "Arena", exact: true })).toBeFocused();
+  await expect(panel.getByRole("link", { name: "Calibration" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: "Create a claim" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
+});
+
+test("wallet sheet offers install links without an extension", async ({ page, isMobile }) => {
+  await page.goto("/en/arena");
+  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Connect a wallet" });
+  await expect(sheet).toBeVisible();
+  for (const wallet of ["Phantom", "Solflare", "Backpack"]) {
+    await expect(sheet.getByRole("link", { name: new RegExp(`Install ${wallet}`) })).toBeVisible();
+  }
+  if (isMobile) {
+    // No injected wallet on a phone browser: reopen this page inside the wallet.
+    await expect(sheet.getByRole("link", { name: "Open in Phantom" })).toHaveAttribute(
+      "href",
+      /^https:\/\/phantom\.app\/ul\/browse\//,
+    );
+    await expect(sheet.getByRole("link", { name: "Open in Solflare" })).toHaveAttribute(
+      "href",
+      /^https:\/\/solflare\.com\/ul\/v1\/browse\//,
+    );
+  }
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+});
+
+test("a Wallet Standard wallet connects from the sheet and disconnects from the chip", async ({ page }) => {
+  await page.addInitScript(registerTestWallet);
+  await page.goto("/en/arena");
+  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Connect a wallet" });
+  const row = sheet.getByRole("button", { name: /Mimir Test Wallet/ });
+  await expect(row).toContainText("Detected");
+  await row.click();
+  await expect(sheet).toBeHidden();
+  const chip = page.locator("header").getByRole("button", { name: /Mimir Test Wallet wallet/ });
+  await expect(chip).toContainText("…");
+  await chip.click();
+  const menu = page.getByRole("menu", { name: "Wallet" });
+  await expect(menu.getByRole("menuitem", { name: "Copy address" })).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Disconnect" }).click();
+  await expect(page.locator("header").getByRole("button", { name: /^Connect$/ })).toBeVisible();
+});
+
+/**
+ * Minimal Wallet Standard wallet, registered before the app boots (it answers
+ * the app's `wallet-standard:app-ready` event). Connect resolves with one
+ * devnet account; nothing is ever signed for real.
+ */
+function registerTestWallet() {
+  const listeners: Record<string, ((arg: unknown) => void)[]> = {};
+  const emit = (event: string, arg: unknown) => (listeners[event] ?? []).forEach((fn) => fn(arg));
+  const publicKey = new Uint8Array(32).fill(7);
+  const account = {
+    address: "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+    publicKey,
+    chains: ["solana:devnet"],
+    features: ["solana:signTransaction", "solana:signMessage"],
+  };
+  const wallet: Record<string, unknown> & { accounts: unknown[] } = {
+    version: "1.0.0",
+    name: "Mimir Test Wallet",
+    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxIDEiLz4=",
+    chains: ["solana:devnet"],
+    accounts: [],
+    features: {
+      "standard:connect": {
+        version: "1.0.0",
+        connect: async () => {
+          wallet.accounts = [account];
+          emit("change", { accounts: wallet.accounts });
+          return { accounts: wallet.accounts };
+        },
+      },
+      "standard:disconnect": {
+        version: "1.0.0",
+        disconnect: async () => {
+          wallet.accounts = [];
+          emit("change", { accounts: [] });
+        },
+      },
+      "standard:events": {
+        version: "1.0.0",
+        on: (event: string, fn: (arg: unknown) => void) => {
+          (listeners[event] ??= []).push(fn);
+          return () => {
+            listeners[event] = (listeners[event] ?? []).filter((f) => f !== fn);
+          };
+        },
+      },
+      "solana:signTransaction": {
+        version: "1.0.0",
+        supportedTransactionVersions: ["legacy", 0],
+        signTransaction: async (...inputs: { transaction: Uint8Array }[]) =>
+          inputs.map((input) => ({ signedTransaction: input.transaction })),
+      },
+      "solana:signMessage": {
+        version: "1.0.0",
+        signMessage: async (...inputs: { message: Uint8Array }[]) =>
+          inputs.map((input) => ({ signedMessage: input.message, signature: new Uint8Array(64) })),
+      },
+    },
+  };
+  const register = (api: { register: (w: unknown) => void }) => api.register(wallet);
+  window.addEventListener("wallet-standard:app-ready", (event) => register((event as CustomEvent).detail));
+}
