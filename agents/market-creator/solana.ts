@@ -18,6 +18,9 @@
  *      CREATOR_WORLDCUP_PER_RUN (default 3)
  *      CREATOR_STAKE_USDC     (default 3)
  *      CREATOR_HORIZON_MIN    (claim deadline horizon in minutes, default 30)
+ *      MARKET_CREATOR_PREFLIGHT=1 (council personas vet each draft first; low scores are dropped)
+ *      MARKET_CREATOR_PREFLIGHT_MIN_SCORE (default 60)
+ *      MARKET_CREATOR_PREFLIGHT_PERSONAS  (CSV, default socrates,aurelius,statistician)
  */
 import { getAccount } from "@solana/spl-token";
 import { loadCreatorKeypair } from "../../lib/solana/keypair";
@@ -32,12 +35,16 @@ import { draftWorldCupClaims } from "../../lib/solana/worldcup";
 import { priceSpecFromQuestion, withResolverFragment } from "../../lib/resolver-spec";
 import { isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
+import { gatherCouncilPreflight, preflightKeeps, preflightPersonas } from "./council-preflight";
 
 const INTERVAL_MS = Number(process.env.CREATOR_INTERVAL_MS ?? "3600000");
 const CRYPTO_PER_RUN = Number(process.env.CREATOR_CRYPTO_PER_RUN ?? "2");
 const WORLDCUP_PER_RUN = Number(process.env.CREATOR_WORLDCUP_PER_RUN ?? "3");
 const STAKE_USDC = Number(process.env.CREATOR_STAKE_USDC ?? "3");
 const HORIZON_MIN = Number(process.env.CREATOR_HORIZON_MIN ?? "30");
+const PREFLIGHT = process.env.MARKET_CREATOR_PREFLIGHT === "1";
+const PREFLIGHT_MIN_SCORE = Number(process.env.MARKET_CREATOR_PREFLIGHT_MIN_SCORE ?? "60");
+const PREFLIGHT_GAP_MS = 4_000;
 
 const SYMBOL_NAMES: Record<string, string> = {
   BTC: "Bitcoin",
@@ -123,6 +130,36 @@ async function cancelExpiredEmpty(client: MimirSolanaClient): Promise<void> {
   }
 }
 
+/** Drop drafts the council scores low (MARKET_CREATOR_PREFLIGHT=1). Unavailable council → keep. */
+async function vetDrafts(drafts: DraftClaim[]): Promise<DraftClaim[]> {
+  if (!PREFLIGHT || drafts.length === 0) return drafts;
+  const personas = preflightPersonas(process.env.MARKET_CREATOR_PREFLIGHT_PERSONAS);
+  const kept: DraftClaim[] = [];
+  for (const d of drafts) {
+    const result = await gatherCouncilPreflight({
+      candidate: {
+        question: d.question,
+        creatorPosition: d.creatorPosition,
+        counterPosition: d.counterPosition,
+        resolutionUrl: d.resolutionUrl,
+        category: d.category,
+        settlementRule: "",
+        deadlineHours: HORIZON_MIN / 60,
+      },
+      personas,
+      sequentialGapMs: PREFLIGHT_GAP_MS,
+    }).catch(() => null);
+    const keep = !result || preflightKeeps(result, PREFLIGHT_MIN_SCORE);
+    console.log(
+      `[creator] preflight ${result?.averageScore ?? "n/a"}/100 ` +
+        `(open=${result?.openVotes ?? 0} revise=${result?.reviseVotes ?? 0} skip=${result?.skipVotes ?? 0}) ` +
+        `${keep ? "keep" : "DROP"}: ${d.label}`,
+    );
+    if (keep) kept.push(d);
+  }
+  return kept;
+}
+
 async function runCycle(client: MimirSolanaClient): Promise<void> {
   console.log(`\n[creator] ── Cycle at ${new Date().toISOString()}`);
 
@@ -144,7 +181,7 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
     draftCryptoClaims(CRYPTO_PER_RUN),
     Promise.resolve(draftWorldCupClaims(WORLDCUP_PER_RUN)),
   ]);
-  const drafts: DraftClaim[] = [...worldCup, ...crypto];
+  const drafts: DraftClaim[] = await vetDrafts([...worldCup, ...crypto]);
 
   if (!drafts.length) {
     console.log("[creator] No drafts this cycle.");
