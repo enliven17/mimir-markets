@@ -27,8 +27,8 @@ test("price consensus refunds a model that contradicts two agreeing sources", ()
   const deadline = 1_800_000_000;
   const claim = {
     question: "Will BTC trade above $100,000 at the deadline?",
-    creatorPosition: "Yes — above",
-    counterPosition: "No — not above",
+    creatorPosition: "Yes: above",
+    counterPosition: "No: not above",
     deadline,
   };
   const prices = {

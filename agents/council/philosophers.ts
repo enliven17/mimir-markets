@@ -1,5 +1,5 @@
 /**
- * The philosopher track — a second jury alongside the classic council.
+ * The philosopher track: a second jury alongside the classic council.
  *
  * The classic ten are temperaments: an optimist, a pessimist, a contrarian.
  * They disagree about *mood*. These ten are epistemic frames: they disagree

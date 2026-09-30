@@ -108,7 +108,7 @@ async function migrateClaims(oracle: Legacy, creator: Legacy | null): Promise<vo
     }
     if (state === 1) {
       if (c.deadline.toNumber() > now) {
-        console.log(`  #${id} ACTIVE until ${new Date(c.deadline.toNumber() * 1000).toISOString()} — skipped (not expired)`);
+        console.log(`  #${id} ACTIVE until ${new Date(c.deadline.toNumber() * 1000).toISOString()}, skipped (not expired)`);
         continue;
       }
       console.log(`  #${id} ACTIVE expired → undelegate + resolve UNRESOLVABLE (refund)`);
@@ -164,7 +164,7 @@ async function migrateWallet(row: WalletRow, admin: Keypair): Promise<bigint> {
   const bal = await withRetry(`${row.role} balance`, () => legacy.fetch("userBalance", address));
   const amount = bal ? BigInt(bal.amount.toString()) : 0n;
   if (amount === 0n) {
-    console.log(`  ${row.role.padEnd(18)} old balance 0 — nothing to move`);
+    console.log(`  ${row.role.padEnd(18)} old balance 0, nothing to move`);
     return 0n;
   }
   console.log(`  ${row.role.padEnd(18)} old balance ${fromUsdcUnits(amount)} USDC → V3${row.erBettor ? " (delegated to ER)" : ""}`);
@@ -180,7 +180,7 @@ async function migrateWallet(row: WalletRow, admin: Keypair): Promise<bigint> {
   const v3 = new MimirSolanaClient(row.kp);
   if (await v3.isBalanceDelegated()) {
     // Already on V3 in the ER: its free balance there is unchanged, the moved USDC stays in the ATA.
-    console.log(`    V3 balance already delegated — ${fromUsdcUnits(amount)} USDC left in the ATA (system:fund sweeps it)`);
+    console.log(`    V3 balance already delegated; ${fromUsdcUnits(amount)} USDC left in the ATA (system:fund sweeps it)`);
     return amount;
   }
   await withRetry(`${row.role} deposit`, () => v3.deposit(amount));
@@ -191,7 +191,7 @@ async function migrateWallet(row: WalletRow, admin: Keypair): Promise<bigint> {
 async function main() {
   const admin = loadAgentKeypair();
   const creatorKp = loadCreatorKeypair();
-  console.log(`Mimir V2 → V3 fund migration (${EXECUTE ? "EXECUTE" : "dry run — pass --execute"})`);
+  console.log(`Mimir V2 → V3 fund migration (${EXECUTE ? "EXECUTE" : "dry run, pass --execute"})`);
   console.log(`  old program ${LEGACY_MIMIR_PROGRAM_ID.toBase58()}`);
   const solBefore = await new Connection(SOLANA_RPC).getBalance(admin.publicKey);
 
@@ -203,7 +203,7 @@ async function main() {
   console.log("\n[wallets]");
   const rows: WalletRow[] = [{ role: "admin/oracle", kp: admin, erBettor: true }];
   if (!creatorKp.publicKey.equals(admin.publicKey)) rows.push({ role: "market-creator", kp: creatorKp, erBettor: false });
-  else console.log("  (market-creator key not available locally — set CREATOR_KEYPAIR[_JSON] to migrate it)");
+  else console.log("  (market-creator key not available locally; set CREATOR_KEYPAIR[_JSON] to migrate it)");
   // Only the classic ten existed under the old program.
   for (const p of CLASSIC_PERSONAS) rows.push({ role: `council ${p.slug}`, kp: derivePersonaKeypair(admin, p.slug), erBettor: true });
   let total = 0n;
@@ -211,7 +211,7 @@ async function main() {
     try {
       total += await migrateWallet(row, admin);
     } catch (err: any) {
-      console.warn(`  ${row.role}: FAILED — ${String(err?.message ?? err).slice(0, 160)}`);
+      console.warn(`  ${row.role}: FAILED: ${String(err?.message ?? err).slice(0, 160)}`);
     }
   }
   const spent = (solBefore - (await new Connection(SOLANA_RPC).getBalance(admin.publicKey))) / 1e9;

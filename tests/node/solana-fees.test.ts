@@ -14,7 +14,7 @@ import {
   type FeePolicy,
 } from "../../lib/solana/fees";
 
-// Same vectors as onchain/programs/mimir/src/math.rs — the two must agree.
+// Same vectors as onchain/programs/mimir/src/math.rs; the two must agree.
 const USDC = 1_000_000n;
 const PLATFORM = "J98R1EtNppvAFPXrviBUhFZbxoDpTCL7vjBwDRxVpKyk";
 const AGENT = "HSLzwpPrgUKv95T5ze1urJUKhmbmkiz3Rck6YEjFY1x2";

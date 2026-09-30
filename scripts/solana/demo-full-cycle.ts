@@ -1,5 +1,5 @@
 /**
- * Mimir on Solana — full economic cycle demo (~3 minutes), V3 flow:
+ * Mimir on Solana: full economic cycle demo (~3 minutes), V3 flow:
  *
  *   1. creator opens a claim on the BASE layer (USDC stake → vault)
  *   2. claim PDA + challenger balance PDA are DELEGATED to the MagicBlock ER
@@ -34,20 +34,20 @@ async function main() {
   const challenger = new MimirSolanaClient(challengerKp);
   const conn = oracle.baseConnection;
 
-  console.log("Mimir × Solana × MagicBlock ER — full cycle demo (V3)");
+  console.log("Mimir × Solana × MagicBlock ER: full cycle demo (V3)");
   console.log("  program   :", oracle.base.programId.toBase58());
   console.log("  admin     :", adminKp.publicKey.toBase58());
   console.log("  challenger:", challengerKp.publicKey.toBase58());
 
   const cfg = await oracle.getConfig();
-  if (!cfg) throw new Error("program not initialized — run scripts/solana/initialize.ts");
+  if (!cfg) throw new Error("program not initialized; run scripts/solana/initialize.ts");
   if (cfg.paused) throw new Error("program is paused");
 
   // ── 0. Fund the challenger (SOL for fees, 8 USDC from the admin) ───────
   log("0", "funding the demo challenger...");
   if ((await usdcBalance(conn, adminKp.publicKey)) < toUsdcUnits(13)) {
     throw new Error(
-      `admin needs 13 USDC — fund it: https://faucet.circle.com → Solana Devnet → ${adminKp.publicKey.toBase58()}`
+      `admin needs 13 USDC. Fund it: https://faucet.circle.com → Solana Devnet → ${adminKp.publicKey.toBase58()}`
     );
   }
   await ensureSol(conn, adminKp, challengerKp.publicKey, 0.05);
@@ -59,8 +59,8 @@ async function main() {
   const { txSig, claimId } = await withShortWindows(oracle, DEMO_DISPUTE_WINDOW, cfg.resolutionGrace, () =>
     oracle.createClaim({
       question: "Will BTC trade above $100,000 right now per Flash Trade oracle?",
-      creatorPosition: "Yes — BTC is above $100k",
-      counterPosition: "No — BTC is at or below $100k",
+      creatorPosition: "Yes: BTC is above $100k",
+      counterPosition: "No: BTC is at or below $100k",
       resolutionUrl: "https://flashapi.trade/prices/BTC",
       category: "crypto",
       stakeAmount: toUsdcUnits(5),
@@ -85,7 +85,7 @@ async function main() {
   log("3", "challenging inside the ER (zero fee, real-time)...");
   const t0 = Date.now();
   const erSig = await challenger.challengeClaimER(claimId, toUsdcUnits(5));
-  console.log(`  ER challenge landed in ${Date.now() - t0}ms — ${explorer(erSig, true)}`);
+  console.log(`  ER challenge landed in ${Date.now() - t0}ms: ${explorer(erSig, true)}`);
   const live = await oracle.getClaim(claimId);
   console.log(
     `  live ER state: ${live?.challengers.length} challenger(s), pool = ${fromUsdcUnits(
@@ -107,7 +107,7 @@ async function main() {
     evidence = "demo-evidence-unavailable";
   }
   const evidenceHash = createHash("sha256").update(evidence).digest();
-  log("5", "oracle proposes CHALLENGERS_WIN (demo verdict) — now disputable...");
+  log("5", "oracle proposes CHALLENGERS_WIN (demo verdict), now disputable...");
   const prop = await oracle.proposeResolution(
     claimId,
     SIDE_CHALLENGERS,
@@ -120,7 +120,7 @@ async function main() {
   console.log(`  state ${STATE_LABELS[proposed!.state]}, disputable until ${new Date(proposed!.disputableUntil * 1000).toISOString()}`);
 
   // ── 6. Finalize after the window ───────────────────────────────────────
-  log("6", "no dispute — finalizing once the window closes (permissionless)...");
+  log("6", "no dispute, finalizing once the window closes (permissionless)...");
   await waitUntil(proposed!.disputableUntil + 2, "the dispute window");
   console.log("  " + explorer(await challenger.finalizeResolution(claimId)));
 

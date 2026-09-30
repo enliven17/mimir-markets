@@ -47,8 +47,8 @@ export function ansemDraft(threshold: number, direction: "above" | "below", dead
   const base = dexSourceUrl(mint);
   return {
     question,
-    creatorPosition: `Yes — $ANSEM will be ${direction} $${px}`,
-    counterPosition: `No — $ANSEM will not be ${direction} $${px}`,
+    creatorPosition: `Yes: $ANSEM will be ${direction} $${px}`,
+    counterPosition: `No: $ANSEM will not be ${direction} $${px}`,
     category: "crypto",
     resolutionUrl: spec ? withResolverFragment(base, spec) : base,
     settlementRule:

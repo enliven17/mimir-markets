@@ -53,14 +53,14 @@ async function main() {
   const existing = await client.getConfig();
   if (existing) {
     console.log(
-      `\nConfig already exists — mint ${existing.usdcMint.toBase58()}, ` +
+      `\nConfig already exists: mint ${existing.usdcMint.toBase58()}, ` +
         `oracle ${existing.oracle.toBase58()}, claims ${existing.claimCount}. Nothing to do.`
     );
     return;
   }
 
   const sig = await client.initialize(input);
-  console.log(`\n✓ Initialized — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+  console.log(`\n✓ Initialized: https://explorer.solana.com/tx/${sig}?cluster=devnet`);
 }
 
 main().catch((e) => {

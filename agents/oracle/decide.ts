@@ -4,7 +4,7 @@
  *   2. sports / Polymarket claims wait for a final result (bounded by a grace);
  *   3. price claims read the price AT THE DEADLINE from independent sources;
  *   4. a structured resolver spec (in the resolution URL fragment) settles it
- *      from data alone when the data is determinate — no model is asked;
+ *      from data alone when the data is determinate, and no model is asked;
  *   5. no evidence at all: wait up to 6h, then refund (UNRESOLVABLE);
  *   6. the council jury (COUNCIL_SETTLEMENT=1) or the oracle's own LLM verdict;
  *   7. the price cross-check: disagreeing sources, or a model contradicting
@@ -130,7 +130,7 @@ export function tierVerdict(v: OracleVerdict): OracleVerdict {
   return {
     verdict: "UNRESOLVABLE",
     confidence: v.confidence,
-    explanation: `[LOW CONFIDENCE — refunded] ${v.explanation}`.slice(0, 500),
+    explanation: `[LOW CONFIDENCE, refunded] ${v.explanation}`.slice(0, 500),
     model: v.model,
   };
 }
@@ -165,7 +165,7 @@ export function applyPriceConsensus(
   );
   if (adj.forceUnresolvable) {
     return {
-      verdict: { verdict: "UNRESOLVABLE", confidence: verdict.confidence, explanation: `[SOURCES DISAGREE — refunded] ${adj.note}`.slice(0, 500), model: verdict.model },
+      verdict: { verdict: "UNRESOLVABLE", confidence: verdict.confidence, explanation: `[SOURCES DISAGREE, refunded] ${adj.note}`.slice(0, 500), model: verdict.model },
       note: adj.note,
     };
   }
@@ -175,7 +175,7 @@ export function applyPriceConsensus(
       verdict: {
         verdict: "UNRESOLVABLE",
         confidence: verdict.confidence,
-        explanation: `[MODEL VS PRICE DATA — refunded] The model chose ${verdict.verdict} but ${adj.note}`.slice(0, 500),
+        explanation: `[MODEL VS PRICE DATA, refunded] The model chose ${verdict.verdict} but ${adj.note}`.slice(0, 500),
         model: verdict.model,
       },
       note: `${adj.note} Model verdict ${verdict.verdict} contradicts it.`,
@@ -300,7 +300,7 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
     : 0;
   if (graceSecs > 0 && nowSec <= claim.deadline + graceSecs && evidence.fetcher !== "none") {
     if (!(await isEventFinal(claim, evidence.text))) {
-      console.log(`[settle] Claim #${claim.id}: outcome not final yet — deferring.`);
+      console.log(`[settle] Claim #${claim.id}: outcome not final yet, deferring.`);
       return null;
     }
   }
@@ -317,13 +317,13 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
   // a transient outage, then refund rather than guess.
   if (evidence.fetcher === "none" && !hasPrices) {
     if (nowSec < claim.deadline + NO_EVIDENCE_GRACE_SECS) {
-      console.log(`[settle] Claim #${claim.id}: no evidence fetched — deferring.`);
+      console.log(`[settle] Claim #${claim.id}: no evidence fetched, deferring.`);
       return null;
     }
     const verdict: OracleVerdict = {
       verdict: "UNRESOLVABLE",
       confidence: 0,
-      explanation: `[NO EVIDENCE — refunded] The resolution source could not be read within ${NO_EVIDENCE_GRACE_SECS / 3600}h of the deadline.`,
+      explanation: `[NO EVIDENCE, refunded] The resolution source could not be read within ${NO_EVIDENCE_GRACE_SECS / 3600}h of the deadline.`,
     };
     return decisionFor(claim, verdict, {
       evidence: bundleEvidence(evidence),
@@ -374,13 +374,13 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
         excluded: council.excluded,
       };
     } else {
-      if (ctx.jury) console.log("[settle] Council below quorum — settling solo.");
+      if (ctx.jury) console.log("[settle] Council below quorum, settling solo.");
       rawVerdict = await evaluateClaim(claim, evidenceText);
     }
   } catch (err: any) {
     // LLM rate-limited or unparseable: wait for a later poll instead of
     // proposing a refund on a transient failure.
-    console.log(`[settle] Claim #${claim.id}: LLM unavailable (${String(err?.message ?? err).slice(0, 80)}) — retry later`);
+    console.log(`[settle] Claim #${claim.id}: LLM unavailable (${String(err?.message ?? err).slice(0, 80)}), retry later`);
     return null;
   }
 
@@ -399,7 +399,7 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
     verdict = {
       verdict: "UNRESOLVABLE",
       confidence: verdict.confidence,
-      explanation: `[ORACLE HOLDS A POSITION — refunded below ${CONFIDENCE_HIGH_MIN}%] ${verdict.explanation}`.slice(0, 500),
+      explanation: `[ORACLE HOLDS A POSITION, refunded below ${CONFIDENCE_HIGH_MIN}%] ${verdict.explanation}`.slice(0, 500),
       model: verdict.model,
     };
     adjustments.push(`oracle holds a position and confidence is below ${CONFIDENCE_HIGH_MIN}: refunded`);

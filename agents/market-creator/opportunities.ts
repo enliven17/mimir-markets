@@ -42,7 +42,7 @@ export async function refreshOpportunitiesFromWorker(claims: OnchainClaim[], dry
     const last = Number((await getMeta(META_KEY)) ?? 0);
     if (now - last < REFRESH_MS) return;
     if (dryRun) {
-      console.log("[creator] (dry run) challenge opportunities due for a refresh — skipped");
+      console.log("[creator] (dry run) challenge opportunities due for a refresh, skipped");
       return;
     }
     const r = await refreshChallengeOpportunitiesIndex(toExisting(claims), now);

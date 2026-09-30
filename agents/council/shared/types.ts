@@ -41,7 +41,7 @@ export interface PersonaDecision {
   shouldStake: boolean;
   /** Base stake in USDC from the spec; the runner sizes the real stake. */
   stakeUsdc: number;
-  /** Human-readable reason — logged, and shown by /api/council/reasoning. */
+  /** Human-readable reason: logged, and shown by /api/council/reasoning. */
   rationale: string;
   /** LLM confidence (0-100). Rule personas have none. */
   confidence?: number;

@@ -3,7 +3,7 @@
  * market-creator, both council tracks) with SOL, USDC-ATA and ER virtual
  * balances, and how much USDC each wallet is short of its target.
  *
- * USDC comes from https://faucet.circle.com (Solana Devnet) — send it to
+ * USDC comes from https://faucet.circle.com (Solana Devnet); send it to
  * the addresses this script prints. With --fund the script then:
  *   - tops up SOL for base-layer fees (from the admin wallet)
  *   - sweeps each bettor's faucet USDC: deposit into the Mimir vault →
@@ -46,7 +46,7 @@ async function withRetry<T>(label: string, fn: () => Promise<T>, tries = 4): Pro
     } catch (err: any) {
       if (i >= tries) throw err;
       const wait = 3000 * i;
-      console.warn(`  (${label} failed: ${String(err?.message ?? err).slice(0, 80)} — retry ${i}/${tries - 1} in ${wait / 1000}s)`);
+      console.warn(`  (${label} failed: ${String(err?.message ?? err).slice(0, 80)}, retry ${i}/${tries - 1} in ${wait / 1000}s)`);
       await new Promise((r) => setTimeout(r, wait));
     }
   }
@@ -96,7 +96,7 @@ async function main() {
 
   const shortfalls: { role: string; address: string; needUsdc: number }[] = [];
 
-  console.log("Mimir system wallets" + (FUND ? " — FUNDING PASS" : ""));
+  console.log("Mimir system wallets" + (FUND ? " · FUNDING PASS" : ""));
   console.log(`  mint: ${USDC_MINT.toBase58()}  ·  rpc: ${SOLANA_RPC}\n`);
 
   const adminClient = new MimirSolanaClient(admin);
@@ -148,7 +148,7 @@ async function main() {
         try {
           await withRetry(`${row.role} delegate`, () => client.delegateBalance(), 2);
         } catch {
-          // already delegated — deposit while delegated would have failed
+          // already delegated; deposit while delegated would have failed
           // first, so reaching here with a fresh deposit means it was new
         }
         er = fromUsdcUnits(await client.getBalance());
@@ -159,7 +159,7 @@ async function main() {
 
     console.log(
       `  ${row.role.padEnd(28)} ${pk.toBase58()}  SOL=${sol.toFixed(3)}  ` +
-        `ATA=${ata < 0 ? "—" : ata}  ER=${er}`
+        `ATA=${ata < 0 ? "-" : ata}  ER=${er}`
     );
     const held = Math.max(ata, 0) + er;
     if (held < row.targetUsdc) {
@@ -169,7 +169,7 @@ async function main() {
 
   if (shortfalls.length) {
     const total = shortfalls.reduce((s, r) => s + r.needUsdc, 0);
-    console.log(`\nUSDC shortfall (target ${PERSONA_USDC} per persona, ${CREATOR_USDC} for the creator) — ${total.toFixed(2)} USDC across ${shortfalls.length} wallet(s):`);
+    console.log(`\nUSDC shortfall (target ${PERSONA_USDC} per persona, ${CREATOR_USDC} for the creator): ${total.toFixed(2)} USDC across ${shortfalls.length} wallet(s):`);
     for (const r of shortfalls) console.log(`  ${r.role.padEnd(28)} ${r.address}  needs ${r.needUsdc.toFixed(2)} USDC`);
   } else {
     console.log("\nEvery wallet is at or above its USDC target.");

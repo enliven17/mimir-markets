@@ -1,5 +1,5 @@
 /**
- * Pure council rules — no LLM, no RPC, unit-tested.
+ * Pure council rules: no LLM, no RPC, unit-tested.
  *
  *   - Contrarian and Whale-Watcher evaluators (they react to pool state only)
  *   - exact category matching for specialists
@@ -58,13 +58,13 @@ export function evaluateContrarian(persona: PersonaSpec, claim: CouncilClaim): P
     return {
       shouldStake: true,
       stakeUsdc,
-      rationale: `Contrarian: the creator holds ${creatorShare}% of the pool. The crowd leans hard one way — I take the other side.`,
+      rationale: `Contrarian: the creator holds ${creatorShare}% of the pool. The crowd leans hard one way, so I take the other side.`,
     };
   }
   return {
     shouldStake: false,
     stakeUsdc: 0,
-    rationale: `Contrarian abstains: the pool is balanced (creator ${creatorShare}%) — nothing to react against.`,
+    rationale: `Contrarian abstains: the pool is balanced (creator ${creatorShare}%), nothing to react against.`,
     skipReason: "no-pool-imbalance",
   };
 }

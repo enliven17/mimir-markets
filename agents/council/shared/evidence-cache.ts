@@ -2,7 +2,7 @@
  * Per-cycle evidence cache.
  *
  * Twenty personas often look at the same claim in one cycle. Without a cache
- * that is twenty fetches of the same resolution URL per claim — wasteful and
+ * that is twenty fetches of the same resolution URL per claim, wasteful and
  * rate-limit-prone. The worker builds one Map per cycle and drops it after, so
  * a later cycle never reasons over stale evidence.
  */

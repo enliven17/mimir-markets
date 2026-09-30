@@ -4,7 +4,7 @@
     "name": "mimir",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Mimir — AI-settled claim market on Solana with MagicBlock Ephemeral Rollups"
+    "description": "Mimir: AI-settled claim market on Solana with MagicBlock Ephemeral Rollups"
   },
   "instructions": [
     {
@@ -923,7 +923,7 @@
     {
       "name": "payout_creator",
       "docs": [
-        "Pay out the creator's share after resolution. Permissionless crank —",
+        "Pay out the creator's share after resolution. Permissionless crank:",
         "anyone can run it, USDC always goes to the creator's token account."
       ],
       "discriminator": [
