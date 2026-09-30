@@ -291,7 +291,7 @@ const TOC: Array<[string, string]> = [
 
 const code = "rounded-sm bg-cream/[0.07] px-1.5 py-0.5 font-mono text-[13px] text-cream";
 const codeSm = "rounded-sm bg-cream/[0.07] px-1 font-mono text-[13px] text-cream";
-const LINK = "text-coral underline-offset-2 hover:underline";
+const LINK = "text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral";
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
 export default function DocsPage() {

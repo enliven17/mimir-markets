@@ -220,7 +220,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
           {executors && executors.length === 0 ? (
             <p className="m-0 text-[13px] text-muted sm:col-span-2">
               {t("grant.noAgents")}{" "}
-              <Link href="/agents/new" className="text-coral hover:underline">
+              <Link href="/agents/new" className="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">
                 {t("grant.connectAgent")}
               </Link>
             </p>

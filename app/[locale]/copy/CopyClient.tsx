@@ -122,7 +122,7 @@ export default function CopyClient() {
       {body}
       <p className="m-0 text-center text-[13px] leading-relaxed text-muted">
         {t("agentsHint")}{" "}
-        <Link href="/docs" className="text-coral hover:underline">
+        <Link href="/docs" className="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">
           docs/AGENTS.md
         </Link>
       </p>

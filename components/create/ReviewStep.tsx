@@ -61,7 +61,7 @@ export default function ReviewStep({ draft }: { draft: CreateDraft }) {
 
       <p className="m-0 text-center text-[12px] text-muted">
         {t("faucet")}{" "}
-        <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" className="text-coral underline-offset-2 hover:underline">
+        <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" className="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">
           {t("faucetLink")}
         </a>
       </p>

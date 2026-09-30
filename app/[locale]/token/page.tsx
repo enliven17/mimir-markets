@@ -39,7 +39,7 @@ const short = (mint: string) => `${mint.slice(0, 4)}…${mint.slice(-4)}`;
 const fmtN = (n: number) => n.toLocaleString("en-US");
 
 const TIERS: Exclude<TokenTier, "none">[] = ["holder", "backer", "oracle-circle"];
-const LINK = "text-coral hover:underline";
+const LINK = "text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral";
 
 export default async function TokenPage() {
   const t = await getTranslations("token");
