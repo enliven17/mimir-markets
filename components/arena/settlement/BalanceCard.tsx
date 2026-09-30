@@ -11,7 +11,8 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { withdrawAllBalance, type BrowserMimir } from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { withdrawAllBalance } from "@/lib/solana/browser-client-lazy";
 import { depositAndDelegate } from "@/lib/solana/fund-actions";
 import { MIN_STAKE_UNITS, toUsdcUnits } from "@/lib/solana/config";
 import { formatUsdcUnits } from "@/lib/money";

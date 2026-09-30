@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { createBrowserMimir, createClaim, delegateClaim } from "@/lib/solana/browser-client";
+import { useBrowserMimir, createClaim, delegateClaim } from "@/lib/solana/browser-client-lazy";
 import { CATEGORY_GUIDANCE, MIN_STAKE } from "@/lib/constants";
 import { txErrorMessage } from "@/lib/tx-errors";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
@@ -57,11 +57,7 @@ export function useCreateDraft() {
   const tf = useTranslations("arena.create");
   const locale = useLocale();
   const wallet = useWallet();
-  const mimir = useMemo(
-    () => createBrowserMimir(wallet),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallet.publicKey, wallet.signTransaction],
-  );
+  const mimir = useBrowserMimir(wallet);
 
   const [question, setQuestion] = useState("");
   const [creatorPos, setCreatorPos] = useState("");

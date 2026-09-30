@@ -6,11 +6,12 @@
  * on the base layer or, once delegated, in the MagicBlock Ephemeral Rollup).
  * Every value is null while unknown; a failed read never pretends to be zero.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { associatedTokenAddress } from "@/lib/solana/ata";
 
-import { createBrowserMimir, type BrowserMimir } from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { useBrowserMimir } from "@/lib/solana/browser-client-lazy";
 import { balancePda, MIMIR_PROGRAM_ID, USDC_MINT } from "@/lib/solana/config";
 
 export type BalanceLayer = "none" | "base" | "er";
@@ -35,11 +36,7 @@ async function readVirtual(m: BrowserMimir, layer: BalanceLayer): Promise<bigint
 export function useWalletFunds() {
   const wallet = useWallet();
   const { connection } = useConnection();
-  const mimir = useMemo(
-    () => createBrowserMimir(wallet),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallet.publicKey, wallet.signTransaction],
-  );
+  const mimir = useBrowserMimir(wallet);
   const owner = wallet.publicKey;
   const [funds, setFunds] = useState<WalletFunds>(EMPTY);
 
@@ -48,7 +45,7 @@ export function useWalletFunds() {
       setFunds(EMPTY);
       return;
     }
-    const ata = getAssociatedTokenAddressSync(USDC_MINT, owner, true);
+    const ata = associatedTokenAddress(USDC_MINT, owner);
     const [lamports, usdcUnits, layer] = await Promise.all([
       connection.getBalance(owner).then((n) => BigInt(n)).catch(() => null),
       connection

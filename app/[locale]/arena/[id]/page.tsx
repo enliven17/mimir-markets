@@ -12,18 +12,12 @@
  *   3. challenge                                   (Ephemeral Rollup, ~30ms)
  * The claim and the viewer's rollup balance are re-read every 4s.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Link } from "@/i18n/navigation";
-import {
-  createBrowserMimir,
-  depositUsdc,
-  delegateBalance,
-  challengeInER,
-  getVirtualBalance,
-} from "@/lib/solana/browser-client";
+import { useBrowserMimir, depositUsdc, delegateBalance, challengeInER, getVirtualBalance } from "@/lib/solana/browser-client-lazy";
 import type { ApiClaim } from "@/lib/server/arena-claim";
 import { isLiveState } from "@/lib/claim-status";
 import { formatUsdcUnits } from "@/lib/money";
@@ -57,7 +51,7 @@ export default function ArenaClaimPage() {
   const [challenge, setChallenge] = useState<ChallengeState>({ stake: "2", busy: null, log: [], lastSig: null });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const mimir = useMemo(() => createBrowserMimir(wallet), [wallet.publicKey, wallet.signTransaction]);
+  const mimir = useBrowserMimir(wallet);
 
   const refresh = useCallback(async () => {
     try {

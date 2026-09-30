@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { associatedTokenAddress } from "@/lib/solana/ata";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Check, Copy, ExternalLink, LogOut, Wallet } from "lucide-react";
 
@@ -60,7 +60,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   useEffect(() => {
     if (!menuOpen || !publicKey) return;
     let cancelled = false;
-    const ata = getAssociatedTokenAddressSync(USDC_MINT, publicKey, true);
+    const ata = associatedTokenAddress(USDC_MINT, publicKey);
     Promise.all([
       connection
         .getBalance(publicKey)

@@ -9,12 +9,8 @@
  */
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import {
-  payoutChallenger,
-  payoutCreator,
-  refundBond,
-  type BrowserMimir,
-} from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { payoutChallenger, payoutCreator, refundBond } from "@/lib/solana/browser-client-lazy";
 import { BOND_REFUND_DUE, ST_RESOLVED } from "@/lib/solana/config";
 import { challengerGross, creatorGross, splitFees } from "@/lib/solana/fees";
 import { formatUsdcUnits } from "@/lib/money";

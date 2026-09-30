@@ -12,7 +12,8 @@ import { toast } from "sonner";
 
 import { BlueprintStat } from "@/components/BlueprintGrid";
 import type { WalletFunds } from "@/hooks/useWalletFunds";
-import { withdrawAllBalance, type BrowserMimir } from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { withdrawAllBalance } from "@/lib/solana/browser-client-lazy";
 import { formatUsdcUnits } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 

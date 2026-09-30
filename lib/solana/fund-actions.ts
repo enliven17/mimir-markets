@@ -7,12 +7,8 @@
  * A balance that is already in the rollup is brought back first (a deposit
  * writes the PDA on the base layer).
  */
-import {
-  delegateBalance,
-  depositUsdc,
-  undelegateBalance,
-  type BrowserMimir,
-} from "./browser-client";
+import type { BrowserMimir } from "./browser-client";
+import { delegateBalance, depositUsdc, undelegateBalance } from "./browser-client-lazy";
 import { balancePda } from "./config";
 
 async function onBase(m: BrowserMimir): Promise<boolean> {

@@ -14,12 +14,8 @@
  */
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import {
-  disputeResolution,
-  finalizeResolution,
-  refundExpiredFromAnywhere,
-  type BrowserMimir,
-} from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { disputeResolution, finalizeResolution, refundExpiredFromAnywhere } from "@/lib/solana/browser-client-lazy";
 import { canFinalize, canRefundExpired, isDisputable, refundableAt } from "@/lib/solana/lifecycle";
 import { DISPUTE_BOND_UNITS, ST_ACTIVE, ST_DISPUTED, ST_OPEN, ST_PROPOSED } from "@/lib/solana/config";
 import { toLifecycle } from "@/lib/arena-lifecycle";

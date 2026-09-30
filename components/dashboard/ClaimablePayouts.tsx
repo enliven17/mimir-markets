@@ -10,7 +10,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Link } from "@/i18n/navigation";
-import { payoutChallenger, payoutCreator, type BrowserMimir } from "@/lib/solana/browser-client";
+import type { BrowserMimir } from "@/lib/solana/browser-client";
+import { payoutChallenger, payoutCreator } from "@/lib/solana/browser-client-lazy";
 import { claimableLegs, type ClaimableLeg, type PositionClaim } from "@/lib/dashboard-positions";
 import { formatUsdcUnits } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
