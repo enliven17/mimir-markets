@@ -1,11 +1,8 @@
-"use client";
-
 /**
  * Docs section: what price settlement actually reads, and who provides it
  * (lib/server/price-sources.ts). Doubles as the CoinMarketCap attribution for
  * the data the oracle uses from its API.
  */
-import { BlueprintHeading } from "@/components/BlueprintGrid";
 import CoinMarketCapMark from "@/components/brand/CoinMarketCapMark";
 
 const SOURCES: Array<{ name: string; href: string; role: string; body: string; mark?: boolean }> = [
@@ -36,35 +33,38 @@ const SOURCES: Array<{ name: string; href: string; role: string; body: string; m
   },
 ];
 
-export default function SettlementDataSection() {
+/** Body of the docs "Settlement data" section: one line, the four sources, the audit note. */
+export default function SettlementData() {
   return (
-    <section>
-      <BlueprintHeading subtitle="A market settled from one page has one point of failure. For price claims the oracle reads independent sources at the deadline: when they agree the verdict carries more confidence, and when they land on opposite sides of the threshold the claim refunds instead of picking a winner.">
-        Settlement data
-      </BlueprintHeading>
-      <div className="bp-grid grid-cols-1 border-x border-pv-border/25 sm:grid-cols-2 lg:grid-cols-4">
+    <>
+      <p className="m-0">
+        For price claims the oracle reads independent sources at the deadline. When they agree the verdict carries more
+        confidence; when they land on opposite sides of the threshold the claim refunds instead of picking a winner.
+      </p>
+      <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
         {SOURCES.map((s) => (
-          <div key={s.name} className="bp-cell flex flex-col gap-2 p-6">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-pv-emerald">{s.role}</p>
+          <li key={s.name} className="grid content-start gap-2 rounded-xl bg-cream/[0.04] p-5">
+            <p className="m-0 text-[12px] uppercase tracking-[0.06em] text-muted">{s.role}</p>
             {s.mark ? (
-              <CoinMarketCapMark height={20} className="font-display text-lg text-pv-text" />
+              <CoinMarketCapMark height={20} className="font-display text-[1.2rem] text-cream" />
             ) : (
               <a
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-display text-lg font-bold text-pv-text transition-colors hover:text-pv-emerald"
+                className="justify-self-start font-display text-[1.2rem] leading-tight text-cream transition-colors hover:text-coral"
               >
                 {s.name}
               </a>
             )}
-            <p className="text-[13px] leading-relaxed text-pv-muted">{s.body}</p>
-          </div>
+            <p className="m-0 text-[14px] leading-relaxed text-muted">{s.body}</p>
+          </li>
         ))}
-      </div>
-      <p className="border-x border-b border-pv-border/25 px-6 py-4 text-center font-mono text-[11px] text-pv-muted">
-        Every reading and the resulting verdict go into the audit bundle whose hash is committed on chain, so the cross-check can be verified rather than taken on trust.
+      </ul>
+      <p className="m-0 text-[13px] text-muted">
+        Every reading and the resulting verdict go into the audit bundle whose hash is committed on chain, so the
+        cross-check can be verified rather than taken on trust.
       </p>
-    </section>
+    </>
   );
 }

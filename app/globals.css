@@ -99,7 +99,9 @@
     min-height: 100vh;
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    /* clip, not hidden: hidden makes the body a scroll container, which
+       silently turns every position: sticky inside it off. */
+    overflow-x: clip;
     background: transparent;
     color: var(--cream);
     font-family: var(--pixel);
