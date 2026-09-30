@@ -9,7 +9,8 @@
  *              does, anyone can refund everyone after the resolution grace.
  *   OPEN / ACTIVE past the deadline — the refund_expired escape hatch once
  *              deadline + grace has passed.
- * Renders nothing when there is nothing to show.
+ * Renders nothing when there is nothing to show. Unstyled block: the action
+ * dock supplies the card.
  */
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
@@ -24,6 +25,8 @@ import { DISPUTE_BOND_UNITS, ST_ACTIVE, ST_DISPUTED, ST_OPEN, ST_PROPOSED } from
 import { toLifecycle } from "@/lib/arena-lifecycle";
 import { SIDE_LABEL, formatCountdown } from "@/lib/claim-status";
 import { formatUsdcUnits } from "@/lib/money";
+import { Button, Disclosure } from "@/components/ui";
+import Countdown from "@/components/arena/Countdown";
 import { shortKey, useNowSec, useSettleAction } from "./useSettleAction";
 
 interface Props {
@@ -34,14 +37,13 @@ interface Props {
   onChanged?: () => void;
 }
 
-const BOX = "card border-pv-border/25 bg-pv-surface p-5 sm:p-6";
-const LABEL = "font-mono text-[10px] font-bold uppercase tracking-[0.16em]";
-const BTN = "btn-primary !w-auto !min-h-0 !px-4 !py-2 !text-xs disabled:opacity-50";
-const GHOST = "btn-ghost !w-auto !min-h-0 !px-4 !py-2 !text-xs disabled:opacity-50";
+const TITLE = "m-0 text-[12px] text-muted";
+const NOTE = "m-0 text-[13px] leading-relaxed text-muted";
 
 export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props) {
   const t = useTranslations("claimSettle");
-  const now = useNowSec();
+  // Gating (finalize / refund) needs a clock, not a per-second re-render; the window countdown ticks on its own.
+  const now = useNowSec(5_000);
   const { busy, run } = useSettleAction(onChanged);
   const lc = toLifecycle(claim);
   const id = BigInt(claim.id);
@@ -50,63 +52,64 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
 
   if (claim.state === ST_PROPOSED) {
     const open = isDisputable(lc, now);
+    const finalizable = canFinalize(lc, now) && mimir;
+    const disputable = open && isParticipant && mimir;
     return (
-      <section className={`${BOX} border-pv-gold/30`} aria-label={t("proposedTitle")}>
-        <p className={`${LABEL} text-pv-gold`}>{t("proposedTitle")}</p>
-        <p className="mt-2 font-display text-lg font-bold text-pv-text">
-          {SIDE_LABEL[claim.proposedSide] ?? "—"} · {claim.confidence}%
-        </p>
-        {claim.resolutionSummary ? (
-          <p className="mt-1 text-sm leading-relaxed text-pv-text/85">{claim.resolutionSummary}</p>
-        ) : null}
+      <section className="grid gap-4" aria-label={t("proposedTitle")}>
+        <div className="grid gap-1.5">
+          <p className={TITLE}>{t("proposedTitle")}</p>
+          <p className="m-0 font-display text-[1.7rem] leading-none text-cream">
+            {SIDE_LABEL[claim.proposedSide] ?? "—"}
+            <span className="ml-2 font-mono text-[14px] text-muted">{claim.confidence}%</span>
+          </p>
+          {claim.resolutionSummary ? <p className={`${NOTE} line-clamp-3`}>{claim.resolutionSummary}</p> : null}
+        </div>
 
-        <dl className="mt-4 grid gap-px border border-pv-border/25 bg-pv-border/25 sm:grid-cols-3">
-          <div className="bg-pv-bg px-3 py-2.5">
-            <dt className={`${LABEL} text-pv-muted`}>{t("windowCloses")}</dt>
-            <dd className="mt-1 font-mono text-sm tabular-nums text-pv-text">
-              {open ? formatCountdown(claim.disputableUntil, now) : t("closed")}
-            </dd>
-          </div>
-          <div className="bg-pv-bg px-3 py-2.5">
-            <dt className={`${LABEL} text-pv-muted`}>{t("bond")}</dt>
-            <dd className="mt-1 font-mono text-sm tabular-nums text-pv-text">{formatUsdcUnits(DISPUTE_BOND_UNITS)}</dd>
-          </div>
-          <div className="bg-pv-bg px-3 py-2.5">
-            <dt className={`${LABEL} text-pv-muted`}>{t("whoCanDispute")}</dt>
-            <dd className="mt-1 text-sm text-pv-text">{t("participantsOnly")}</dd>
-          </div>
+        <dl className="kv">
+          <dt>{t("windowCloses")}</dt>
+          <dd className="text-cream">{open ? <Countdown until={claim.disputableUntil} /> : t("closed")}</dd>
+          <dt>{t("bond")}</dt>
+          <dd>{formatUsdcUnits(DISPUTE_BOND_UNITS)}</dd>
+          <dt>{t("whoCanDispute")}</dt>
+          <dd className="!font-sans">{t("participantsOnly")}</dd>
         </dl>
 
-        <p className="mt-3 text-xs leading-relaxed text-pv-muted">
-          {open
-            ? t("proposedOpenHint", { at: new Date(claim.disputableUntil * 1000).toLocaleString() })
-            : t("proposedClosedHint")}
-        </p>
+        {finalizable || disputable ? (
+          <div className="grid gap-2">
+            {finalizable ? (
+              <Button
+                size="sm"
+                loading={busy === "finalize"}
+                disabled={!!busy}
+                onClick={() => run("finalize", t("finalizedToast"), () => finalizeResolution(mimir, id))}
+              >
+                {busy === "finalize" ? t("working") : t("finalizeButton")}
+              </Button>
+            ) : null}
+            {disputable ? (
+              <Button
+                size="sm"
+                variant={finalizable ? "secondary" : "primary"}
+                loading={busy === "dispute"}
+                disabled={!!busy}
+                onClick={() => run("dispute", t("disputedToast"), () => disputeResolution(mimir, id))}
+              >
+                {busy === "dispute" ? t("working") : t("disputeButton", { bond: formatUsdcUnits(DISPUTE_BOND_UNITS) })}
+              </Button>
+            ) : null}
+          </div>
+        ) : !mimir && (open ? isParticipant || !viewer : true) ? (
+          <p className={NOTE}>{t("connectToAct")}</p>
+        ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {open && isParticipant && mimir ? (
-            <button
-              type="button"
-              className={GHOST}
-              disabled={!!busy}
-              onClick={() => run("dispute", t("disputedToast"), () => disputeResolution(mimir, id))}
-            >
-              {busy === "dispute" ? t("working") : t("disputeButton", { bond: formatUsdcUnits(DISPUTE_BOND_UNITS) })}
-            </button>
-          ) : null}
-          {canFinalize(lc, now) && mimir ? (
-            <button
-              type="button"
-              className={BTN}
-              disabled={!!busy}
-              onClick={() => run("finalize", t("finalizedToast"), () => finalizeResolution(mimir, id))}
-            >
-              {busy === "finalize" ? t("working") : t("finalizeButton")}
-            </button>
-          ) : null}
-          {!mimir && (open ? isParticipant : true) ? <p className="text-xs text-pv-muted">{t("connectToAct")}</p> : null}
-        </div>
-        {open ? <p className="mt-3 text-[11px] leading-relaxed text-pv-muted">{t("bondHint")}</p> : null}
+        <Disclosure summary={t("disputeHow")}>
+          <p className={NOTE}>
+            {open
+              ? t("proposedOpenHint", { at: new Date(claim.disputableUntil * 1000).toLocaleString() })
+              : t("proposedClosedHint")}
+          </p>
+          {open ? <p className={`${NOTE} mt-2`}>{t("bondHint")}</p> : null}
+        </Disclosure>
       </section>
     );
   }
@@ -115,27 +118,27 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
     const refundAt = refundableAt(lc);
     const canRefund = canRefundExpired(lc, now);
     return (
-      <section className={BOX} aria-label={t("disputedTitle")}>
-        <p className={`${LABEL} text-pv-danger`}>{t("disputedTitle")}</p>
-        <p className="mt-2 text-sm leading-relaxed text-pv-text/90">
+      <section className="grid gap-3" aria-label={t("disputedTitle")}>
+        <p className={`${TITLE} !text-danger`}>{t("disputedTitle")}</p>
+        <p className="m-0 text-[14px] leading-relaxed text-cream">
           {t("disputedBody", {
             side: SIDE_LABEL[claim.proposedSide] ?? "—",
             who: claim.disputer ? shortKey(claim.disputer) : "—",
             at: claim.disputedAt ? new Date(claim.disputedAt * 1000).toLocaleString() : "—",
           })}
         </p>
-        <p className="mt-2 text-xs text-pv-muted">
+        <p className={NOTE}>
           {canRefund ? t("disputedRefundable") : t("disputedRefundIn", { in: formatCountdown(refundAt, now) })}
         </p>
         {canRefund && mimir ? (
-          <button
-            type="button"
-            className={`${BTN} mt-4`}
+          <Button
+            size="sm"
+            loading={busy === "refund"}
             disabled={!!busy}
             onClick={() => run("refund", t("refundedToast"), () => refundExpiredFromAnywhere(mimir, id))}
           >
             {busy === "refund" ? t("working") : t("refundButton")}
-          </button>
+          </Button>
         ) : null}
       </section>
     );
@@ -148,20 +151,20 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
     // show the escape hatch for it once it is actually callable.
     if (claim.state === ST_OPEN && !canRefund) return null;
     return (
-      <section className={BOX} aria-label={t("awaitingTitle")}>
-        <p className={`${LABEL} text-pv-muted`}>{t("awaitingTitle")}</p>
-        <p className="mt-2 text-sm leading-relaxed text-pv-text/90">
+      <section className="grid gap-3" aria-label={t("awaitingTitle")}>
+        <p className={TITLE}>{t("awaitingTitle")}</p>
+        <p className="m-0 text-[14px] leading-relaxed text-cream">
           {canRefund ? t("awaitingRefundable") : t("awaitingBody", { in: formatCountdown(refundAt, now) })}
         </p>
         {canRefund && mimir ? (
-          <button
-            type="button"
-            className={`${BTN} mt-4`}
+          <Button
+            size="sm"
+            loading={busy === "refund"}
             disabled={!!busy}
             onClick={() => run("refund", t("refundedToast"), () => refundExpiredFromAnywhere(mimir, id))}
           >
             {busy === "refund" ? t("working") : t("refundButton")}
-          </button>
+          </Button>
         ) : null}
       </section>
     );

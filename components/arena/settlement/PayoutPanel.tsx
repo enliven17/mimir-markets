@@ -18,6 +18,7 @@ import {
 import { BOND_REFUND_DUE, ST_RESOLVED } from "@/lib/solana/config";
 import { challengerGross, creatorGross, splitFees } from "@/lib/solana/fees";
 import { formatUsdcUnits } from "@/lib/money";
+import { Disclosure } from "@/components/ui";
 import { shortKey, useSettleAction } from "./useSettleAction";
 
 interface Props {
@@ -65,17 +66,20 @@ export function payoutLegs(claim: ApiClaim): Leg[] {
   return legs;
 }
 
-const BTN = "btn-primary !w-auto !min-h-0 !px-3 !py-1.5 !text-[11px] disabled:opacity-50";
+const BTN = "btn-compact-primary press min-h-[34px] shrink-0 px-3.5 text-[13px]";
 
+/** Unstyled block: the action dock supplies the card. The viewer's own legs sort first. */
 export default function PayoutPanel({ claim, mimir, viewer, onChanged }: Props) {
   const t = useTranslations("claimSettle");
   const { busy, run } = useSettleAction(onChanged);
   if (claim.state !== ST_RESOLVED) return null;
 
-  const legs = payoutLegs(claim);
+  const all = payoutLegs(claim);
+  const legs = [...all].sort((a, b) => Number(b.recipient === viewer) - Number(a.recipient === viewer));
   const bondDue = claim.bondState === BOND_REFUND_DUE && claim.disputer;
   if (legs.length === 0 && !bondDue) return null;
   const id = BigInt(claim.id);
+  const paid = all.filter((l) => l.paid).length;
 
   const crank = (leg: Leg) => {
     if (!mimir) return;
@@ -92,40 +96,44 @@ export default function PayoutPanel({ claim, mimir, viewer, onChanged }: Props) 
   };
 
   return (
-    <section className="card border-pv-border/25 bg-pv-surface p-5 sm:p-6" aria-label={t("payoutsTitle")}>
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-gold">{t("payoutsTitle")}</p>
-      <p className="mt-1 text-xs leading-relaxed text-pv-muted">{t("payoutsHint")}</p>
-      <ul className="mt-4 divide-y divide-pv-border/25 border border-pv-border/25">
+    <section className="grid gap-3" aria-label={t("payoutsTitle")}>
+      <p className="m-0 flex items-center justify-between gap-3 text-[12px] text-muted">
+        <span>{t("payoutsTitle")}</span>
+        <span className="font-mono tabular-nums">
+          {paid}/{all.length} {t("paid")}
+        </span>
+      </p>
+      <ul className="m-0 grid max-h-[320px] list-none gap-1.5 overflow-y-auto p-0" data-lenis-prevent>
         {legs.map((leg) => {
           const mine = viewer === leg.recipient;
           return (
-            <li key={leg.key} className="flex flex-wrap items-center justify-between gap-3 bg-pv-bg px-3 py-2.5">
+            <li key={leg.key} className="flex items-center justify-between gap-3 rounded-xl bg-cream/[0.035] px-3.5 py-2.5">
               <div className="min-w-0">
-                <p className="text-sm text-pv-text">
+                <p className="m-0 truncate text-[14px] text-cream">
                   {leg.role === "creator" ? t("creatorLeg") : t("challengerLeg", { n: leg.index + 1 })}{" "}
-                  <span className="font-mono text-xs text-pv-muted">{shortKey(leg.recipient)}</span>
-                  {mine ? <span className="ml-1.5 font-mono text-[10px] font-bold uppercase text-pv-emerald">{t("you")}</span> : null}
+                  <span className="font-mono text-[12px] text-muted">{shortKey(leg.recipient)}</span>
+                  {mine ? <span className="ml-1.5 text-[12px] text-coral">{t("you")}</span> : null}
                 </p>
-                <p className="font-mono text-[11px] tabular-nums text-pv-muted">
+                <p className="m-0 font-mono text-[12px] tabular-nums text-muted">
                   {t("legAmounts", { gross: formatUsdcUnits(leg.gross), net: formatUsdcUnits(leg.net) })}
                 </p>
               </div>
               {leg.paid ? (
-                <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-pv-emerald">✓ {t("paid")}</span>
+                <span className="shrink-0 text-[12px] text-win">✓ {t("paid")}</span>
               ) : mimir ? (
                 <button type="button" className={BTN} disabled={!!busy} onClick={() => crank(leg)}>
                   {busy === leg.key ? t("working") : mine ? t("claimMine") : t("payOut")}
                 </button>
               ) : (
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-pv-gold">{t("unpaid")}</span>
+                <span className="shrink-0 text-[12px] text-pending">{t("unpaid")}</span>
               )}
             </li>
           );
         })}
         {bondDue ? (
-          <li className="flex flex-wrap items-center justify-between gap-3 bg-pv-bg px-3 py-2.5">
-            <p className="text-sm text-pv-text">
-              {t("bondLeg")} <span className="font-mono text-xs text-pv-muted">{shortKey(claim.disputer)}</span>
+          <li className="flex items-center justify-between gap-3 rounded-xl bg-cream/[0.035] px-3.5 py-2.5">
+            <p className="m-0 min-w-0 truncate text-[14px] text-cream">
+              {t("bondLeg")} <span className="font-mono text-[12px] text-muted">{shortKey(claim.disputer)}</span>
             </p>
             {mimir ? (
               <button
@@ -140,6 +148,9 @@ export default function PayoutPanel({ claim, mimir, viewer, onChanged }: Props) 
           </li>
         ) : null}
       </ul>
+      <Disclosure summary={t("payoutsHow")}>
+        <p className="m-0 text-[13px] leading-relaxed text-muted">{t("payoutsHint")}</p>
+      </Disclosure>
     </section>
   );
 }

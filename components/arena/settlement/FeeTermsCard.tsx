@@ -4,7 +4,8 @@
  * The claim's frozen terms: profit-only fees, dispute window and resolution
  * grace, snapshotted onto the claim at creation so a later policy change never
  * touches a market people already entered. Quotes what a challenger staking
- * `stakeUnits` would net if the challengers win.
+ * `stakeUnits` would net if the challengers win. Unstyled block: it sits in a
+ * disclosure on the claim page.
  */
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
@@ -37,29 +38,23 @@ export default function FeeTermsCard({ claim, stakeUnits }: { claim: ApiClaim; s
   const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 
   return (
-    <section className="card border-pv-border/25 bg-pv-surface p-5 sm:p-6" aria-label={t("feesTitle")}>
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald">{t("feesTitle")}</p>
-      <p className="mt-1 text-xs leading-relaxed text-pv-muted">{t("feesHint")}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-px border border-pv-border/25 bg-pv-border/25 text-sm">
-        <div className="bg-pv-bg px-3 py-2.5">
-          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">{t("platformFee")}</dt>
-          <dd className="mt-1 font-mono tabular-nums text-pv-text">{pct(claim.platformFeeBps)} {t("ofProfit")}</dd>
-        </div>
-        <div className="bg-pv-bg px-3 py-2.5">
-          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">{t("agentFee")}</dt>
-          <dd className="mt-1 font-mono tabular-nums text-pv-text">{pct(claim.agentFeeBps)} {t("ofProfit")}</dd>
-        </div>
-        <div className="bg-pv-bg px-3 py-2.5">
-          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">{t("disputeWindow")}</dt>
-          <dd className="mt-1 font-mono tabular-nums text-pv-text">{hours(claim.disputeWindow)}</dd>
-        </div>
-        <div className="bg-pv-bg px-3 py-2.5">
-          <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">{t("refundGrace")}</dt>
-          <dd className="mt-1 font-mono tabular-nums text-pv-text">{hours(claim.resolutionGrace)}</dd>
-        </div>
+    <div className="grid gap-3" aria-label={t("feesTitle")}>
+      <dl className="kv">
+        <dt>{t("platformFee")}</dt>
+        <dd>
+          {pct(claim.platformFeeBps)} {t("ofProfit")}
+        </dd>
+        <dt>{t("agentFee")}</dt>
+        <dd>
+          {pct(claim.agentFeeBps)} {t("ofProfit")}
+        </dd>
+        <dt>{t("disputeWindow")}</dt>
+        <dd>{hours(claim.disputeWindow)}</dd>
+        <dt>{t("refundGrace")}</dt>
+        <dd>{hours(claim.resolutionGrace)}</dd>
       </dl>
       {split && leg ? (
-        <p className="mt-3 text-xs leading-relaxed text-pv-muted">
+        <p className="m-0 text-[13px] leading-relaxed text-cream">
           {t("feesExample", {
             stake: formatUsdcUnits(stakeUnits),
             gross: formatUsdcUnits(leg.gross),
@@ -68,9 +63,10 @@ export default function FeeTermsCard({ claim, stakeUnits }: { claim: ApiClaim; s
           })}
         </p>
       ) : null}
+      <p className="m-0 text-[13px] leading-relaxed text-muted">{t("feesHint")}</p>
       {claim.totalFees !== "0" ? (
-        <p className="mt-2 font-mono text-[11px] text-pv-muted">{t("feesCharged", { fees: formatUsdcUnits(claim.totalFees) })}</p>
+        <p className="m-0 font-mono text-[12px] text-muted">{t("feesCharged", { fees: formatUsdcUnits(claim.totalFees) })}</p>
       ) : null}
-    </section>
+    </div>
   );
 }

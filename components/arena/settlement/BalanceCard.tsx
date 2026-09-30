@@ -3,64 +3,125 @@
 /**
  * The connected wallet's escrow betting balance (the virtual UserBalance that
  * lives in the Ephemeral Rollup) with a pull-withdraw back to the wallet's
- * USDC account. Payouts never land here — they go straight to the token
- * account — so this is unused deposit plus refunds of cancelled stakes.
- * Withdraw is never blocked by the program pause.
+ * USDC account, plus a deposit-and-delegate top-up. Payouts never land here
+ * (they go straight to the token account), so this is unused deposit plus
+ * refunds of cancelled stakes. Withdraw is never blocked by the program pause.
+ * Unstyled block: it sits in the balance sheet on the claim page.
  */
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { useState } from "react";
 import { withdrawAllBalance, type BrowserMimir } from "@/lib/solana/browser-client";
+import { depositAndDelegate } from "@/lib/solana/fund-actions";
+import { MIN_STAKE_UNITS, toUsdcUnits } from "@/lib/solana/config";
 import { formatUsdcUnits } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
+import { Button } from "@/components/ui";
 import { explorerTx } from "./useSettleAction";
 
 export default function BalanceCard({
   mimir,
   balance,
+  walletUsdc = null,
   onChanged,
 }: {
   mimir: BrowserMimir | null;
   balance: bigint;
+  /** USDC in the wallet's token account; null while unknown. */
+  walletUsdc?: bigint | null;
   onChanged?: () => void;
 }) {
   const t = useTranslations("claimSettle");
-  const [busy, setBusy] = useState(false);
+  const tb = useTranslations("arena.detail.balanceSheet");
+  const to = useTranslations("onboarding.steps.deposit");
+  const amountId = useId();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [amount, setAmount] = useState("20");
   const [lastSig, setLastSig] = useState<string | null>(null);
   if (!mimir) return null;
 
+  const units = (() => {
+    const n = Number(amount);
+    return Number.isFinite(n) && n > 0 ? toUsdcUnits(n) : 0n;
+  })();
+
   const withdraw = async () => {
-    setBusy(true);
+    setBusy("withdraw");
     try {
-      const { units, sig } = await withdrawAllBalance(mimir);
+      const { units: out, sig } = await withdrawAllBalance(mimir);
       setLastSig(sig);
-      toast.success(units > 0n ? t("withdrawnToast", { amount: formatUsdcUnits(units) }) : t("nothingToWithdraw"));
+      toast.success(out > 0n ? t("withdrawnToast", { amount: formatUsdcUnits(out) }) : t("nothingToWithdraw"));
       onChanged?.();
     } catch (err) {
       toast.error(txErrorMessage(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  const deposit = async () => {
+    if (units < MIN_STAKE_UNITS) return;
+    try {
+      const sig = await depositAndDelegate(mimir, units, (step) => setBusy(to(`busy.${step}`)));
+      setLastSig(sig);
+      toast.success(to("done", { amount: formatUsdcUnits(units) }));
+      onChanged?.();
+    } catch (err) {
+      toast.error(txErrorMessage(err));
+    } finally {
+      setBusy(null);
     }
   };
 
   return (
-    <section className="card border-pv-border/25 bg-pv-surface p-5 sm:p-6" aria-label={t("balanceTitle")}>
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald">{t("balanceTitle")}</p>
-      <p className="mt-2 font-mono text-xl font-bold tabular-nums text-pv-gold">{formatUsdcUnits(balance)}</p>
-      <p className="mt-1 text-xs leading-relaxed text-pv-muted">{t("balanceHint")}</p>
-      <button
-        type="button"
-        className="btn-ghost mt-4 !w-auto !min-h-0 !px-4 !py-2 !text-xs disabled:opacity-50"
-        disabled={busy || balance === 0n}
-        onClick={withdraw}
-      >
-        {busy ? t("working") : t("withdrawButton")}
-      </button>
-      {lastSig ? (
-        <a href={explorerTx(lastSig)} target="_blank" rel="noopener noreferrer" className="mt-2 block font-mono text-[10px] text-pv-muted hover:text-pv-emerald">
-          ↗ {lastSig.slice(0, 20)}…
-        </a>
-      ) : null}
-    </section>
+    <div className="grid gap-5">
+      <dl className="kv">
+        <dt>{t("balanceTitle")}</dt>
+        <dd className="text-cream">{formatUsdcUnits(balance)}</dd>
+        <dt>{tb("wallet")}</dt>
+        <dd>{walletUsdc === null ? "—" : formatUsdcUnits(walletUsdc)}</dd>
+      </dl>
+
+      <div className="grid gap-2.5">
+        <p className="m-0 text-[15px] text-cream">{tb("depositTitle")}</p>
+        <p className="m-0 text-[13px] leading-relaxed text-muted">{tb("depositHint")}</p>
+        <div className="flex items-center gap-2">
+          <label htmlFor={amountId} className="sr-only">
+            {to("amountLabel")}
+          </label>
+          <input
+            id={amountId}
+            type="number"
+            min={2}
+            step="1"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="input !min-h-[46px] !w-28 !px-4 font-mono !text-[15px]"
+          />
+          <Button
+            size="sm"
+            className="flex-1"
+            loading={!!busy && busy !== "withdraw"}
+            disabled={!!busy || units < MIN_STAKE_UNITS || (walletUsdc !== null && walletUsdc < units)}
+            onClick={() => void deposit()}
+          >
+            {busy && busy !== "withdraw" ? busy : to("action")}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-2 border-t border-line pt-4">
+        <p className="m-0 text-[13px] leading-relaxed text-muted">{t("balanceHint")}</p>
+        <Button size="sm" variant="ghost" loading={busy === "withdraw"} disabled={!!busy || balance === 0n} onClick={() => void withdraw()}>
+          {busy === "withdraw" ? t("working") : t("withdrawButton")}
+        </Button>
+        {lastSig ? (
+          <a href={explorerTx(lastSig)} target="_blank" rel="noopener noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+            ↗ {lastSig.slice(0, 20)}…
+          </a>
+        ) : null}
+      </div>
+    </div>
   );
 }

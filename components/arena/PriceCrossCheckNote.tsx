@@ -27,8 +27,8 @@ export default function PriceCrossCheckNote({
   const target = spec?.kind === "price" ? { symbol: spec.symbol, threshold: spec.threshold } : priceCheckTarget(question);
   if (!target) return null;
   return (
-    <p className={`flex items-start gap-1.5 text-[11px] leading-relaxed text-pv-muted ${className}`}>
-      <ShieldCheck size={12} className="mt-0.5 shrink-0" aria-hidden />
+    <p className={`m-0 flex items-start gap-2 text-[12px] leading-relaxed text-muted ${className}`}>
+      <ShieldCheck size={14} className="mt-0.5 shrink-0 text-coral" aria-hidden />
       <span>
         {t("crossCheck", { symbol: target.symbol, threshold: target.threshold.toLocaleString("en-US") })}{" "}
         <span className="inline-flex flex-wrap items-center gap-1">

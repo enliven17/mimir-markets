@@ -8,7 +8,7 @@
 import { TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import { crowdImbalance, formatProbability, impliedOdds, oddsBarWidths } from "@/lib/odds";
+import { crowdImbalance, formatProbability, impliedOdds } from "@/lib/odds";
 import { isLiveState } from "@/lib/claim-status";
 
 /** Past this, one side is crowded enough that the contrarian case is worth naming. */
@@ -18,7 +18,6 @@ export default function MarketPricePanel({ claim }: { claim: ApiClaim }) {
   const t = useTranslations("marketPrice");
   if (!isLiveState(claim.state)) return null;
   const odds = impliedOdds(claim);
-  const widths = oddsBarWidths(odds);
   const crowded =
     odds.creatorProbability !== null && crowdImbalance(odds) >= CONTRARIAN_IMBALANCE
       ? odds.creatorProbability > 0.5
@@ -27,35 +26,29 @@ export default function MarketPricePanel({ claim }: { claim: ApiClaim }) {
       : null;
 
   return (
-    <section className="card border-pv-border/25 bg-pv-surface p-5 sm:p-6" aria-label={t("title")}>
-      <h2 className="mb-4 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-pv-emerald">
+    <section className="grid gap-3" aria-label={t("title")}>
+      <p className="m-0 flex items-center gap-2 text-[12px] text-muted">
         <TrendingUp className="h-3.5 w-3.5" aria-hidden />
         {t("title")}
-      </h2>
+      </p>
       {odds.unpriced ? (
-        <div className="border border-dashed border-pv-border/40 px-4 py-5 text-center">
-          <p className="text-sm text-pv-text">{t("unpricedTitle")}</p>
-          <p className="mx-auto mt-1 max-w-sm text-[12px] text-pv-muted">{t("unpricedBody")}</p>
+        <div className="grid gap-1 rounded-xl border border-dashed border-line-strong px-4 py-4">
+          <p className="m-0 text-[14px] text-cream">{t("unpricedTitle")}</p>
+          <p className="m-0 text-[13px] leading-relaxed text-muted">{t("unpricedBody")}</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-px border border-pv-border/25 bg-pv-border/25">
-            <div className="bg-pv-bg px-3 py-3">
-              <p className="font-display text-2xl font-bold tabular-nums text-pv-cyan">{formatProbability(odds.creatorProbability)}</p>
-              <p className="mt-1 line-clamp-2 text-[12px] text-pv-text/85">{claim.creatorPosition}</p>
-            </div>
-            <div className="bg-pv-bg px-3 py-3">
-              <p className="font-display text-2xl font-bold tabular-nums text-pv-fuch">{formatProbability(odds.challengerProbability)}</p>
-              <p className="mt-1 line-clamp-2 text-[12px] text-pv-text/85">{claim.counterPosition}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-pv-border/[0.07]" aria-hidden>
-            <div className="h-full bg-pv-cyan/70" style={{ width: `${widths.creator}%` }} />
-            <div className="h-full bg-pv-fuch/70" style={{ width: `${widths.challenger}%` }} />
-          </div>
-          <p className="mt-3 border-t border-pv-border/25 pt-3 text-[11px] leading-relaxed text-pv-muted">{t("poolExplainer")}</p>
+          <dl className="kv">
+            <dt className="truncate" title={claim.creatorPosition}>{claim.creatorPosition}</dt>
+            <dd className="text-cream">{formatProbability(odds.creatorProbability)}</dd>
+            <dt className="truncate" title={claim.counterPosition}>{claim.counterPosition}</dt>
+            <dd className="text-coral">{formatProbability(odds.challengerProbability)}</dd>
+          </dl>
+          {odds.challengerPayoutMultiple ? (
+            <p className="m-0 text-[13px] text-cream">{t("cardPays", { multiple: odds.challengerPayoutMultiple.toFixed(2) })}</p>
+          ) : null}
           {crowded && odds.challengerPayoutMultiple ? (
-            <p className="mt-2 border border-pv-fuch/25 bg-pv-fuch/[0.05] px-3 py-2 text-[11px] leading-relaxed text-pv-fuch">
+            <p className="m-0 rounded-xl bg-coral/[0.08] px-3.5 py-2.5 text-[13px] leading-relaxed text-pending">
               {t("contrarian", {
                 pct: Math.round(Math.max(odds.creatorProbability!, odds.challengerProbability!) * 100),
                 crowded: crowded.crowded,
@@ -64,6 +57,7 @@ export default function MarketPricePanel({ claim }: { claim: ApiClaim }) {
               })}
             </p>
           ) : null}
+          <p className="m-0 text-[12px] leading-relaxed text-muted">{t("poolExplainer")}</p>
         </>
       )}
     </section>

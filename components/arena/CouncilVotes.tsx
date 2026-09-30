@@ -3,9 +3,12 @@
 /**
  * CouncilVotes — shows where each AI council persona stands on a claim.
  * For resolved claims also shows won/lost/refunded outcome per persona.
+ * A summary line up front, every vote behind "See all votes".
  */
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import PeepAvatar from "@/components/ui/PeepAvatar";
+import Disclosure from "@/components/ui/Disclosure";
 
 interface PersonaVote {
   slug: string;
@@ -28,11 +31,13 @@ interface CouncilResponse {
 }
 
 // winnerSide: 1=creator, 2=challengers, 3=draw/refund, 4=unresolvable/refund
-function outcomeTag(v: PersonaVote, winnerSide: number): { label: string; cls: string } | null {
+type OutcomeKey = "won" | "wonPaid" | "lost" | "refunded" | "refunding";
+
+function outcomeTag(v: PersonaVote, winnerSide: number): { key: OutcomeKey; cls: string } | null {
   if (!v.staked) return null;
-  if (winnerSide === 2) return { label: v.paid ? "WON · PAID" : "WON", cls: "text-pv-emerald border-pv-emerald/40 bg-pv-emerald/[0.08]" };
-  if (winnerSide === 1) return { label: "LOST", cls: "text-pv-danger border-pv-danger/40 bg-pv-danger/[0.06]" };
-  if (winnerSide === 3 || winnerSide === 4) return { label: v.paid ? "REFUNDED" : "REFUNDING", cls: "text-pv-gold border-pv-gold/40 bg-pv-gold/[0.08]" };
+  if (winnerSide === 2) return { key: v.paid ? "wonPaid" : "won", cls: "text-win" };
+  if (winnerSide === 1) return { key: "lost", cls: "text-danger" };
+  if (winnerSide === 3 || winnerSide === 4) return { key: v.paid ? "refunded" : "refunding", cls: "text-muted" };
   return null;
 }
 
@@ -49,6 +54,7 @@ interface Props {
 }
 
 export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Props) {
+  const t = useTranslations("arena.council");
   const [data, setData] = useState<CouncilResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,98 +75,67 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
   }, [claimId]);
 
   if (loading) {
-    return (
-      <section className="border border-pv-border/25 bg-pv-surface p-5">
-        <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-muted">Council verdict</div>
-        <div className="mt-2 text-sm text-pv-muted">Reading on-chain stakes…</div>
-      </section>
-    );
+    return <p className="m-0 text-[13px] text-muted">{t("reading")}</p>;
   }
 
-  if (error || !data) return null;
-  if (data.total === 0) return null;
+  if (error || !data) return <p className="m-0 text-[13px] text-muted">{t("unavailable")}</p>;
+  if (data.total === 0) return <p className="m-0 text-[13px] text-muted">{t("empty")}</p>;
 
   const isResolved = claimState === 2;
 
   return (
-    <section className="border border-pv-border/25 bg-pv-surface p-5">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-pv-emerald">
-            Council verdict
-          </div>
-          <p className="mt-0.5 text-[12px] text-pv-muted">
-            {isResolved
-              ? `Where each of the ${data.total} AI personas bet — and what it cost them.`
-              : `Where each of the ${data.total} AI personas stands. ✓ means they staked the challenger side.`}
-          </p>
-        </div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-pv-muted">
-          {data.stakedCount} of {data.total} staked · {data.totalUsdc.toFixed(2)} USDC
-        </div>
+    <section className="grid gap-4" aria-label={t("label")}>
+      <div className="grid gap-1.5">
+        <p className="m-0 font-display text-[1.6rem] leading-none text-cream">
+          {t("staked", { staked: data.stakedCount, total: data.total })}
+          <span className="ml-2 font-mono text-[14px] text-muted">{data.totalUsdc.toFixed(2)} USDC</span>
+        </p>
+        <p className="m-0 text-[13px] text-muted">
+          {isResolved ? t("hintResolved") : t("hintLive")}
+        </p>
       </div>
-
-      {(["classic", "philosopher"] as const).map((track) => {
-        const votes = data.votes.filter((v) => (v.track ?? "classic") === track);
-        if (votes.length === 0) return null;
-        return (
-          <div key={track} className="mt-3 first:mt-0">
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-pv-muted">
-              {track === "classic" ? "Classic jury" : "Philosopher jury"}
-            </div>
-            <ul className="bp-cells grid-cols-1 border border-pv-border/25 sm:grid-cols-2">
-              {votes.map((v) => {
-                const outcome = isResolved ? outcomeTag(v, winnerSide) : null;
-                return (
-                  <li
-                    key={v.slug}
-                    className={`flex items-center justify-between gap-2 px-3 py-2 ${
-                      v.staked ? "bg-pv-emerald/[0.06]" : "bg-pv-surface"
-                    }`}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <PeepAvatar seed={`council-${v.slug}`} size={28} tone={v.staked ? "accent" : "neutral"} />
-                      <span className={`truncate text-[12px] font-semibold ${v.staked ? "text-pv-text" : "text-pv-muted"}`}>
-                        {v.displayName}
-                      </span>
-                    </div>
-                    {v.staked ? (
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {outcome ? (
-                          <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] ${outcome.cls}`}>
-                            {outcome.label}
+      <Disclosure summary={t("seeAll")} meta={data.total}>
+        <div className="grid gap-4">
+          {(["classic", "philosopher"] as const).map((track) => {
+            const votes = data.votes.filter((v) => (v.track ?? "classic") === track);
+            if (votes.length === 0) return null;
+            return (
+              <div key={track} className="grid gap-1.5">
+                <p className="m-0 text-[12px] text-dim">{t(track)}</p>
+                <ul className="m-0 grid list-none gap-1 p-0 sm:grid-cols-2">
+                  {votes.map((v) => {
+                    const outcome = isResolved ? outcomeTag(v, winnerSide) : null;
+                    return (
+                      <li
+                        key={v.slug}
+                        className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 ${v.staked ? "bg-coral/[0.07]" : "bg-cream/[0.03]"}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <PeepAvatar seed={`council-${v.slug}`} size={26} tone={v.staked ? "accent" : "neutral"} />
+                          <span className={`truncate text-[13px] ${v.staked ? "text-cream" : "text-muted"}`}>{v.displayName}</span>
+                        </span>
+                        {v.staked ? (
+                          <span className="flex shrink-0 items-center gap-2 font-mono text-[12px] tabular-nums">
+                            {outcome ? <span className={outcome.cls}>{t(outcome.key)}</span> : null}
+                            <span className={outcome ? "text-muted" : "text-cream"}>{v.stakeUsdc.toFixed(2)}</span>
+                            {!outcome ? (
+                              <a href={explorerAddr(v.address)} target="_blank" rel="noreferrer" aria-label={t("explorer", { name: v.displayName })} className="text-muted hover:text-coral">
+                                ↗
+                              </a>
+                            ) : null}
                           </span>
                         ) : (
-                          <span className="font-mono text-[10px] tabular-nums text-pv-emerald">
-                            ✓ {v.stakeUsdc.toFixed(2)} USDC
-                          </span>
+                          <span className="shrink-0 text-[12px] text-dim">{t("abstain")}</span>
                         )}
-                        {!outcome && (
-                          <a
-                            href={explorerAddr(v.address)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-[10px] text-pv-muted hover:text-pv-emerald"
-                          >
-                            ↗
-                          </a>
-                        )}
-                        {outcome && (
-                          <span className="font-mono text-[10px] tabular-nums text-pv-muted">
-                            {v.stakeUsdc.toFixed(2)} USDC
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">— abstain</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </Disclosure>
     </section>
   );
 }
