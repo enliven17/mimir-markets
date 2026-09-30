@@ -84,6 +84,10 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 
 ## Primitives (`components/ui/`)
 
+Import each primitive from its own file (`@/components/ui/Button`). There is
+no barrel: Turbopack does not tree-shake one, and a shared barrel was copied
+into every prefetched route chunk.
+
 | Component | What |
 |---|---|
 | `Button` (`primary`, `ghost`, `light`, `secondary`, `danger`; `sm` / `md` / `lg`), `buttonClass()` for links | pill buttons, press scale .97 |
