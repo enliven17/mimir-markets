@@ -1807,6 +1807,13 @@
     "retry": "Try again",
     "home": "Back to the arena"
   },
+  "notFound": {
+    "status": "404",
+    "title": "Nothing here.",
+    "body": "This page moved or never existed.",
+    "arena": "Go to the arena",
+    "home": "Home"
+  },
   "arena": {
     "phase": {
       "open": "Open",
