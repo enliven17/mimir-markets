@@ -174,7 +174,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
         aria-expanded={menuOpen}
         aria-controls={menuId}
         aria-label={t("chipAria", { address: shortAddress(address), wallet: wallet?.adapter.name ?? "" })}
-        onClick={() => (menuOpen ? close(false) : openMenu(null))}
+        // Enter / Space (detail 0) land on the first item, as a menu button should; a click keeps focus on the chip.
+        onClick={(e) => (menuOpen ? close(false) : openMenu(e.detail === 0 ? 0 : null))}
         onKeyDown={onChipKey}
         className="wallet-chip is-connected press"
       >
@@ -189,14 +190,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
       </button>
 
       {menuOpen ? (
-        <div
-          ref={menuRef}
-          id={menuId}
-          role="menu"
-          aria-label={t("menuLabel")}
-          onKeyDown={onMenuKey}
-          className="wallet-menu"
-        >
+        <div ref={menuRef} onKeyDown={onMenuKey} className="wallet-menu">
+          {/* Account summary above the menu: a menu may only hold menu items. */}
           <div className="px-2.5 pb-2 pt-1.5">
             <p className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.06em] text-muted">
               {t("devnet")}
@@ -204,7 +199,6 @@ export default function WalletChip({ className = "" }: { className?: string }) {
                 <Link
                   href="/token"
                   data-menu-item
-                  role="menuitem"
                   title={tt("chipTitle")}
                   onClick={() => close(false)}
                   className="rounded-full bg-red/[0.14] px-2 py-0.5 normal-case tracking-normal text-pending"
@@ -229,6 +223,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
               </div>
             </dl>
           </div>
+          <div id={menuId} role="menu" aria-label={t("menuLabel")} className="grid gap-[3px]">
           <button type="button" role="menuitem" data-menu-item onClick={copy} className={menuItem}>
             {copied ? <Check size={14} aria-hidden className="text-win" /> : <Copy size={14} aria-hidden />}
             {copied ? t("copied") : t("copy")}
@@ -262,6 +257,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             <LogOut size={14} aria-hidden />
             {t("disconnect")}
           </button>
+          </div>
         </div>
       ) : null}
     </div>
