@@ -59,13 +59,20 @@ export function useWalletFunds() {
         .catch(() => null),
     ]);
     const virtualUnits = mimir && layer ? await readVirtual(mimir, layer).catch(() => null) : null;
-    setFunds({ lamports, usdcUnits, virtualUnits, layer });
+    // Same values: keep the previous object so a poll re-renders nothing.
+    setFunds((prev) =>
+      prev.lamports === lamports && prev.usdcUnits === usdcUnits && prev.virtualUnits === virtualUnits && prev.layer === layer
+        ? prev
+        : { lamports, usdcUnits, virtualUnits, layer },
+    );
   }, [owner, connection, mimir]);
 
   useEffect(() => {
     void reload();
     if (!owner) return;
-    const timer = setInterval(() => void reload(), POLL_MS);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void reload();
+    }, POLL_MS);
     return () => clearInterval(timer);
   }, [owner, reload]);
 

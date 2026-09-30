@@ -114,7 +114,7 @@ export default function BalanceCard({
 
       <div className="grid gap-2 border-t border-line pt-4">
         <p className="m-0 text-[13px] leading-relaxed text-muted">{t("balanceHint")}</p>
-        <Button size="sm" variant="ghost" loading={busy === "withdraw"} disabled={!!busy || balance === 0n} onClick={() => void withdraw()}>
+        <Button size="sm" variant="ghost" data-action="withdraw" loading={busy === "withdraw"} disabled={!!busy || balance === 0n} onClick={() => void withdraw()}>
           {busy === "withdraw" ? t("working") : t("withdrawButton")}
         </Button>
         {lastSig ? (

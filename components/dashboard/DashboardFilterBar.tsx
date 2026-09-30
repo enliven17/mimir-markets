@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * Tabs (all / live / settling / done) with counts, a search field, and
- * category + minimum own-stake selects for the dashboard position list.
+ * The positions control row: phase tabs with counts, a search pill, a
+ * Filters popover (category, minimum own stake) and refresh. Every value
+ * lives in the URL (`hooks/useDashboardFilterUrlState.ts`).
  */
-import type { KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { RefreshCw, Search, X } from "lucide-react";
+import { RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
+import { Chip, Segmented } from "@/components/ui";
 import { CATEGORIES } from "@/lib/constants";
 import {
   DASHBOARD_MIN_STAKE_OPTIONS,
@@ -22,105 +24,172 @@ interface Props {
   onChange: (patch: Partial<DashboardFilters>) => void;
   onRefresh: () => void;
   refreshing: boolean;
+  resultCount: number;
 }
 
-const selectClass = "input !w-auto !py-2 font-mono text-xs";
-
-export default function DashboardFilterBar({ filters, counts, onChange, onRefresh, refreshing }: Props) {
+export default function DashboardFilterBar({ filters, counts, onChange, onRefresh, refreshing, resultCount }: Props) {
   const t = useTranslations("dashboard");
 
-  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const i = DASHBOARD_TABS.indexOf(filters.tab);
-    const next =
-      e.key === "ArrowRight" ? DASHBOARD_TABS[(i + 1) % DASHBOARD_TABS.length]
-      : e.key === "ArrowLeft" ? DASHBOARD_TABS[(i - 1 + DASHBOARD_TABS.length) % DASHBOARD_TABS.length]
-      : e.key === "Home" ? DASHBOARD_TABS[0]
-      : e.key === "End" ? DASHBOARD_TABS[DASHBOARD_TABS.length - 1]
-      : null;
-    if (!next) return;
-    e.preventDefault();
-    onChange({ tab: next });
-    (e.currentTarget.querySelector(`[data-tab="${next}"]`) as HTMLButtonElement | null)?.focus();
-  };
-
   return (
-    <div className="space-y-3 border-b border-pv-border/25 px-4 py-4 sm:px-6">
-      <div role="tablist" aria-label={t("tabsAria")} onKeyDown={onTabKey} className="grid grid-cols-2 gap-px border border-pv-border/25 bg-pv-border/25 sm:grid-cols-4">
-        {DASHBOARD_TABS.map((tab) => {
-          const active = filters.tab === tab;
-          return (
-            <button
-              key={tab}
-              data-tab={tab}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => onChange({ tab })}
-              className={`flex min-h-[44px] items-center justify-between gap-2 px-3 py-2 font-display text-[11px] font-bold uppercase tracking-[0.12em] transition-colors focus-ring ${
-                active ? "bg-pv-emerald/[0.14] text-pv-text shadow-[inset_0_-2px_0_0_rgb(var(--pv-accent))]" : "bg-pv-bg text-pv-muted hover:bg-pv-surface hover:text-pv-text"
-              }`}
-            >
-              {t(`tabs.${tab}`)}
-              <span className="font-mono text-[11px] tabular-nums">{counts[tab]}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-[12rem] flex-1">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center">
+      <Segmented
+        label={t("tabsAria")}
+        value={filters.tab}
+        onChange={(tab) => onChange({ tab })}
+        tone="maroon"
+        className="md:w-[440px] md:flex-none"
+        options={DASHBOARD_TABS.map((tab) => ({ value: tab, label: t(`tabs.${tab}`), count: counts[tab] }))}
+      />
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:justify-end">
+        <label className="relative min-w-0 flex-1 md:max-w-[280px]">
           <span className="sr-only">{t("searchLabel")}</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-pv-muted" aria-hidden />
+          <Search size={16} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-dim" />
           <input
             type="search"
+            inputMode="search"
+            autoComplete="off"
             value={filters.search}
             onChange={(e) => onChange({ search: e.target.value })}
             placeholder={t("searchPlaceholder")}
-            className="input !py-2 !pl-8 !pr-8 text-sm"
+            className="input !min-h-[46px] !py-2.5 !pl-11 !pr-11 !text-[14px] [&::-webkit-search-cancel-button]:hidden"
           />
           {filters.search ? (
             <button
               type="button"
               onClick={() => onChange({ search: "" })}
               aria-label={t("clearSearch")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-pv-muted hover:text-pv-text focus-ring"
+              className="press absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted hover:text-cream"
             >
-              <X className="size-3.5" aria-hidden />
+              <X size={15} aria-hidden />
             </button>
           ) : null}
         </label>
-        <label className="flex items-center gap-2">
-          <span className="sr-only">{t("categoryLabel")}</span>
-          <select value={filters.cat} onChange={(e) => onChange({ cat: e.target.value })} className={selectClass}>
-            <option value="all">{t("allCategories")}</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="sr-only">{t("minStakeLabel")}</span>
-          <select value={filters.minStake} onChange={(e) => onChange({ minStake: Number(e.target.value) })} className={selectClass}>
-            {DASHBOARD_MIN_STAKE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n === 0 ? t("anyStake") : t("minStake", { n })}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FiltersPopover filters={filters} onChange={onChange} resultCount={resultCount} />
         <button
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
           aria-label={t("refresh")}
-          className="inline-flex h-10 w-10 items-center justify-center border border-pv-border/25 text-pv-muted transition-colors hover:border-pv-emerald/50 hover:text-pv-text disabled:opacity-60 focus-ring"
+          className="btn-ghost !min-h-[46px] !w-[46px] !flex-none !p-0 disabled:opacity-60"
         >
-          <RefreshCw className={`size-4 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden />
+          <RefreshCw size={15} className={refreshing ? "animate-spin motion-reduce:animate-none" : ""} aria-hidden />
         </button>
       </div>
+    </div>
+  );
+}
+
+function FiltersPopover({
+  filters,
+  onChange,
+  resultCount,
+}: {
+  filters: DashboardFilters;
+  onChange: (patch: Partial<DashboardFilters>) => void;
+  resultCount: number;
+}) {
+  const t = useTranslations("dashboard");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const active = (filters.cat !== "all" ? 1 : 0) + (filters.minStake > 0 ? 1 : 0);
+
+  useEffect(() => {
+    if (!open) return;
+    document.getElementById(panelId)?.querySelector<HTMLElement>("button")?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, panelId]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={active ? t("filtersActive", { count: active }) : t("filters")}
+        onClick={() => setOpen((o) => !o)}
+        className="btn-ghost !min-h-[46px] !w-auto !gap-2 !px-4 !text-[17px]"
+      >
+        <SlidersHorizontal size={15} aria-hidden />
+        <span className="max-sm:sr-only">{t("filters")}</span>
+        {active ? (
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-coral px-1.5 font-mono text-[11px] text-[#160909]">
+            {active}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label={t("filters")}
+          data-lenis-prevent
+          className="glass-deep pop-in absolute right-0 top-[calc(100%+8px)] z-40 grid w-[min(340px,calc(100vw-2*var(--gut)))] gap-5 rounded-3xl bg-[rgb(14_7_9/.92)] p-5 shadow-modal"
+        >
+          <fieldset className="m-0 grid gap-2.5 border-0 p-0">
+            <legend className="label !mb-2.5">{t("categoryLabel")}</legend>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={filters.cat === "all"} onClick={() => onChange({ cat: "all" })}>
+                {t("allCategories")}
+              </Chip>
+              {CATEGORIES.map((c) => (
+                <Chip key={c.id} active={filters.cat === c.id} onClick={() => onChange({ cat: c.id })}>
+                  {c.label}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="m-0 grid gap-2.5 border-0 p-0">
+            <legend className="label !mb-2.5">{t("minStakeLabel")}</legend>
+            <div className="flex flex-wrap gap-2">
+              {DASHBOARD_MIN_STAKE_OPTIONS.map((n) => (
+                <Chip key={n} active={filters.minStake === n} onClick={() => onChange({ minStake: n })}>
+                  {n === 0 ? t("anyStake") : t("minStake", { n })}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+            <button
+              type="button"
+              className="press rounded-full px-3 py-2 text-[14px] text-muted transition-colors hover:text-cream disabled:opacity-40"
+              disabled={active === 0}
+              onClick={() => onChange({ cat: "all", minStake: 0 })}
+            >
+              {t("reset")}
+            </button>
+            <button
+              type="button"
+              className="btn-light !min-h-[40px] !w-auto !px-5 !text-[14px]"
+              onClick={() => {
+                setOpen(false);
+                buttonRef.current?.focus();
+              }}
+            >
+              {t("done", { count: resultCount })}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

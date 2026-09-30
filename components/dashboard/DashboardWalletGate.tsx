@@ -1,29 +1,29 @@
 "use client";
 
-/** Dashboard without a connected wallet: one framed connect card. */
+/** Portfolio without a connected wallet: one centred connect sheet. */
 import { useTranslations } from "next-intl";
-import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
-import { Wallet } from "lucide-react";
 
+import { SURFACE_DEEP } from "@/components/arena/surface";
+import { Sheet } from "@/components/ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 
 export default function DashboardWalletGate() {
   const t = useTranslations("dashboard");
   return (
-    <div className="px-4 py-8 sm:px-6">
-      <section aria-labelledby="dashboard-connect-heading" className="mx-auto max-w-md border border-pv-border/30 bg-pv-surface px-5 py-8 text-center">
-        <Wallet className="mx-auto size-6 text-pv-muted" aria-hidden />
-        <h2 id="dashboard-connect-heading" className="mt-4 text-sm font-semibold text-pv-text">
+    <Sheet center className={`mx-auto max-w-[480px] !px-6 !py-9 ${SURFACE_DEEP}`}>
+      <section aria-labelledby="dashboard-connect-heading" className="grid justify-items-center gap-3">
+        <h2 id="dashboard-connect-heading" className="m-0 font-display text-[1.6rem] leading-none text-cream">
           {t("connectTitle")}
         </h2>
-        <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-pv-muted">{t("connectDesc")}</p>
-        <div className="mt-6 flex justify-center">
+        <p className="m-0 max-w-[34ch] text-[14px] leading-relaxed text-muted">{t("connectDesc")}</p>
+        <div className="mt-3">
           <ConnectWalletButton />
         </div>
-        <Link href="/arena" className="mt-6 inline-block text-xs text-pv-emerald underline-offset-4 hover:underline">
+        <Link href="/arena" className="mt-1 text-[14px] text-coral underline-offset-4 hover:underline">
           {t("connectExploreLink")}
         </Link>
       </section>
-    </div>
+    </Sheet>
   );
 }

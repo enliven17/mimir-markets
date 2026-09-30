@@ -1,60 +1,62 @@
 "use client";
 
 /**
- * /dashboard — the connected wallet's side of Mimir: onboarding until the
- * first stake, balances (virtual balance in the ER or on base, USDC token
- * account, SOL), payouts it can pull now, a record, and every position it
- * holds as creator or challenger (from the read index). No mock data: empty
- * states say what to do next.
+ * /dashboard (Portfolio): the connected wallet's side of Mimir. The Mimir
+ * balance is the hero number with Deposit and Withdraw (both open the balance
+ * sheet), the record in one line, a one-line setup banner until the first
+ * stake, "Ready to claim" only when payouts exist, then every position it
+ * holds as creator or challenger with phase tabs, search and filters in the
+ * URL. No mock data: empty states say what to do next.
  */
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-import { BlueprintHeading, BlueprintStat } from "@/components/BlueprintGrid";
+import { SURFACE } from "@/components/arena/surface";
 import ClaimablePayouts from "@/components/dashboard/ClaimablePayouts";
 import DashboardFilterBar from "@/components/dashboard/DashboardFilterBar";
 import DashboardWalletGate from "@/components/dashboard/DashboardWalletGate";
-import FundsPanel from "@/components/dashboard/FundsPanel";
+import FundsPanel, { type FundsAction } from "@/components/dashboard/FundsPanel";
 import PositionList from "@/components/dashboard/PositionList";
-import { OnboardingChecklistView } from "@/components/onboarding/OnboardingChecklist";
-import HolderBadge from "@/components/token/HolderBadge";
-import { useHolderTier } from "@/components/token/useHolderTier";
-import PeepAvatar from "@/components/ui/PeepAvatar";
+import { OnboardingBannerView } from "@/components/onboarding/OnboardingChecklist";
+import { Button, Skeleton } from "@/components/ui";
 import { useDashboardFilterUrlState } from "@/hooks/useDashboardFilterUrlState";
 import { useUserPositions } from "@/hooks/useUserPositions";
 import { useWalletFunds } from "@/hooks/useWalletFunds";
 import { applyDashboardFilters, summarizePositions } from "@/lib/dashboard-positions";
 import { formatDashboardSnapshotAge } from "@/lib/dashboardSnapshotAge";
-import { formatUsdcUnits } from "@/lib/money";
+import { formatUsdcUnits, formatUsdcUnitsBare } from "@/lib/money";
+
+const sol = (lamports: bigint | null) =>
+  lamports === null ? "…" : (Number(lamports) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 export default function DashboardClient() {
   const t = useTranslations("dashboard");
-  const locale = useLocale();
   const { publicKey, connected } = useWallet();
   const address = connected && publicKey ? publicKey.toBase58() : null;
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="flex items-baseline justify-between gap-4">
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
+        {address ? (
+          <span className="truncate font-mono text-[13px] text-muted" title={address}>
+            {address.slice(0, 4)}…{address.slice(-4)}
+          </span>
+        ) : null}
+      </header>
+      {address ? <Connected address={address} /> : <DashboardWalletGate />}
+    </div>
+  );
+}
+
+function Connected({ address }: { address: string }) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
   const funds = useWalletFunds();
   const positions = useUserPositions(address);
   const { filters, update, reset } = useDashboardFilterUrlState();
-  // The connected wallet's tier: shares the header chip's request.
-  const holder = useHolderTier();
-
-  const heading = (
-    <BlueprintHeading as="h1" eyebrow={t("eyebrow")} subtitle={t("subtitle")}>
-      {t("title")}
-    </BlueprintHeading>
-  );
-
-  if (!address) {
-    return (
-      <>
-        {heading}
-        <div className="px-4 pt-6 sm:px-6">
-          <OnboardingChecklistView funds={funds} mimir={funds.mimir} hasStake={null} />
-        </div>
-        <DashboardWalletGate />
-      </>
-    );
-  }
+  const [sheet, setSheet] = useState<FundsAction | null>(null);
 
   const summary = summarizePositions(positions.claims, address);
   const filtered = applyDashboardFilters(positions.claims, filters, address);
@@ -64,49 +66,70 @@ export default function DashboardClient() {
     void funds.reload();
   };
   const age = positions.indexedAt > 0 ? formatDashboardSnapshotAge(Date.now() - positions.indexedAt * 1000, locale) : null;
+  const layer = funds.layer ?? "none";
 
   return (
     <>
-      {heading}
-      <div className="flex min-w-0 items-center gap-2 border-b border-pv-border/25 px-4 py-3 sm:px-6">
-        <PeepAvatar seed={`creator-${address}`} size={28} tone="accent" />
-        <span className="min-w-0 truncate font-mono text-xs text-pv-text" title={address}>
-          {address.slice(0, 4)}…{address.slice(-4)}
-        </span>
-        <HolderBadge tier={holder.state?.tier} />
-      </div>
-      <OnboardingChecklistView funds={funds} mimir={funds.mimir} hasStake={hasStake} onFunded={funds.reload} className="mx-4 my-5 sm:mx-6" />
-
-      <FundsPanel funds={funds} mimir={funds.mimir} onChanged={refreshAll} />
-      <ClaimablePayouts claims={positions.claims} viewer={address} mimir={funds.mimir} onPaid={refreshAll} />
+      <section aria-label={t(`virtual.${layer}`)} className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
+        <div className="min-w-0">
+          <p className="m-0 text-[13px] text-muted">{t(`virtual.${layer}`)}</p>
+          <p className="m-0 mt-2 flex h-[clamp(2.6rem,11vw,3.6rem)] items-center font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
+            {funds.virtualUnits === null ? (
+              <Skeleton className="h-[70%] w-40" />
+            ) : (
+              <>
+                <span className="mr-1 text-[0.6em] text-muted">$</span>
+                {formatUsdcUnitsBare(funds.virtualUnits)}
+              </>
+            )}
+          </p>
+          <p className="m-0 mt-2 text-[13px] text-muted">
+            {t("walletLine", { usdc: funds.usdcUnits === null ? "…" : formatUsdcUnits(funds.usdcUnits), sol: sol(funds.lamports) })}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-none">
+          <Button size="sm" onClick={() => setSheet("deposit")} className="sm:!w-auto">
+            {t("deposit")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSheet("withdraw")} disabled={!funds.virtualUnits} className="sm:!w-auto">
+            {t("withdraw")}
+          </Button>
+        </div>
+      </section>
 
       {positions.claims.length > 0 ? (
-        <section aria-label={t("recordAria")} className="bp-grid grid-cols-2 border-b border-pv-border/25 sm:grid-cols-4">
-          <BlueprintStat value={summary.won} label={t("won")} />
-          <BlueprintStat value={summary.lost} label={t("lost")} tone="text" />
-          <BlueprintStat value={`${summary.winRate}%`} label={t("winRate")} />
-          <BlueprintStat value={formatUsdcUnits(summary.atRisk)} label={t("atRisk")} tone="gold" />
-        </section>
+        <p aria-label={t("recordAria")} className="m-0 -mt-2 text-[14px] text-muted sm:-mt-4">
+          {t("record", {
+            won: summary.won,
+            lost: summary.lost,
+            rate: summary.winRate,
+            atRisk: formatUsdcUnits(summary.atRisk),
+          })}
+        </p>
       ) : null}
 
-      <section aria-labelledby="dashboard-positions" id="dashboard-positions-section">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-pv-border/25 px-4 pt-5 pb-3 sm:px-6">
-          <h2 id="dashboard-positions" className="font-display text-lg font-bold uppercase tracking-tight text-pv-text">
+      <OnboardingBannerView funds={funds} hasStake={hasStake} />
+
+      <ClaimablePayouts claims={positions.claims} viewer={address} mimir={funds.mimir} onPaid={refreshAll} />
+
+      <section aria-labelledby="dashboard-positions" id="dashboard-positions-section" className="grid gap-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="dashboard-positions" className="m-0 font-display text-[1.6rem] leading-none text-cream">
             {t("positionsTitle")}
           </h2>
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
+          <p className="m-0 text-[13px] text-muted">
             {t("total", { count: summary.total })}
-            {age ? ` · ${t("indexed", { age })}` : ""}
             {summary.totalWon > 0n ? ` · ${t("totalWon", { amount: formatUsdcUnits(summary.totalWon) })}` : ""}
+            {age ? ` · ${t("indexed", { age })}` : ""}
           </p>
         </div>
 
         {positions.error ? (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 sm:px-6">
-            <p className="text-xs text-pv-danger">{t("loadFailed")}</p>
-            <button type="button" onClick={() => void positions.reload()} className="btn-ghost !w-auto !min-h-0 !px-3 !py-1.5 !text-[11px]">
+          <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-danger/[0.1] py-2 pl-4 pr-2 text-[14px] text-danger">
+            <span className="min-w-0">{t("loadFailed")}</span>
+            <Button size="sm" variant="ghost" fullWidth={false} className="!min-h-[36px] !px-4 !text-[14px]" onClick={() => void positions.reload()}>
               {t("retry")}
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -116,6 +139,7 @@ export default function DashboardClient() {
           onChange={update}
           onRefresh={refreshAll}
           refreshing={positions.refreshing}
+          resultCount={filtered.length}
         />
         <PositionList
           claims={filtered}
@@ -125,6 +149,15 @@ export default function DashboardClient() {
           onResetFilters={reset}
         />
       </section>
+
+      <FundsPanel
+        open={sheet !== null}
+        action={sheet ?? "deposit"}
+        onClose={() => setSheet(null)}
+        funds={funds}
+        mimir={funds.mimir}
+        onChanged={refreshAll}
+      />
     </>
   );
 }

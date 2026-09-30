@@ -1,14 +1,17 @@
 "use client";
 
 /**
- * Payout legs the wallet can pull now, across every RESOLVED claim it holds.
- * Each button runs the permissionless payout crank straight to the wallet's
- * USDC token account (the oracle cranks them too; this is just sooner).
+ * "Ready to claim": payout legs the wallet can pull now, across every
+ * RESOLVED claim it holds; renders nothing when there are none. Each button
+ * runs the permissionless payout crank straight to the wallet's USDC token
+ * account (the oracle cranks them too; this is just sooner).
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { SURFACE } from "@/components/arena/surface";
+import { Button } from "@/components/ui";
 import { Link } from "@/i18n/navigation";
 import type { BrowserMimir } from "@/lib/solana/browser-client";
 import { payoutChallenger, payoutCreator } from "@/lib/solana/browser-client-lazy";
@@ -54,34 +57,37 @@ export default function ClaimablePayouts({ claims, viewer, mimir, onPaid }: Prop
   };
 
   return (
-    <section aria-labelledby="dashboard-claimable" className="border-b border-pv-border/25 px-4 py-5 sm:px-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="dashboard-claimable" className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-pv-gold">
+    <section aria-labelledby="dashboard-claimable" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="dashboard-claimable" className="m-0 flex items-center gap-2 font-display text-[1.4rem] leading-none text-cream">
+          <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
           {t("claimableTitle")}
         </h2>
-        <p className="font-mono text-sm tabular-nums text-pv-gold">{formatUsdcUnits(total)}</p>
+        <p className="m-0 font-mono text-[18px] tabular-nums text-cream">{formatUsdcUnits(total)}</p>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-pv-muted">{t("claimableHint")}</p>
-      <ul className="mt-3 divide-y divide-pv-border/15 border border-pv-border/25">
+      <p className="m-0 -mt-2 text-[13px] leading-relaxed text-muted">{t("claimableHint")}</p>
+      <ul className="m-0 grid list-none gap-2 p-0">
         {legs.map((leg) => (
-          <li key={leg.key} className="flex flex-wrap items-center justify-between gap-3 bg-pv-bg px-3 py-2.5">
-            <div className="min-w-0">
-              <Link href={`/arena/${leg.claimId}`} className="block truncate text-sm text-pv-text hover:text-pv-emerald">
-                <span className="mr-1.5 font-mono text-xs text-pv-muted">#{leg.claimId}</span>
+          <li key={leg.key} className="flex items-center gap-3 rounded-xl bg-cream/[0.035] py-2.5 pl-4 pr-2.5">
+            <div className="min-w-0 flex-1">
+              <Link href={`/arena/${leg.claimId}`} className="block truncate text-[14px] text-cream hover:text-coral">
+                <span className="mr-1.5 font-mono text-[12px] text-dim">#{leg.claimId}</span>
                 {byId.get(leg.claimId)?.question}
               </Link>
-              <p className="font-mono text-[11px] tabular-nums text-pv-muted">
+              <p className="m-0 font-mono text-[12px] tabular-nums text-muted">
                 {t("legAmounts", { gross: formatUsdcUnits(leg.gross), net: formatUsdcUnits(leg.net) })}
               </p>
             </div>
-            <button
-              type="button"
-              className="btn-primary !w-auto !min-h-0 !px-3 !py-1.5 !text-[11px] disabled:opacity-50"
+            <Button
+              size="sm"
+              fullWidth={false}
+              className="!min-h-[40px] !px-4 !text-[14px]"
+              loading={busy === leg.key}
               disabled={!mimir || !!busy}
               onClick={() => void pull(leg)}
             >
               {busy === leg.key ? t("working") : t("pull")}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

@@ -83,9 +83,22 @@ export default function OnboardingChecklist({ className = "" }: { className?: st
 
 /** One line with progress and Continue; the checklist opens in a sheet. Hidden once done or dismissed. */
 export function OnboardingBanner({ className = "" }: { className?: string }) {
+  const { funds, hasStake } = useOnboardingData();
+  return <OnboardingBannerView funds={funds} hasStake={hasStake} className={className} />;
+}
+
+/** The banner over data the page already reads (the portfolio), so nothing is fetched twice. */
+export function OnboardingBannerView({
+  funds,
+  hasStake,
+  className = "",
+}: {
+  funds: ReturnType<typeof useWalletFunds>;
+  hasStake: boolean | null;
+  className?: string;
+}) {
   const t = useTranslations("arena.feed");
   const { connected } = useWallet();
-  const { funds, hasStake } = useOnboardingData();
   const { dismissed, dismiss } = useDismissed();
   const [open, setOpen] = useState(false);
 
