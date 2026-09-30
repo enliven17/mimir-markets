@@ -13,7 +13,7 @@ import {
   type EvidenceSnapshot,
 } from "@/lib/server/evidence-fetcher";
 
-const DEFAULT_GEMINI_MODEL = process.env.CLAIM_DRAFT_MODEL || "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = process.env.CLAIM_DRAFT_MODEL || "gemini-3.5-flash";
 const MAX_SOURCE_CHARS = 14000;
 const BLOCKED_SOURCE_HOSTS = [
   "x.com",

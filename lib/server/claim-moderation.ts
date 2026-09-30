@@ -47,7 +47,7 @@ const LOCAL_BLOCK_PATTERNS: Array<{
 ];
 
 const DEFAULT_GEMINI_MODEL =
-  process.env.CLAIM_MODERATION_MODEL || "gemini-2.5-flash";
+  process.env.CLAIM_MODERATION_MODEL || "gemini-3.5-flash";
 
 export type ClaimModerationInput = {
   question: string;

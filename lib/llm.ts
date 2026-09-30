@@ -59,7 +59,7 @@ function overrideFor(prefixes: string[]): string | undefined {
   return id && prefixes.some((p) => id.startsWith(p)) ? id : undefined;
 }
 
-const DEFAULT_GEMINI_MODEL = overrideFor(["gemini", "gemma"]) || "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = overrideFor(["gemini", "gemma"]) || "gemini-3.5-flash";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || overrideFor(["claude"]) || "claude-sonnet-4-6";
 const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
 const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "openrouter/free";
