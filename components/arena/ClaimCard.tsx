@@ -1,10 +1,21 @@
 "use client";
 
+/**
+ * Feed card: the question, a thin odds bar with both sides, and one footer
+ * row (pool, time left or verdict, status). Category and seats appear on
+ * hover or focus; everything else lives on the claim page. The whole card is
+ * the link.
+ */
+import { memo, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { formatUsdcUnitsBare as usdc } from "@/lib/money";
-import { PeepStack } from "@/components/ui/PeepAvatar";
-import { claimPhase, isArchivedState, isLiveState, PHASE_LABEL } from "@/lib/claim-status";
+import { RollingNumber } from "@/components/motion";
+import { FeedCard } from "@/components/ui";
 import OddsBar from "@/components/arena/OddsBar";
+import { claimPhase, displayedSide, type ClaimPhase } from "@/lib/claim-status";
+import Countdown from "@/components/arena/Countdown";
+import { poolOf } from "@/lib/arena-feed";
+import { formatUsdcBare } from "@/lib/money";
 
 export interface SolanaClaim {
   id: number;
@@ -33,164 +44,84 @@ export interface SolanaClaim {
   disputableUntil?: number;
 }
 
-interface ClaimCardProps {
-  claim: SolanaClaim;
-  /** Kept for callers; links are locale-aware via i18n/navigation. */
-  locale?: string;
-}
+const money = (n: number) => `$${formatUsdcBare(n)}`;
 
-const ARENA_STAT_CELL =
-  "border border-pv-border/25 bg-pv-border/[0.03] px-3 py-2.5 sm:px-3.5 sm:py-3";
+const DOT: Record<ClaimPhase, string> = {
+  open: "bg-coral shadow-[0_0_7px_rgb(255_81_72/.58)]",
+  active: "bg-coral shadow-[0_0_7px_rgb(255_81_72/.58)]",
+  awaiting: "bg-pending",
+  proposed: "bg-pending",
+  disputed: "bg-danger",
+  resolved: "bg-win",
+  cancelled: "bg-[#615557]",
+};
 
-function formatArenaIdCode(id: number): string {
-  const n = Math.abs(id) % 100000;
-  const padded = String(n).padStart(4, "0");
-  const letter = String.fromCharCode(65 + (Math.abs(id) % 26));
-  return `#${padded}-${letter}`;
-}
+/**
+ * Memoized: the feed keeps unchanged claim objects between polls, so only
+ * cards whose claim changed re-render. `now` only moves the phase (the page
+ * passes a coarse clock); the countdown ticks on its own.
+ */
+const ClaimCard = memo(function ClaimCard({ claim, now, index = 0 }: { claim: SolanaClaim; now: number; index?: number }) {
+  const t = useTranslations("arena");
+  const leftFormat = useCallback((time: string) => t("card.left", { time }), [t]);
+  const phase = claimPhase(claim.state, claim.deadline, now);
+  const live = phase === "open" || phase === "active";
+  const side = displayedSide(claim.state, claim.winnerSide, claim.proposedSide);
+  const seats = claim.maxChallengers > 0 ? claim.maxChallengers : 1;
 
-type StatusVariant = "live" | "muted" | "archived" | "settling";
-
-function getStatusPresentation(state: number, deadline: number): {
-  label: string;
-  variant: StatusVariant;
-} {
-  const phase = claimPhase(state, deadline);
-  const label = PHASE_LABEL[phase].toUpperCase();
-  if (phase === "proposed" || phase === "disputed" || phase === "awaiting") return { label, variant: "settling" };
-  if (phase === "resolved" || phase === "cancelled") return { label, variant: "archived" };
-  if (phase === "active") return { label, variant: "live" };
-  return { label: "PENDING", variant: "muted" };
-}
-
-export default function ClaimCard({ claim }: ClaimCardProps) {
-  const activeChallengers = claim.challengers.length;
-  const maxChallengers =
-    typeof claim.maxChallengers === "number" && claim.maxChallengers > 0
-      ? claim.maxChallengers
-      : 1;
-  const isArchived = isArchivedState(claim.state);
-  const { label: statusLabel, variant: statusVariant } = getStatusPresentation(
-    claim.state,
-    claim.deadline
-  );
-
-  const poolUnits = (
-    Number(claim.creatorStake) + Number(claim.totalChallengerStake)
-  ).toString();
-
-  const isFlashTrade = (claim.resolutionUrl ?? "").includes("flashapi.trade");
-
-  const statusPillClass =
-    statusVariant === "live"
-      ? "font-display text-xs font-semibold uppercase tracking-wide text-pv-emerald bg-pv-emerald/10 px-2 py-1"
-      : statusVariant === "settling"
-        ? "font-display text-xs font-semibold uppercase tracking-wide text-pv-gold bg-pv-gold/10 px-2 py-1 ring-1 ring-pv-gold/25"
-        : "font-display text-xs font-semibold uppercase tracking-wide text-pv-muted bg-pv-border/[0.06] px-2 py-1 ring-1 ring-pv-border/25";
+  const timeCell = live ? (
+    <Countdown until={claim.deadline} format={leftFormat} />
+  ) : side
+      ? t(`side.${side}` as "side.1")
+      : phase === "awaiting"
+        ? t("card.closed")
+        : null;
 
   return (
-    <article className="group relative flex h-full flex-col gap-6 overflow-hidden bg-pv-bg p-6 transition-colors duration-300 hover:bg-pv-surface sm:gap-8 sm:p-8">
-      <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className={statusPillClass}>{statusLabel}</span>
-          {claim.delegated ? (
-            <span className="inline-flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-emerald bg-pv-emerald/10">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pv-emerald" />
-              ⚡ Live on ER
+    <FeedCard index={Math.min(index, 8)} className="group h-full ![-webkit-backdrop-filter:none] ![backdrop-filter:none] focus-within:shadow-bubble-hover">
+      <Link
+        href={`/arena/${claim.id}`}
+        className="flex h-full min-h-[212px] flex-col gap-4 rounded-2xl p-5 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral sm:p-6"
+      >
+        <div className="flex min-h-[22px] items-center justify-between gap-3 text-[12px]">
+          {claim.delegated && live ? (
+            <span className="inline-flex items-center gap-2 text-pending">
+              <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
+              {t("card.er")}
             </span>
-          ) : null}
-          {isFlashTrade ? (
-            <span className="inline-flex items-center rounded px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-gold bg-pv-gold/10 ring-1 ring-pv-gold/20">
-              Flash Trade
-            </span>
-          ) : null}
+          ) : (
+            <span className="font-mono text-dim">#{claim.id}</span>
+          )}
+          <span className="truncate text-muted transition-opacity duration-200 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+            {claim.category}
+            {" · "}
+            {t("card.seats", { count: claim.challengers.length, max: seats })}
+          </span>
         </div>
-        <span className="rounded px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-pv-muted ring-1 ring-pv-border/25">
-          {formatArenaIdCode(claim.id)}
-        </span>
-      </div>
 
-      <div className="relative z-10 min-w-0 flex-1">
-        <h3 className="line-clamp-2 font-display text-xl font-bold uppercase leading-tight tracking-tight text-pv-text sm:text-2xl">
-          {claim.question}
-        </h3>
-        <div className="mt-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-left text-[11px] font-display font-bold uppercase tracking-[0.12em] text-pv-muted sm:text-xs">
-              {claim.category}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-            <div className={ARENA_STAT_CELL}>
-              <span className="block font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pv-muted">
-                Min Stake
-              </span>
-              <span className="mt-1 block font-display text-sm font-bold uppercase tabular-nums tracking-tight text-pv-text sm:text-[15px]">
-                {usdc(claim.creatorStake)} USDC
-              </span>
-            </div>
-            <div className={ARENA_STAT_CELL}>
-              <span className="block font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pv-muted">
-                Category
-              </span>
-              <span className="mt-1 block truncate font-display text-sm font-bold uppercase leading-snug tracking-tight text-pv-text sm:text-[15px]">
-                {claim.category}
-              </span>
-            </div>
-            <div className={ARENA_STAT_CELL}>
-              <span className="block font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pv-muted">
-                Pool
-              </span>
-              <span className="mt-1 block font-display text-sm font-bold uppercase tabular-nums tracking-tight text-pv-text sm:text-[15px]">
-                {usdc(poolUnits)} USDC
-              </span>
-            </div>
-            <div className={ARENA_STAT_CELL}>
-              <span className="block font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pv-muted">
-                Fill Status
-              </span>
-              <span className="mt-1 block font-display text-sm font-bold uppercase tabular-nums tracking-tight text-pv-emerald sm:text-[15px]">
-                {activeChallengers}/{maxChallengers}
-              </span>
-            </div>
-          </div>
-          {isLiveState(claim.state) ? (
-            <OddsBar split={claim} creatorPosition={claim.creatorPosition} challengerPosition={claim.counterPosition} />
-          ) : null}
+        <h3 className="m-0 line-clamp-3 text-card-title text-cream [text-wrap:pretty]">{claim.question}</h3>
+
+        <OddsBar
+          split={claim}
+          creatorPosition={claim.creatorPosition}
+          challengerPosition={claim.counterPosition}
+          className="mt-auto"
+        />
+
+        <div className="flex items-center justify-between gap-3 border-t border-line pt-3.5 text-[13px]">
+          <span className="flex items-baseline gap-1.5">
+            <RollingNumber value={poolOf(claim)} format={money} flash className="text-[15px] text-cream" />
+            <span className="text-dim">{t("card.pool").toLowerCase()}</span>
+          </span>
+          {timeCell ? <span className="truncate font-mono text-[12px] text-muted">{timeCell}</span> : null}
+          <span className="flex shrink-0 items-center gap-2 text-muted">
+            <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${DOT[phase]}`} />
+            {t(`phase.${phase}`)}
+          </span>
         </div>
-      </div>
-
-      <div className="relative z-10 mt-auto border-t border-pv-border/25 pt-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <span className="mb-2 block font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-pv-muted">
-              Challengers
-            </span>
-            <div className="flex items-center gap-3">
-              <PeepStack
-                className="pl-0.5"
-                seeds={claim.challengers.map((c) => `challenger-${c.addr}`)}
-                placeholders={Math.min(maxChallengers, 3)}
-                size={32}
-              />
-              <span className="font-display text-2xl font-bold tabular-nums tracking-tight text-pv-text sm:text-3xl">
-                {activeChallengers}
-              </span>
-            </div>
-          </div>
-
-          <Link
-            href={`/arena/${claim.id}`}
-            className={
-              isArchived
-                ? "inline-flex shrink-0 items-center justify-center rounded-md border border-pv-border/[0.15] bg-transparent px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted shadow-none transition-[color,border-color,transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:border-pv-border/[0.28] hover:bg-transparent hover:text-pv-text hover:shadow-[0_4px_18px_-6px_rgba(0,0,0,0.45)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-border/30 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"
-                : "inline-flex shrink-0 items-center justify-center rounded-md bg-pv-text px-5 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-bg shadow-none transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out hover:-translate-y-px hover:bg-pv-emerald hover:text-pv-bg hover:shadow-[0_6px_18px_-4px_rgba(255,81,72,0.35)] active:translate-y-0 active:scale-[0.98] active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pv-emerald/40 focus-visible:ring-offset-2 focus-visible:ring-offset-pv-surface"
-            }
-          >
-            {isArchived ? "View Details" : "Join"}
-          </Link>
-        </div>
-      </div>
-    </article>
+      </Link>
+    </FeedCard>
   );
-}
+});
+
+export default ClaimCard;

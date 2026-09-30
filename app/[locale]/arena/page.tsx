@@ -1,794 +1,182 @@
 "use client";
 
 /**
- * /arena — Mimir on Solana: the explorer feed.
+ * /arena: the claim feed. One header line (open claims, USDC in play), one
+ * control row (Open / Live / Settled, search, a Filters popover with
+ * category, minimum stake and sort), the card grid, and a collapsed rail of
+ * suggested claims at the bottom.
  *
- * Pixel-faithful port of the original Mimir explorer (ExploreClient.tsx),
- * driven entirely by Solana claim data. The original three-tab control bar,
- * sort/quick-filter dropdowns, search field, advanced category + min-stake
- * row, and the responsive ArenaCard grid are reproduced verbatim where the
- * data allows.
- *
- * The feed polls GET /api/arena/claims every 4s. Claims delegated to the
- * MagicBlock Ephemeral Rollup surface under the "LIVE ON ER" tab.
+ * Polls GET /api/arena/claims every 4s; pools roll to new values as stakes
+ * land. Claims delegated to the MagicBlock Ephemeral Rollup sit under "Live".
  */
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useParams } from "next/navigation";
-import { ChevronDown, ListFilter, Plus, RefreshCw, Search, X } from "lucide-react";
-import { Link } from "@/i18n/navigation";
-
-import PageTransition, { AnimatedItem } from "@/components/PageTransition";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
+import { RollingNumber } from "@/components/motion";
 import { ArenaCardSkeleton } from "@/components/ui";
-import { BlueprintHeading, BlueprintStat } from "@/components/BlueprintGrid";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
-import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
+import ArenaControls from "@/components/arena/feed/ArenaControls";
 import ChallengeOpportunities from "@/components/arena/ChallengeOpportunities";
+import { OnboardingBanner } from "@/components/onboarding/OnboardingChecklist";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
-import { formatUsdcUnitsBare as usdc } from "@/lib/money";
-import { isArchivedState, isLiveState } from "@/lib/claim-status";
+import { useNowSec } from "@/components/arena/settlement/useSettleAction";
+import {
+  ARENA_VIEWS,
+  DEFAULT_FILTERS,
+  feedCategories,
+  feedTotals,
+  hasNarrowing,
+  viewClaims,
+  type ArenaFilters,
+  type ArenaView,
+} from "@/lib/arena-feed";
+import { formatUsdcBare } from "@/lib/money";
 
-const filterPillBase =
-  "shrink-0 rounded border px-4 py-2 font-display text-xs font-bold uppercase tracking-tight transition-[color,border-color,background-color] focus-ring";
-const filterPillActive = "border-pv-emerald/50 bg-pv-emerald text-pv-bg";
-const filterPillInactive =
-  "border-pv-border/[0.15] bg-transparent text-pv-muted hover:border-pv-border/[0.28] hover:text-pv-text";
+const POLL_MS = 4000;
+const count = (n: number) => Math.round(n).toString();
+const money = (n: number) => `$${formatUsdcBare(n)}`;
 
-// Original had Open / AI-signals / Closed. Solana has no AI-signals feed, so
-// we keep the same control-bar visual with: Arena Live (open) / Resolved /
-// Live on ER (delegated, still open). PROVING GROUND tab dropped.
-type ArenaViewMode = "open" | "resolved" | "live";
-type ArenaSort = "newest" | "highest";
-
-const MIN_STAKE_OPTIONS = [0, 5, 25, 100] as const;
-
-interface ArenaData {
-  claims: SolanaClaim[];
-  claimCount: number;
-  totalResolved: number;
-  openPool: string;
+/**
+ * Keep the previous object for every claim whose data did not change, and the
+ * previous array when nothing changed at all, so a poll re-renders only the
+ * cards that moved (ClaimCard is memoized).
+ */
+function patchClaims(prev: SolanaClaim[] | null, next: SolanaClaim[]): SolanaClaim[] {
+  if (!prev) return next;
+  const byId = new Map(prev.map((c) => [c.id, c]));
+  let changed = prev.length !== next.length;
+  const out = next.map((c, i) => {
+    const old = byId.get(c.id);
+    if (old && JSON.stringify(old) === JSON.stringify(c)) {
+      if (prev[i] !== old) changed = true;
+      return old;
+    }
+    changed = true;
+    return c;
+  });
+  return changed ? out : prev;
 }
 
-function poolUnits(claim: SolanaClaim): number {
-  return Number(claim.creatorStake) + Number(claim.totalChallengerStake);
-}
-
-// Live board: OPEN / ACTIVE. Archive: a verdict is in (PROPOSED, DISPUTED,
-// RESOLVED) or the claim was cancelled — cards label each phase.
-const isOpenState = isLiveState;
-const isResolvedState = isArchivedState;
+const EMPTY_HREF: Record<ArenaView, string> = {
+  open: "/arena/create",
+  live: "/arena",
+  resolved: "/docs",
+};
 
 export default function ArenaPage() {
-  const { locale } = useParams<{ locale: string }>();
-
+  const t = useTranslations("arena.feed");
   const [claims, setClaims] = useState<SolanaClaim[] | null>(null);
-  const [stats, setStats] = useState({
-    claimCount: 0,
-    totalResolved: 0,
-    openPool: "0",
-  });
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [view, setView] = useState<ArenaView>("open");
+  const [filters, setFilters] = useState<ArenaFilters>(DEFAULT_FILTERS);
+  const [, startTransition] = useTransition();
+  const alive = useRef(true);
+  // View membership and phases move on a coarse clock; card countdowns tick on their own.
+  const now = useNowSec(30_000);
 
-  // Filter state — plain useState replacements for the archived
-  // useExploreFilterState / applyExploreFilters helpers.
-  const [activeView, setActiveView] = useState<ArenaViewMode>("open");
-  const [cat, setCat] = useState<string>("all");
-  const [sort, setSort] = useState<ArenaSort>("newest");
-  const [search, setSearch] = useState("");
-  const [minStake, setMinStake] = useState(0);
-  const [minDraft, setMinDraft] = useState("");
-
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const [quickFilterMenuOpen, setQuickFilterMenuOpen] = useState(false);
-  const [, startViewTransition] = useTransition();
-
-  const sortMenuRef = useRef<HTMLDivElement>(null);
-  const quickFilterMenuRef = useRef<HTMLDivElement>(null);
-  const aliveRef = useRef(true);
-
-  const loadArenaData = useMemo(
-    () =>
-      async ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) => {
-        if (forceRefresh) setRefreshing(true);
-        try {
-          const res = await fetch("/api/arena/claims", { cache: "no-store" });
-          const json = await res.json();
-          if (aliveRef.current && json.success) {
-            const data = json.data as ArenaData;
-            setClaims(data.claims);
-            setStats({
-              claimCount: data.claimCount,
-              totalResolved: data.totalResolved,
-              openPool: data.openPool,
-            });
-          }
-        } catch (error) {
-          console.error("Failed to load arena claims:", error);
-          // keep last good state
-        } finally {
-          if (aliveRef.current) {
-            setLoading(false);
-            if (forceRefresh) setRefreshing(false);
-          }
-        }
-      },
-    []
-  );
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/arena/claims", { cache: "no-store" });
+      const json = await res.json();
+      if (!alive.current) return;
+      if (json.success) {
+        setClaims((prev) => patchClaims(prev, json.data.claims as SolanaClaim[]));
+        setFailed(false);
+      } else setFailed(true);
+    } catch (error) {
+      console.error("Failed to load arena claims:", error);
+      // Keep the last good list.
+      if (alive.current) setFailed(true);
+    }
+  }, []);
 
   useEffect(() => {
-    aliveRef.current = true;
-    void loadArenaData();
-    const interval = setInterval(() => void loadArenaData(), 4000);
+    alive.current = true;
+    void load();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, POLL_MS);
     return () => {
-      aliveRef.current = false;
-      clearInterval(interval);
+      alive.current = false;
+      clearInterval(id);
     };
-  }, [loadArenaData]);
+  }, [load]);
 
-  // Categories derived from the claims actually present.
-  const categories = useMemo(() => {
-    if (!claims) return [];
-    const seen = new Set<string>();
-    for (const claim of claims) {
-      const c = (claim.category ?? "").trim();
-      if (c) seen.add(c);
-    }
-    return Array.from(seen).sort((a, b) => a.localeCompare(b));
-  }, [claims]);
-
-  const applyShared = useMemo(
-    () => (list: SolanaClaim[]) => {
-      let next = list;
-
-      if (cat !== "all") {
-        next = next.filter((claim) => claim.category === cat);
-      }
-
-      if (minStake > 0) {
-        next = next.filter(
-          (claim) => Number(claim.creatorStake) / 1e6 >= minStake
-        );
-      }
-
-      const query = search.trim().toLowerCase();
-      if (query) {
-        next = next.filter((claim) =>
-          claim.question.toLowerCase().includes(query)
-        );
-      }
-
-      const sorted = [...next];
-      if (sort === "highest") {
-        sorted.sort((a, b) => poolUnits(b) - poolUnits(a));
-      } else {
-        sorted.sort((a, b) => b.id - a.id);
-      }
-      return sorted;
-    },
-    [cat, minStake, search, sort]
+  const list = claims ?? [];
+  const categories = useMemo(() => feedCategories(list), [list]);
+  const totals = useMemo(() => feedTotals(list, now), [list, now]);
+  const byView = useMemo(
+    () =>
+      Object.fromEntries(ARENA_VIEWS.map((v) => [v, viewClaims(list, v, filters, now)])) as Record<ArenaView, SolanaClaim[]>,
+    [list, filters, now],
   );
-
-  const openChallenges = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
-    return applyShared((claims ?? []).filter((c) => isOpenState(c.state) && c.deadline > now));
-  }, [applyShared, claims]);
-
-  const resolvedChallenges = useMemo(
-    () => applyShared((claims ?? []).filter((c) => isResolvedState(c.state))),
-    [applyShared, claims]
+  const counts = useMemo(
+    () => Object.fromEntries(ARENA_VIEWS.map((v) => [v, byView[v].length])) as Record<ArenaView, number>,
+    [byView],
   );
+  const shown = byView[view];
 
-  const liveChallenges = useMemo(() => {
-    const now = Math.floor(Date.now() / 1000);
-    return applyShared(
-      (claims ?? []).filter((c) => c.delegated && isOpenState(c.state) && c.deadline > now)
+  const reset = () => setFilters(DEFAULT_FILTERS);
+
+  let body: React.ReactNode;
+  if (claims === null) {
+    body = failed ? (
+      <ExploreFilteredEmptyState message={t("offline")} resetLabel={t("retry")} onReset={() => void load()} />
+    ) : (
+      <div role="status" aria-label={t("loading")} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ArenaCardSkeleton />
+        <ArenaCardSkeleton />
+        <ArenaCardSkeleton />
+      </div>
     );
-  }, [applyShared, claims]);
-
-  const hasActiveFilters =
-    cat !== "all" || minStake !== 0 || search.trim().length > 0;
-
-  const sortOnlyOptions: { key: ArenaSort; label: string }[] = useMemo(
-    () => [
-      { key: "newest", label: "Newest" },
-      { key: "highest", label: "Highest stake" },
-    ],
-    []
-  );
-
-  const sortTriggerLabel = useMemo(
-    () =>
-      sortOnlyOptions.find((option) => option.key === sort)?.label ??
-      sortOnlyOptions[0].label,
-    [sort, sortOnlyOptions]
-  );
-
-  // The original quick-filter menu offered Needs-challengers / Expiring-soon /
-  // Strength — all EVM-specific. On Solana the cleanest equivalent is the
-  // delegated "Live on ER" cut, expressed through the view tab. We keep the
-  // dropdown visual with the always-applicable "All" choice only.
-  const quickFilterTriggerLabel = "All";
-
-  useEffect(() => {
-    if (minStake === 0) {
-      setMinDraft("");
-    } else if (Number.isInteger(minStake)) {
-      setMinDraft(String(minStake));
-    } else {
-      setMinDraft(minStake.toFixed(2));
-    }
-  }, [minStake]);
-
-  const commitMinDraft = () => {
-    const raw = minDraft.trim().replace(",", ".");
-    if (raw === "") {
-      setMinStake(0);
-      setMinDraft("");
-      return;
-    }
-    const n = Number(raw);
-    const next = Number.isFinite(n) && n > 0 ? n : 0;
-    setMinStake(next);
-    if (next === 0) {
-      setMinDraft("");
-    } else if (Number.isInteger(next)) {
-      setMinDraft(String(next));
-    } else {
-      setMinDraft(next.toFixed(2));
-    }
-  };
-
-  const handleMinInputChange = (value: string) => {
-    const normalized = value.replace(",", ".");
-    if (normalized === "") {
-      setMinDraft("");
-      return;
-    }
-    if (/^\d*\.?\d{0,2}$/.test(normalized)) {
-      setMinDraft(normalized);
-    }
-  };
-
-  useEffect(() => {
-    if (!sortMenuOpen && !quickFilterMenuOpen) return;
-
-    const onDoc = (event: MouseEvent) => {
-      const node = event.target as Node;
-      if (
-        sortMenuRef.current?.contains(node) ||
-        quickFilterMenuRef.current?.contains(node)
-      ) {
-        return;
-      }
-      setSortMenuOpen(false);
-      setQuickFilterMenuOpen(false);
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSortMenuOpen(false);
-        setQuickFilterMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", onDoc);
-    window.addEventListener("keydown", onKey);
-
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [quickFilterMenuOpen, sortMenuOpen]);
-
-  const switchView = (nextView: ArenaViewMode) => {
-    startViewTransition(() => {
-      setActiveView(nextView);
-    });
-  };
-
-  const tabLabel: Record<ArenaViewMode, string> = {
-    open: "ARENA LIVE",
-    resolved: "RESOLVED",
-    live: "LIVE ON ER",
-  };
-
-  const activeBandCopy =
-    activeView === "open"
-      ? {
-          eyebrow: tabLabel.open,
-          title: "READY TO CHALLENGE",
-          hint: "Live claims open for a rival right now. Review the terms, inspect the source, and enter the arena.",
-        }
-      : activeView === "resolved"
-        ? {
-            eyebrow: tabLabel.resolved,
-            title: "SETTLED CLAIMS",
-            hint: "Markets the oracle has settled or refunded. Each card opens to the on-chain settlement receipt.",
-          }
-        : {
-            eyebrow: tabLabel.live,
-            title: "LIVE ON THE EPHEMERAL ROLLUP",
-            hint: "Claims delegated to the MagicBlock Ephemeral Rollup — challenges are zero-fee and land in ~30ms.",
-          };
-
-  const renderGrid = (
-    list: SolanaClaim[],
-    options: {
-      isResolvedView?: boolean;
-    } = {}
-  ) => {
-    if (loading) {
-      return (
-        <div className="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2 lg:grid-cols-3">
-          <ArenaCardSkeleton />
-          <ArenaCardSkeleton />
-          <ArenaCardSkeleton />
-        </div>
-      );
-    }
-
-    if (list.length === 0) {
-      if (hasActiveFilters) {
-        return (
-          <ExploreFilteredEmptyState
-            eyebrow="Zero matches"
-            title="No challenges match these filters"
-            description="Reset filters, broaden your search, or publish a new challenge."
-            resetLabel="Reset filters"
-            onReset={() => {
-              setCat("all");
-              setSort("newest");
-              setSearch("");
-              setMinStake(0);
-              setMinDraft("");
-            }}
-          />
-        );
-      }
-
-      if (options.isResolvedView) {
-        return (
-          <ExploreArenaEmptyState
-            eyebrow="No settled markets yet"
-            title="The oracle hasn't closed any claims here"
-            description="Settled claims appear once the deadline passes and the oracle posts a verdict on chain."
-            ctaLabel="HOW IT WORKS"
-            ctaHref="/docs"
-          />
-        );
-      }
-
-      return (
-        <ExploreArenaEmptyState
-          eyebrow="Empty arena"
-          title="No open challenges right now"
-          description="The market-creator agent opens new claims periodically. You can also publish your own challenge."
-          ctaLabel="PUBLISH CHALLENGE"
-          ctaHref="/arena/create"
-        />
-      );
-    }
-
-    return (
-      <div className="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2 lg:grid-cols-3">
-        {list.map((claim, i) => (
-          <div
-            className="bp-cell card-in h-full"
-            key={claim.id}
-            style={{ "--i": Math.min(i, 8) } as React.CSSProperties}
-          >
-            <ClaimCard claim={claim} locale={locale} />
-          </div>
+  } else if (shown.length === 0) {
+    body = hasNarrowing(filters) ? (
+      <ExploreFilteredEmptyState message={t("empty.filtered")} resetLabel={t("emptyCta.filtered")} onReset={reset} />
+    ) : view === "live" ? (
+      <ExploreFilteredEmptyState message={t("empty.live")} resetLabel={t("emptyCta.live")} onReset={() => setView("open")} />
+    ) : (
+      <ExploreArenaEmptyState message={t(`empty.${view}`)} ctaLabel={t(`emptyCta.${view}`)} ctaHref={EMPTY_HREF[view]} />
+    );
+  } else {
+    body = (
+      <div key={view} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {shown.map((claim, i) => (
+          <ClaimCard key={claim.id} claim={claim} now={now} index={i} />
         ))}
       </div>
     );
-  };
-
-  const tabConfig: { view: ArenaViewMode; count: number }[] = [
-    { view: "open", count: openChallenges.length },
-    { view: "resolved", count: resolvedChallenges.length },
-    { view: "live", count: liveChallenges.length },
-  ];
+  }
 
   return (
-    <PageTransition>
-      <AnimatedItem>
-        <BlueprintHeading
-          as="h1"
-          eyebrow="Solana devnet · MagicBlock ER"
-          subtitle="Pick your fight. Accept someone else's stake — every claim settles on-chain against the evidence."
-        >
-          The arena
-        </BlueprintHeading>
-        <div className="bp-grid grid-cols-3 border-b border-pv-border/25">
-          <BlueprintStat value={stats.claimCount} label="Markets" />
-          <BlueprintStat value={stats.totalResolved} label="Resolved" />
-          <BlueprintStat value={`$${usdc(stats.openPool)}`} label="Open pool" tone="gold" />
-        </div>
-      </AnimatedItem>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
+        <p className="m-0 flex items-center gap-2 text-[14px] text-muted" aria-live="off">
+          <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
+          <RollingNumber value={totals.open} format={count} className="text-cream" />
+          <span>{t("statusOpen")}</span>
+          <span aria-hidden>·</span>
+          <RollingNumber value={totals.inPlay} format={money} flash className="text-cream" />
+          <span>{t("statusInPlay")}</span>
+        </p>
+      </header>
 
-      <AnimatedItem>
-        <OnboardingChecklist className="mx-4 my-5 sm:mx-6" />
-      </AnimatedItem>
+      <OnboardingBanner />
 
-      {/* z-20: filter dropdowns (absolute z-[100]) must stack above
-          #arena-content — risen (transformed) siblings create stacking contexts. */}
-      <AnimatedItem className="relative z-20">
-        <section
-          id="arena-controls"
-          className="border-b border-pv-border/25"
-          aria-label="Filters: category, minimum stake, and sort order"
-        >
-          <div>
-            <div className="flex flex-col gap-5 border-b border-pv-border/25 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-2">
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">
-                  {activeBandCopy.eyebrow}
-                </p>
-                <div>
-                  <h2 className="font-display text-xl font-bold uppercase tracking-tight text-pv-text sm:text-2xl">
-                    {activeBandCopy.title}
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-pv-muted">
-                    {activeBandCopy.hint}
-                  </p>
-                </div>
-              </div>
+      <section aria-label={t("viewsLabel")} className="grid gap-5">
+        <ArenaControls
+          view={view}
+          onView={(v) => startTransition(() => setView(v))}
+          counts={counts}
+          filters={filters}
+          onFilters={setFilters}
+          categories={categories}
+          resultCount={shown.length}
+        />
+        <div id="arena-content">{body}</div>
+      </section>
 
-              <div className="grid w-full grid-cols-1 gap-px border border-pv-border/25 bg-pv-border/25 sm:w-auto sm:grid-cols-3">
-                {tabConfig.map(({ view, count }) => (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => switchView(view)}
-                    aria-pressed={activeView === view}
-                    className={`flex min-h-[48px] items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-200 focus-ring sm:min-w-[180px] ${
-                      activeView === view
-                        ? "bg-pv-emerald/[0.14] shadow-[inset_0_-2px_0_0_rgb(var(--pv-accent))]"
-                        : "bg-pv-bg hover:bg-pv-surface"
-                    }`}
-                  >
-                    <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-pv-text">
-                      {tabLabel[view]}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] ${
-                        activeView === view
-                          ? "bg-pv-emerald text-pv-bg"
-                          : "border border-pv-border/25 text-pv-muted"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="px-4 py-5 sm:px-6">
-              <div className="grid grid-cols-2 gap-3 gap-y-4 lg:grid-cols-12 lg:items-end lg:gap-4 xl:gap-5">
-                <div
-                  className="relative col-span-1 min-w-0 lg:col-span-2"
-                  ref={sortMenuRef}
-                >
-                  <label
-                    id="explore-sort-label"
-                    htmlFor="explore-sort-trigger"
-                    className="label"
-                  >
-                    SORT BY
-                  </label>
-                  <button
-                    type="button"
-                    id="explore-sort-trigger"
-                    aria-label="Sort order"
-                    aria-expanded={sortMenuOpen}
-                    aria-haspopup="listbox"
-                    aria-controls="explore-sort-listbox"
-                    onClick={() => {
-                      setQuickFilterMenuOpen(false);
-                      setSortMenuOpen((open) => !open);
-                    }}
-                    className="input flex h-11 min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 bg-pv-bg py-0 pr-3 text-left font-body text-sm text-pv-text transition-[border-color,box-shadow] hover:border-pv-border/[0.14]"
-                  >
-                    <span className="min-w-0 truncate">{sortTriggerLabel}</span>
-                    <ChevronDown
-                      size={18}
-                      className={`shrink-0 text-pv-muted transition-transform duration-200 ${
-                        sortMenuOpen ? "rotate-180" : ""
-                      }`}
-                      aria-hidden
-                    />
-                  </button>
-                  {sortMenuOpen ? (
-                      <div
-                        key="explore-sort-listbox"
-                        id="explore-sort-listbox"
-                        data-lenis-prevent
-                        role="listbox"
-                        aria-labelledby="explore-sort-label"
-                        className="pop-in absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
-                      >
-                        {sortOnlyOptions.map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            role="option"
-                            aria-selected={sort === key}
-                            onClick={() => {
-                              setSort(key);
-                              setSortMenuOpen(false);
-                            }}
-                            className={`flex w-full items-center px-4 py-2.5 text-left font-body text-sm transition-colors ${
-                              sort === key
-                                ? "bg-pv-emerald/[0.12] font-medium text-pv-emerald"
-                                : "text-pv-muted hover:bg-pv-border/[0.05] hover:text-pv-text"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                </div>
-
-                <div
-                  className="relative col-span-1 min-w-0 lg:col-span-2"
-                  ref={quickFilterMenuRef}
-                >
-                  <label
-                    id="explore-quick-filter-label"
-                    htmlFor="explore-quick-filter-trigger"
-                    className="label"
-                  >
-                    FILTER
-                  </label>
-                  <button
-                    type="button"
-                    id="explore-quick-filter-trigger"
-                    aria-label="Filter view"
-                    aria-expanded={quickFilterMenuOpen}
-                    aria-haspopup="listbox"
-                    aria-controls="explore-quick-filter-listbox"
-                    onClick={() => {
-                      setSortMenuOpen(false);
-                      setQuickFilterMenuOpen((open) => !open);
-                    }}
-                    className="input flex h-11 min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 bg-pv-bg py-0 pr-3 text-left font-body text-sm text-pv-text transition-[border-color,box-shadow] hover:border-pv-border/[0.14]"
-                  >
-                    <span className="min-w-0 truncate">
-                      {quickFilterTriggerLabel}
-                    </span>
-                    <ChevronDown
-                      size={18}
-                      className={`shrink-0 text-pv-muted transition-transform duration-200 ${
-                        quickFilterMenuOpen ? "rotate-180" : ""
-                      }`}
-                      aria-hidden
-                    />
-                  </button>
-                  {quickFilterMenuOpen ? (
-                      <div
-                        key="explore-quick-filter-listbox"
-                        id="explore-quick-filter-listbox"
-                        data-lenis-prevent
-                        role="listbox"
-                        aria-labelledby="explore-quick-filter-label"
-                        className="pop-in absolute left-0 top-full z-[100] mt-1.5 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded border border-pv-border/25 bg-pv-bg py-1 shadow-[0_16px_48px_-20px_rgba(0,0,0,0.5)]"
-                      >
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected
-                          onClick={() => setQuickFilterMenuOpen(false)}
-                          className="flex w-full items-center bg-pv-emerald/[0.12] px-4 py-2.5 text-left font-body text-sm font-medium text-pv-emerald transition-colors"
-                        >
-                          All
-                        </button>
-                      </div>
-                    ) : null}
-                </div>
-
-                <div className="col-span-1 min-w-0 w-full max-w-[7.875rem] lg:col-span-2 lg:w-3/4 lg:max-w-none lg:justify-self-start">
-                  <label htmlFor="explore-min-stake" className="label">
-                    MIN STAKE
-                  </label>
-                  <input
-                    id="explore-min-stake"
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    placeholder="0.00"
-                    aria-label="Minimum stake amount"
-                    value={minDraft}
-                    onChange={(event) => handleMinInputChange(event.target.value)}
-                    onBlur={commitMinDraft}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                      }
-                    }}
-                    className="input h-11 min-h-[44px] w-full max-w-full bg-pv-bg py-2.5 font-mono text-sm tabular-nums"
-                  />
-                </div>
-
-                <div className="col-span-2 flex min-w-0 flex-col gap-3 lg:col-span-6 lg:flex-row lg:items-end lg:gap-3">
-                  <div className="flex min-w-0 w-full flex-col lg:flex-1">
-                    <label htmlFor="explore-search" className="label">
-                      SEARCH
-                    </label>
-                    <div className="relative min-w-0 w-full">
-                      <Search
-                        size={16}
-                        className="pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2 text-pv-muted"
-                        aria-hidden
-                      />
-                      <input
-                        id="explore-search"
-                        type="text"
-                        inputMode="search"
-                        enterKeyHint="search"
-                        autoComplete="off"
-                        placeholder="Search Markets, Assets, or Teams."
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        className={`input h-11 min-h-[44px] bg-pv-bg py-2.5 pl-10 font-body text-sm ${
-                          search ? "pr-11" : ""
-                        }`}
-                      />
-                      {search ? (
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 z-[1] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-pv-muted transition-colors hover:bg-pv-border/[0.06] hover:text-pv-text focus-ring"
-                          onClick={() => setSearch("")}
-                          aria-label="Clear search"
-                        >
-                          <X size={16} strokeWidth={2} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAdvancedOpen((open) => !open)}
-                    aria-expanded={advancedOpen}
-                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 border border-pv-border/25 bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] lg:w-auto"
-                  >
-                    <ListFilter
-                      size={16}
-                      className="text-pv-muted"
-                      aria-hidden
-                    />
-                    ADVANCED
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void loadArenaData({ forceRefresh: true });
-                    }}
-                    disabled={refreshing}
-                    aria-busy={refreshing}
-                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 border border-pv-border/25 bg-pv-bg px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-text transition-colors hover:border-pv-emerald/30 hover:bg-pv-border/[0.04] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
-                  >
-                    <RefreshCw
-                      size={16}
-                      className={`text-pv-muted ${refreshing ? "animate-spin" : ""}`}
-                      aria-hidden
-                    />
-                    {refreshing ? "Refreshing" : "Refresh"}
-                  </button>
-                  <Link
-                    href="/arena/create"
-                    className="flex h-11 min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded border border-pv-emerald/30 bg-pv-emerald/[0.08] px-5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-pv-emerald transition-colors hover:border-pv-emerald/50 hover:bg-pv-emerald/[0.14] lg:w-auto"
-                  >
-                    <Plus size={16} aria-hidden />
-                    PUBLISH
-                  </Link>
-                </div>
-              </div>
-
-              <div
-                data-open={advancedOpen ? "true" : "false"}
-                className={`collapse-grid ${!advancedOpen ? "pointer-events-none" : ""}`}
-                aria-hidden={!advancedOpen}
-              >
-                <div>
-                <div className="mt-6 border-t border-pv-border/[0.06] pt-6">
-                  <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:items-start sm:gap-x-10 sm:gap-y-6">
-                    <div className="min-w-0">
-                      <span className="mb-3 block font-display text-[10px] font-bold uppercase tracking-[0.22em] text-pv-muted">
-                        CATEGORIES
-                      </span>
-                      <div
-                        className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                        role="group"
-                        aria-label="Category"
-                      >
-                        <button
-                          type="button"
-                          aria-pressed={cat === "all"}
-                          onClick={() => setCat("all")}
-                          className={`${filterPillBase} ${
-                            cat === "all" ? filterPillActive : filterPillInactive
-                          }`}
-                        >
-                          ALL
-                        </button>
-                        {categories.map((id) => (
-                          <button
-                            key={id}
-                            type="button"
-                            aria-pressed={cat === id}
-                            onClick={() => setCat(id)}
-                            className={`${filterPillBase} ${
-                              cat === id ? filterPillActive : filterPillInactive
-                            }`}
-                          >
-                            {id.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      <span className="mb-3 block font-display text-[10px] font-bold uppercase tracking-[0.18em] text-pv-muted">
-                        Quick minimum
-                      </span>
-                      <div className="flex flex-wrap gap-2" role="group">
-                        {MIN_STAKE_OPTIONS.map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            aria-pressed={minStake === value}
-                            onClick={() => {
-                              setMinStake(value);
-                              setMinDraft(value === 0 ? "" : String(value));
-                            }}
-                            className={`${filterPillBase} ${
-                              minStake === value
-                                ? filterPillActive
-                                : filterPillInactive
-                            }`}
-                          >
-                            {value === 0 ? "Any" : `${value}+ USDC`}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </AnimatedItem>
-
-      <AnimatedItem className="relative z-0">
-        <section id="arena-content">
-            {activeView === "open" && (
-              <div key="arena-open-view" className="fade-rise">
-                {renderGrid(openChallenges)}
-              </div>
-            )}
-            {activeView === "resolved" && (
-              <div key="arena-resolved-view" className="fade-rise">
-                {renderGrid(resolvedChallenges, { isResolvedView: true })}
-              </div>
-            )}
-            {activeView === "live" && (
-              <div key="arena-live-view" className="fade-rise">
-                {renderGrid(liveChallenges)}
-              </div>
-            )}
-        </section>
-      </AnimatedItem>
-
-      <AnimatedItem>
-        <ChallengeOpportunities />
-      </AnimatedItem>
-    </PageTransition>
+      <ChallengeOpportunities />
+    </div>
   );
 }
