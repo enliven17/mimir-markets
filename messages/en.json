@@ -1548,15 +1548,7 @@
     "followHow": "How following works"
   },
   "copy": {
-    "eyebrow": "Copy trading",
-    "title": "Copy an agent",
-    "intro": "Sign one policy and your own agent mirrors another agent's positions inside it: which agent, how much per position, per day and per week, when to stop after losses, and when it all expires. Every copy is a challenge your agent stakes from its own balance with its own key. Nothing is deposited, pooled or held.",
-    "statCustody": "Custody",
-    "statCustodyValue": "None",
-    "statDepth": "Copy depth",
-    "statDepthValue": "1",
-    "statSigner": "Signer",
-    "statSignerValue": "Your agent",
+    "lead": "Your agent mirrors another agent inside limits you sign once. No custody, one level deep, every copy signed by your agent.",
     "checking": "Checking whether copy trading is enabled…",
     "disabledTitle": "Copy trading is off on this deployment",
     "disabledDesc": "The permission API is switched off here (MIMIR_FEATURE_COPY_TRADING). Baskets let you mirror agents by hand in the meantime.",
@@ -1569,7 +1561,7 @@
     "agentsHint": "Execution agents fetch what they may copy with a signed envelope on POST /api/copy/signals, get an unsigned challenge transaction, sign it with their operator key and report it back. See",
     "list": {
       "title": "Your permissions",
-      "desc": "Loading them takes a signature so nobody else can read your limits. Revoking is immediate and also a signature, never a fee.",
+      "desc": "Reading your limits takes a signature, never a fee. So does revoking, which is immediate.",
       "load": "Sign to load",
       "reload": "Reload",
       "signing": "Waiting for signature…",
@@ -1604,11 +1596,12 @@
       "revoke": "Revoke",
       "revoking": "Revoking…",
       "revokeAria": "Revoke permission {id}",
-      "revoked": "Revoked {id}. Your agent will not copy anything more under it."
+      "revoked": "Revoked {id}. Your agent will not copy anything more under it.",
+      "limitsTitle": "All limits"
     },
     "grant": {
       "title": "Grant a permission",
-      "desc": "Pick the agent to copy and one of your own registered agents to place the copies. The execution agent must be owned or operated by this wallet: it stakes from its own Mimir balance, so the money is always yours.",
+      "desc": "Pick the agent to copy and one of your own agents to place the copies from its own balance.",
       "agentsTitle": "Agents",
       "signalAgent": "Copy",
       "signalAgentHint": "A council persona or a registered agent. Its open challenger positions are the signal.",
@@ -1618,7 +1611,7 @@
       "agentsLoading": "Loading agents…",
       "selectAgent": "Select an agent",
       "agentIdPlaceholder": "agent-id",
-      "noAgents": "No registered agents yet. Connect one on the Connect agent page first.",
+      "noAgents": "No registered agents yet.",
       "id": "Permission id",
       "idHint": "Granting again under the same id replaces its terms.",
       "regenerate": "New id",
@@ -1629,7 +1622,7 @@
       "perWeek": "Per week",
       "openExposure": "Open exposure",
       "lossStop": "Stop after losing",
-      "filtersTitle": "Filters",
+      "filtersTitle": "Filters and expiry",
       "categoriesLegend": "Categories",
       "categoriesHint": "None selected means every category.",
       "minQuality": "Min claim quality",
@@ -1644,7 +1637,10 @@
       "fixFirst": "Fix first: {error}",
       "sign": "Sign and grant",
       "signing": "Waiting for signature…",
-      "granted": "Granted {id}, valid until {date}."
+      "granted": "Granted {id}, valid until {date}.",
+      "open": "New permission",
+      "close": "Close",
+      "connectAgent": "Connect an agent"
     },
     "categories": {
       "sports": "Sports",

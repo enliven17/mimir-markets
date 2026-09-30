@@ -9,6 +9,9 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 
+import { SURFACE } from "@/components/arena/surface";
+import { Button, EmptyState } from "@/components/ui";
+
 import { followerProofMessage } from "@/lib/copy-trading";
 import {
   listCopyPermissions,
@@ -89,26 +92,28 @@ export default function CopyPermissionList({ address, onDisabled }: CopyPermissi
   const busy = loading || revokingId !== null;
 
   return (
-    <div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="min-w-0 flex-1 basis-60 text-xs leading-relaxed text-pv-muted">{t("list.desc")}</p>
-        <button
-          type="button"
-          className="btn-primary w-full sm:w-auto"
+    <div className="grid gap-4">
+      <div className={`${SURFACE} flex flex-wrap items-center justify-between gap-3 p-5`}>
+        <p className="m-0 min-w-0 flex-1 basis-60 text-[14px] leading-relaxed text-muted">{t("list.desc")}</p>
+        <Button
+          size="sm"
+          variant={loaded ? "ghost" : "primary"}
+          fullWidth={false}
+          className="max-sm:!w-full"
           onClick={() => void load()}
           disabled={busy}
-          aria-busy={loading || undefined}
+          loading={loading}
         >
           {loading ? t("list.signing") : loaded ? t("list.reload") : t("list.load")}
-        </button>
+        </Button>
       </div>
 
       <div aria-live="polite" className="empty:hidden">
-        {notice ? <p className="mt-4 text-xs text-pv-text">{notice}</p> : null}
+        {notice ? <p className="m-0 text-[14px] text-cream">{notice}</p> : null}
       </div>
 
       {error ? (
-        <div role="alert" className="mt-4 flex items-start gap-2.5 border border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 text-sm text-pv-danger">
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg bg-danger/[0.1] px-4 py-3 text-[14px] text-danger">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span className="min-w-0 break-words">{error}</span>
         </div>
@@ -116,15 +121,13 @@ export default function CopyPermissionList({ address, onDisabled }: CopyPermissi
 
       {loaded ? (
         loaded.permissions.length === 0 ? (
-          <p className="bp-paper mt-4 border border-dashed border-pv-border/40 px-4 py-6 text-center text-xs text-pv-muted">
-            {t("list.empty")}
-          </p>
+          <EmptyState>{t("list.empty")}</EmptyState>
         ) : (
           <>
             <p className="sr-only" role="status">
               {t("list.count", { count: loaded.permissions.length })}
             </p>
-            <ul className="mt-4 space-y-3">
+            <ul className="m-0 grid list-none gap-3 p-0">
               {loaded.permissions.map((p) => (
                 <li key={p.id}>
                   <CopyPermissionCard

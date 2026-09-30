@@ -31,6 +31,8 @@ import {
 } from "@/lib/copy-client";
 import { formatUsdc } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
+import { Link } from "@/i18n/navigation";
+import { Button, Disclosure } from "@/components/ui";
 import { useSignText } from "./useSignText";
 
 type NumericField =
@@ -52,7 +54,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
       </label>
       {children}
       {hint ? (
-        <p id={`${id}-hint`} className="mt-1.5 text-[11px] text-pv-muted">
+        <p id={`${id}-hint`} className="m-0 mt-2 text-[12px] leading-snug text-muted">
           {hint}
         </p>
       ) : null}
@@ -160,7 +162,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
       return (
         <input
           {...common}
-          className="form-field-pv font-mono"
+          className="input font-mono"
           placeholder={t("grant.agentIdPlaceholder")}
           autoComplete="off"
           spellCheck={false}
@@ -169,7 +171,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
       );
     }
     return (
-      <select {...common} className="select-field-pv" disabled={options === null} onChange={(e) => set(key, e.target.value)}>
+      <select {...common} className="select" disabled={options === null} onChange={(e) => set(key, e.target.value)}>
         <option value="">{options === null ? t("grant.agentsLoading") : t("grant.selectAgent")}</option>
         {(options ?? []).map((a) => (
           <option key={a.agentId} value={a.agentId}>
@@ -192,7 +194,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
           min={0}
           step={step}
           required
-          className="form-field-pv font-mono tabular-nums"
+          className="input font-mono tabular-nums"
           value={values[key]}
           aria-describedby={hint ? `${id}-hint` : undefined}
           onChange={(e) => set(key, e.target.value)}
@@ -202,12 +204,12 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
   };
 
   return (
-    <div>
-      <p className="text-xs leading-relaxed text-pv-muted">{t("grant.desc")}</p>
+    <div className="grid gap-5">
+      <p className="m-0 text-[14px] leading-relaxed text-muted">{t("grant.desc")}</p>
 
-      <form className="mt-5 space-y-6" onSubmit={(e) => void submit(e)} noValidate>
-        <fieldset className="grid gap-4 sm:grid-cols-2">
-          <legend className="label mb-3">{t("grant.agentsTitle")}</legend>
+      <form className="grid gap-5" onSubmit={(e) => void submit(e)} noValidate>
+        <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-2">
+          <legend className="mb-3 font-display text-[1.2rem] leading-none text-cream">{t("grant.agentsTitle")}</legend>
           <Field id={fid("signalAgentId")} label={t("grant.signalAgent")} hint={t("grant.signalAgentHint")}>
             {agentPicker("signalAgentId", signalAgents)}
           </Field>
@@ -215,14 +217,19 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
             {agentPicker("executionAgentId", executors)}
           </Field>
           {executors && executors.length === 0 ? (
-            <p className="text-[11px] text-pv-muted sm:col-span-2">{t("grant.noAgents")}</p>
+            <p className="m-0 text-[13px] text-muted sm:col-span-2">
+              {t("grant.noAgents")}{" "}
+              <Link href="/agents/new" className="text-coral hover:underline">
+                {t("grant.connectAgent")}
+              </Link>
+            </p>
           ) : null}
           <div className="sm:col-span-2">
             <Field id={fid("id")} label={t("grant.id")} hint={t("grant.idHint")}>
               <div className="flex gap-2">
                 <input
                   id={fid("id")}
-                  className="form-field-pv min-w-0 flex-1 font-mono"
+                  className="input min-w-0 flex-1 font-mono"
                   value={effectiveValues.id}
                   autoComplete="off"
                   spellCheck={false}
@@ -234,7 +241,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
                 />
                 <button
                   type="button"
-                  className="btn-ghost inline-flex shrink-0 items-center justify-center px-3"
+                  className="press grid size-[50px] flex-none place-items-center rounded-full bg-panel-raised text-muted transition-colors hover:text-cream"
                   aria-label={t("grant.regenerate")}
                   title={t("grant.regenerate")}
                   onClick={() => {
@@ -249,8 +256,8 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
           </div>
         </fieldset>
 
-        <fieldset className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 sm:grid-cols-3">
-          <legend className="label mb-3">{t("grant.capsTitle")}</legend>
+        <fieldset className="m-0 grid grid-cols-2 gap-4 border-0 p-0">
+          <legend className="mb-3 font-display text-[1.2rem] leading-none text-cream">{t("grant.capsTitle")}</legend>
           {numberInput("maxPerPositionUsdc", t("grant.perPosition"), t("grant.perPositionHint"))}
           {numberInput("maxDailyUsdc", t("grant.perDay"))}
           {numberInput("maxWeeklyUsdc", t("grant.perWeek"))}
@@ -258,90 +265,90 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
           {numberInput("maxRealizedLossUsdc", t("grant.lossStop"))}
         </fieldset>
 
-        <fieldset className="space-y-4">
-          <legend className="label mb-3">{t("grant.filtersTitle")}</legend>
-          <fieldset aria-describedby={`${fid("cats")}-hint`}>
-            <legend className="mb-2 text-xs font-semibold text-pv-text">{t("grant.categoriesLegend")}</legend>
-            <div className="flex flex-wrap gap-2">
-              {COPY_CATEGORIES.map((c) => {
-                const checked = values.allowedCategories.includes(c);
-                return (
-                  <label
-                    key={c}
-                    className={`inline-flex min-h-[44px] cursor-pointer items-center gap-2 border px-3 text-sm transition-colors focus-within:ring-1 focus-within:ring-pv-emerald/60 ${
-                      checked ? "border-pv-emerald/70 bg-pv-emerald/[0.12] text-pv-text" : "border-pv-border/40 text-pv-muted hover:text-pv-text"
-                    }`}
-                  >
-                    <input type="checkbox" className="size-4 accent-pv-emerald" checked={checked} onChange={() => toggleCategory(c)} />
-                    {t(`categories.${c}`)}
-                  </label>
-                );
-              })}
+        <Disclosure summary={t("grant.filtersTitle")}>
+          <div className="grid gap-4">
+            <fieldset className="m-0 border-0 p-0" aria-describedby={`${fid("cats")}-hint`}>
+              <legend className="label">{t("grant.categoriesLegend")}</legend>
+              <div className="flex flex-wrap gap-2">
+                {COPY_CATEGORIES.map((c) => {
+                  const checked = values.allowedCategories.includes(c);
+                  return (
+                    <label
+                      key={c}
+                      className={`chip press focus-within:outline focus-within:outline-2 focus-within:outline-offset-[3px] focus-within:outline-coral ${
+                        checked ? "!bg-cream text-ink" : "text-muted hover:text-cream"
+                      }`}
+                    >
+                      <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleCategory(c)} />
+                      {t(`categories.${c}`)}
+                    </label>
+                  );
+                })}
+              </div>
+              <p id={`${fid("cats")}-hint`} className="m-0 mt-2 text-[12px] text-muted">
+                {t("grant.categoriesHint")}
+              </p>
+            </fieldset>
+            <div className="grid grid-cols-2 gap-4">
+              {numberInput("minClaimQuality", t("grant.minQuality"), t("grant.minQualityHint"), "1")}
+              {numberInput("minPayoutRatio", t("grant.minPayout"), t("grant.minPayoutHint"), "0.05")}
+              <Field id={fid("expiresOn")} label={t("grant.expiresOn")} hint={t("grant.expiresHint")}>
+                <input
+                  id={fid("expiresOn")}
+                  type="date"
+                  required
+                  min={dateInputValue(Date.now(), 0)}
+                  max={dateInputValue(Date.now(), 89)}
+                  className="input font-mono"
+                  value={values.expiresOn}
+                  aria-describedby={`${fid("expiresOn")}-hint`}
+                  onChange={(e) => set("expiresOn", e.target.value)}
+                />
+              </Field>
             </div>
-            <p id={`${fid("cats")}-hint`} className="mt-1.5 text-[11px] text-pv-muted">
-              {t("grant.categoriesHint")}
-            </p>
-          </fieldset>
-          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 sm:grid-cols-3">
-            {numberInput("minClaimQuality", t("grant.minQuality"), t("grant.minQualityHint"), "1")}
-            {numberInput("minPayoutRatio", t("grant.minPayout"), t("grant.minPayoutHint"), "0.05")}
-            <Field id={fid("expiresOn")} label={t("grant.expiresOn")} hint={t("grant.expiresHint")}>
-              <input
-                id={fid("expiresOn")}
-                type="date"
-                required
-                min={dateInputValue(Date.now(), 0)}
-                max={dateInputValue(Date.now(), 89)}
-                className="form-field-pv font-mono"
-                value={values.expiresOn}
-                aria-describedby={`${fid("expiresOn")}-hint`}
-                onChange={(e) => set("expiresOn", e.target.value)}
-              />
-            </Field>
           </div>
-        </fieldset>
+        </Disclosure>
 
-        <section aria-labelledby={fid("preview")} className="space-y-2">
-          <h3 id={fid("preview")} className="label mb-0">
-            {t("grant.previewTitle")}
-          </h3>
-          <p className="text-[11px] text-pv-muted">{t("grant.previewHint")}</p>
-          <pre className="bp-paper max-h-80 overflow-auto whitespace-pre-wrap break-words border border-pv-border/30 p-3 font-mono text-[11px] leading-relaxed text-pv-text sm:text-xs">
+        <Disclosure summary={t("grant.previewTitle")}>
+          <p className="m-0 mb-3 text-[12px] text-muted">{t("grant.previewHint")}</p>
+          <pre
+            data-lenis-prevent
+            className="m-0 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink-deep p-4 font-mono text-[12px] leading-relaxed text-cream shadow-well"
+          >
             {message}
           </pre>
-          {!draftError ? (
-            <p className="text-[11px] text-pv-muted">{t("grant.worstCase", { amount: formatUsdc(worstCase) })}</p>
-          ) : null}
-        </section>
+        </Disclosure>
 
         {/* Not a live region: it changes on every keystroke. */}
-        {draftError ? (
-          <p id={fid("draft-error")} className="flex items-start gap-2 text-xs text-pv-danger">
+        {!draftError ? (
+          <p className="m-0 text-[13px] text-muted">{t("grant.worstCase", { amount: formatUsdc(worstCase) })}</p>
+        ) : (
+          <p id={fid("draft-error")} className="m-0 flex items-start gap-2 text-[13px] text-danger">
             <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">{t("grant.fixFirst", { error: draftError })}</span>
           </p>
-        ) : null}
+        )}
 
         <div aria-live="polite" className="empty:hidden">
-          {notice ? <p className="text-sm text-pv-text">{notice}</p> : null}
+          {notice ? <p className="m-0 text-[14px] text-cream">{notice}</p> : null}
         </div>
 
         {submitError ? (
-          <div role="alert" className="flex items-start gap-2.5 border border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 text-sm text-pv-danger">
+          <div role="alert" className="flex items-start gap-2.5 rounded-lg bg-danger/[0.1] px-4 py-3 text-[14px] text-danger">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">{submitError}</span>
           </div>
         ) : null}
 
-        <button
+        <Button
           type="submit"
-          className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto"
-          disabled={Boolean(draftError) || busy}
-          aria-busy={busy || undefined}
+          size="sm"
+          disabled={Boolean(draftError)}
+          loading={busy}
           aria-describedby={draftError ? fid("draft-error") : undefined}
         >
           {busy ? t("grant.signing") : t("grant.sign")}
-        </button>
+        </Button>
       </form>
     </div>
   );

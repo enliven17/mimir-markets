@@ -4,6 +4,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ArrowUpRight } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
+import { SURFACE } from "@/components/arena/surface";
+import { Button, Disclosure, KeyValue, StatusPill } from "@/components/ui";
 import { formatUsdc } from "@/lib/money";
 import type { CopyPermissionView } from "@/lib/copy-client";
 import { COPY_CATEGORIES } from "@/lib/copy-form";
@@ -15,10 +17,10 @@ function statusOf(p: CopyPermissionView, now: number): PermissionStatus {
   return p.expiresAt <= now ? "expired" : "active";
 }
 
-const STATUS_CLASS: Record<PermissionStatus, string> = {
-  active: "border-pv-emerald/60 bg-pv-emerald/[0.12] text-pv-emerald",
-  expired: "border-pv-border/40 text-pv-muted",
-  revoked: "border-pv-danger/40 text-pv-danger",
+const STATUS_TONE: Record<PermissionStatus, "live" | "neutral" | "danger"> = {
+  active: "live",
+  expired: "neutral",
+  revoked: "danger",
 };
 
 const txUrl = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
@@ -41,10 +43,12 @@ export default function CopyPermissionCard({ permission: p, now, revoking, locke
 
   const categoryLabel = (c: string) => ((COPY_CATEGORIES as readonly string[]).includes(c) ? tCat(c) : c);
 
-  const limits: Array<[string, string]> = [
+  const caps: Array<[string, string]> = [
     [t("perPosition"), formatUsdc(p.maxPerPositionUsdc)],
     [t("perDay"), formatUsdc(p.maxDailyUsdc)],
     [t("perWeek"), formatUsdc(p.maxWeeklyUsdc)],
+  ];
+  const limits: Array<[string, string]> = [
     [t("openExposure"), formatUsdc(p.maxOpenExposureUsdc)],
     [t("lossStop"), formatUsdc(p.maxRealizedLossUsdc)],
     [t("minQuality"), `${p.minClaimQuality}/100`],
@@ -53,85 +57,88 @@ export default function CopyPermissionCard({ permission: p, now, revoking, locke
   ];
 
   return (
-    <article className="border border-pv-border/30 bg-pv-surface p-4 sm:p-5">
+    <article className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="break-all font-mono text-sm font-semibold text-pv-text">{p.id}</h3>
-          <p className="mt-1 break-words text-xs text-pv-muted">
+          <h3 className="m-0 break-all font-mono text-[15px] text-cream">{p.id}</h3>
+          <p className="m-0 mt-1 break-words text-[13px] text-muted">
             {t("copies", { agent: p.signalAgentId })} · {t("executedBy", { agent: p.executionAgentId })}
           </p>
         </div>
-        <span className={`shrink-0 border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] ${STATUS_CLASS[status]}`}>
-          {t(`status.${status}`)}
-        </span>
+        <StatusPill tone={STATUS_TONE[status]}>{t(`status.${status}`)}</StatusPill>
       </header>
 
-      <dl className="mt-4 grid grid-cols-2 gap-px border border-pv-border/25 bg-pv-border/25 sm:grid-cols-4">
-        {limits.map(([label, value]) => (
-          <div key={label} className="min-w-0 bg-pv-surface px-3 py-2">
-            <dt className="break-words font-mono text-[10px] uppercase tracking-[0.12em] text-pv-muted">{label}</dt>
-            <dd className="mt-0.5 break-words text-[13px] tabular-nums text-pv-text">{value}</dd>
+      <dl className="m-0 grid grid-cols-3 gap-4">
+        {caps.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="truncate text-[11px] uppercase tracking-[0.06em] text-muted">{label}</dt>
+            <dd className="m-0 mt-1 truncate font-mono text-[15px] tabular-nums text-cream">{value}</dd>
           </div>
         ))}
       </dl>
 
-      <p className="mt-3 font-mono text-[11px] text-pv-muted">
-        {t("expires")}:{" "}
-        <time dateTime={new Date(p.expiresAt).toISOString()} className="text-pv-text">
+      <p className="m-0 text-[13px] text-muted">
+        {t("expires")}{" "}
+        <time dateTime={new Date(p.expiresAt).toISOString()} className="text-cream">
           {format.dateTime(new Date(p.expiresAt), { dateStyle: "medium", timeStyle: "short" })}
         </time>
         {" · "}
         {t("worstCase", { amount: formatUsdc(p.worstCaseUsdc) })}
       </p>
 
-      <section className="mt-4 border-t border-pv-border/25 pt-3" aria-label={t("recentTitle")}>
-        <h4 className="label mb-2">{t("recentTitle")}</h4>
-        {p.recent.length === 0 ? (
-          <p className="text-xs text-pv-muted">{t("recentEmpty")}</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {p.recent.map((e) => (
-              <li key={`${e.claimId}-${e.at}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                <Link href={`/arena/${e.claimId}`} className="font-mono text-pv-text underline decoration-pv-emerald underline-offset-4">
-                  {t("claim", { id: e.claimId })}
-                </Link>
-                <span className={e.executed ? "text-pv-text" : "text-pv-muted"}>
-                  {e.executed
-                    ? t("executed", { amount: formatUsdc(e.stakeUsdc) })
-                    : t("skipped", { reason: (e.skipReason ?? "unknown").replace(/_/g, " ") })}
-                </span>
-                <time dateTime={new Date(e.at).toISOString()} className="font-mono text-[10px] text-pv-muted">
-                  {format.dateTime(new Date(e.at), { dateStyle: "short", timeStyle: "short" })}
-                </time>
-                {e.txSignature ? (
-                  <a
-                    href={txUrl(e.txSignature)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-pv-muted hover:text-pv-text"
-                  >
-                    {t("viewTx")}
-                    <ArrowUpRight className="size-3" aria-hidden />
-                  </a>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid gap-2">
+        <Disclosure summary={t("limitsTitle")}>
+          <KeyValue rows={limits.map(([label, value]) => ({ label, value }))} />
+        </Disclosure>
+        <Disclosure summary={t("recentTitle")} meta={p.recent.length}>
+          {p.recent.length === 0 ? (
+            <p className="m-0 text-[13px] text-muted">{t("recentEmpty")}</p>
+          ) : (
+            <ul className="m-0 grid list-none gap-2 p-0">
+              {p.recent.map((e) => (
+                <li key={`${e.claimId}-${e.at}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <Link href={`/arena/${e.claimId}`} className="font-mono text-cream hover:text-coral">
+                    {t("claim", { id: e.claimId })}
+                  </Link>
+                  <span className={e.executed ? "text-cream" : "text-muted"}>
+                    {e.executed
+                      ? t("executed", { amount: formatUsdc(e.stakeUsdc) })
+                      : t("skipped", { reason: (e.skipReason ?? "unknown").replace(/_/g, " ") })}
+                  </span>
+                  <time dateTime={new Date(e.at).toISOString()} className="font-mono text-[12px] text-muted">
+                    {format.dateTime(new Date(e.at), { dateStyle: "short", timeStyle: "short" })}
+                  </time>
+                  {e.txSignature ? (
+                    <a
+                      href={txUrl(e.txSignature)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 font-mono text-[12px] text-muted hover:text-coral"
+                    >
+                      {t("viewTx")}
+                      <ArrowUpRight className="size-3" aria-hidden />
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Disclosure>
+      </div>
 
       {status === "active" ? (
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            className="btn-danger min-h-[44px] w-auto px-4 py-2 text-xs"
+        <div className="flex justify-end">
+          <Button
+            variant="danger"
+            size="sm"
+            fullWidth={false}
             onClick={() => onRevoke(p.id)}
             disabled={locked}
-            aria-busy={revoking || undefined}
+            loading={revoking}
             aria-label={t("revokeAria", { id: p.id })}
           >
             {revoking ? t("revoking") : t("revoke")}
-          </button>
+          </Button>
         </div>
       ) : null}
     </article>
