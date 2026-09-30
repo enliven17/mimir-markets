@@ -26,7 +26,7 @@ interface WalletSheetContextValue {
   isOpen: boolean;
   open: () => void;
   close: () => void;
-  /** Start loading the sheet and WalletConnect ahead of a click (hover, focus). */
+  /** Start loading the sheet ahead of a click (hover, focus). */
   warm: () => void;
 }
 
@@ -46,13 +46,18 @@ export default function WalletSheetProvider({ children }: { children: ReactNode 
   openRef.current = isOpen;
 
   const open = useCallback(() => {
-    requestWalletConnect();
     setEverOpened(true);
     setIsOpen(true);
+    // WalletConnect (over 1MB) evaluates after the sheet's entrance, never
+    // in the same frames; its row appears when it is ready.
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(requestWalletConnect, { timeout: 400 });
+    else window.setTimeout(requestWalletConnect, 250);
   }, []);
   const close = useCallback(() => setIsOpen(false), []);
+  // Hover or focus only fetches the small sheet chunk. Warming WalletConnect
+  // here evaluated it whenever a scroll carried a connect button under the
+  // pointer: a long task in the middle of scrolling.
   const warm = useCallback(() => {
-    requestWalletConnect();
     void import("./ConnectSheet");
   }, []);
 

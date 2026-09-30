@@ -11,10 +11,9 @@
  *
  * WalletConnect (mobile QR) is added only when
  * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set, and only on demand: it pulls
- * Reown AppKit (over 1MB of script), so it loads when the connect sheet opens
- * or the wallet chip is hovered or focused (`requestWalletConnect`), or at
- * startup when WalletConnect is the wallet autoConnect will restore. Never on
- * a plain page view.
+ * Reown AppKit (over 1MB of script), so it loads just after the connect sheet
+ * opens (`requestWalletConnect`), or at startup when WalletConnect is the
+ * wallet autoConnect will restore. Never on a plain page view or a hover.
  *
  * We deliberately avoid `@solana/wallet-adapter-wallets`: it pulls the Ledger
  * adapter's `usb` native module, which needs a C/Python toolchain to build
@@ -35,7 +34,7 @@ const WALLET_NAME_KEY = "walletName";
 let wcWanted = false;
 const wcListeners = new Set<() => void>();
 
-/** Ask for the WalletConnect adapter (sheet open, chip hover). Idempotent. */
+/** Ask for the WalletConnect adapter (the connect sheet opened). Idempotent. */
 export function requestWalletConnect(): void {
   if (!WALLETCONNECT_PROJECT_ID || wcWanted) return;
   wcWanted = true;

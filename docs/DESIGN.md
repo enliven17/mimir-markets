@@ -235,8 +235,9 @@ use a pin.
   (the same near-opaque values as the glass primitives).
 - **Script on demand**: Anchor, the IDL and SPL Token load through
   `lib/solana/browser-client-lazy.ts` (`useBrowserMimir` once a wallet is
-  connected, action wrappers on first use); WalletConnect loads when the
-  connect sheet opens or the wallet chip is hovered or focused (or when it is
-  the wallet autoConnect restores); the connect sheet mounts on first open.
+  connected, action wrappers on first use); WalletConnect loads just after the
+  connect sheet opens (or at startup when it is the wallet autoConnect
+  restores), never on hover; the connect sheet mounts on first open and its
+  chunk is prefetched on hover or focus of a connect button.
   Polled pages (`/stats`, `/agents`) use `lib/usePolledJson.ts`: paused in
   hidden tabs, and an unchanged body never re-renders.
