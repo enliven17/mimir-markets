@@ -22,7 +22,7 @@ interface PeepAvatarProps {
   className?: string;
 }
 
-/** Open-peeps portrait (DiceBear) on a cream tile. */
+/** Open-peeps portrait (DiceBear) in the site palette on a maroon tile. */
 export default function PeepAvatar({
   seed,
   size = 32,
@@ -33,7 +33,7 @@ export default function PeepAvatar({
 }: PeepAvatarProps) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-cream ${
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-[linear-gradient(145deg,#5b3637,#362223)] ${
         shape === "circle" ? "rounded-full" : "rounded-[28%]"
       } ${TONE_BORDER[tone]} ${className}`}
       style={{ width: size, height: size }}
