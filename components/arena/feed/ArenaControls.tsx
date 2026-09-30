@@ -143,7 +143,15 @@ function FiltersPopover({
   ];
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div
+      ref={rootRef}
+      className="relative shrink-0"
+      // Non-modal: Tab out of the panel closes it (a click inside on plain text has no relatedTarget and keeps it open).
+      onBlur={(e) => {
+        const next = e.relatedTarget as Node | null;
+        if (open && next && !rootRef.current?.contains(next)) setOpen(false);
+      }}
+    >
       <button
         ref={buttonRef}
         type="button"
