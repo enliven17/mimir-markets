@@ -6,6 +6,7 @@
  * persona's open / revise / skip call. Advisory only: it never blocks
  * publishing, and a draft that changes after a check shows the result as stale.
  */
+import { SURFACE } from "@/components/arena/surface";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -39,9 +40,9 @@ interface Result {
 }
 
 const DECISION_CLASS: Record<Opinion["decision"], string> = {
-  open: "border-pv-emerald/40 bg-pv-emerald/[0.08] text-pv-emerald",
-  revise: "border-pv-gold/40 bg-pv-gold/[0.08] text-pv-gold",
-  skip: "border-pv-danger/40 bg-pv-danger/[0.06] text-pv-danger",
+  open: "text-win",
+  revise: "text-pending",
+  skip: "text-danger",
 };
 
 export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
@@ -82,28 +83,28 @@ export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
   }
 
   return (
-    <section className="border border-pv-border/25 bg-pv-surface p-4" aria-live="polite">
+    <section className={`${SURFACE} grid gap-3 p-5`} aria-live="polite">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-pv-emerald">{t("title")}</h3>
-          <p className="mt-1 text-[11px] leading-relaxed text-pv-muted">{t("hint")}</p>
+        <div className="grid min-w-0 gap-1">
+          <h3 className="m-0 text-[15px] font-normal text-cream">{t("title")}</h3>
+          <p className="m-0 text-[13px] leading-relaxed text-muted">{t("hint")}</p>
         </div>
         <button
           type="button"
           onClick={() => void ask()}
           disabled={!ready || busy}
-          className="focus-ring shrink-0 border border-pv-emerald/40 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-pv-emerald transition-colors hover:bg-pv-emerald/10 disabled:cursor-not-allowed disabled:opacity-40"
+          className="glass press inline-flex min-h-[38px] shrink-0 items-center rounded-full px-4 text-[14px] text-cream shadow-chip disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? t("asking") : result ? t("askAgain") : t("ask")}
         </button>
       </div>
 
-      {!ready && !result ? <p className="mt-3 text-[11px] text-pv-muted/80">{t("needsDraft")}</p> : null}
-      {error ? <p className="mt-3 text-[11px] text-pv-danger">{error}</p> : null}
+      {!ready && !result ? <p className="m-0 text-[12px] text-dim">{t("needsDraft")}</p> : null}
+      {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
 
       {result ? (
-        <div className={`mt-3 space-y-2 ${stale ? "opacity-60" : ""}`}>
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
+        <div className={`grid gap-2 ${stale ? "opacity-60" : ""}`}>
+          <p className="m-0 font-mono text-[12px] text-muted">
             {t("summary", {
               score: result.averageScore ?? "—",
               open: result.openVotes,
@@ -112,19 +113,17 @@ export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
             })}
             {stale ? ` · ${t("stale")}` : ""}
           </p>
-          <ul className="divide-y divide-pv-border/25 border border-pv-border/25">
+          <ul className="m-0 grid list-none gap-1.5 p-0">
             {result.opinions.map((o) => (
-              <li key={o.slug} className="flex gap-2 bg-pv-bg px-3 py-2">
+              <li key={o.slug} className="flex gap-2.5 rounded-xl bg-cream/[0.035] px-3 py-2.5">
                 <PeepAvatar seed={`council-${o.slug}`} size={28} tone="neutral" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[12px] font-semibold text-pv-text">{o.displayName}</span>
-                    <span className={`border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] ${DECISION_CLASS[o.decision]}`}>
-                      {t(`decision.${o.decision}`)}
-                    </span>
-                    <span className="font-mono text-[10px] tabular-nums text-pv-muted">{o.score}/100</span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-pv-text/80">{o.reasoning}</p>
+                  <p className="m-0 flex flex-wrap items-center gap-2 text-[13px]">
+                    <span className="text-cream">{o.displayName}</span>
+                    <span className={DECISION_CLASS[o.decision]}>{t(`decision.${o.decision}`)}</span>
+                    <span className="font-mono text-[12px] tabular-nums text-muted">{o.score}/100</span>
+                  </p>
+                  <p className="m-0 mt-0.5 text-[12px] leading-relaxed text-muted">{o.reasoning}</p>
                 </div>
               </li>
             ))}
