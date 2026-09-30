@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { getLenis, gsap, MOTION_OK_QUERY, ScrollTrigger, useGSAP } from "@/lib/motion";
+import { getLenis, gsap, MOTION_OK_QUERY, pinType, ScrollTrigger, useGSAP } from "@/lib/motion";
 import { SplitReveal, useRiseBatch } from "@/components/motion";
 import { Segmented } from "@/components/ui";
 import { featuredClaim, poolUsdc } from "@/lib/landing";
@@ -157,6 +157,7 @@ export default function CouncilDial() {
           start: "top top",
           end: "+=130%",
           pin: true,
+          pinType: pinType(),
           anticipatePin: 1,
           onUpdate: (self) => {
             const p = self.progress;

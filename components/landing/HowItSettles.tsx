@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { gsap, MOTION_OK_QUERY, useGSAP } from "@/lib/motion";
+import { gsap, MOTION_OK_QUERY, pinType, useGSAP } from "@/lib/motion";
 import { requestScrollRefresh } from "./LandingFeed";
 
 const STEPS = ["create", "challenge", "resolve", "payout"] as const;
@@ -44,6 +44,7 @@ export default function HowItSettles() {
             end: `+=${(n - 1) * 110}%`,
             scrub: 1.2,
             pin: true,
+            pinType: pinType(),
             anticipatePin: 1,
             // Nearest step, not the next one: a small scroll never jumps a whole step.
             snap: {

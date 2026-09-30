@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
-import { gsap, reducedMotion, SplitText, useGSAP } from "@/lib/motion";
+import { SplitText } from "gsap/SplitText";
+import { gsap, reducedMotion, useGSAP } from "@/lib/motion";
+
+if (typeof window !== "undefined") gsap.registerPlugin(SplitText);
 
 /**
  * Masked line reveal. Splits the

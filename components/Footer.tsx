@@ -18,10 +18,15 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { useMimirConnection } from "@/hooks/useMimirWallet";
 import { MIMIR_PROGRAM_ID } from "@/lib/solana/config";
 import { gsap, useGSAP } from "@/lib/motion";
-import { Magnetic, RollingNumber, SplitReveal } from "@/components/motion";
+import dynamic from "next/dynamic";
+import Magnetic from "@/components/motion/Magnetic";
+import RollingNumber from "@/components/motion/RollingNumber";
 import Wordmark from "@/components/ui/Wordmark";
 import InfoModal, { INFO_PANELS, type InfoPanel } from "./footer/InfoModal";
 import { NAV_CTA, NAV_MORE_GROUPS, NAV_PRIMARY, type NavItem } from "./nav-items";
+
+// The closer is home-only; its SplitText reveal loads only there.
+const SplitReveal = dynamic(() => import("@/components/motion/SplitReveal"));
 
 const REPO_URL = "https://github.com/enliven17/mimir-solana";
 const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;

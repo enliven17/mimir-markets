@@ -20,7 +20,6 @@
  */
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { SplitText } from "gsap/SplitText";
 import { useGSAP } from "@gsap/react";
 import Lenis from "lenis";
 
@@ -46,7 +45,9 @@ const state: MotionState = (g.__mimirMotion ??= {
 });
 
 if (typeof window !== "undefined" && !state.registered) {
-  gsap.registerPlugin(ScrollTrigger, SplitText, useGSAP);
+  // SplitText registers itself in components/motion/SplitReveal.tsx, the one
+  // place it is used, so it stays out of every other page's bundle.
+  gsap.registerPlugin(ScrollTrigger, useGSAP);
   // Mobile URL bars resize the viewport while scrolling; re-measuring every
   // pin on each of those is what makes pinned sections jump on phones.
   // limitCallbacks: triggers that were skipped past fire nothing on refresh.
@@ -76,6 +77,17 @@ export function smoothScrollAllowed(): boolean {
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
+/**
+ * Pin mode for pinned sections. With smooth scroll the page moves from JS on
+ * the same frame ScrollTrigger runs, so a transform pin stays in step and,
+ * unlike a switch to position: fixed, never registers as a layout shift. With
+ * native scroll (touch, low-power) the compositor scrolls ahead of JS, so a
+ * fixed pin is the one that does not jitter.
+ */
+export function pinType(): "fixed" | "transform" {
+  return smoothScrollAllowed() ? "transform" : "fixed";
+}
+
 /** True on devices with a real hover pointer (magnetic, tilt). */
 export function canHover(): boolean {
   if (typeof window === "undefined") return false;
@@ -94,6 +106,10 @@ function wake(): void {
   if (!lenis || !state.tick) return;
   if (!state.awake) {
     state.awake = true;
+    // Lenis measures each step from its last tick; after a rest that gap is
+    // seconds long and the first frame would jump straight to the target.
+    // Start the clock again so the glide begins with a normal frame.
+    lenis.time = 0;
     gsap.ticker.add(state.tick);
   }
   window.clearTimeout(state.restTimer);
@@ -207,4 +223,4 @@ export function scrollToTop(): void {
   else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
-export { gsap, ScrollTrigger, SplitText, useGSAP };
+export { gsap, ScrollTrigger, useGSAP };
