@@ -64,10 +64,14 @@ use any of them in new code; they go in P6.
 
 | Face | Loaded by | Class | Use |
 |---|---|---|---|
-| Geist Pixel Square | `geist/font/pixel` (`lib/fonts.ts`) | `font-sans` / `font-body` / `font-pixel` (body default) | UI voice |
-| Terminal Grotesque 400 | `next/font/local`, `app/fonts/terminal-grotesque.ttf` (SIL OFL) | `font-display` | wordmark, headings, buttons |
-| Geist Mono | `geist/font` | `font-mono` | addresses, hex, live numbers |
-| Geist Sans | `geist/font` | fallback only | |
+| Geist Pixel Square | `next/font/local` from the geist package (`lib/fonts.ts`), preloaded | `font-sans` / `font-body` / `font-pixel` (body default) | UI voice |
+| Terminal Grotesque 400 | `next/font/local`, `app/fonts/terminal-grotesque.woff2` (WOFF2 of the `.ttf`, SIL OFL), preloaded | `font-display` | wordmark, headings, buttons |
+| Geist Mono | `next/font/local`, one variable file, not preloaded | `font-mono` | addresses, hex, live numbers |
+| Geist Sans | `next/font/local`, one variable file, not preloaded | fallback only | |
+
+Only the two faces above the fold are preloaded; every face uses
+`font-display: swap`. Do not import `geist/font*`: those modules declare every
+static weight and all five pixel faces, and each one becomes a preload.
 
 Headings are never bold. Sizes are Tailwind `fontSize` tokens:
 `display-xl`, `display-hero`, `display-lg`, `display-md`, `title`, `lead`,
