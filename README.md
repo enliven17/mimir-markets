@@ -2,7 +2,7 @@
 
 **An AI-settled claim market on Solana. Markets live inside a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, price claims resolve against the [Flash Trade](https://flash.trade) oracle.**
 
-**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet)
+**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet) · **$MIMIR:** [`8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V`](https://clawpump.tech/tokens/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V) (Solana mainnet)
 
 > *In Norse mythology, Mimir is the guardian of the Well of Wisdom, an oracle who knows all things past, present, and future.*
 
