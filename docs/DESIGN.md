@@ -35,8 +35,12 @@ an alpha (`bg-cream/10`).
 
 Surfaces (CSS variables and classes): `--glass` / `.glass` (chips, ghost
 buttons), `--glass-card` / `.glass-card` / `.card` (cards), `--glass-deep` /
-`.glass-deep` (sheets, dialogs). `.grain` adds a fine turbulence grain overlay.
-The fixed `.wall` behind the page is a 4px dot screen over a dark gradient.
+`.glass-deep` (sheets, dialogs). They are near-opaque fills tuned to match the
+old blurred glass over the wall; no large surface uses `backdrop-filter` (it is
+recomputed on every scrolled frame). The only blur left is the small nav pill,
+on fine-pointer desktops that are not low-power. `.grain` adds a fine
+turbulence grain overlay. The fixed `.wall` behind the page is a 4px dot screen
+over a dark gradient: one static layer, no filter, painted once.
 
 Money figures are cream in Geist Mono, never green. Numbers that tick use
 `font-mono tabular-nums` (Geist Pixel has no tabular figures; `.tn` boxes a
@@ -101,10 +105,18 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 ## Motion (`lib/motion.ts`, `components/motion/`)
 
 - One Lenis instance on GSAP's ticker (`startSmoothScroll`), started by
-  `MotionProvider` in the root layout; ScrollTrigger updates on Lenis scroll
-  and refreshes after `document.fonts.ready` and each route change. Plugins
-  register once; the instance lives on `globalThis` so HMR never adds a
-  second ticker callback.
+  `MotionProvider` in the root layout, only on fine-pointer desktops that are
+  not low-power (`smoothScrollAllowed`); touch and `html.lite` devices scroll
+  natively, so code must handle `getLenis()` being null. Lenis has no rAF of
+  its own (`autoRaf: false`) and its tick is on the ticker only while the page
+  scrolls. ScrollTrigger updates on Lenis scroll; refreshes go through
+  `requestRefresh()` (one per frame, skipped without triggers) after
+  `document.fonts.ready`, each route change and layout-changing data. Pins use
+  `pinType()` (transform with Lenis, fixed without). Plugins register once;
+  the instance lives on `globalThis` so HMR never adds a second ticker
+  callback. SplitText registers in `SplitReveal` only.
+- `html.lite` (head script in `app/layout.tsx`): 4 cores or fewer, 4GB or
+  less, or Save-Data. No Lenis, no nav blur, the hero field at 12fps and DPR 1.
 - Reduced motion: no Lenis (torn down live if the setting flips), no
   SplitText, no dither (300ms fade), no marquee, no magnetic, no hover lifts,
   numbers snap, CSS entrances off.
@@ -131,7 +143,8 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 
 - Header (`components/Header.tsx`): morphing glass navbar. `--nav-p` (0 → 1)
   drives height, width (1320 → 980px), radius, border, shadow, glass and
-  blur (`.nav-shell` / `.nav-bar` in `app/globals.css`). Scrubbed over the
+  blur (`.nav-shell` / `.nav-bar` in `app/globals.css`; the blur only on
+  fine-pointer, non-lite desktops, a near-opaque fill elsewhere). Scrubbed over the
   first 160px on `/`, held at 1 on every other route, flipped at 80px under
   reduced motion. Pill: wordmark, Arena · Council · Portfolio · More, then
   Create, notifications and the wallet chip. `components/nav-items.ts` is the
@@ -167,7 +180,10 @@ is real; nothing falls back to a made-up value.
 
 1. **Hero**: `Don't argue. Settle.` dithers in, a pixel scribble draws under
    the accent word, one line of copy, two magnetic CTAs, the slim ASCII field
-   (`components/HeroAscii.tsx`) behind; the copy drifts up on scroll.
+   (`components/HeroAscii.tsx`) behind; the copy drifts up on scroll. The
+   field renders in a worker on an OffscreenCanvas (main-thread fallback at
+   12fps), DPR capped at 1.5, 24fps (12 on `html.lite`), paused offscreen and
+   in hidden tabs, one static frame under reduced motion or Save-Data.
 2. **Live strip + ticker**: markets, open pool and live on the ER (numbers roll
    up once in view and flash on change), then a velocity marquee of the newest
    claims.
@@ -179,8 +195,9 @@ is real; nothing falls back to a made-up value.
 6. **Ledger**: the last settled claims on a snap rail, tagged Firm /
    Contested / Refund.
 
-The footer's closer is the page's only closing CTA. `EdgeFog` blurs the
-viewport edges while the page moves.
+The footer's closer is the page's only closing CTA. `EdgeFog` hazes the
+viewport edges while the page moves: one gradient band per edge driven by
+opacity from Lenis velocity, no blur and no layout reads (off without Lenis).
 
 Pinned layouts exist only while their timeline sets `data-pinned` /
 `data-dial`, so the server HTML, no-JS and reduced motion get plain stacked
@@ -214,5 +231,12 @@ use a pin.
   validates the step, Back keeps the draft, `?source=` prefills step 1.
 - **Cost rules**: countdowns are `Countdown` (one shared 1s interval writing
   `textContent`, no React renders); page clocks are coarse (15 to 30s);
-  lists, panels and big sheets use the unblurred fills in
-  `components/arena/surface.ts` instead of the blurred glass primitives.
+  lists, panels and big sheets use the fills in `components/arena/surface.ts`
+  (the same near-opaque values as the glass primitives).
+- **Script on demand**: Anchor, the IDL and SPL Token load through
+  `lib/solana/browser-client-lazy.ts` (`useBrowserMimir` once a wallet is
+  connected, action wrappers on first use); WalletConnect loads when the
+  connect sheet opens or the wallet chip is hovered or focused (or when it is
+  the wallet autoConnect restores); the connect sheet mounts on first open.
+  Polled pages (`/stats`, `/agents`) use `lib/usePolledJson.ts`: paused in
+  hidden tabs, and an unchanged body never re-renders.
