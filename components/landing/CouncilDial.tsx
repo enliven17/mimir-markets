@@ -43,7 +43,7 @@ function useRoster(): Roster {
 function StakePane() {
   const t = useTranslations("home.dial");
   const tc = useTranslations("home.claim");
-  const { feed } = useLandingFeed();
+  const { feed, status } = useLandingFeed();
   const claim = featuredClaim(feed);
 
   return (
@@ -52,7 +52,8 @@ function StakePane() {
         {claim ? (
           <p className="l-mock-q">{claim.question}</p>
         ) : (
-          <p className="l-mock-q text-muted">{t("mockEmpty")}</p>
+          // "No open claim" only once the feed has answered; before that it is still reading.
+          <p className="l-mock-q text-muted">{status === "loading" ? `${tc("loading")}…` : t("mockEmpty")}</p>
         )}
         <div className="segmented" style={{ "--n": 2, "--i": 1 } as React.CSSProperties}>
           <button type="button" tabIndex={-1}>
