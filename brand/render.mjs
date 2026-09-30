@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
 const root = fileURLToPath(new URL('./source/', import.meta.url))
-const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.woff2': 'font/woff2' }
+const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.woff2': 'font/woff2', '.svg': 'image/svg+xml' }
 // ES modules need http, not file://, so the sources are served locally for the capture.
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://x').pathname
@@ -24,12 +24,15 @@ const browser = await puppeteer.launch({
 for (const [page, out, w, h] of [
   ['profile.html', 'x-profile.png', 400, 400],
   ['banner.html', 'x-banner.png', 1500, 500],
+  // the site's tab icon and iOS home-screen icon (a PNG: the horn SVG is ~300KB)
+  ['icon.html', '../app/icon.png', 128, 128],
+  ['icon.html?flat', '../app/apple-icon.png', 90, 90],
 ]) {
   const tab = await browser.newPage()
   await tab.setViewport({ width: w, height: h, deviceScaleFactor: 2 })
   await tab.goto(`http://localhost:${port}/${page}`, { waitUntil: 'networkidle0' })
   await tab.waitForSelector('body[data-ready="1"]')
-  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h } })
+  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h }, omitBackground: page === 'icon.html' })
   console.log('wrote', out)
 }
 await browser.close()

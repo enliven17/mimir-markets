@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir icon</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* Tab icon: the horn on a rounded ink square. `?flat` drops the rounding
+       (iOS rounds home-screen icons itself). */
+    html, body { background: transparent; }
+    .tile { width: 100vw; height: 100vh; display: grid; place-items: center; border-radius: 22%; background: var(--ink); }
+    .flat .tile { border-radius: 0; }
+    .tile img { width: 76%; height: auto; transform: translateX(-2%); }
+  </style>
+</head>
+<body>
+  <div class="tile"><img src="horn.svg" alt="" /></div>
+  <script type="module">
+    if (location.search.includes('flat')) document.documentElement.classList.add('flat')
+    await document.querySelector('.tile img').decode()
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>
