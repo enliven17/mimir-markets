@@ -330,17 +330,6 @@
     "payoutsHow": "How payouts work",
     "disputeHow": "How disputes work"
   },
-  "cache": {
-    "label": "Index freshness",
-    "unknown": "Unknown",
-    "live": "Live",
-    "cached": "Cached",
-    "stale": "Stale",
-    "refresh": "Refresh",
-    "refreshing": "Refreshing",
-    "sourceIndex": "indexed cache",
-    "sourceContract": "on-chain read"
-  },
   "header": {
     "challenge": "+ Challenge",
     "challengeMobile": "Challenge",
@@ -1208,14 +1197,6 @@
     "invalidChallengeStakeMin": "Enter a stake of at least {amount} USDC",
     "minimumStakeHint": "Minimum stake is {amount} USDC."
   },
-  "stamp": {
-    "provenDecided": "Mimir has decided",
-    "won": "Winner {address}",
-    "draw": "Draw",
-    "challengersWon": "Winning side: Challengers",
-    "youWon": "You win",
-    "lost": "You lost"
-  },
   "terminal": {
     "searchingEvidence": "AI searching for evidence...",
     "analyzing": "Analyzing {url}...",
@@ -1280,14 +1261,6 @@
     "culture": "Culture",
     "cultura": "Culture",
     "custom": "Custom"
-  },
-  "strip": {
-    "creator": "Creator",
-    "rival": "Rival",
-    "waiting": "Waiting..."
-  },
-  "poolBadge": {
-    "atStake": "at stake"
   },
   "xmtpVs": {
     "title": "XMTP MESSAGES",

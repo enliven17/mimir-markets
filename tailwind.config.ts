@@ -31,21 +31,6 @@ const config: Config = {
         pending:        "rgb(var(--pending-rgb) / <alpha-value>)",
         line:           "rgb(var(--cream-rgb) / 0.12)",
         "line-strong":  "rgb(var(--cream-rgb) / 0.30)",
-        // Legacy purple-blueprint names. They now resolve to the current tokens
-        // so pages not yet rewritten keep rendering; removed in phase P6.
-        pv: {
-          bg:       "rgb(var(--pv-bg) / <alpha-value>)",
-          surface:  "rgb(var(--pv-surface) / <alpha-value>)",
-          surface2: "rgb(var(--pv-surface2) / <alpha-value>)",
-          border:   "rgb(var(--pv-border) / <alpha-value>)",
-          text:     "rgb(var(--pv-text) / <alpha-value>)",
-          muted:    "rgb(var(--pv-muted) / <alpha-value>)",
-          cyan:     "rgb(var(--pv-accent) / <alpha-value>)",
-          fuch:     "rgb(var(--pv-accent2) / <alpha-value>)",
-          emerald:  "rgb(var(--pv-accent) / <alpha-value>)",
-          gold:     "rgb(var(--pv-gold) / <alpha-value>)",
-          danger:   "rgb(var(--pv-danger) / <alpha-value>)",
-        },
       },
       fontFamily: {
         // Geist Pixel Square is the UI voice, Terminal Grotesque the display
@@ -110,14 +95,6 @@ const config: Config = {
         bubble:  "inset 0 1px 0 rgb(255 255 255 / .15), inset 0 -2px 5px rgb(0 0 0 / .2), 0 14px 30px rgb(0 0 0 / .32)",
         "bubble-hover": "inset 0 1px 0 rgb(255 255 255 / .24), inset 0 -2px 5px rgb(0 0 0 / .2), 0 22px 42px rgb(0 0 0 / .44)",
         well:    "inset 0 1px 5px rgb(0 0 0 / .42)",
-        // Legacy glow names, recoloured to coral until their callers go.
-        glow:              "0 0 40px rgba(255,81,72,0.28)",
-        "glow-fuch":       "0 0 40px rgba(255,43,43,0.24)",
-        "glow-emerald":    "0 0 40px rgba(255,81,72,0.16)",
-        "glow-gold":       "0 0 40px rgba(243,234,214,0.10)",
-        "glow-lg":         "0 0 60px rgba(255,81,72,0.32)",
-        "glow-fuch-lg":    "0 0 60px rgba(255,43,43,0.28)",
-        "glow-emerald-lg": "0 0 60px rgba(255,81,72,0.2)",
       },
       transitionTimingFunction: {
         out:       "cubic-bezier(0.23, 1, 0.32, 1)",

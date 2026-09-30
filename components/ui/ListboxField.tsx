@@ -26,7 +26,7 @@ export type ListboxFieldProps = {
 
 /**
  * Desplegable estilo Explorer (SORT BY): trigger tipo `input` + panel listbox con portal
- * para no quedar recortado bajo `overflow-hidden` (p. ej. GlassCard).
+ * para no quedar recortado bajo `overflow-hidden` (p. ej. una Card).
  */
 export default function ListboxField({
   id,

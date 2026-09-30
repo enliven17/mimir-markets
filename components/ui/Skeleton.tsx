@@ -27,23 +27,6 @@ export default function Skeleton({ className = "", lines = 1 }: SkeletonProps) {
   );
 }
 
-export function VSCardSkeleton() {
-  return (
-    <div className="card space-y-3 p-5">
-      <div className="flex justify-between">
-        <SkeletonLine className="h-5 w-20" />
-        <SkeletonLine className="h-5 w-12" />
-      </div>
-      <SkeletonLine className="h-6 w-full" />
-      <SkeletonLine className="h-6 w-3/4" />
-      <div className="flex gap-3">
-        <SkeletonLine className="h-16 flex-1" />
-        <SkeletonLine className="h-16 flex-1" />
-      </div>
-    </div>
-  );
-}
-
 /** Matches the arena claim card layout for loading grids. */
 export function ArenaCardSkeleton() {
   return (
