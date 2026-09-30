@@ -23,6 +23,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import CopyPermissionList from "@/components/copy/CopyPermissionList";
+import CopyLeaders, { type CopyLeader } from "@/components/copy/CopyLeaders";
+import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
 import { probeCopyTrading } from "@/lib/copy-client";
 
 const CopyGrantForm = dynamic(() => import("@/components/copy/CopyGrantForm"), {
@@ -32,12 +34,31 @@ const CopyGrantForm = dynamic(() => import("@/components/copy/CopyGrantForm"), {
 
 type Availability = "checking" | "enabled" | "disabled" | "unknown";
 
-export default function CopyClient() {
+export default function CopyClient({ leaders }: { leaders: CopyLeader[] }) {
   const t = useTranslations("copy");
   const { publicKey, connected } = useWallet();
   const address = publicKey?.toBase58() ?? null;
   const [availability, setAvailability] = useState<Availability>("checking");
   const [granting, setGranting] = useState(false);
+  /** Persona picked from "Wallets to copy", preselected in the grant form. */
+  const [leader, setLeader] = useState<string | undefined>(undefined);
+  const walletSheet = useWalletSheet();
+
+  // Picked before a wallet was connected: open the grant sheet once it is.
+  const [pendingGrant, setPendingGrant] = useState(false);
+  const copyLeader = (slug: string) => {
+    setLeader(slug);
+    if (connected) setGranting(true);
+    else {
+      setPendingGrant(true);
+      walletSheet.open();
+    }
+  };
+  useEffect(() => {
+    if (!pendingGrant || !connected || availability !== "enabled") return;
+    setPendingGrant(false);
+    setGranting(true);
+  }, [pendingGrant, connected, availability]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +118,14 @@ export default function CopyClient() {
           <h2 id="copy-list-heading" className="m-0 font-display text-[1.45rem] leading-none text-cream">
             {t("list.title")}
           </h2>
-          <Button size="sm" fullWidth={false} onClick={() => setGranting(true)}>
+          <Button
+            size="sm"
+            fullWidth={false}
+            onClick={() => {
+              setLeader(undefined);
+              setGranting(true);
+            }}
+          >
             <Plus className="size-4" aria-hidden />
             {t("grant.open")}
           </Button>
@@ -111,7 +139,12 @@ export default function CopyClient() {
           closeLabel={t("grant.close")}
           className="sm:!max-w-[640px]"
         >
-          <CopyGrantForm key={`grant-${address}`} address={address} onDisabled={markDisabled} />
+          <CopyGrantForm
+            key={`grant-${address}-${leader ?? ""}`}
+            address={address}
+            onDisabled={markDisabled}
+            initialSignalAgentId={leader}
+          />
         </Modal>
       </section>
     );
@@ -120,6 +153,7 @@ export default function CopyClient() {
   return (
     <>
       {body}
+      <CopyLeaders leaders={leaders} onCopy={copyLeader} canCopy={availability !== "disabled"} />
       <p className="m-0 text-center text-[13px] leading-relaxed text-muted">
         {t("agentsHint")}{" "}
         <Link href="/docs" className="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">

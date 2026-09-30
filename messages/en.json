@@ -1538,6 +1538,21 @@
     "noSignMessage": "This wallet cannot sign messages. Try Phantom, Solflare or Backpack.",
     "signatureFailed": "The signature was not completed.",
     "requestFailed": "The server refused: {message}",
+    "leaders": {
+      "title": "Wallets to copy",
+      "lead": "The council personas stake from their own wallets on every market they like. Pick one as the signal your agent mirrors.",
+      "track": {
+        "classic": "Classic jury",
+        "philosopher": "Philosopher jury"
+      },
+      "llm": "reads with a model",
+      "rule": "rule, no model",
+      "copy": "Copy",
+      "copyAria": "Copy {name}",
+      "explorerAria": "{name} wallet on the explorer (opens in a new tab)",
+      "showAll": "Show all {count}",
+      "showFewer": "Show fewer"
+    },
     "agentsHint": "Execution agents fetch what they may copy with a signed envelope on POST /api/copy/signals, get an unsigned challenge transaction, sign it with their operator key and report it back. See",
     "list": {
       "title": "Your permissions",

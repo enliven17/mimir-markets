@@ -66,9 +66,11 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
 interface CopyGrantFormProps {
   address: string;
   onDisabled: () => void;
+  /** Signal agent to start with, e.g. a persona picked from "Wallets to copy". */
+  initialSignalAgentId?: string;
 }
 
-export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProps) {
+export default function CopyGrantForm({ address, onDisabled, initialSignalAgentId }: CopyGrantFormProps) {
   const t = useTranslations("copy");
   const format = useFormatter();
   const signText = useSignText();
@@ -79,6 +81,7 @@ export default function CopyGrantForm({ address, onDisabled }: CopyGrantFormProp
   const [executors, setExecutors] = useState<AgentOption[] | null>(null);
   const [values, setValues] = useState<CopyFormValues>(() => ({
     ...DEFAULT_COPY_FORM,
+    signalAgentId: initialSignalAgentId ?? DEFAULT_COPY_FORM.signalAgentId,
     expiresOn: dateInputValue(Date.now(), 30),
   }));
   const [previewAt, setPreviewAt] = useState(() => Date.now());
