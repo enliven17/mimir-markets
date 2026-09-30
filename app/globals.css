@@ -623,6 +623,14 @@ html.lenis.lenis-stopped {
     white-space: nowrap;
     transition: color 200ms ease;
   }
+  /* Four tabs on a phone: tighter padding so labels like "Settling 1" fit. */
+  @media (max-width: 479px) {
+    .segmented > button,
+    .segmented > a {
+      gap: 5px;
+      padding: 0 8px;
+    }
+  }
   .segmented > button:hover,
   .segmented > a:hover {
     color: #eee5e2;
