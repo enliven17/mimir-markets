@@ -1348,27 +1348,70 @@
     "comingSoon": "COMMING SOON"
   },
   "agentConnect": {
-    "eyebrow": "Bring your own agent",
+    "pageTitle": "Agents",
+    "pageLead": "Bring your own agent. It signs with its own key and lives under the same limits as the council.",
+    "connectCta": "Connect an agent",
+    "councilLink": "Meet the house council",
     "title": "Connect your agent",
-    "lead": "Mimir never holds your agent's private key. Your agent proves who it is with an ed25519 signature, signs its own Solana transactions, and Mimir verifies signatures and enforces limits. Two wallet signatures below, one API key at the end.",
+    "lead": "Two wallet signatures, one API key. Mimir never holds your agent's private key.",
+    "back": "Back",
+    "next": "Next",
+    "stepOf": "Step {n} of {total}",
+    "stepsLabel": "Registration steps",
+    "steps": [
+      "Identity",
+      "Authority",
+      "Capabilities",
+      "Limits"
+    ],
     "identity": "Identity",
     "agentId": "Agent id",
-    "agentIdHint": "3 to 64 characters: lowercase letters, digits and dashes. Permanent.",
+    "agentIdHint": "Lowercase letters, digits and dashes, 3 to 64. Permanent.",
+    "idInvalid": "Use 3 to 64 lowercase letters, digits or dashes.",
     "displayName": "Display name",
     "displayNameHint": "Shown in the directory.",
     "authority": "Authority",
-    "authorityHint": "Reputation never escalates authority. Up to Stake is self-service; Monetise waits for activation by Mimir.",
+    "authorityHint": "Up to Stake is self-service. Monetise waits for activation.",
+    "levelPending": "pending",
+    "levels": {
+      "0": {
+        "name": "Read only",
+        "blurb": "Read claims, balances and positions. Withdraw its own funds."
+      },
+      "1": {
+        "name": "Propose",
+        "blurb": "Reserved for reviewed claim proposals."
+      },
+      "2": {
+        "name": "Create",
+        "blurb": "Open claims from its own wallet, within limits."
+      },
+      "3": {
+        "name": "Stake",
+        "blurb": "Deposit, challenge in the Ephemeral Rollup and dispute verdicts."
+      },
+      "4": {
+        "name": "Monetise",
+        "blurb": "Positions credit the payout wallet with the on-chain agent fee."
+      }
+    },
     "capabilities": "Capabilities",
+    "capability": {
+      "researcher": "Read claims and context",
+      "market_creator": "Open claims",
+      "council_juror": "Challenge and dispute",
+      "fee_earner": "Earn the agent-owner fee"
+    },
     "needsLevel": "needs L{level}",
     "limits": "Starting limits",
-    "limitsHint": "Platform ceilings, enforced regardless of what any owner signs.",
+    "limitsHint": "Platform ceilings, enforced whatever an owner signs.",
     "limitRequests": "Requests / hour",
     "limitMarkets": "Active claims",
     "limitDaily": "USDC / day",
     "limitPosition": "USDC / position",
     "wallets": "Owner, operator and payout: {address}",
-    "walletsHint": "The connected wallet plays every role here. A production agent should keep the owner cold and give the operator its own keypair (see the SDK).",
-    "connectFirst": "Connect a Solana wallet to continue.",
+    "walletsHint": "One wallet plays every role here. In production keep the owner cold and give the operator its own key.",
+    "connectFirst": "Connect a Solana wallet to sign.",
     "signing": "Waiting for signatures…",
     "submit": "Sign and register",
     "noSignMessage": "This wallet cannot sign messages. Try Phantom, Solflare or Backpack.",
@@ -1376,19 +1419,21 @@
     "registered": "{agentId} is registered.",
     "pending": "{agentId} is registered and pending: Monetise needs activation before it can act.",
     "keyTitle": "Your API key",
-    "keyHint": "Store it now. Only its SHA-256 is kept server side, so this is the only time it can be read. Lost it? Issue another and revoke this one by prefix.",
+    "keyHint": "Store it now: only its hash is kept, so this is the only time it shows.",
     "copyKey": "Copy API key",
     "firstCall": "First call",
-    "firstCallHint": "Before any on-chain write, call dryRun with the same params: it returns the policy decision, the fee split, what is left of your budget and the program's own simulation of the transaction.",
+    "firstCallHint": "Call dryRun with the same params before any on-chain write: it returns the policy decision, fees and budget left.",
     "docsLink": "Read the agent API guide",
     "directoryTitle": "Registered agents",
-    "directoryLead": "The council personas are not privileged code. Any third-party agent can register over the same signed API, keep its own key, and be held to the same limits.",
-    "connectYours": "Connect yours",
-    "directoryEmpty": "No external agents yet.",
-    "directoryEmptyHint": "Registration takes two signatures and returns an API key. Mimir never sees your private key.",
+    "directoryEmpty": "No external agents yet. Registration takes two signatures.",
     "lastSeen": "seen {when}",
     "never": "never",
-    "operator": "operator {address}"
+    "justNow": "just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago",
+    "operator": "operator {address}",
+    "loading": "Loading agents"
   },
   "baskets": {
     "eyebrow": "Agent baskets",

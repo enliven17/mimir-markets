@@ -1,28 +1,29 @@
 "use client";
 
 /**
- * Browser onboarding for an external agent.
+ * Browser onboarding for an external agent, as four short steps in one sheet
+ * (identity, authority, capabilities, limits), then the key.
  *
  * Two signatures and one key. The operator proves it controls itself, the owner
  * authorizes the record, and the API key is shown exactly once. Every value
- * that goes into a signature is rendered before the wallet prompt opens, so a
- * signer is never asked to approve text they have not read. Signatures are
- * wallet-adapter `signMessage` (ed25519), sent base58.
+ * that goes into a signature is on screen before the wallet prompt opens
+ * (the last step recaps them), so a signer is never asked to approve text
+ * they have not read. Signatures are wallet-adapter `signMessage` (ed25519),
+ * sent base58.
  *
  * The connected wallet plays every role here for convenience. A production
  * agent should keep them apart: the owner cold, the operator hot.
  */
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import bs58 from "bs58";
-import { ArrowRight, Check, Copy, KeyRound, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 
+import { SURFACE_DEEP } from "@/components/arena/surface";
+import { Button, Progress, Sheet } from "@/components/ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
-import { BlueprintHeading } from "@/components/BlueprintGrid";
-import PeepAvatar from "@/components/ui/PeepAvatar";
 import {
   agentRequestMessage,
   operatorProofMessage,
@@ -39,22 +40,8 @@ import {
   type AgentCapability,
 } from "@/lib/agents/registry";
 
-const AUTHORITY_COPY: Array<{ level: number; name: string; blurb: string }> = [
-  { level: AUTHORITY_LEVELS.READ_ONLY, name: "Read only", blurb: "Read claims, balances and positions. Withdraw its own funds." },
-  { level: AUTHORITY_LEVELS.PROPOSE, name: "Propose", blurb: "Reserved for reviewed claim proposals." },
-  { level: AUTHORITY_LEVELS.CREATE, name: "Create", blurb: "Open claims from its own wallet, within limits." },
-  { level: AUTHORITY_LEVELS.STAKE, name: "Stake", blurb: "Deposit, challenge in the Ephemeral Rollup and dispute verdicts." },
-  { level: AUTHORITY_LEVELS.MONETISE, name: "Monetise", blurb: "Positions credit the payout wallet with the on-chain agent fee." },
-];
-
-const CAPABILITY_COPY: Record<AgentCapability, string> = {
-  researcher: "Read claims and context",
-  market_creator: "Open claims",
-  council_juror: "Challenge and dispute",
-  fee_earner: "Earn the agent-owner fee",
-};
-
-type Step = "form" | "signing" | "done";
+const LEVELS = Object.values(AUTHORITY_LEVELS).sort((a, b) => a - b);
+const STEPS = 4;
 
 interface Registered {
   agentId: string;
@@ -73,6 +60,15 @@ function shortKey(k: string): string {
   return k.length <= 10 ? k : `${k.slice(0, 4)}…${k.slice(-4)}`;
 }
 
+const optionClass = (active: boolean, locked = false) =>
+  `press flex w-full items-start gap-3 rounded-xl px-4 py-3 text-left transition-colors ${
+    locked
+      ? "cursor-not-allowed bg-cream/[0.02] opacity-50"
+      : active
+        ? "bg-maroon/70 shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)]"
+        : "bg-cream/[0.035] hover:bg-cream/[0.06]"
+  }`;
+
 export default function AgentRegisterClient() {
   const t = useTranslations("agentConnect");
   const { publicKey, connected, signMessage } = useWallet();
@@ -81,13 +77,18 @@ export default function AgentRegisterClient() {
   const [displayName, setDisplayName] = useState("");
   const [authorityLevel, setAuthorityLevel] = useState<number>(AUTHORITY_LEVELS.READ_ONLY);
   const [capabilities, setCapabilities] = useState<AgentCapability[]>([]);
-  const [step, setStep] = useState<Step>("form");
+  const [step, setStep] = useState(0);
+  const [signing, setSigning] = useState(false);
+  const [stepError, setStepError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Registered | null>(null);
   const [copied, setCopied] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const moved = useRef(false);
 
   const idValid = AGENT_ID_PATTERN.test(agentId);
   const limits = defaultLimits();
+  const steps = t.raw("steps") as string[];
 
   // Capabilities above the selected authority are shown but not selectable:
   // seeing why something is locked is more useful than hiding it.
@@ -96,6 +97,21 @@ export default function AgentRegisterClient() {
     [authorityLevel],
   );
   const effectiveCapabilities = capabilities.filter((c) => allowed.includes(c));
+
+  // Move focus to the step heading after Next/Back, never on first paint.
+  useEffect(() => {
+    if (moved.current) headingRef.current?.focus();
+  }, [step, result]);
+
+  function go(next: number) {
+    if (next > step && step === 0 && !idValid) {
+      setStepError(t("idInvalid"));
+      return;
+    }
+    setStepError(null);
+    moved.current = true;
+    setStep(Math.max(0, Math.min(STEPS - 1, next)));
+  }
 
   function toggleCapability(c: AgentCapability) {
     setCapabilities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -130,9 +146,9 @@ export default function AgentRegisterClient() {
   }
 
   async function register() {
-    if (!publicKey) return;
+    if (!publicKey || !idValid) return;
     setError(null);
-    setStep("signing");
+    setSigning(true);
     try {
       const wallet = publicKey.toBase58();
 
@@ -158,251 +174,291 @@ export default function AgentRegisterClient() {
       issue.signature = await sign(agentRequestMessage(issue));
       const keyPayload = await post(issue);
 
+      moved.current = true;
       setResult({ agentId, key: String(keyPayload.key ?? ""), prefix: String(keyPayload.prefix ?? ""), status });
-      setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failed"));
-      setStep("form");
+    } finally {
+      setSigning(false);
     }
   }
 
-  return (
-    <div className="pb-16">
-      <BlueprintHeading as="h1" eyebrow={t("eyebrow")} subtitle={t("lead")}>
-        {t("title")}
-      </BlueprintHeading>
+  const back = (
+    <Link
+      href="/agents"
+      className="press inline-flex min-h-[34px] items-center gap-1.5 self-start rounded-full pr-2 text-[14px] text-muted transition-colors hover:text-cream"
+    >
+      <span aria-hidden>←</span>
+      {t("pageTitle")}
+    </Link>
+  );
 
-      <div className="mx-auto max-w-[760px] px-4 pt-6 sm:px-6 lg:px-8">
-        {step === "done" && result ? (
-          <IssuedKey
-            result={result}
-            copied={copied}
-            onCopy={() => {
-              void navigator.clipboard.writeText(result.key).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              });
-            }}
+  if (result) {
+    return (
+      <div className="mx-auto grid w-full max-w-[640px] grid-cols-[minmax(0,1fr)] gap-5">
+        {back}
+        <IssuedKey
+          result={result}
+          copied={copied}
+          headingRef={headingRef}
+          onCopy={() => {
+            void navigator.clipboard.writeText(result.key).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  const body =
+    step === 0 ? (
+      <div className="grid gap-4">
+        <div>
+          <label htmlFor="agent-id" className="label">
+            {t("agentId")}
+          </label>
+          <input
+            id="agent-id"
+            className="input font-mono"
+            placeholder="my-agent"
+            value={agentId}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={64}
+            aria-invalid={agentId !== "" && !idValid}
+            onChange={(e) => setAgentId(e.target.value.toLowerCase().trim())}
           />
-        ) : (
-          <div className="space-y-6">
-            <section className="card p-5">
-              <h2 className="bp-label mb-3">{t("identity")}</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="agent-id" className="label">{t("agentId")}</label>
-                  <input
-                    id="agent-id"
-                    className="form-field-pv font-mono"
-                    placeholder="my-agent"
-                    value={agentId}
-                    autoComplete="off"
-                    spellCheck={false}
-                    maxLength={64}
-                    onChange={(e) => setAgentId(e.target.value.toLowerCase().trim())}
-                  />
-                  <p className={`mt-1.5 text-[11px] ${agentId && !idValid ? "text-pv-danger" : "text-pv-muted"}`}>
-                    {t("agentIdHint")}
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="display-name" className="label">{t("displayName")}</label>
-                  <input
-                    id="display-name"
-                    className="form-field-pv"
-                    placeholder="My Agent"
-                    value={displayName}
-                    maxLength={120}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                  <p className="mt-1.5 text-[11px] text-pv-muted">{t("displayNameHint")}</p>
-                </div>
-              </div>
-            </section>
-
-            <section className="card p-5">
-              <h2 className="bp-label mb-1">{t("authority")}</h2>
-              <p className="mb-3 text-[12px] text-pv-muted">{t("authorityHint")}</p>
-              <div className="space-y-2" role="radiogroup" aria-label={t("authority")}>
-                {AUTHORITY_COPY.map((a) => {
-                  const active = authorityLevel === a.level;
-                  return (
-                    <button
-                      key={a.level}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => setAuthorityLevel(a.level)}
-                      className={`focus-ring flex w-full items-start gap-3 border px-4 py-3 text-left transition-colors ${
-                        active
-                          ? "border-pv-emerald bg-pv-emerald/[0.08]"
-                          : "border-pv-border/25 hover:border-pv-emerald/40"
-                      }`}
-                    >
-                      <span className={`mt-0.5 font-mono text-[11px] ${active ? "text-pv-emerald" : "text-pv-muted"}`}>
-                        L{a.level}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block font-display text-sm font-bold text-pv-text">
-                          {a.name}
-                          {a.level > SELF_SERVICE_MAX_AUTHORITY && (
-                            <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-pv-muted">
-                              pending
-                            </span>
-                          )}
-                        </span>
-                        <span className="block text-[12px] text-pv-muted">{a.blurb}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="card p-5">
-              <h2 className="bp-label mb-3">{t("capabilities")}</h2>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {AGENT_CAPABILITIES.map((c) => {
-                  const locked = !allowed.includes(c);
-                  const active = effectiveCapabilities.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      disabled={locked}
-                      aria-pressed={active}
-                      onClick={() => toggleCapability(c)}
-                      className={`focus-ring flex items-center gap-2.5 border px-3.5 py-3 text-left transition-colors ${
-                        locked
-                          ? "cursor-not-allowed border-pv-border/25 opacity-50"
-                          : active
-                            ? "border-pv-emerald bg-pv-emerald/[0.08]"
-                            : "border-pv-border/25 hover:border-pv-emerald/40"
-                      }`}
-                    >
-                      <span
-                        className={`grid h-4 w-4 shrink-0 place-items-center border ${
-                          active ? "border-pv-emerald bg-pv-emerald text-pv-bg" : "border-pv-border/40"
-                        }`}
-                      >
-                        {active && <Check className="h-3 w-3" />}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block font-mono text-[11px] text-pv-text">{c}</span>
-                        <span className="block text-[11px] text-pv-muted">
-                          {locked ? t("needsLevel", { level: CAPABILITY_MIN_AUTHORITY[c] }) : CAPABILITY_COPY[c]}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="card p-5">
-              <h2 className="bp-label mb-1">{t("limits")}</h2>
-              <p className="mb-3 text-[12px] text-pv-muted">{t("limitsHint")}</p>
-              <dl className="bp-cells grid-cols-2 border border-pv-border/25 sm:grid-cols-4">
-                {[
-                  [t("limitRequests"), limits.requestsPerHour],
-                  [t("limitMarkets"), limits.maxActiveMarkets],
-                  [t("limitDaily"), limits.maxDailyUsdc],
-                  [t("limitPosition"), limits.maxPositionUsdc],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="p-3 text-center">
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-pv-muted">{label}</dt>
-                    <dd className="mt-0.5 font-display text-lg font-bold tabular-nums text-pv-text">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 border border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 text-sm text-pv-danger"
-              >
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="min-w-0 break-words">{error}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              {connected && publicKey ? (
-                <div className="flex items-start gap-3 border border-pv-border/25 p-3">
-                  <PeepAvatar seed={`creator-${publicKey.toBase58()}`} size={36} shape="square" alt="" />
-                  <div className="min-w-0">
-                    <p className="font-mono text-[11px] text-pv-text">
-                      {t("wallets", { address: shortKey(publicKey.toBase58()) })}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-pv-muted">{t("walletsHint")}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-center text-[12px] text-pv-muted">{t("connectFirst")}</p>
-                  <ConnectWalletButton />
-                </div>
-              )}
+          <p className={`m-0 mt-1.5 text-[13px] ${agentId && !idValid ? "text-danger" : "text-muted"}`}>{t("agentIdHint")}</p>
+        </div>
+        <div>
+          <label htmlFor="display-name" className="label">
+            {t("displayName")}
+          </label>
+          <input
+            id="display-name"
+            className="input"
+            placeholder="My Agent"
+            value={displayName}
+            maxLength={120}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+          <p className="m-0 mt-1.5 text-[13px] text-muted">{t("displayNameHint")}</p>
+        </div>
+      </div>
+    ) : step === 1 ? (
+      <div className="grid gap-3">
+        <p className="m-0 text-[14px] text-muted">{t("authorityHint")}</p>
+        <div className="grid gap-2" role="radiogroup" aria-label={t("authority")}>
+          {LEVELS.map((level) => {
+            const active = authorityLevel === level;
+            return (
               <button
+                key={level}
                 type="button"
-                className="btn-primary flex w-full items-center justify-center gap-2"
-                disabled={!connected || !idValid || step === "signing"}
-                onClick={() => void register()}
+                role="radio"
+                aria-checked={active}
+                onClick={() => setAuthorityLevel(level)}
+                className={optionClass(active)}
               >
-                {step === "signing" ? t("signing") : t("submit")}
-                {step !== "signing" && <ArrowRight className="h-4 w-4" />}
+                <span className={`mt-0.5 font-mono text-[12px] ${active ? "text-coral" : "text-dim"}`}>L{level}</span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] text-cream">
+                    {t(`levels.${level}.name` as never)}
+                    {level > SELF_SERVICE_MAX_AUTHORITY ? (
+                      <span className="ml-2 text-[12px] text-pending">{t("levelPending")}</span>
+                    ) : null}
+                  </span>
+                  <span className="block text-[13px] text-muted">{t(`levels.${level}.blurb` as never)}</span>
+                </span>
               </button>
-            </div>
+            );
+          })}
+        </div>
+      </div>
+    ) : step === 2 ? (
+      <div className="grid gap-2 sm:grid-cols-2">
+        {AGENT_CAPABILITIES.map((c) => {
+          const locked = !allowed.includes(c);
+          const active = effectiveCapabilities.includes(c);
+          return (
+            <button
+              key={c}
+              type="button"
+              disabled={locked}
+              aria-pressed={active}
+              onClick={() => toggleCapability(c)}
+              className={optionClass(active, locked)}
+            >
+              <span
+                className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-[5px] ${
+                  active ? "bg-coral text-[#160909]" : "shadow-[inset_0_0_0_1px_rgb(243_234_214/.3)]"
+                }`}
+              >
+                {active ? <Check className="h-3 w-3" aria-hidden /> : null}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-mono text-[13px] text-cream">{c}</span>
+                <span className="block text-[13px] text-muted">
+                  {locked ? t("needsLevel", { level: CAPABILITY_MIN_AUTHORITY[c] }) : t(`capability.${c}`)}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="grid gap-4">
+        <p className="m-0 text-[14px] text-muted">{t("limitsHint")}</p>
+        <dl className="kv">
+          <dt>{t("limitRequests")}</dt>
+          <dd>{limits.requestsPerHour}</dd>
+          <dt>{t("limitMarkets")}</dt>
+          <dd>{limits.maxActiveMarkets}</dd>
+          <dt>{t("limitDaily")}</dt>
+          <dd>{limits.maxDailyUsdc}</dd>
+          <dt>{t("limitPosition")}</dt>
+          <dd>{limits.maxPositionUsdc}</dd>
+        </dl>
+        <dl className="kv">
+          <dt>{t("agentId")}</dt>
+          <dd className="text-cream">{agentId}</dd>
+          <dt>{t("displayName")}</dt>
+          <dd>{displayName.trim() || agentId}</dd>
+          <dt>{t("authority")}</dt>
+          <dd>
+            L{authorityLevel} {t(`levels.${authorityLevel}.name` as never)}
+          </dd>
+          <dt>{t("capabilities")}</dt>
+          <dd>{effectiveCapabilities.length ? effectiveCapabilities.join(", ") : "—"}</dd>
+        </dl>
+        {connected && publicKey ? (
+          <div className="grid gap-1 rounded-xl bg-cream/[0.035] px-4 py-3">
+            <p className="m-0 font-mono text-[13px] text-cream">{t("wallets", { address: shortKey(publicKey.toBase58()) })}</p>
+            <p className="m-0 text-[13px] text-muted">{t("walletsHint")}</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-cream/[0.035] px-4 py-3">
+            <p className="m-0 text-[14px] text-muted">{t("connectFirst")}</p>
+            <ConnectWalletButton />
           </div>
         )}
       </div>
+    );
+
+  const last = step === STEPS - 1;
+
+  return (
+    <div className="mx-auto grid w-full max-w-[640px] grid-cols-[minmax(0,1fr)] gap-5">
+      {back}
+      <Sheet className={`!px-5 !py-7 sm:!px-9 sm:!py-9 ${SURFACE_DEEP}`}>
+        <div className="grid gap-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
+            <span className="shrink-0 font-mono text-[12px] text-muted">{t("stepOf", { n: step + 1, total: STEPS })}</span>
+          </div>
+          {step === 0 ? <p className="m-0 -mt-2 text-[14px] leading-relaxed text-muted">{t("lead")}</p> : null}
+          <Progress steps={steps} current={step} label={t("stepsLabel")} />
+        </div>
+
+        <form
+          className="mt-7 grid gap-6"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!last) go(step + 1);
+            else void register();
+          }}
+        >
+          <h2 ref={headingRef} tabIndex={-1} className="m-0 text-[1.35rem] leading-none text-cream outline-none">
+            {steps[step]}
+          </h2>
+          <div key={step} className="fade-rise">
+            {body}
+          </div>
+
+          {stepError || error ? (
+            <p role="alert" className="m-0 break-words rounded-xl bg-danger/[0.1] px-4 py-3 text-[14px] text-danger">
+              {stepError ?? error}
+            </p>
+          ) : null}
+
+          <div className="flex items-center gap-3 border-t border-line pt-5">
+            {step > 0 ? (
+              <Button type="button" variant="ghost" size="sm" fullWidth={false} onClick={() => go(step - 1)} disabled={signing}>
+                {t("back")}
+              </Button>
+            ) : null}
+            {last ? (
+              <Button type="submit" size="sm" fullWidth={false} className="ml-auto" loading={signing} disabled={!connected || !idValid || signing}>
+                {signing ? t("signing") : t("submit")}
+              </Button>
+            ) : (
+              <Button type="submit" variant="light" size="sm" fullWidth={false} className="ml-auto !min-w-[8rem]">
+                {t("next")}
+              </Button>
+            )}
+          </div>
+        </form>
+      </Sheet>
     </div>
   );
 }
 
-function IssuedKey({ result, copied, onCopy }: { result: Registered; copied: boolean; onCopy: () => void }) {
+function IssuedKey({
+  result,
+  copied,
+  onCopy,
+  headingRef,
+}: {
+  result: Registered;
+  copied: boolean;
+  onCopy: () => void;
+  headingRef: React.RefObject<HTMLHeadingElement>;
+}) {
   const t = useTranslations("agentConnect");
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2.5 border border-pv-emerald/40 bg-pv-emerald/[0.06] px-4 py-3 text-sm text-pv-emerald">
-        <ShieldCheck className="h-4 w-4 shrink-0" />
-        <span>{t(result.status === "pending" ? "pending" : "registered", { agentId: result.agentId })}</span>
-      </div>
-
-      <section className="card p-5">
-        <h2 className="bp-label mb-1 flex items-center gap-2">
-          <KeyRound className="h-3.5 w-3.5" /> {t("keyTitle")}
-        </h2>
-        <p className="mb-3 text-[12px] text-pv-muted">{t("keyHint")}</p>
+    <Sheet className={`!px-5 !py-7 sm:!px-9 sm:!py-9 ${SURFACE_DEEP}`}>
+      <div className="grid gap-6">
+        <div className="grid gap-2">
+          <p className="m-0 flex items-center gap-2 text-[14px] text-win">
+            <Check size={16} aria-hidden />
+            {t(result.status === "pending" ? "pending" : "registered", { agentId: result.agentId })}
+          </p>
+          <h1 ref={headingRef} tabIndex={-1} className="m-0 font-display text-app-h1 text-cream outline-none">
+            {t("keyTitle")}
+          </h1>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">{t("keyHint")}</p>
+        </div>
         <div className="flex items-stretch gap-2">
-          <code className="min-w-0 flex-1 break-all border border-pv-border/25 bg-pv-surface2 px-3.5 py-3 font-mono text-[12px] text-pv-text">
-            {result.key}
-          </code>
+          <code className="min-w-0 flex-1 break-all rounded-xl bg-ink-deep px-4 py-3 font-mono text-[13px] text-cream">{result.key}</code>
           <button
             type="button"
             onClick={onCopy}
             aria-label={t("copyKey")}
-            className="focus-ring shrink-0 border border-pv-border/25 px-3 text-pv-muted transition-colors hover:border-pv-emerald/50 hover:text-pv-text"
+            className="press grid w-12 shrink-0 place-items-center rounded-xl bg-panel-raised text-muted transition-colors hover:text-cream"
           >
-            {copied ? <Check className="h-4 w-4 text-pv-emerald" /> : <Copy className="h-4 w-4" />}
+            {copied ? <Check className="h-4 w-4 text-win" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
           </button>
         </div>
-      </section>
-
-      <section className="card p-5">
-        <h2 className="bp-label mb-3">{t("firstCall")}</h2>
-        <pre className="overflow-x-auto border border-pv-border/25 bg-pv-surface2 p-4 font-mono text-[11px] leading-relaxed text-pv-text">
+        <div className="grid gap-3 border-t border-line pt-5">
+          <h2 className="m-0 text-[1.2rem] leading-none text-cream">{t("firstCall")}</h2>
+          <pre
+            data-lenis-prevent
+            className="m-0 overflow-x-auto rounded-xl bg-ink-deep p-4 font-mono text-[12px] leading-relaxed text-cream"
+          >
 {`curl -X POST "$MIMIR_URL/api/agents/v1/heartbeat" \\
   -H "content-type: application/json" \\
   -H "authorization: Bearer ${result.prefix}…" \\
   -d '{"version":"v1","agentId":"${result.agentId}","action":"heartbeat","body":{"status":"ok"}}'`}
-        </pre>
-        <p className="mt-3 text-[12px] text-pv-muted">{t("firstCallHint")}</p>
-        <Link href="/docs" className="mt-3 inline-block font-mono text-[11px] uppercase tracking-[0.16em] text-pv-emerald hover:underline">
-          {t("docsLink")} →
-        </Link>
-      </section>
-    </div>
+          </pre>
+          <p className="m-0 text-[13px] text-muted">{t("firstCallHint")}</p>
+          <Link href="/docs" className="text-[14px] text-coral hover:underline">
+            {t("docsLink")} →
+          </Link>
+        </div>
+      </div>
+    </Sheet>
   );
 }
