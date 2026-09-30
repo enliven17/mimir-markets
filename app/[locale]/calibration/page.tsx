@@ -19,7 +19,7 @@ function nameOf(slug: string): string {
 }
 
 function verdictOn(brier: number): { key: "sharp" | "better" | "coin"; className: string } {
-  if (brier < 0.18) return { key: "sharp", className: "bg-coral/[0.16] text-[#ffb3ad]" };
+  if (brier < 0.18) return { key: "sharp", className: "bg-coral/[0.16] text-pending" };
   if (brier < COIN_FLIP_BRIER) return { key: "better", className: "bg-cream/[0.08] text-cream" };
   return { key: "coin", className: "bg-danger/[0.12] text-danger" };
 }

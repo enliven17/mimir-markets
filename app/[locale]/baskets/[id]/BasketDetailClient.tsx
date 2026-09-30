@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * One basket: its thesis, its legs, its replayed curve, the follow control and
- * the open signals to mirror.
+ * One basket: the replayed curve and the follow card first, then the open
+ * signals to mirror and the legs behind disclosures.
  *
  * Following is an ed25519 `signMessage` over `followMessage` (with signedAt,
  * so it cannot be replayed). Mirroring asks the API for an UNSIGNED challenge
@@ -17,12 +17,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
-import { Connection, Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
-import { Check, Info, Radio, TriangleAlert, Users } from "lucide-react";
+import { Check, TriangleAlert, Users } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
-import { BlueprintHeading, BlueprintSection, BlueprintStat } from "@/components/BlueprintGrid";
+import { SURFACE } from "@/components/arena/surface";
+import { Button, Disclosure, Input, Skeleton } from "@/components/ui";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { followMessage, MAX_FOLLOW_CAP_USDC, MIN_FOLLOW_CAP_USDC, type MirrorSignal } from "@/lib/baskets";
 import { shortenAddress } from "@/lib/constants";
@@ -52,7 +52,12 @@ interface BasketDetail {
     totalReturn: number;
     maxDrawdown: number;
     settledMarkets: number;
-    points: Array<{ day: string; navUsdc: number; dailyReturn: number; drawdown: number }>;
+    points: Array<{
+      day: string;
+      navUsdc: number;
+      dailyReturn: number;
+      drawdown: number;
+    }>;
   };
 }
 
@@ -97,7 +102,13 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
   const [busy, setBusy] = useState(false);
   const [mirroring, setMirroring] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ claimId: number; text: string; delegate?: boolean } | null>(null);
+  /** Which card shows the error: the follow card or the signals list. */
+  const [errorAt, setErrorAt] = useState<"follow" | "signals">("follow");
+  const [notice, setNotice] = useState<{
+    claimId: number;
+    text: string;
+    delegate?: boolean;
+  } | null>(null);
 
   const load = useCallback(() => {
     fetch(`/api/baskets/${basketId}`)
@@ -132,16 +143,27 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
   async function submitCap(nextCap: number) {
     if (!follower) return;
     setError(null);
+    setErrorAt("follow");
     setBusy(true);
     try {
       if (!signMessage) throw new Error(t("noSignMessage"));
       const signedAt = Date.now();
-      const message = followMessage({ basketId, follower, perMarketCapUsdc: nextCap, signedAt });
+      const message = followMessage({
+        basketId,
+        follower,
+        perMarketCapUsdc: nextCap,
+        signedAt,
+      });
       const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
       const res = await fetch(`/api/baskets/${basketId}/subscribe`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ follower, perMarketCapUsdc: nextCap, signature, signedAt }),
+        body: JSON.stringify({
+          follower,
+          perMarketCapUsdc: nextCap,
+          signature,
+          signedAt,
+        }),
       });
       const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) throw new Error(String(payload.message ?? t("failed")));
@@ -157,6 +179,7 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
   async function mirror(signal: MirrorSignal) {
     if (!follower) return;
     setError(null);
+    setErrorAt("signals");
     setNotice(null);
     setMirroring(signal.claimId);
     try {
@@ -173,23 +196,37 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
       };
       if (!res.ok) {
         if (payload.reason === "balance_not_delegated") {
-          setNotice({ claimId: signal.claimId, text: t("delegateFirst"), delegate: true });
+          setNotice({
+            claimId: signal.claimId,
+            text: t("delegateFirst"),
+            delegate: true,
+          });
           return;
         }
         throw new Error(payload.message ?? t("failed"));
       }
+      const { Connection, Transaction } = await import("@solana/web3.js");
       let last = "";
       for (const p of payload.transactions ?? []) {
         const signed = await signTransaction(Transaction.from(fromBase64(p.transaction)));
         const connection = new Connection(p.rpcUrl, "confirmed");
-        last = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: p.layer === "er" });
+        last = await connection.sendRawTransaction(signed.serialize(), {
+          skipPreflight: p.layer === "er",
+        });
         const confirmed = await connection.confirmTransaction(
-          { signature: last, blockhash: p.recentBlockhash, lastValidBlockHeight: p.lastValidBlockHeight },
+          {
+            signature: last,
+            blockhash: p.recentBlockhash,
+            lastValidBlockHeight: p.lastValidBlockHeight,
+          },
           "confirmed",
         );
         if (confirmed.value.err) throw new Error(t("failed"));
       }
-      setNotice({ claimId: signal.claimId, text: t("mirrored", { sig: shortenAddress(last, 6) }) });
+      setNotice({
+        claimId: signal.claimId,
+        text: t("mirrored", { sig: shortenAddress(last, 6) }),
+      });
       loadSignals();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failed"));
@@ -214,230 +251,257 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
     return { path, up: values[values.length - 1] >= values[0] };
   }, [data]);
 
+  const back = (
+    <Link href="/baskets" className="justify-self-start text-[14px] text-muted transition-colors hover:text-cream">
+      ← {t("back")}
+    </Link>
+  );
+
   if (notFound) {
     return (
-      <div className="pb-16">
-        <BlueprintHeading as="h1">{t("notFound")}</BlueprintHeading>
-        <div className="px-4 pt-10 text-center">
-          <Link href="/baskets" className="font-mono text-[12px] text-pv-emerald hover:underline">
-            ← {t("back")}
-          </Link>
-        </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+        {back}
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("notFound")}</h1>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="px-4 pt-16 sm:px-6">
-        <div className="h-[420px] animate-pulse border border-pv-border/25 bg-pv-surface2/40" />
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6" aria-label={t("loading")}>
+        {back}
+        <Skeleton className="!h-12 w-2/3" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <Skeleton className="!h-[300px] !rounded-2xl" />
+          <Skeleton className="!h-[300px] !rounded-2xl" />
+        </div>
       </div>
     );
   }
 
   const { basket, performance } = data;
+  const alert = (
+    <div role="alert" className="flex items-start gap-2.5 rounded-lg bg-danger/[0.1] px-4 py-3 text-[14px] text-danger">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 break-words">{error}</span>
+    </div>
+  );
+  const list = signals?.signals ?? [];
+  const stats: Array<[string, string, string]> = [
+    [t("now"), formatUsdcBare(performance.finalNavUsdc), "text-cream"],
+    [t("return"), pct(performance.totalReturn), performance.totalReturn < 0 ? "text-danger" : "text-cream"],
+    [t("maxDrawdown"), pct(performance.maxDrawdown), "text-danger"],
+  ];
 
   return (
-    <div className="pb-16">
-      <BlueprintHeading as="h1" eyebrow={t("eyebrow")} subtitle={basket.thesis}>
-        {basket.name}
-      </BlueprintHeading>
-
-      <div className="flex flex-wrap items-center justify-center gap-2 border-b border-pv-border/25 px-4 py-3 font-mono text-[11px] uppercase tracking-[0.16em]">
-        <span className="chip">{basket.id}</span>
-        <span className="chip inline-flex items-center gap-1">
-          <Users className="h-3 w-3" /> {t("followers", { count: basket.followers })}
-        </span>
-        <span className="chip">{t("composedBy", { address: shortenAddress(basket.creatorWallet) })}</span>
-      </div>
-
-      <div className="bp-cells grid-cols-2 border-b border-pv-border/25 lg:grid-cols-4">
-        <BlueprintStat value={formatUsdcBare(performance.initialNavUsdc)} label={t("start")} tone="text" />
-        <BlueprintStat value={formatUsdcBare(performance.finalNavUsdc)} label={t("now")} tone="gold" />
-        <BlueprintStat
-          value={pct(performance.totalReturn)}
-          label={t("return")}
-          tone={performance.totalReturn < 0 ? "danger" : "accent"}
-        />
-        <BlueprintStat value={pct(performance.maxDrawdown)} label={t("maxDrawdown")} tone="danger" />
-      </div>
-
-      <BlueprintSection title={t("curve")} eyebrow={t("settledMarkets", { count: performance.settledMarkets })}>
-        {sparkline ? (
-          <svg
-            viewBox="0 0 100 30"
-            preserveAspectRatio="none"
-            className="h-32 w-full"
-            role="img"
-            aria-label={t("curve")}
-          >
-            <path
-              d={sparkline.path}
-              fill="none"
-              strokeWidth="1.5"
-              vectorEffect="non-scaling-stroke"
-              className={sparkline.up ? "stroke-pv-emerald" : "stroke-pv-danger"}
-            />
-          </svg>
-        ) : (
-          <p className="bp-paper border border-dashed border-pv-border/40 px-4 py-8 text-center text-[12px] text-pv-muted">
-            {t("noCurve")}
-          </p>
-        )}
-        <p className="mt-4 flex items-start gap-2 border-t border-pv-border/25 pt-3 text-[11px] leading-relaxed text-pv-muted">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {t("curveCaveat", { nav: formatUsdcBare(performance.initialNavUsdc) })}
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="grid gap-3">
+        {back}
+        <h1 className="m-0 break-words font-display text-app-h1 text-cream">{basket.name}</h1>
+        <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">{basket.thesis}</p>
+        <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+          <span className="font-mono">{basket.id}</span>
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-3.5" aria-hidden /> {t("followers", { count: basket.followers })}
+          </span>
+          <span aria-hidden>·</span>
+          <span>{t("composedBy", { address: shortenAddress(basket.creatorWallet) })}</span>
         </p>
-      </BlueprintSection>
+      </header>
 
-      <BlueprintSection title={t("legs")} bodyClassName="bp-cells grid-cols-1 border-b border-pv-border/25 sm:grid-cols-2">
-        {basket.members.map((m) => (
-          <div key={m.agentId} className="flex items-center gap-3 px-4 py-3">
-            <PeepAvatar seed={memberSeed(m)} size={36} shape="square" alt="" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-mono text-[13px] text-pv-text">{m.agentId}</p>
-              <p className="font-mono text-[10px] text-pv-muted">
-                {t(m.kind)} · {m.wallet ? shortenAddress(m.wallet) : t("unresolved")}
-                {m.idle && <span className="ml-2 uppercase tracking-[0.14em]">{t("idle")}</span>}
-              </p>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <section aria-labelledby="basket-curve" className={`${SURFACE} grid gap-5 p-5 sm:p-6`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="basket-curve" className="m-0 font-display text-[1.45rem] leading-none text-cream">
+              {t("curve")}
+            </h2>
+            <span className="text-[13px] text-muted">{t("settledMarkets", { count: performance.settledMarkets })}</span>
+          </div>
+          <dl className="m-0 grid grid-cols-3 gap-4">
+            {stats.map(([label, value, tone]) => (
+              <div key={label} className="flex min-w-0 flex-col justify-between">
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted">{label}</dt>
+                <dd className={`m-0 mt-1 truncate font-mono text-[clamp(1.05rem,3.6vw,1.5rem)] tabular-nums ${tone}`}>
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {sparkline ? (
+            <svg
+              viewBox="0 0 100 30"
+              preserveAspectRatio="none"
+              className="h-32 w-full"
+              role="img"
+              aria-label={t("curve")}
+            >
+              <path
+                d={sparkline.path}
+                fill="none"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+                className={sparkline.up ? "stroke-coral" : "stroke-danger"}
+              />
+            </svg>
+          ) : (
+            <p className="m-0 grid h-32 place-items-center rounded-lg bg-cream/[0.03] px-4 text-center text-[13px] text-muted">
+              {t("noCurve")}
+            </p>
+          )}
+          <Disclosure summary={t("curveAbout")}>
+            <p className="m-0 text-[13px] leading-relaxed text-muted">
+              {t("curveCaveat", {
+                nav: formatUsdcBare(performance.initialNavUsdc),
+              })}
+            </p>
+          </Disclosure>
+        </section>
+
+        <section aria-labelledby="basket-follow" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
+          <h2 id="basket-follow" className="m-0 font-display text-[1.45rem] leading-none text-cream">
+            {t("follow")}
+          </h2>
+          {signals?.following ? (
+            <p className="m-0 inline-flex items-center gap-2 justify-self-start rounded-full bg-coral/[0.14] px-3 py-1.5 text-[13px] text-pending">
+              <Check className="size-3.5" aria-hidden /> {t("following", { cap: signals.perMarketCapUsdc })}
+            </p>
+          ) : (
+            <p className="m-0 text-[14px] leading-relaxed text-muted">{t("followLead")}</p>
+          )}
+          <Input
+            id="cap"
+            label={t("cap")}
+            type="number"
+            min={MIN_FOLLOW_CAP_USDC}
+            max={MAX_FOLLOW_CAP_USDC}
+            step={0.5}
+            value={cap}
+            onChange={(e) => setCap(Number(e.target.value))}
+            className="font-mono tabular-nums"
+            hint={t("worstCase", {
+              amount: (cap * basket.members.length).toFixed(2),
+              legs: basket.members.length,
+            })}
+          />
+          {error && errorAt === "follow" ? alert : null}
+          {connected && follower ? (
+            <div className="grid gap-2">
+              <Button
+                size="sm"
+                loading={busy}
+                disabled={cap < MIN_FOLLOW_CAP_USDC || cap > MAX_FOLLOW_CAP_USDC}
+                onClick={() => void submitCap(cap)}
+              >
+                {busy ? t("waiting") : signals?.following ? t("updateCap") : t("followCta")}
+              </Button>
+              {signals?.following ? (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => void submitCap(0)}>
+                  {t("unfollow")}
+                </Button>
+              ) : null}
             </div>
-            <span className="font-display text-lg font-bold tabular-nums text-pv-emerald">
-              {(m.weightBps / 100).toFixed(0)}%
-            </span>
-          </div>
-        ))}
-      </BlueprintSection>
+          ) : (
+            <div className="grid justify-items-start gap-2">
+              <p className="m-0 text-[13px] text-muted">{t("connect")}</p>
+              <ConnectWalletButton />
+            </div>
+          )}
+          <Disclosure summary={t("followHow")}>
+            <p className="m-0 text-[13px] leading-relaxed text-muted">{t("followHint")}</p>
+          </Disclosure>
+        </section>
+      </div>
 
-      <BlueprintSection title={t("follow")}>
-        <p className="mb-4 text-[12px] leading-relaxed text-pv-muted">{t("followHint")}</p>
-        {signals?.following && (
-          <p className="mb-4 inline-flex items-center gap-2 border border-pv-emerald/40 bg-pv-emerald/[0.06] px-3 py-2 text-[12px] text-pv-emerald">
-            <Check className="h-3.5 w-3.5" /> {t("following", { cap: signals.perMarketCapUsdc })}
-          </p>
-        )}
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor="cap" className="label">
-              {t("cap")}
-            </label>
-            <input
-              id="cap"
-              type="number"
-              min={MIN_FOLLOW_CAP_USDC}
-              max={MAX_FOLLOW_CAP_USDC}
-              step={0.5}
-              value={cap}
-              onChange={(e) => setCap(Number(e.target.value))}
-              className="form-field-pv w-32 text-right font-mono tabular-nums"
-            />
-          </div>
-          <p className="mb-2 font-mono text-[11px] text-pv-muted">
-            {t("worstCase", { amount: (cap * basket.members.length).toFixed(2), legs: basket.members.length })}
-          </p>
-        </div>
-
-        {error && (
-          <div
-            role="alert"
-            className="mt-4 flex items-start gap-2.5 border border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 text-sm text-pv-danger"
-          >
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <span className="min-w-0 break-words">{error}</span>
-          </div>
-        )}
-
-        {connected && follower ? (
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              className="btn-primary flex items-center justify-center gap-2"
-              disabled={busy || cap < MIN_FOLLOW_CAP_USDC || cap > MAX_FOLLOW_CAP_USDC}
-              onClick={() => void submitCap(cap)}
-            >
-              {busy ? t("waiting") : signals?.following ? t("updateCap") : t("followCta")}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={busy || !signals?.following}
-              onClick={() => void submitCap(0)}
-            >
-              {t("unfollow")}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-5 flex flex-col items-center gap-2">
-            <p className="text-center text-[12px] text-pv-muted">{t("connect")}</p>
-            <ConnectWalletButton />
-          </div>
-        )}
-      </BlueprintSection>
-
-      <BlueprintSection title={t("signals")} bodyClassName="px-4 py-6 sm:px-6">
-        <p className="mb-4 text-[12px] leading-relaxed text-pv-muted">{t("signalsHint")}</p>
-        {notice && (
-          <div className="mb-4 flex flex-wrap items-center gap-2 border border-pv-border/40 bg-pv-surface px-4 py-3 text-[12px] text-pv-text">
-            <span className="min-w-0 flex-1">{notice.text}</span>
-            {notice.delegate && (
-              <Link href={`/arena/${notice.claimId}`} className="font-mono text-[11px] text-pv-emerald hover:underline">
-                {t("openClaim")} →
-              </Link>
-            )}
-          </div>
-        )}
-        {!signals || signals.signals.length === 0 ? (
-          <p className="bp-paper border border-dashed border-pv-border/40 px-4 py-8 text-center text-[12px] text-pv-muted">
-            {t("noSignals")}
-          </p>
-        ) : (
-          <ul className="divide-y divide-pv-border/25 border border-pv-border/25">
-            {signals.signals.map((s) => (
-              <li key={s.claimId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <Radio className="h-4 w-4 shrink-0 text-pv-emerald" />
-                <div className="min-w-0 flex-1">
-                  <Link href={`/arena/${s.claimId}`} className="font-mono text-[13px] text-pv-text hover:text-pv-emerald">
-                    {t("claim", { id: s.claimId })}
+      <div className="grid gap-3">
+        <Disclosure
+          summary={t("signals")}
+          meta={signals ? list.length : undefined}
+          defaultOpen={Boolean(signals?.following && list.length > 0)}
+        >
+          <div className="grid gap-4">
+            <p className="m-0 text-[13px] leading-relaxed text-muted">{t("signalsHint")}</p>
+            {error && errorAt === "signals" ? alert : null}
+            {notice ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-cream/[0.05] px-4 py-3 text-[14px] text-cream">
+                <span className="min-w-0 flex-1 break-words">{notice.text}</span>
+                {notice.delegate ? (
+                  <Link href={`/arena/${notice.claimId}`} className="text-[13px] text-coral hover:underline">
+                    {t("openClaim")} →
                   </Link>
-                  <p className="font-mono text-[10px] text-pv-muted">
-                    {t("heldBy", { members: s.members.map((m) => m.agentId).join(", ") })} · {s.layer.toUpperCase()}
+                ) : null}
+              </div>
+            ) : null}
+            {list.length === 0 ? (
+              <p className="m-0 text-[14px] text-muted">{t("noSignals")}</p>
+            ) : (
+              <ul className="m-0 list-none divide-y divide-line p-0">
+                {list.map((s) => (
+                  <li key={s.claimId} className="flex flex-wrap items-center gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/arena/${s.claimId}`} className="text-[15px] text-cream hover:text-coral">
+                        {t("claim", { id: s.claimId })}
+                      </Link>
+                      <p className="m-0 mt-0.5 truncate text-[13px] text-muted">
+                        {t("heldBy", {
+                          members: s.members.map((m) => m.agentId).join(", "),
+                        })}{" "}
+                        · {s.layer.toUpperCase()}
+                      </p>
+                    </div>
+                    {signals?.following ? (
+                      <Button
+                        size="sm"
+                        fullWidth={false}
+                        loading={mirroring === s.claimId}
+                        disabled={mirroring !== null}
+                        onClick={() => void mirror(s)}
+                      >
+                        {mirroring === s.claimId
+                          ? t("mirroring")
+                          : t("mirror", {
+                              amount: formatUsdcUnitsBare(s.suggestedStakeUnits),
+                            })}
+                      </Button>
+                    ) : (
+                      <span className="font-mono text-[13px] tabular-nums text-muted">
+                        {formatUsdcUnitsBare(s.suggestedStakeUnits)} USDC
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {signals && !signals.following && list.length > 0 ? (
+              <p className="m-0 text-[13px] text-muted">{t("signalsFollowFirst")}</p>
+            ) : null}
+            <p className="m-0 text-[13px] text-muted">
+              {t("agentsHint")}{" "}
+              <Link href="/docs" className="text-coral hover:underline">
+                docs/AGENTS.md
+              </Link>
+            </p>
+          </div>
+        </Disclosure>
+
+        <Disclosure summary={t("legs")} meta={basket.members.length}>
+          <ul className="m-0 grid list-none gap-x-6 p-0 sm:grid-cols-2">
+            {basket.members.map((m) => (
+              <li key={m.agentId} className="flex items-center gap-3 border-b border-line py-3">
+                <PeepAvatar seed={memberSeed(m)} size={34} shape="square" alt="" />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 truncate font-mono text-[13px] text-cream">{m.agentId}</p>
+                  <p className="m-0 truncate text-[12px] text-muted">
+                    {t(m.kind)} · {m.wallet ? shortenAddress(m.wallet) : t("unresolved")}
+                    {m.idle ? ` · ${t("idle")}` : ""}
                   </p>
                 </div>
-                {signals.following ? (
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={mirroring !== null}
-                    onClick={() => void mirror(s)}
-                  >
-                    {mirroring === s.claimId
-                      ? t("mirroring")
-                      : t("mirror", { amount: formatUsdcUnitsBare(s.suggestedStakeUnits) })}
-                  </button>
-                ) : (
-                  <span className="font-mono text-[11px] tabular-nums text-pv-muted">
-                    {formatUsdcUnitsBare(s.suggestedStakeUnits)} USDC
-                  </span>
-                )}
+                <span className="font-mono text-[15px] tabular-nums text-cream">{(m.weightBps / 100).toFixed(0)}%</span>
               </li>
             ))}
           </ul>
-        )}
-        {signals && !signals.following && signals.signals.length > 0 && (
-          <p className="mt-3 text-[11px] text-pv-muted">{t("signalsFollowFirst")}</p>
-        )}
-        <p className="mt-4 border-t border-pv-border/25 pt-3 text-[11px] text-pv-muted">
-          {t("agentsHint")}{" "}
-          <Link href="/docs" className="text-pv-emerald hover:underline">
-            docs/AGENTS.md
-          </Link>
-        </p>
-      </BlueprintSection>
-
-      <nav className="mt-10 text-center">
-        <Link href="/baskets" className="font-mono text-[12px] text-pv-muted hover:text-pv-text">
-          ← {t("back")}
-        </Link>
-      </nav>
+        </Disclosure>
+      </div>
     </div>
   );
 }

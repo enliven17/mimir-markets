@@ -15,8 +15,9 @@ import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import bs58 from "bs58";
 import { Check, Plus, Scale, TriangleAlert, X } from "lucide-react";
 
-import { useRouter } from "@/i18n/navigation";
-import { BlueprintHeading } from "@/components/BlueprintGrid";
+import { Link, useRouter } from "@/i18n/navigation";
+import { SURFACE } from "@/components/arena/surface";
+import { Button, Chip, Input, Meter, Skeleton, Textarea } from "@/components/ui";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import {
   composeMessage,
@@ -133,181 +134,166 @@ export default function BasketComposerClient() {
   const available = (candidates ?? []).filter((c) => !members.some((m) => m.agentId === c.agentId));
 
   return (
-    <div className="pb-16">
-      <BlueprintHeading as="h1" eyebrow={t("eyebrow")} subtitle={t("composeLead")}>
-        {t("composeTitle")}
-      </BlueprintHeading>
+    <div className="mx-auto grid w-full max-w-[var(--wrap-narrow)] grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="grid gap-3">
+        <Link href="/baskets" className="justify-self-start text-[14px] text-muted transition-colors hover:text-cream">
+          ← {t("back")}
+        </Link>
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("composeTitle")}</h1>
+        <p className="m-0 max-w-[60ch] text-[15px] leading-relaxed text-muted">{t("composeLead")}</p>
+      </header>
 
-      <div className="mx-auto max-w-[820px] space-y-6 px-4 pt-8 sm:px-6 lg:px-8">
-        <section className="card p-5">
-          <h2 className="bp-label mb-3">{t("identity")}</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="basket-id" className="label">
-                {t("basketId")}
-              </label>
-              <input
-                id="basket-id"
-                className="form-field-pv font-mono"
-                placeholder="contrarian-mix"
-                value={id}
-                maxLength={64}
-                autoComplete="off"
-                spellCheck={false}
-                onChange={(e) => setId(e.target.value.toLowerCase().trim())}
-              />
-              <p className={`mt-1.5 text-[11px] ${id && !idValid ? "text-pv-danger" : "text-pv-muted"}`}>
-                {t("basketIdHint")}
-              </p>
-            </div>
-            <div>
-              <label htmlFor="basket-name" className="label">
-                {t("name")}
-              </label>
-              <input
-                id="basket-name"
-                className="form-field-pv"
-                placeholder="Contrarian mix"
-                value={name}
-                maxLength={MAX_BASKET_NAME}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="mt-4">
-            <label htmlFor="basket-thesis" className="label">
-              {t("thesis")}
-            </label>
-            <textarea
-              id="basket-thesis"
-              className="form-field-pv min-h-[88px] resize-y"
-              placeholder={t("thesisPlaceholder")}
-              value={thesis}
-              maxLength={MAX_BASKET_THESIS}
-              onChange={(e) => setThesis(e.target.value)}
+      <section aria-labelledby="compose-identity" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
+        <h2 id="compose-identity" className="m-0 font-display text-[1.45rem] leading-none text-cream">
+          {t("identity")}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Input
+              id="basket-id"
+              label={t("basketId")}
+              className="font-mono"
+              placeholder="contrarian-mix"
+              value={id}
+              maxLength={64}
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="basket-id-hint"
+              aria-invalid={id !== "" && !idValid}
+              onChange={(e) => setId(e.target.value.toLowerCase().trim())}
             />
-          </div>
-        </section>
-
-        <section className="card p-5">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="bp-label">{t("members")}</h2>
-            <span
-              className={`font-mono text-[11px] uppercase tracking-[0.16em] ${
-                remaining === 0 ? "text-pv-emerald" : "text-pv-muted"
-              }`}
-            >
-              {remaining === 0
-                ? t("allocated")
-                : remaining > 0
-                  ? t("left", { pct: (remaining / 100).toFixed(2) })
-                  : t("over", { pct: (-remaining / 100).toFixed(2) })}
-            </span>
-          </div>
-
-          {members.length === 0 ? (
-            <p className="border border-dashed border-pv-border/40 px-4 py-6 text-center text-[12px] text-pv-muted">
-              {t("addAtLeast", { count: DEFAULT_BASKET_POLICY.minMembers })}
+            <p id="basket-id-hint" className={`m-0 mt-2 text-[13px] ${id && !idValid ? "text-danger" : "text-muted"}`}>
+              {t("basketIdHint")}
             </p>
-          ) : (
-            <ul className="divide-y divide-pv-border/25 border border-pv-border/25">
-              {members.map((m) => {
-                const c = byId.get(m.agentId);
-                const over = m.weightBps > DEFAULT_BASKET_POLICY.maxSingleAgentBps;
-                return (
-                  <li key={m.agentId} className="flex flex-wrap items-center gap-3 px-3.5 py-3">
-                    <PeepAvatar seed={seedOf(c, m.agentId)} size={28} shape="square" alt="" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-pv-text">
-                      {c ? `${c.emoji ? `${c.emoji} ` : ""}${c.label}` : m.agentId}
-                    </span>
-                    <label className="sr-only" htmlFor={`w-${m.agentId}`}>
-                      {t("weight", { id: m.agentId })}
-                    </label>
-                    <input
-                      id={`w-${m.agentId}`}
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={m.weightBps / 100}
-                      onChange={(e) => setWeight(m.agentId, Number(e.target.value))}
-                      className={`form-field-pv w-20 text-right font-mono tabular-nums ${
-                        over ? "border-pv-danger/60" : ""
-                      }`}
-                    />
-                    <span className="font-mono text-[11px] text-pv-muted">%</span>
-                    <button
-                      type="button"
-                      onClick={() => removeMember(m.agentId)}
-                      aria-label={t("remove", { id: m.agentId })}
-                      className="focus-ring border border-pv-border/25 p-1.5 text-pv-muted transition-colors hover:border-pv-danger/50 hover:text-pv-danger"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {overCap && (
-            <p className="mt-3 flex items-center gap-2 text-[12px] text-pv-danger">
-              <Scale className="h-3.5 w-3.5 shrink-0" />
-              {t("overCap", { pct: DEFAULT_BASKET_POLICY.maxSingleAgentBps / 100 })}
-            </p>
-          )}
-
-          <div className="mt-4">
-            <p className="label">{t("addAgent")}</p>
-            {candidates !== null && candidates.length === 0 ? (
-              <p className="text-[12px] text-pv-muted">{t("noCandidates")}</p>
-            ) : (
-              members.length < DEFAULT_BASKET_POLICY.maxMembers && (
-                <div className="flex flex-wrap gap-1.5">
-                  {available.map((c) => (
-                    <button
-                      key={c.agentId}
-                      type="button"
-                      onClick={() => addMember(c.agentId)}
-                      className="focus-ring inline-flex items-center gap-1.5 border border-pv-border/25 bg-pv-bg px-2.5 py-1 text-[12px] text-pv-text/85 transition-colors hover:border-pv-emerald/50 hover:text-pv-text"
-                    >
-                      <Plus className="h-3 w-3 text-pv-muted" />
-                      {c.emoji ? `${c.emoji} ` : ""}
-                      {c.label}
-                      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-pv-muted">{t(c.kind)}</span>
-                    </button>
-                  ))}
-                </div>
-              )
-            )}
           </div>
-        </section>
+          <Input
+            id="basket-name"
+            label={t("name")}
+            placeholder="Contrarian mix"
+            value={name}
+            maxLength={MAX_BASKET_NAME}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <Textarea
+          id="basket-thesis"
+          label={t("thesis")}
+          className="!min-h-[88px]"
+          placeholder={t("thesisPlaceholder")}
+          value={thesis}
+          maxLength={MAX_BASKET_THESIS}
+          onChange={(e) => setThesis(e.target.value)}
+        />
+      </section>
 
-        {error && (
-          <div
-            role="alert"
-            className="flex items-start gap-2.5 border border-pv-danger/40 bg-pv-danger/[0.06] px-4 py-3 text-sm text-pv-danger"
-          >
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <span className="min-w-0 break-words">{error}</span>
-          </div>
+      <section aria-labelledby="compose-members" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="compose-members" className="m-0 font-display text-[1.45rem] leading-none text-cream">
+            {t("members")}
+          </h2>
+          <span aria-live="polite" className={`font-mono text-[13px] ${remaining === 0 ? "text-cream" : "text-muted"}`}>
+            {remaining === 0
+              ? t("allocated")
+              : remaining > 0
+                ? t("left", { pct: (remaining / 100).toFixed(2) })
+                : t("over", { pct: (-remaining / 100).toFixed(2) })}
+          </span>
+        </div>
+        <Meter value={totalBps / WEIGHT_TOTAL_BPS} />
+
+        {members.length === 0 ? (
+          <p className="m-0 rounded-lg bg-cream/[0.03] px-4 py-6 text-center text-[14px] text-muted">
+            {t("addAtLeast", { count: DEFAULT_BASKET_POLICY.minMembers })}
+          </p>
+        ) : (
+          <ul className="m-0 list-none divide-y divide-line p-0">
+            {members.map((m) => {
+              const c = byId.get(m.agentId);
+              const over = m.weightBps > DEFAULT_BASKET_POLICY.maxSingleAgentBps;
+              return (
+                <li key={m.agentId} className="flex items-center gap-3 py-3">
+                  <PeepAvatar seed={seedOf(c, m.agentId)} size={30} shape="square" alt="" />
+                  <span className="min-w-0 flex-1 truncate text-[15px] text-cream">
+                    {c ? `${c.emoji ? `${c.emoji} ` : ""}${c.label}` : m.agentId}
+                  </span>
+                  <label className="sr-only" htmlFor={`w-${m.agentId}`}>
+                    {t("weight", { id: m.agentId })}
+                  </label>
+                  <input
+                    id={`w-${m.agentId}`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={m.weightBps / 100}
+                    aria-invalid={over || undefined}
+                    onChange={(e) => setWeight(m.agentId, Number(e.target.value))}
+                    className={`input !w-24 !px-4 !py-2.5 text-right font-mono tabular-nums ${
+                      over ? "!shadow-[inset_0_0_0_1px_rgb(255_147_140/.7)]" : ""
+                    }`}
+                  />
+                  <span className="font-mono text-[13px] text-muted">%</span>
+                  <button
+                    type="button"
+                    onClick={() => removeMember(m.agentId)}
+                    aria-label={t("remove", { id: m.agentId })}
+                    className="focus-ring press grid size-9 flex-none place-items-center rounded-full bg-panel-raised text-muted transition-colors hover:text-danger"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
 
-        {!connected && (
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-center text-[12px] text-pv-muted">{t("connectPublish")}</p>
+        {overCap ? (
+          <p className="m-0 flex items-center gap-2 text-[13px] text-danger">
+            <Scale className="size-3.5 shrink-0" aria-hidden />
+            {t("overCap", { pct: DEFAULT_BASKET_POLICY.maxSingleAgentBps / 100 })}
+          </p>
+        ) : null}
+
+        <div className="grid gap-2">
+          <p className="label !mb-0">{t("addAgent")}</p>
+          {candidates === null ? (
+            <Skeleton className="!h-8 w-2/3 !rounded-full" />
+          ) : candidates.length === 0 ? (
+            <p className="m-0 text-[13px] text-muted">{t("noCandidates")}</p>
+          ) : members.length < DEFAULT_BASKET_POLICY.maxMembers ? (
+            <div className="flex flex-wrap gap-2">
+              {available.map((c) => (
+                <Chip key={c.agentId} onClick={() => addMember(c.agentId)}>
+                  <Plus className="size-3.5" aria-hidden />
+                  {c.emoji ? `${c.emoji} ` : ""}
+                  {c.label}
+                  <span className="text-[11px] text-dim">{t(c.kind)}</span>
+                </Chip>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {error ? (
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg bg-danger/[0.1] px-4 py-3 text-[14px] text-danger">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 break-words">{error}</span>
+        </div>
+      ) : null}
+
+      <div className="grid justify-items-center gap-3">
+        {!connected ? (
+          <>
+            <p className="m-0 text-center text-[13px] text-muted">{t("connectPublish")}</p>
             <ConnectWalletButton />
-          </div>
+          </>
+        ) : (
+          <Button size="sm" fullWidth={false} loading={busy} disabled={!ready} onClick={() => void publish()}>
+            {busy ? t("waiting") : t("publish")}
+            {!busy ? <Check className="size-4" aria-hidden /> : null}
+          </Button>
         )}
-        <button
-          type="button"
-          className="btn-primary flex w-full items-center justify-center gap-2"
-          disabled={!ready || busy}
-          onClick={() => void publish()}
-        >
-          {busy ? t("waiting") : t("publish")}
-          {!busy && <Check className="h-4 w-4" />}
-        </button>
       </div>
     </div>
   );

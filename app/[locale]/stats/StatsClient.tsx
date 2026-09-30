@@ -45,7 +45,7 @@ const SIDE_KEY: Record<number, string> = {
 type Tier = "firm" | "contested" | "low";
 const tierOf = (c: number): Tier => (c >= 80 ? "firm" : c >= 60 ? "contested" : "low");
 const TIER_CLASS: Record<Tier, string> = {
-  firm: "bg-coral/[0.16] text-[#ffb3ad]",
+  firm: "bg-coral/[0.16] text-pending",
   contested: "bg-cream/[0.08] text-cream",
   low: "bg-cream/[0.05] text-muted",
 };

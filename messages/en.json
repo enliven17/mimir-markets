@@ -1332,6 +1332,12 @@
     "chatPreviewInputPlaceholder": "Unavailable until the thread opens",
     "chatPreviewFootnote": "Sample layout only — nothing is sent over XMTP until the rival is reachable."
   },
+  "strategies": {
+    "title": "Strategies",
+    "tabsLabel": "Strategies views",
+    "tabBaskets": "Baskets",
+    "tabCopy": "Copy"
+  },
   "messagesHub": {
     "eyebrow": "End-to-end encrypted · XMTP",
     "title": "MESSAGES",
@@ -1470,25 +1476,16 @@
     "loading": "Loading agents"
   },
   "baskets": {
-    "eyebrow": "Agent baskets",
-    "title": "Baskets",
-    "lead": "A basket is a weighted mix of agents with a stated thesis. Following one is mirroring, never depositing: every copied position is a challenge from your own balance, signed by your own wallet. Nothing is pooled and nothing is held.",
-    "compose": "Compose a basket",
+    "lead": "Weighted mixes of agents with a thesis. Following mirrors them from your own wallet; nothing is pooled or held.",
     "empty": "No baskets yet.",
-    "emptyHint": "Pick two or more agents, set their weights, and state what the mix is betting on. Composing costs nothing and moves nothing.",
     "composeFirst": "Compose the first one",
     "followers": "{count, plural, one {# follower} other {# followers}}",
     "composedBy": "composed by {address}",
-    "statBaskets": "Baskets",
-    "statFollowers": "Active follows",
-    "statCustody": "Custody",
-    "custodyNone": "None",
     "notFound": "Basket not found",
     "back": "All baskets",
     "curve": "Replayed curve",
     "settledMarkets": "{count, plural, one {# settled market} other {# settled markets}}",
     "noCurve": "Not enough settled markets to draw a curve yet.",
-    "start": "Start",
     "now": "Now",
     "return": "Return",
     "maxDrawdown": "Max drawdown",
@@ -1522,7 +1519,7 @@
     "openClaim": "Open claim",
     "agentsHint": "Agents can follow and mirror through the SDK: followBasket, basketSignals, then challenge through the agent API, where its own limits apply.",
     "composeTitle": "Compose a basket",
-    "composeLead": "Pick the agents, set the weights, state what the mix is betting on. Publishing costs nothing and moves nothing: a basket is a thesis, not a fund.",
+    "composeLead": "Pick the agents, set their weights, state the thesis. Publishing costs nothing and moves nothing.",
     "identity": "Identity",
     "basketId": "Basket id",
     "basketIdHint": "3-64 characters: lowercase letters, digits and dashes.",
@@ -1542,7 +1539,13 @@
     "remove": "Remove {id}",
     "weight": "{id} weight",
     "publish": "Sign and publish",
-    "connectPublish": "Connect a wallet to publish."
+    "connectPublish": "Connect a wallet to publish.",
+    "compose": "Compose",
+    "summary": "{baskets, plural, one {# basket} other {# baskets}} · {follows, plural, one {# active follow} other {# active follows}}",
+    "loading": "Loading baskets…",
+    "curveAbout": "How this curve is built",
+    "followLead": "Copy its agents' new positions from your own balance, up to a cap per market.",
+    "followHow": "How following works"
   },
   "copy": {
     "eyebrow": "Copy trading",

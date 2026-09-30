@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { useTranslations } from "next-intl";
 
+import StrategiesHeader from "@/components/strategies/StrategiesHeader";
 import BasketsClient from "./BasketsClient";
 
 export const metadata: Metadata = {
@@ -9,5 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default function BasketsPage() {
-  return <BasketsClient />;
+  const t = useTranslations("baskets");
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <StrategiesHeader current="/baskets" lead={t("lead")} />
+      <BasketsClient />
+    </div>
+  );
 }
