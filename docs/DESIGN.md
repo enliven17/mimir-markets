@@ -65,7 +65,7 @@ use any of them in new code; they go in P6.
 | Face | Loaded by | Class | Use |
 |---|---|---|---|
 | Geist Pixel Square | `next/font/local` from the geist package (`lib/fonts.ts`), preloaded | `font-sans` / `font-body` / `font-pixel` (body default) | UI voice |
-| Terminal Grotesque 400 | `next/font/local`, `app/fonts/terminal-grotesque.woff2` (WOFF2 of the `.ttf`, SIL OFL), preloaded | `font-display` | wordmark, headings, buttons |
+| Terminal Grotesque 400 | `next/font/local`, `app/fonts/terminal-grotesque.woff2` (all 214 glyphs, SIL OFL), preloaded | `font-display` | wordmark, headings, buttons |
 | Geist Mono | `next/font/local`, one variable file, not preloaded | `font-mono` | addresses, hex, live numbers |
 | Geist Sans | `next/font/local`, one variable file, not preloaded | fallback only | |
 

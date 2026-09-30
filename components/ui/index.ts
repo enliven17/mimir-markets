@@ -25,7 +25,6 @@ export { default as Wordmark } from "./Wordmark";
 
 /** @deprecated use Card */
 export { default as GlassCard } from "./GlassCard";
-export { default as Avatar } from "./Avatar";
 export { default as PoolBadge } from "./PoolBadge";
 export { default as CountdownTimer } from "./CountdownTimer";
 export { default as VSStrip } from "./VSStrip";

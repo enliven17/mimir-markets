@@ -4,9 +4,9 @@ import { openPeepsAvatar } from "@/lib/avatars";
 type Tone = "neutral" | "accent" | "gold";
 
 const TONE_BORDER: Record<Tone, string> = {
-  neutral: "border-pv-border/25",
-  accent: "border-pv-emerald/60",
-  gold: "border-pv-gold/60",
+  neutral: "border-line",
+  accent: "border-coral/60",
+  gold: "border-cream/60",
 };
 
 interface PeepAvatarProps {
@@ -16,13 +16,13 @@ interface PeepAvatarProps {
   size?: number;
   /** Accessible label; omit for decorative avatars next to visible text. */
   alt?: string;
-  /** `circle` for people in lists/stacks, `square` for portrait tiles. */
+  /** `circle` for people in lists/stacks, `square` for portrait tiles (rounded, never sharp). */
   shape?: "circle" | "square";
   tone?: Tone;
   className?: string;
 }
 
-/** Open-peeps portrait (DiceBear) in a framed tile. */
+/** Open-peeps portrait (DiceBear) on a cream tile. */
 export default function PeepAvatar({
   seed,
   size = 32,
@@ -33,8 +33,8 @@ export default function PeepAvatar({
 }: PeepAvatarProps) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-[#E7DDFF] ${
-        shape === "circle" ? "rounded-full" : ""
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-cream ${
+        shape === "circle" ? "rounded-full" : "rounded-[28%]"
       } ${TONE_BORDER[tone]} ${className}`}
       style={{ width: size, height: size }}
     >
@@ -77,14 +77,14 @@ export function PeepStack({
     <span className={`flex items-center ${className}`}>
       {shown.map((seed, i) => (
         <span key={seed + i} style={{ zIndex: 10 - i, marginLeft: i ? -overlap : 0 }}>
-          <PeepAvatar seed={seed} size={size} className="ring-2 ring-pv-surface" />
+          <PeepAvatar seed={seed} size={size} className="ring-2 ring-panel" />
         </span>
       ))}
       {Array.from({ length: empty }, (_, i) => (
         <span
           key={`empty-${i}`}
           aria-hidden
-          className="inline-block shrink-0 rounded-full border border-dashed border-pv-border/40 bg-pv-surface"
+          className="inline-block shrink-0 rounded-full border border-dashed border-line-strong bg-panel"
           style={{
             width: size,
             height: size,

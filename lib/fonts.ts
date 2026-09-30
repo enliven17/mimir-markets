@@ -17,7 +17,7 @@ import localFont from "next/font/local";
  * (next/font needs literal options, so the fallback lists are spelled out.)
  */
 export const fontDisplay = localFont({
-  // WOFF2 of app/fonts/terminal-grotesque.ttf (all 214 glyphs, 51KB -> 13KB).
+  // WOFF2 of the original TTF (all 214 glyphs, 13KB).
   src: "../app/fonts/terminal-grotesque.woff2",
   weight: "400",
   variable: "--font-terminal-grotesque",
