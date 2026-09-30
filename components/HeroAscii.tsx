@@ -1,25 +1,85 @@
 "use client";
 
 /**
- * ASCII wave field behind the landing hero. Glyphs are cream and turn coral
- * at the wave peaks. Slim by design: every glyph and colour step is drawn
- * once into a small atlas, each frame is only `drawImage` calls, the loop is
- * capped at 24fps, the first frame waits for an idle moment so it never
- * competes with hydration, and it stops while offscreen or in a hidden tab.
- * Reduced motion: one static frame.
+ * ASCII wave field behind the landing hero (renderer: components/hero-ascii).
+ *
+ * Budget, so it never costs the page a frame:
+ * - Runs in a worker on an OffscreenCanvas where the browser supports it; the
+ *   main thread only forwards size and visibility. Otherwise it draws on the
+ *   main thread at a lower frame rate.
+ * - Device pixel ratio capped at 1.5 (1 on low-power devices, `html.lite`).
+ * - 24fps, 12fps on low-power devices and on the main-thread fallback.
+ * - Starts on an idle callback, so it never competes with hydration; stops
+ *   while offscreen or in a hidden tab.
+ * - Reduced motion or Save-Data: one static frame.
  */
 import { useEffect, useRef } from "react";
-
-type RGB = [number, number, number];
-
-const CHARS = ".:-=+*#%@";
-const ALPHA_STEPS = 6;
-const MIX_STEPS = 4;
-const FRAME_MS = 1000 / 24;
+import { createField, type RGB } from "./hero-ascii/field";
 
 function readToken(name: string, fallback: RGB): RGB {
   const parts = getComputedStyle(document.documentElement).getPropertyValue(name).trim().split(/\s+/).map(Number);
   return parts.length === 3 && parts.every(Number.isFinite) ? (parts as RGB) : fallback;
+}
+
+function saveData(): boolean {
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  return Boolean(c?.saveData);
+}
+
+interface Driver {
+  resize(width: number, height: number): void;
+  run(on: boolean): void;
+  destroy(): void;
+}
+
+function workerDriver(canvas: HTMLCanvasElement, init: Record<string, unknown>): Driver | null {
+  if (typeof Worker === "undefined" || !("transferControlToOffscreen" in canvas)) return null;
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./hero-ascii/hero-ascii.worker.ts", import.meta.url), { type: "module" });
+    const offscreen = canvas.transferControlToOffscreen();
+    worker.postMessage({ type: "init", canvas: offscreen, ...init }, [offscreen]);
+  } catch {
+    return null;
+  }
+  return {
+    resize: (width, height) => worker.postMessage({ type: "resize", width, height }),
+    run: (on) => worker.postMessage({ type: "run", on }),
+    destroy: () => worker.terminate(),
+  };
+}
+
+function mainDriver(
+  canvas: HTMLCanvasElement,
+  init: { width: number; height: number; dpr: number; base: RGB; peak: RGB; fps: number; still: boolean },
+): Driver | null {
+  const makeCanvas = (w: number, h: number) => Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const field = createField(canvas, makeCanvas, init);
+  if (!field) return null;
+  field.resize(init.width, init.height);
+  let frame = 0;
+  field.paint(frame);
+  const frameMs = 1000 / init.fps;
+  let raf = 0;
+  let last = 0;
+  const loop = (now: number) => {
+    raf = requestAnimationFrame(loop);
+    if (now - last < frameMs) return;
+    last = now;
+    field.paint(frame);
+    frame += 1.4 * (frameMs / (1000 / 24));
+  };
+  return {
+    resize: (w, h) => {
+      field.resize(w, h);
+      field.paint(frame);
+    },
+    run: (on) => {
+      cancelAnimationFrame(raf);
+      if (on && !init.still) raf = requestAnimationFrame(loop);
+    },
+    destroy: () => cancelAnimationFrame(raf),
+  };
 }
 
 export function HeroAscii({ className = "" }: { className?: string }) {
@@ -27,138 +87,58 @@ export function HeroAscii({ className = "" }: { className?: string }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const base = readToken("--cream-rgb", [243, 234, 214]);
-    const peak = readToken("--coral-rgb", [255, 81, 72]);
-
-    let W = 0;
-    let H = 0;
-    let cols = 0;
-    let rows = 0;
-    let cell = 14;
-    let cw = 8.4;
-    let atlas: HTMLCanvasElement | null = null;
-
-    // Atlas: one row per (alpha, mix) step, one column per glyph.
-    function buildAtlas() {
-      const a = document.createElement("canvas");
-      a.width = Math.ceil(cw * dpr) * CHARS.length;
-      a.height = Math.ceil(cell * dpr) * ALPHA_STEPS * MIX_STEPS;
-      const g = a.getContext("2d");
-      if (!g) return null;
-      const gw = Math.ceil(cw * dpr);
-      const gh = Math.ceil(cell * dpr);
-      g.font = `${cell * dpr}px ui-monospace, monospace`;
-      g.textBaseline = "alphabetic";
-      for (let ai = 0; ai < ALPHA_STEPS; ai++) {
-        for (let mi = 0; mi < MIX_STEPS; mi++) {
-          const mix = mi / (MIX_STEPS - 1);
-          const alpha = 0.18 + (ai / (ALPHA_STEPS - 1)) * 0.42;
-          const r = Math.round(base[0] * (1 - mix) + peak[0] * mix);
-          const gg = Math.round(base[1] * (1 - mix) + peak[1] * mix);
-          const b = Math.round(base[2] * (1 - mix) + peak[2] * mix);
-          g.fillStyle = `rgba(${r}, ${gg}, ${b}, ${alpha})`;
-          const row = ai * MIX_STEPS + mi;
-          for (let ci = 0; ci < CHARS.length; ci++) {
-            g.fillText(CHARS[ci], ci * gw, row * gh + gh * 0.85);
-          }
-        }
-      }
-      return a;
-    }
-
-    function resize() {
-      const rect = canvas!.getBoundingClientRect();
-      W = rect.width;
-      H = rect.height;
-      // Bigger cells on phones: fewer glyphs, same texture.
-      cell = W < 640 ? 16 : 14;
-      cw = cell * 0.6;
-      canvas!.width = Math.round(W * dpr);
-      canvas!.height = Math.round(H * dpr);
-      cols = Math.ceil(W / cw);
-      rows = Math.ceil(H / cell);
-      atlas = buildAtlas();
-    }
-
-    let frame = 0;
-    function paint() {
-      if (!atlas) return;
-      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
-      const gw = Math.ceil(cw * dpr);
-      const gh = Math.ceil(cell * dpr);
-      for (let y = 0; y < rows; y++) {
-        const cy = y / rows - 0.5;
-        for (let x = 0; x < cols; x++) {
-          const cx = x / cols - 0.5;
-          const dist = Math.sqrt(cx * cx + cy * cy);
-          const wave = Math.sin(dist * 12 - frame * 0.03) * 0.5 + 0.5;
-          const noise = Math.sin(x * 0.3 + frame * 0.01) * Math.cos(y * 0.3 + frame * 0.02);
-          const val = Math.max(0, Math.min(1, wave * 0.7 + noise * 0.3));
-          const ci = Math.floor(val * (CHARS.length - 1));
-          const ai = Math.round(val * (ALPHA_STEPS - 1));
-          const mi = Math.round(Math.min(1, Math.max(0, wave - 0.6) * 2.5) * (MIX_STEPS - 1));
-          ctx!.drawImage(atlas, ci * gw, (ai * MIX_STEPS + mi) * gh, gw, gh, Math.round(x * cw * dpr), Math.round(y * cell * dpr), gw, gh);
-        }
-      }
-    }
-
-    let raf = 0;
-    let last = 0;
+    const lite = document.documentElement.classList.contains("lite");
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches || saveData();
+    let driver: Driver | null = null;
     let visible = true;
-    const loop = (now: number) => {
-      raf = requestAnimationFrame(loop);
-      if (now - last < FRAME_MS) return;
-      last = now;
-      paint();
-      frame += 1.4;
-    };
-    const start = () => {
-      cancelAnimationFrame(raf);
-      if (reduced) paint();
-      else if (visible && !document.hidden) raf = requestAnimationFrame(loop);
+
+    const sync = () => driver?.run(visible && !document.hidden);
+
+    const boot = () => {
+      const rect = canvas.getBoundingClientRect();
+      const init = {
+        width: rect.width,
+        height: rect.height,
+        dpr: lite ? 1 : Math.min(window.devicePixelRatio || 1, 1.5),
+        base: readToken("--cream-rgb", [243, 234, 214]),
+        peak: readToken("--coral-rgb", [255, 81, 72]),
+        fps: lite ? 12 : 24,
+        still,
+      };
+      driver = workerDriver(canvas, init) ?? mainDriver(canvas, { ...init, fps: 12 });
+      sync();
     };
 
-    let idle = 0;
-    const boot = () => {
-      resize();
-      start();
-    };
     const hasIdle = typeof window.requestIdleCallback === "function";
-    if (hasIdle) idle = window.requestIdleCallback(boot, { timeout: 1200 });
-    else idle = window.setTimeout(boot, 200);
+    const idle = hasIdle ? window.requestIdleCallback(boot, { timeout: 1500 }) : window.setTimeout(boot, 300);
 
     let resizeTimer = 0;
-    const onResize = () => {
+    const ro = new ResizeObserver(([entry]) => {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        resize();
-        if (reduced) paint();
-      }, 120);
-    };
-    window.addEventListener("resize", onResize);
+        const box = entry?.contentRect;
+        if (box && driver) driver.resize(box.width, box.height);
+      }, 150);
+    });
+    ro.observe(canvas);
 
     const io = new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting ?? true;
-      if (visible) start();
-      else cancelAnimationFrame(raf);
+      sync();
     });
     io.observe(canvas);
-    const onVisibility = () => (document.hidden ? cancelAnimationFrame(raf) : start());
-    document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener("visibilitychange", sync);
 
     return () => {
-      cancelAnimationFrame(raf);
       if (hasIdle) window.cancelIdleCallback(idle);
       else window.clearTimeout(idle);
       window.clearTimeout(resizeTimer);
-      window.removeEventListener("resize", onResize);
-      document.removeEventListener("visibilitychange", onVisibility);
+      ro.disconnect();
       io.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+      driver?.destroy();
     };
   }, []);
 
