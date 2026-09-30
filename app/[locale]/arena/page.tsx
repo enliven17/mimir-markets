@@ -31,8 +31,16 @@ import {
   type ArenaView,
 } from "@/lib/arena-feed";
 import { formatUsdcBare } from "@/lib/money";
+import { cachedJson, fetchBody } from "@/lib/json-cache";
 
 const POLL_MS = 4000;
+const FEED_URL = "/api/arena/claims";
+
+/** The tab's last feed, so a return visit renders cards at once (lib/json-cache). */
+function cachedClaims(): SolanaClaim[] | null {
+  const json = cachedJson<{ success?: boolean; data?: { claims?: SolanaClaim[] } }>(FEED_URL);
+  return json?.success && json.data?.claims ? json.data.claims : null;
+}
 const count = (n: number) => Math.round(n).toString();
 const money = (n: number) => `$${formatUsdcBare(n)}`;
 
@@ -65,7 +73,7 @@ const EMPTY_HREF: Record<ArenaView, string> = {
 
 export default function ArenaPage() {
   const t = useTranslations("arena.feed");
-  const [claims, setClaims] = useState<SolanaClaim[] | null>(null);
+  const [claims, setClaims] = useState<SolanaClaim[] | null>(cachedClaims);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<ArenaView>("open");
   const [filters, setFilters] = useState<ArenaFilters>(DEFAULT_FILTERS);
@@ -76,8 +84,8 @@ export default function ArenaPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/arena/claims", { cache: "no-store" });
-      const json = await res.json();
+      const { body } = await fetchBody(FEED_URL);
+      const json = JSON.parse(body);
       if (!alive.current) return;
       if (json.success) {
         setClaims((prev) => patchClaims(prev, json.data.claims as SolanaClaim[]));

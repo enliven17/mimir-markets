@@ -3,6 +3,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { requestRefresh } from "@/lib/motion";
 import type { LandingFeed } from "@/lib/landing";
+import { cachedBody, cachedJson, fetchBody } from "@/lib/json-cache";
+
+const FEED_URL = "/api/arena/claims";
 
 /**
  * One arena feed for every landing section: fetched once on mount, then
@@ -35,7 +38,10 @@ export function requestScrollRefresh(): void {
 }
 
 export default function LandingFeedProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<FeedState>({ feed: null, status: "loading" });
+  const [state, setState] = useState<FeedState>(() => {
+    const json = cachedJson<{ success?: boolean; data?: LandingFeed }>(FEED_URL);
+    return json?.success && json.data ? { feed: json.data, status: "ready" } : { feed: null, status: "loading" };
+  });
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -43,11 +49,15 @@ export default function LandingFeedProvider({ children }: { children: ReactNode 
     let timer: number | undefined;
     const controller = new AbortController();
 
+    // An unchanged poll must not re-render every section mid-scroll.
+    let lastBody = cachedBody(FEED_URL) ?? "";
     const load = async () => {
       try {
-        const res = await fetch("/api/arena/claims", { signal: controller.signal, cache: "no-store" });
-        const json = (await res.json()) as { success?: boolean; data?: LandingFeed };
+        const { body } = await fetchBody(FEED_URL, { signal: controller.signal });
         if (!alive) return;
+        if (body === lastBody && loaded.current) return;
+        lastBody = body;
+        const json = JSON.parse(body) as { success?: boolean; data?: LandingFeed };
         if (json.success && json.data) {
           setState({ feed: json.data, status: "ready" });
           if (!loaded.current) {
