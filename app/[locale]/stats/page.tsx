@@ -144,25 +144,41 @@ function ConfidenceBar({
   );
 }
 
+/** Rows rendered before "Show more": the feed can hold hundreds of claims. */
+const PAGE_ROWS = 30;
+
 export default function StatsPage() {
   const [data, setData] = useState<ClaimsData | null>(null);
+  const [shown, setShown] = useState(PAGE_ROWS);
 
+  // Poll every 5s while the tab is visible. The body is compared as text, so
+  // an unchanged feed never re-renders the page.
   useEffect(() => {
     let alive = true;
+    let lastBody = "";
     const load = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch("/api/arena/claims");
-        const json: ClaimsResponse = await res.json();
-        if (alive && json.success) setData(json.data);
+        const body = await res.text();
+        if (!alive || body === lastBody) return;
+        lastBody = body;
+        const json = JSON.parse(body) as ClaimsResponse;
+        if (json.success) setData(json.data);
       } catch {
         // keep last good state
       }
     };
     load();
     const t = setInterval(load, 5000);
+    const onVisible = () => {
+      if (!document.hidden) void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -349,7 +365,7 @@ export default function StatsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {settlements.map((s) => {
+            {settlements.slice(0, shown).map((s) => {
               const side = SIDE_LABEL[s.winnerSide] ?? {
                 label: "Unknown",
                 color: "text-pv-muted",
@@ -359,7 +375,7 @@ export default function StatsPage() {
                 <Link
                   key={s.id}
                   href={`/arena/${s.id}`}
-                  className="group block border border-pv-border/25 bg-pv-bg p-4 transition-colors hover:border-pv-emerald/40 hover:bg-pv-surface"
+                  className="group block border border-pv-border/25 bg-pv-bg p-4 transition-colors [contain-intrinsic-size:auto_120px] [content-visibility:auto] hover:border-pv-emerald/40 hover:bg-pv-surface"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -405,6 +421,15 @@ export default function StatsPage() {
                 </Link>
               );
             })}
+            {settlements.length > shown ? (
+              <button
+                type="button"
+                onClick={() => setShown((n) => n + PAGE_ROWS)}
+                className="block w-full border border-pv-border/25 p-3 text-center text-sm text-pv-muted transition-colors hover:text-pv-text"
+              >
+                Show more ({settlements.length - shown} left)
+              </button>
+            ) : null}
           </div>
         )}
         </div>
