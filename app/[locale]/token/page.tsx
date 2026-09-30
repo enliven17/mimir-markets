@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
-import { BlueprintHeading, BlueprintSection, BlueprintStat } from "@/components/BlueprintGrid";
+import { SURFACE } from "@/components/arena/surface";
+import { Disclosure } from "@/components/ui";
 import TokenYourTier from "@/components/token/TokenYourTier";
 import { fetchDexReadings } from "@/lib/server/dex-prices";
 import { mainnetMintSupply } from "@/lib/server/mainnet";
@@ -11,9 +11,17 @@ import {
   agentRegisterGateFromEnv,
   basketMinTierFromEnv,
   gateEnabled,
+  tierAtLeast,
   tierThresholdsFromEnv,
+  type TokenTier,
 } from "@/lib/token-tiers";
 
+/**
+ * /token: the mainnet price as the hero with supply and FDV in one line, the
+ * connected wallet's tier, the three tiers as one row of cards with their
+ * perks, then how each perk is enforced, $ANSEM and the roadmap behind
+ * disclosures. Every number is a live mainnet read; nothing is made up.
+ */
 export const dynamic = "force-dynamic";
 
 /** A price is the median of what the DEX readers return right now; null when none answer. */
@@ -28,27 +36,10 @@ const usd = (n: number) =>
   n >= 1 ? `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : `$${n.toPrecision(3)}`;
 const compact = (n: number) => n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 });
 const short = (mint: string) => `${mint.slice(0, 4)}…${mint.slice(-4)}`;
+const fmtN = (n: number) => n.toLocaleString("en-US");
 
-function Perk({ title, body, on, where, labels }: { title: string; body: string; on: boolean; where: string; labels: { on: string; off: string; where: string } }) {
-  return (
-    <div className="bp-cell space-y-2 p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-display text-sm font-bold uppercase tracking-[0.08em] text-pv-text">{title}</h3>
-        <span
-          className={`border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] ${
-            on ? "border-pv-emerald/40 text-pv-emerald" : "border-pv-border/25 text-pv-muted"
-          }`}
-        >
-          {on ? labels.on : labels.off}
-        </span>
-      </div>
-      <p className="text-sm leading-relaxed text-pv-text/85">{body}</p>
-      <p className="font-mono text-[11px] text-pv-muted">
-        {labels.where}: <code>{where}</code>
-      </p>
-    </div>
-  );
-}
+const TIERS: Exclude<TokenTier, "none">[] = ["holder", "backer", "oracle-circle"];
+const LINK = "text-coral hover:underline";
 
 export default async function TokenPage() {
   const t = await getTranslations("token");
@@ -64,135 +55,162 @@ export default async function TokenPage() {
     mint ? livePrice(mint).catch(() => null) : Promise.resolve(null),
     livePrice(ansemMint()).catch(() => null),
   ]);
-  const labels = { on: t("on"), off: t("off"), where: t("where") };
-  const fmtN = (n: number) => n.toLocaleString("en-US");
+
+  const need: Record<(typeof TIERS)[number], number> = {
+    holder: thresholds.holder,
+    backer: thresholds.backer,
+    "oracle-circle": thresholds.oracleCircle,
+  };
+
+  const perks = [
+    {
+      key: "council",
+      body: t("perk.council.body", { x2: TIER_RATE_MULTIPLIER.holder, x4: TIER_RATE_MULTIPLIER.backer, x8: TIER_RATE_MULTIPLIER["oracle-circle"] }),
+      on: true,
+      where: "lib/server/holder.ts rateIdentity → /api/council/reasoning, /api/council/preflight",
+    },
+    {
+      key: "register",
+      body: t("perk.register.body", {
+        mimir: registerGate.minMimir > 0 ? fmtN(registerGate.minMimir) : t("perk.register.unset"),
+        ansem: registerGate.minAnsem > 0 ? fmtN(registerGate.minAnsem) : t("perk.register.unset"),
+        symbol,
+      }),
+      on: gateEnabled(registerGate),
+      where: "/api/agents/v1/register (enforceRegisterGate)",
+    },
+    {
+      key: "baskets",
+      body: t("perk.baskets.body", { tier: t(`tier.${basketTier === "none" ? "holder" : basketTier}`) }),
+      on: basketTier !== "none",
+      where: "POST /api/baskets",
+    },
+    {
+      key: "prices",
+      body: t("perk.prices.body", { symbol }),
+      on: true,
+      where: "lib/server/dex-prices.ts → price-sources.ts → oracle resolver spec",
+    },
+  ] as const;
 
   return (
-    <div className="pb-12">
-      <BlueprintHeading as="h1" eyebrow={t("eyebrow", { symbol })} subtitle={t("subtitle")}>
-        {t("title")}
-      </BlueprintHeading>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="grid gap-2">
+        <p className="m-0 text-[13px] text-muted">{t("eyebrow", { symbol })}</p>
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
+        <p className="m-0 max-w-[56ch] text-[15px] leading-relaxed text-muted">{t("lead")}</p>
+      </header>
 
-      {launched ? (
-        <div data-bp-rails className="bp-grid border-x border-pv-border/25 sm:grid-cols-4">
-          <BlueprintStat value={price !== null ? usd(price) : t("unavailable")} label={t("price")} />
-          <BlueprintStat value={supply ? compact(supply.supply) : t("unavailable")} label={t("supply")} tone="text" />
-          <BlueprintStat value={supply && price !== null ? usd(supply.supply * price) : t("unavailable")} label={t("fdv")} tone="text" />
-          <div className="bp-cell flex flex-col items-center justify-center gap-2 p-5 text-center sm:p-6">
-            <a href={`https://solscan.io/token/${mint}`} target="_blank" rel="noreferrer" className="font-mono text-sm text-pv-emerald hover:underline">
-              {short(mint)}
-            </a>
-            <a href={mimirTokenUrl()} target="_blank" rel="noreferrer" className="font-mono text-[11px] uppercase tracking-[0.14em] text-pv-muted hover:text-pv-text">
-              {t("tradeCta")} →
-            </a>
+      <section aria-label={t("price")} className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
+        {launched ? (
+          <div className="min-w-0">
+            <p className="m-0 text-[13px] text-muted">{t("price")}</p>
+            <p className="m-0 mt-2 font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
+              {price !== null ? usd(price) : <span className="text-dim">{t("unavailable")}</span>}
+            </p>
+            <p className="m-0 mt-2 flex flex-wrap gap-x-2 text-[13px] text-muted">
+              <span>
+                {t("supply")} <span className="font-mono text-cream">{supply ? compact(supply.supply) : "—"}</span>
+              </span>
+              <span aria-hidden>·</span>
+              <span>
+                {t("fdv")} <span className="font-mono text-cream">{supply && price !== null ? usd(supply.supply * price) : "—"}</span>
+              </span>
+              <span aria-hidden>·</span>
+              <a href={`https://solscan.io/token/${mint}`} target="_blank" rel="noreferrer" className={`font-mono ${LINK}`}>
+                {short(mint)} ↗
+              </a>
+            </p>
           </div>
-        </div>
-      ) : (
-        <div data-bp-rails className="border-x border-pv-border/25 px-4 py-8 text-center sm:px-6">
-          <p className="font-display text-xl font-bold uppercase tracking-tight text-pv-emerald">{t("launchingTitle")}</p>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-pv-muted">{t("launchingBody")}</p>
-          <a
-            href={mimirTokenUrl()}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-block border border-pv-emerald bg-pv-emerald px-3 py-2 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg hover:brightness-110 focus-ring"
-          >
-            {t("launchingCta")}
-          </a>
-        </div>
-      )}
+        ) : (
+          <div className="min-w-0">
+            <p className="m-0 font-display text-[1.8rem] leading-none text-cream">{t("launchingTitle")}</p>
+            <p className="m-0 mt-2 max-w-[48ch] text-[14px] leading-relaxed text-muted">{t("launchingBody")}</p>
+          </div>
+        )}
+        <a
+          href={mimirTokenUrl()}
+          target="_blank"
+          rel="noreferrer"
+          className="btn-primary !min-h-[46px] !w-auto !flex-none !px-5 !py-2.5 !text-[15px]"
+        >
+          {launched ? t("tradeCta") : t("launchingCta")} ↗
+        </a>
+      </section>
 
-      <BlueprintSection title={t("yourTier")}>
+      <section aria-labelledby="token-your-tier" className={`${SURFACE} grid gap-3 p-5 sm:p-6`}>
+        <h2 id="token-your-tier" className="m-0 text-[13px] font-normal text-muted">
+          {t("yourTier")}
+        </h2>
         <TokenYourTier />
-      </BlueprintSection>
+      </section>
 
-      <BlueprintSection title={t("perksTitle")} subtitle={t("perksSubtitle")} bodyClassName="bp-grid sm:grid-cols-2">
-        <Perk
-          title={t("perk.council.title")}
-          body={t("perk.council.body", { x2: TIER_RATE_MULTIPLIER.holder, x4: TIER_RATE_MULTIPLIER.backer, x8: TIER_RATE_MULTIPLIER["oracle-circle"] })}
-          on
-          where="lib/server/holder.ts rateIdentity → /api/council/reasoning, /api/council/preflight"
-          labels={labels}
-        />
-        <Perk
-          title={t("perk.register.title")}
-          body={t("perk.register.body", {
-            mimir: registerGate.minMimir > 0 ? fmtN(registerGate.minMimir) : t("perk.register.unset"),
-            ansem: registerGate.minAnsem > 0 ? fmtN(registerGate.minAnsem) : t("perk.register.unset"),
-            symbol,
-          })}
-          on={gateEnabled(registerGate)}
-          where="/api/agents/v1/register (enforceRegisterGate)"
-          labels={labels}
-        />
-        <Perk
-          title={t("perk.baskets.title")}
-          body={t("perk.baskets.body", { tier: t(`tier.${basketTier === "none" ? "holder" : basketTier}`) })}
-          on={basketTier !== "none"}
-          where="POST /api/baskets"
-          labels={labels}
-        />
-        <Perk
-          title={t("perk.prices.title")}
-          body={t("perk.prices.body", { symbol })}
-          on
-          where="lib/server/dex-prices.ts → price-sources.ts → oracle resolver spec"
-          labels={labels}
-        />
-      </BlueprintSection>
+      <section aria-labelledby="token-tiers" className="grid gap-3">
+        <h2 id="token-tiers" className="m-0 font-display text-[1.6rem] leading-none text-cream">
+          {t("tiersLabel")}
+        </h2>
+        <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-3">
+          {TIERS.map((tier, i) => (
+            <li key={tier} className={`${SURFACE} card-in grid content-start gap-3 p-5`} style={{ "--i": i } as React.CSSProperties}>
+              <p className="m-0 font-display text-[1.35rem] leading-none text-cream">{t(`tier.${tier}`)}</p>
+              <p className="m-0 font-mono text-[14px] text-cream">
+                ≥ {t("needsAtLeast", { n: fmtN(need[tier]), symbol })}
+                {tier === "holder" && thresholds.ansemHolderMin > 0 ? (
+                  <span className="block text-[12px] text-muted">{t("orAnsem", { n: fmtN(thresholds.ansemHolderMin) })}</span>
+                ) : null}
+              </p>
+              <ul className="m-0 grid list-none gap-1.5 border-t border-line p-0 pt-3 text-[13px] text-muted">
+                <li className="flex items-center gap-2">
+                  <span aria-hidden className="h-1 w-1 rounded-[1px] bg-coral" />
+                  {t("tierCouncil", { x: TIER_RATE_MULTIPLIER[tier] })}
+                </li>
+                {basketTier !== "none" && tierAtLeast(tier, basketTier) ? (
+                  <li className="flex items-center gap-2">
+                    <span aria-hidden className="h-1 w-1 rounded-[1px] bg-coral" />
+                    {t("tierBaskets")}
+                  </li>
+                ) : null}
+              </ul>
+            </li>
+          ))}
+        </ol>
+        <p className="m-0 text-[12px] text-dim">{t("cachedNote")}</p>
+      </section>
 
-      <BlueprintSection title={t("tiersTitle")} subtitle={t("tiersSubtitle")} bodyClassName="px-4 py-6 sm:px-6">
-        <div className="overflow-x-auto border border-pv-border/25">
-          <table className="w-full min-w-[420px] text-left text-sm">
-            <thead className="bg-pv-surface font-mono text-[11px] uppercase tracking-[0.14em] text-pv-muted">
-              <tr>
-                <th className="px-4 py-3">{t("tierCol")}</th>
-                <th className="px-4 py-3">{t("needs")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-pv-border/25">
-              <tr>
-                <td className="px-4 py-3 text-pv-text">{t("tier.holder")}</td>
-                <td className="px-4 py-3 font-mono text-pv-text/85">
-                  ≥ {fmtN(thresholds.holder)} {symbol}
-                  {thresholds.ansemHolderMin > 0 ? ` ${t("orAnsem", { n: fmtN(thresholds.ansemHolderMin) })}` : ""}
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 text-pv-text">{t("tier.backer")}</td>
-                <td className="px-4 py-3 font-mono text-pv-text/85">≥ {fmtN(thresholds.backer)} {symbol}</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 text-pv-text">{t("tier.oracle-circle")}</td>
-                <td className="px-4 py-3 font-mono text-pv-text/85">≥ {fmtN(thresholds.oracleCircle)} {symbol}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </BlueprintSection>
+      <div className="grid gap-3">
+        <Disclosure summary={t("perksTitle")} meta={t("perksMeta", { on: perks.filter((p) => p.on).length, total: perks.length })}>
+          <ul className="m-0 grid list-none gap-4 p-0">
+            {perks.map((p) => (
+              <li key={p.key} className="grid gap-1">
+                <p className="m-0 flex items-center justify-between gap-3 text-[15px] text-cream">
+                  {t(`perk.${p.key}.title`)}
+                  <span className={`text-[12px] ${p.on ? "text-coral" : "text-dim"}`}>{p.on ? t("on") : t("off")}</span>
+                </p>
+                <p className="m-0 text-[13px] leading-relaxed text-muted">{p.body}</p>
+                <p className="m-0 font-mono text-[12px] text-dim">
+                  {t("where")}: <code className="break-words">{p.where}</code>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
 
-      <BlueprintSection title={t("ansemTitle")} bodyClassName="px-4 py-6 sm:px-6">
-        <p className="text-sm leading-relaxed text-pv-text/85">{t("ansemBody", { n: fmtN(thresholds.ansemHolderMin) })}</p>
-        <p className="mt-3 font-mono text-xs text-pv-muted">
-          <a href={`https://solscan.io/token/${ansemMint()}`} target="_blank" rel="noreferrer" className="text-pv-emerald hover:underline">
-            {short(ansemMint())}
+        <Disclosure summary={t("ansemTitle")} meta={ansemPrice !== null ? usd(ansemPrice) : undefined}>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">{t("ansemBody", { n: fmtN(thresholds.ansemHolderMin) })}</p>
+          <a href={`https://solscan.io/token/${ansemMint()}`} target="_blank" rel="noreferrer" className={`mt-3 inline-block font-mono text-[13px] ${LINK}`}>
+            {short(ansemMint())} ↗
           </a>
-          {ansemPrice !== null ? ` · ${t("price")}: ${usd(ansemPrice)}` : ""}
-        </p>
-      </BlueprintSection>
+        </Disclosure>
 
-      <BlueprintSection title={t("roadmapTitle")} bodyClassName="px-4 py-6 sm:px-6">
-        <ul className="space-y-3 text-sm leading-relaxed text-pv-text/85">
-          <li>{t("roadmap.now")}</li>
-          <li>{t("roadmap.next")}</li>
-          <li>{t("roadmap.fees")}</li>
-          <li className="text-pv-muted">{t("roadmap.honest")}</li>
-        </ul>
-      </BlueprintSection>
-
-      <p className="mt-6 text-center text-sm">
-        <Link href="/arena" className="text-pv-muted hover:text-pv-text">{t("back")}</Link>
-      </p>
+        <Disclosure summary={t("roadmapTitle")}>
+          <ul className="m-0 grid list-none gap-3 p-0 text-[14px] leading-relaxed text-muted">
+            <li>{t("roadmap.now")}</li>
+            <li>{t("roadmap.next")}</li>
+            <li>{t("roadmap.fees")}</li>
+            <li className="text-cream">{t("roadmap.honest")}</li>
+          </ul>
+        </Disclosure>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,9 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
+
+import { Button, Skeleton } from "@/components/ui";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { useHolderTier } from "./useHolderTier";
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -15,7 +18,14 @@ export default function TokenYourTier() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!connected || !wallet) return <p className="text-sm text-pv-muted">{t("connect")}</p>;
+  if (!connected || !wallet) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="m-0 max-w-[44ch] text-[14px] text-muted">{t("connect")}</p>
+        <ConnectWalletButton />
+      </div>
+    );
+  }
 
   async function onProve() {
     setBusy(true);
@@ -30,33 +40,39 @@ export default function TokenYourTier() {
   }
 
   return (
-    <div className="space-y-3 text-sm">
-      {state ? (
-        <>
-          <p className="font-display text-2xl font-bold uppercase tracking-tight text-pv-emerald">{t(`tier.${state.tier}`)}</p>
-          <p className="font-mono text-xs text-pv-muted">
-            {t("held", { symbol: state.symbol, mimir: state.launched ? fmt(state.balances.mimir) : "—", ansem: fmt(state.balances.ansem) })}
-          </p>
-        </>
-      ) : (
-        <p className="text-pv-muted">{loaded ? t("readFailed") : t("loading")}</p>
-      )}
-      {proven ? (
-        <p className="text-xs text-pv-text/85">{t("proven")}</p>
-      ) : (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={onProve}
-            disabled={busy || !canSign}
-            className="border border-pv-emerald bg-pv-emerald px-3 py-2 font-display text-[11px] font-bold uppercase tracking-[0.16em] text-pv-bg transition-[filter] hover:brightness-110 disabled:opacity-50 focus-ring"
-          >
-            {busy ? t("proving") : t("prove")}
-          </button>
-          <p className="text-xs text-pv-muted">{canSign ? t("proofHelp") : t("noSign")}</p>
-        </div>
-      )}
-      {error ? <p className="text-xs text-pv-danger">{error}</p> : null}
+    <div className="grid gap-4 sm:flex sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        {state ? (
+          <>
+            <p className={`m-0 font-display text-[2rem] leading-none ${state.tier === "none" ? "text-muted" : "text-cream"}`}>
+              {t(`tier.${state.tier}`)}
+            </p>
+            <p className="m-0 mt-2 font-mono text-[13px] text-muted">
+              {t("held", { symbol: state.symbol, mimir: state.launched ? fmt(state.balances.mimir) : "—", ansem: fmt(state.balances.ansem) })}
+            </p>
+          </>
+        ) : loaded ? (
+          <p className="m-0 text-[14px] text-muted">{t("readFailed")}</p>
+        ) : (
+          <div role="status" aria-label={t("loading")} className="grid gap-2">
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        )}
+      </div>
+      <div className="grid gap-1.5 sm:max-w-[300px] sm:justify-items-end sm:text-right">
+        {proven ? (
+          <p className="m-0 text-[13px] text-muted">{t("proven")}</p>
+        ) : (
+          <>
+            <Button size="sm" variant="ghost" fullWidth={false} loading={busy} disabled={busy || !canSign} onClick={() => void onProve()}>
+              {busy ? t("proving") : t("prove")}
+            </Button>
+            <p className="m-0 text-[12px] text-muted">{canSign ? t("proofHelp") : t("noSign")}</p>
+          </>
+        )}
+        {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
+      </div>
     </div>
   );
 }
