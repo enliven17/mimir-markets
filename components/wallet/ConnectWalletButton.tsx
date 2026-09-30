@@ -15,10 +15,10 @@ import WalletChip from "./WalletChip";
 export default function ConnectWalletButton({ className = "" }: { className?: string }) {
   const t = useTranslations("wallet");
   const { connected, connecting } = useMimirWallet();
-  const { open } = useWalletSheet();
+  const { open, warm } = useWalletSheet();
   if (connected) return <WalletChip className={className} />;
   return (
-    <Button size="sm" fullWidth={false} loading={connecting} onClick={open} className={className}>
+    <Button size="sm" fullWidth={false} loading={connecting} onClick={open} onPointerEnter={warm} onFocus={warm} className={className}>
       {!connecting ? <Wallet size={16} aria-hidden /> : null}
       {connecting ? t("connecting") : t("connectWallet")}
     </Button>

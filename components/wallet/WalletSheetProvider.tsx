@@ -14,13 +14,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import dynamic from "next/dynamic";
 import { isUserRejection, onWalletError } from "@/lib/solana/wallet-events";
-import ConnectSheet from "./ConnectSheet";
+import { requestWalletConnect } from "@/lib/solana/wallet-providers";
+
+// The sheet is code-split and only mounted once it has been opened: nothing
+// of it is parsed or rendered on a plain page view.
+const ConnectSheet = dynamic(() => import("./ConnectSheet"), { ssr: false });
 
 interface WalletSheetContextValue {
   isOpen: boolean;
   open: () => void;
   close: () => void;
+  /** Start loading the sheet and WalletConnect ahead of a click (hover, focus). */
+  warm: () => void;
 }
 
 const WalletSheetContext = createContext<WalletSheetContextValue | null>(null);
@@ -34,11 +41,20 @@ export function useWalletSheet(): WalletSheetContextValue {
 export default function WalletSheetProvider({ children }: { children: ReactNode }) {
   const t = useTranslations("wallet");
   const [isOpen, setIsOpen] = useState(false);
+  const [everOpened, setEverOpened] = useState(false);
   const openRef = useRef(isOpen);
   openRef.current = isOpen;
 
-  const open = useCallback(() => setIsOpen(true), []);
+  const open = useCallback(() => {
+    requestWalletConnect();
+    setEverOpened(true);
+    setIsOpen(true);
+  }, []);
   const close = useCallback(() => setIsOpen(false), []);
+  const warm = useCallback(() => {
+    requestWalletConnect();
+    void import("./ConnectSheet");
+  }, []);
 
   useEffect(
     () =>
@@ -51,12 +67,12 @@ export default function WalletSheetProvider({ children }: { children: ReactNode 
     [t],
   );
 
-  const value = useMemo(() => ({ isOpen, open, close }), [isOpen, open, close]);
+  const value = useMemo(() => ({ isOpen, open, close, warm }), [isOpen, open, close, warm]);
 
   return (
     <WalletSheetContext.Provider value={value}>
       {children}
-      <ConnectSheet open={isOpen} onClose={close} />
+      {everOpened ? <ConnectSheet open={isOpen} onClose={close} /> : null}
     </WalletSheetContext.Provider>
   );
 }

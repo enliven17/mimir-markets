@@ -36,7 +36,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   const t = useTranslations("wallet");
   const tt = useTranslations("token");
   const { publicKey, connected, connecting, wallet, disconnect, connection } = useMimirWallet();
-  const { open: openSheet } = useWalletSheet();
+  const { open: openSheet, warm: warmSheet } = useWalletSheet();
   const { state: tier } = useHolderTier();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -141,6 +141,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
       <button
         type="button"
         onClick={openSheet}
+        onPointerEnter={warmSheet}
+        onFocus={warmSheet}
         aria-busy={connecting || undefined}
         className={`wallet-chip press ${className}`}
       >
