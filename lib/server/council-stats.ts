@@ -14,6 +14,7 @@ import { USDC_MINT } from "@/lib/solana/config";
 import { councilRoster, type RosterEntry } from "@/lib/server/council-roster";
 import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
 import { cachedFor } from "@/lib/server/ttl-cache";
+import { loadAgentKeypair } from "@/lib/solana/keypair";
 import { emptyTally, tallyCouncil, type PersonaTally, type TallyClaim } from "@/lib/council-tally";
 
 export interface PersonaStats extends PersonaTally {
@@ -23,8 +24,14 @@ export interface PersonaStats extends PersonaTally {
   erBalance: bigint;
 }
 
+export interface OracleStats extends PersonaTally {
+  /** The settler's public key; "" when it cannot be resolved. */
+  address: string;
+}
+
 export interface CouncilStats {
   personas: PersonaStats[];
+  oracle: OracleStats;
   /** Where the claims came from, for the page footnote. */
   source: "index" | "chain";
 }
@@ -71,10 +78,20 @@ async function ataUnits(owner: PublicKey): Promise<bigint> {
   }
 }
 
+/** The oracle's key from the worker keypair, else from the program config. */
+async function oracleAddress(): Promise<string> {
+  try {
+    return loadAgentKeypair().publicKey.toBase58();
+  } catch {
+    const cfg = await getReader().getConfig().catch(() => null);
+    return cfg?.oracle.toBase58() ?? "";
+  }
+}
+
 export const councilStats = cachedFor(async (): Promise<CouncilStats> => {
   const roster = councilRoster();
-  const { claims, source } = await loadClaims();
-  const tallies = tallyCouncil(roster.map((p) => p.address), claims);
+  const [{ claims, source }, oracle] = await Promise.all([loadClaims(), oracleAddress()]);
+  const tallies = tallyCouncil([...roster.map((p) => p.address), oracle], claims);
 
   const personas = await Promise.all(
     roster.map(async (persona): Promise<PersonaStats> => {
@@ -85,5 +102,5 @@ export const councilStats = cachedFor(async (): Promise<CouncilStats> => {
       return { persona, ...tally, erBalance: er, bankroll: er + ata };
     }),
   );
-  return { personas, source };
+  return { personas, oracle: { address: oracle, ...((oracle && tallies.get(oracle)) || emptyTally()) }, source };
 }, 30_000);
