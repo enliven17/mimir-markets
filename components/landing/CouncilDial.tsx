@@ -10,6 +10,7 @@ import { featuredClaim, poolUsdc } from "@/lib/landing";
 import { formatUsdcBare } from "@/lib/money";
 import { requestScrollRefresh, useLandingFeed } from "./LandingFeed";
 import { PixelArrow } from "./icons";
+import PeepAvatar from "@/components/ui/PeepAvatar";
 
 type Tab = "stake" | "council";
 const TABS: Tab[] = ["stake", "council"];
@@ -100,8 +101,8 @@ function CouncilPane({ roster }: { roster: Roster }) {
           {roster.status === "ready"
             ? personas.map((p) => (
                 <li key={p.slug} data-track={p.track} title={p.displayName}>
-                  <span aria-hidden>{p.emoji}</span>
-                  <span className="sr-only">{p.displayName}</span>
+                  {/* The same portraits as /council, so the landing and the roster page match. */}
+                  <PeepAvatar seed={`council-${p.slug}`} size={40} alt={p.displayName} className="l-roster-peep" />
                 </li>
               ))
             : Array.from({ length: 10 }, (_, i) => <li key={i} className="l-roster-skel" aria-hidden />)}
