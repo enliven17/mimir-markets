@@ -51,15 +51,6 @@ muted 7.2 / 6.6 / 6.0, coral 5.9 / 5.5 / 4.9, danger 8.9 / 8.2 / 7.4,
 win 11.5 / 10.6 / 9.6. Coral buttons carry an ink label (`#160909`, 6.1);
 white on coral (3.2) only at 21px+ Terminal Grotesque.
 
-### Legacy aliases
-
-`pv-*` colours and `.bp-*` classes from the purple blueprint still exist and
-now point at the tokens above (`pv-bg` = ink, `pv-surface` = panel,
-`pv-surface2` = panel-2, `pv-border` / `pv-text` / `pv-gold` = cream,
-`pv-muted` = muted, `pv-emerald` / `pv-cyan` = coral, `pv-fuch` = red,
-`pv-danger` = danger). `components/BlueprintGrid.tsx` is deprecated. Do not
-use any of them in new code; they go in P6.
-
 ## Type
 
 | Face | Loaded by | Class | Use |
@@ -100,6 +91,7 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 | `Chip`, `StatusPill`, `LiveDot`, `Pending`, `Badge`, `Eyebrow` | pills and status language |
 | `Input`, `Textarea`, `ListboxField`, `Slider` | pill / well inputs |
 | `Segmented` | pill track with sliding thumb, tabs or toggles, arrow keys |
+| `SegmentedNav` | the same track for sibling routes: links, `aria-current="page"`, server-renderable |
 | `Disclosure` | `<details>` with a coral chevron: progressive disclosure |
 | `KeyValue`, `Strip` + `StripCell`, `Progress`, `Meter` | data rows |
 | `Modal` (`dialog` / `sheet`) | focus trap, Esc, return focus, Lenis paused |
@@ -133,8 +125,7 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 - Primitives: `SplitReveal` (masked line reveal), `Magnetic`, `RollingNumber`
   (with red `flash`), `Marquee` (velocity-driven ticker), `useDitherReveal`
   (ordered-dither Bayer reveal, `data-dither`), `useRiseBatch` (`data-rise` batch),
-  `usePrefersReducedMotion`, `useInViewOnce`. `PageTransition` /
-  `AnimatedItem` are thin `data-rise` wrappers.
+  `usePrefersReducedMotion`, `useInViewOnce`.
 - Use `useGSAP` with a `scope` for every timeline and `gsap.matchMedia()` with
   `(prefers-reduced-motion: no-preference)` in new code. Never import
   `lib/motion.ts` from a server component.
@@ -166,6 +157,8 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
 - Routes: `app/[locale]/template.tsx` plays `.route-enter` and
   `components/motion/RouteEffects.tsx` lands each navigation at the top.
   `PageFrame` is the width container (`wrap` 1180, `narrow` 920).
+  The body clips horizontal overflow with `overflow-x: clip`, not `hidden`,
+  so it never becomes a scroll container and `position: sticky` works.
 - Wallet (`components/wallet/`): `WalletSheetProvider` (`useWalletSheet()`
   opens the sheet), `ConnectSheet` (detected Wallet Standard wallets, install
   links, phone deep links, per-row connecting / error states), `WalletChip`
@@ -213,9 +206,9 @@ Pinned layouts exist only while their timeline sets `data-pinned` /
 `data-dial`, so the server HTML, no-JS and reduced motion get plain stacked
 sections. Pinned sections sit inside a wrapper `div` so GSAP's pin spacer is
 never a React sibling, and every section stays mounted through loading.
-Sections that change height call `requestScrollRefresh()`. Avoid
-`position: sticky` on the landing (the body's `overflow-x` clip breaks it);
-use a pin.
+Sections that change height call `requestScrollRefresh()`. The landing
+uses pins, not `position: sticky`: its pinned layouts belong to their
+timelines.
 
 ## Arena (`app/[locale]/arena/`, `components/arena/`, `components/create/`)
 
@@ -251,3 +244,38 @@ use a pin.
   chunk is prefetched on hover or focus of a connect button.
   Polled pages (`/stats`, `/agents`) use `lib/usePolledJson.ts`: paused in
   hidden tabs, and an unchanged body never re-renders.
+
+## Other pages
+
+Every page opens the same way: an `app-h1` title, one muted line, and at most
+one control beside it. Detail sits behind a `Disclosure`, not on the page.
+
+- **Stats** (`/stats`, `/calibration`): one header (`components/stats/StatsHeader.tsx`)
+  with a `SegmentedNav` Overview / Calibration; both routes stay. Stats is a
+  four-cell `Strip`, one line for live / open / awaiting finality, a
+  confidence card and a who-won card, then compact settlement rows (30 at a
+  time) polled through `usePolledJson`. Calibration is one Brier table.
+- **Strategies** (`/baskets`, `/copy`): one header (`components/strategies/StrategiesHeader.tsx`)
+  with a `SegmentedNav` Baskets / Copy; custody terms are one sentence in
+  the lead. Baskets: a summary line with Compose, then one card per basket.
+  A basket: the replayed curve (three numbers max) and the follow card side by
+  side, then Open signals and Legs as disclosures. Compose: identity and
+  members cards with a weight `Meter`. Copy: your permissions (load and
+  revoke by signature), each card showing three caps with the rest in
+  disclosures; the grant form opens in a sheet from "New permission" and
+  its code loads on first open.
+- **Verify** (`/verify/[id]`): one hero whose title is the result (Verified,
+  Mismatch, Bundle missing, Nothing committed, No verdict yet), the verdict
+  and the download; commitment, how it was decided, resolver, prices, votes,
+  evidence, the claim as read and the canonical JSON as hashed are
+  disclosures, JSON and evidence in mono wells.
+- **Docs** (`/docs`): a server page. Desktop: a sticky contents list beside
+  every section open. Phones: an accordion with one section open at a time
+  (`components/docs/DocsAccordion.tsx`, bodies hidden with `max-lg:hidden` so
+  the server HTML is right at both widths; `#id` opens a section). Diagrams
+  are inline SVG on the tokens with round corners and scroll sideways inside
+  their frame on phones. Settlement data (`components/docs/SettlementData.tsx`)
+  is the last section.
+- **Errors**: `error.tsx` and `not-found.tsx` (reached through the
+  `[...rest]` catch-all) share `components/ErrorPanel.tsx`, one centred
+  sheet; `global-error.tsx` repeats it without providers.
