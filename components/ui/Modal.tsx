@@ -52,7 +52,9 @@ export default function Modal({
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    if (!open) return;
+    // Wait for the portal: a Modal first mounted with open=true renders nothing
+    // on its first pass, and without this the dialog would never get focus or a trap.
+    if (!open || !mounted) return;
     const opener = document.activeElement as HTMLElement | null;
     setScrollLocked(true);
     const html = document.documentElement;
@@ -98,7 +100,7 @@ export default function Modal({
       setScrollLocked(false);
       opener?.focus?.();
     };
-  }, [open, initialFocus]);
+  }, [open, mounted, initialFocus]);
 
   if (!mounted || !open) return null;
 
