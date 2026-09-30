@@ -9,8 +9,9 @@ const STEPS = ["create", "challenge", "resolve", "payout"] as const;
 
 /**
  * 3. How it settles: four steps, one sentence each. With motion the section
- * pins and a scrubbed timeline walks the steps, rolls the big numeral and
- * fills the path, snapping to the nearest step. Without it (no JS, reduced
+ * pins and a scrubbed timeline walks the steps and rolls the big numeral,
+ * snapping to the nearest step (the numeral already says which step it is,
+ * so there is no separate progress path). Without it (no JS, reduced
  * motion) the steps are a plain numbered list; the pinned layout only exists
  * while `data-pinned` is set by the timeline below.
  */
@@ -26,15 +27,6 @@ export default function HowItSettles() {
       const mm = gsap.matchMedia();
       mm.add(MOTION_OK_QUERY, () => {
         el.setAttribute("data-pinned", "");
-        const nodes = gsap.utils.toArray<HTMLElement>(".l-path-node", el);
-        let lit = -1;
-        const light = (step: number) => {
-          if (step === lit) return;
-          lit = step;
-          nodes.forEach((node, i) => node.toggleAttribute("data-lit", i <= step));
-        };
-        light(0);
-
         gsap.set(".l-how-step:not(:first-child)", { yPercent: 40, opacity: 0 });
         const tl = gsap.timeline({
           defaults: { ease: "power3.inOut", duration: 1 },
@@ -54,10 +46,8 @@ export default function HowItSettles() {
               duration: { min: 0.5, max: 1 },
               ease: "power2.inOut",
             },
-            onUpdate: (self) => light(Math.round(self.progress * (n - 1))),
           },
         });
-        tl.to(".l-path-fill", { scaleX: 1, ease: "none", duration: n - 1 }, 0);
         for (let i = 1; i < n; i++) {
           tl.to(".l-how-digits", { yPercent: (-100 / n) * i }, i - 1)
             .to(`.l-how-step:nth-child(${i})`, { yPercent: -40, opacity: 0 }, i - 1)
@@ -67,7 +57,6 @@ export default function HowItSettles() {
         requestScrollRefresh();
         return () => {
           el.removeAttribute("data-pinned");
-          nodes.forEach((node) => node.removeAttribute("data-lit"));
         };
       });
       return () => mm.revert();
@@ -103,18 +92,6 @@ export default function HowItSettles() {
                     <span className="l-accent">.</span>
                   </h3>
                   <p>{t(`steps.${s}.body`)}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className="l-how-path" aria-hidden>
-            <span className="l-path-line" />
-            <span className="l-path-fill" />
-            <ol className="l-path-steps">
-              {STEPS.map((s, i) => (
-                <li key={s} className="l-path-node">
-                  <i>{i + 1}</i>
-                  {t(`steps.${s}.title`)}
                 </li>
               ))}
             </ol>
