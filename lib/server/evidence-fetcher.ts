@@ -114,7 +114,7 @@ async function fetchGenericSnapshot(
 ): Promise<EvidenceSnapshot> {
   const maxChars = opts.maxChars ?? DEFAULT_MAX_CHARS;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const userAgent = opts.userAgent ?? "Mimir-Bot/1.0 (+https://mimir.app)";
+  const userAgent = opts.userAgent ?? "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)";
 
   const direct = await tryDirectFetch(url, { timeoutMs, userAgent });
 
@@ -263,7 +263,7 @@ async function fetchCoinGeckoSnapshot(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
-    "User-Agent": "Mimir-Bot/1.0 (+https://mimir.app)",
+    "User-Agent": "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)",
   };
   if (apiKey) headers["x-cg-demo-api-key"] = apiKey;
 
@@ -353,7 +353,7 @@ async function fetchFlashTradeSnapshot(
   let response: Response;
   try {
     response = await fetch(url.toString(), {
-      headers: { Accept: "application/json", "User-Agent": "Mimir-Bot/1.0 (+https://mimir.app)" },
+      headers: { Accept: "application/json", "User-Agent": "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)" },
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });

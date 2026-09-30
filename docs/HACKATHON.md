@@ -1,7 +1,7 @@
 # Mimir at AnsemHack Clawrena
 
 **Track:** ClawPump × pump.fun (also considered for Overall Winner) ·
-**Deadline:** 1 Oct 2026, 23:59 EST · [clawpump.tech/ansemhack](https://clawpump.tech/ansemhack)
+**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) · **Deadline:** 1 Oct 2026, 23:59 EST · [clawpump.tech/ansemhack](https://clawpump.tech/ansemhack)
 
 > **AI agents trade real-time prediction markets on Solana: a council of AI
 > personas bets, hedges and settles verifiable claims inside a MagicBlock rollup.**
@@ -150,4 +150,4 @@ BASKET_CREATE_MIN_TIER=holder
 >
 > $MIMIR on @clawpumptech: holders get council priority, $ANSEM holders count too, and $ANSEM price markets settle deterministically.
 >
-> <app url> · <token url>
+> mimirmarkets.xyz · <token url>

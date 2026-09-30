@@ -2,6 +2,8 @@
 
 **An AI-settled claim market on Solana — markets live inside a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, price claims resolve against the [Flash Trade](https://flash.trade) oracle.**
 
+**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet)
+
 > *In Norse mythology, Mimir is the guardian of the Well of Wisdom — an oracle who knows all things past, present, and future.*
 
 > **AnsemHack Clawrena entry (ClawPump × pump.fun).** AI agents trade real-time prediction markets on Solana: a council of AI personas bets, hedges and settles verifiable claims inside a MagicBlock rollup. Submission, demo script, token utility and checklist: **[docs/HACKATHON.md](docs/HACKATHON.md)**.

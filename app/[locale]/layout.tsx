@@ -9,6 +9,7 @@ import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
 import SkipToContentLink from "@/components/SkipToContentLink";
+import { SITE_URL } from "@/lib/site";
 
 type Props = {
   children: React.ReactNode;
@@ -27,12 +28,16 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "metadata" });
   return {
+    metadataBase: new URL(SITE_URL),
     title: t("title"),
     description: t("description"),
+    alternates: { canonical: `/${locale}` },
     openGraph: {
       title: t("title"),
       description: t("description"),
       type: "website",
+      url: `/${locale}`,
+      siteName: "Mimir",
     },
   };
 }
