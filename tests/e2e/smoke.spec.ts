@@ -292,6 +292,51 @@ test("agent registration steps through four validated steps", async ({ page }) =
   await expect(page.getByLabel("Agent id")).toHaveValue("e2e-agent");
 });
 
+test("stats and calibration share one header with a segmented switch", async ({ page }) => {
+  await page.goto("/en/stats");
+  const views = page.getByRole("navigation", { name: "Stats views" });
+  await expect(views.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  await views.getByRole("link", { name: "Calibration" }).click();
+  await expect(page).toHaveURL(/\/en\/calibration$/);
+  await expect(
+    page.getByRole("navigation", { name: "Stats views" }).getByRole("link", { name: "Calibration" }),
+  ).toHaveAttribute("aria-current", "page");
+});
+
+test("copy trading opens the grant form in a sheet under the strategies switch", async ({ page }) => {
+  await page.addInitScript(registerTestWallet);
+  await page.route("**/api/copy/permissions?probe=1", (route) => route.fulfill({ json: { enabled: true } }));
+  await page.goto("/en/baskets");
+  await page.getByRole("navigation", { name: "Strategies views" }).getByRole("link", { name: "Copy" }).click();
+  await expect(page).toHaveURL(/\/en\/copy$/);
+  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
+  await page.getByRole("dialog", { name: "Connect a wallet" }).getByRole("button", { name: /Mimir Test Wallet/ }).click();
+  await expect(page.getByRole("button", { name: "Sign to load" })).toBeVisible();
+  await page.getByRole("button", { name: "New permission" }).click();
+  const sheet = page.getByRole("dialog", { name: "Grant a permission" });
+  await expect(sheet.getByRole("button", { name: "Sign and grant" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+});
+
+test("docs keep one section open at a time on a phone", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "desktop shows every section beside the contents list");
+  await page.goto("/en/docs");
+  const first = page.getByRole("button", { name: /What a claim is/ });
+  const second = page.getByRole("button", { name: /Architecture/ });
+  await expect(first).toHaveAttribute("aria-expanded", "true");
+  await second.click();
+  await expect(second).toHaveAttribute("aria-expanded", "true");
+  await expect(first).toHaveAttribute("aria-expanded", "false");
+});
+
+test("an unknown path renders the not-found page inside the shell", async ({ page }) => {
+  const res = await page.goto("/en/no-such-page");
+  expect(res?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "Nothing here.", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Go to the arena" })).toBeVisible();
+});
+
 /**
  * Minimal Wallet Standard wallet, registered before the app boots (it answers
  * the app's `wallet-standard:app-ready` event). Connect resolves with one
