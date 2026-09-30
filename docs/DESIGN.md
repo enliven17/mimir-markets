@@ -23,7 +23,7 @@ an alpha (`bg-cream/10`).
 | `maroon` | `#4a2322` | active step fill |
 | `cream` | `#f3ead6` | primary text, light buttons, segmented thumb |
 | `muted` | `#a89d93` | secondary text, small labels |
-| `dim` | `#7a706a` | 13px+ labels and decoration only (3.96:1) |
+| `dim` | `#928780` | quiet labels, ids, inactive steps (4.5:1 on `panel-2`, 5.5 on `ink`) |
 | `red` | `#ff2b2b` | eyebrows, live dots, accent words |
 | `coral` | `#ff5148` | primary action, fills, focus ring, links |
 | `coral-hi` | `#ff746c` | gradient end |
@@ -47,7 +47,7 @@ Money figures are cream in Geist Mono, never green. Numbers that tick use
 digit when it must stay pixel).
 
 Contrast on `ink` / `panel` / `panel-2` (WCAG): cream 16.0 / 14.7 / 13.3,
-muted 7.2 / 6.6 / 6.0, coral 5.9 / 5.5 / 4.9, danger 8.9 / 8.2 / 7.4,
+muted 7.2 / 6.6 / 6.0, dim 5.5 / 5.0 / 4.5, coral 5.9 / 5.5 / 4.9, danger 8.9 / 8.2 / 7.4,
 win 11.5 / 10.6 / 9.6. Coral buttons carry an ink label (`#160909`, 6.1);
 white on coral (3.2) only at 21px+ Terminal Grotesque.
 
@@ -174,7 +174,7 @@ into every prefetched route chunk.
 
 Focus is a 2px coral outline with a 3px offset everywhere. Selection is red
 on cream. Every text pair used for body copy meets AA on the three surfaces
-above; `dim` is for 13px+ labels and decoration.
+above, `dim` included.
 
 ## Landing (`app/[locale]/page.tsx`, `components/landing/`)
 
