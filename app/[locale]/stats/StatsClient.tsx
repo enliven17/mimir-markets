@@ -188,7 +188,7 @@ export default function StatsClient() {
         </h2>
         <div className={SURFACE}>
           {!data ? (
-            <div className="grid gap-4 p-5" aria-label={t("loading")}>
+            <div role="status" className="grid gap-4 p-5" aria-label={t("loading")}>
               {[0, 1, 2, 3].map((i) => (
                 <Skeleton key={i} className="!h-10" />
               ))}

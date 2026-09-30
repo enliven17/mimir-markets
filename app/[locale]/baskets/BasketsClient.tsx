@@ -59,7 +59,7 @@ export default function BasketsClient() {
       </div>
 
       {baskets === null ? (
-        <div className="grid gap-4 md:grid-cols-2" aria-label={t("loading")}>
+        <div role="status" className="grid gap-4 md:grid-cols-2" aria-label={t("loading")}>
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`${SURFACE} grid gap-3 p-6`}>
               <Skeleton className="!h-6 w-1/2" />
