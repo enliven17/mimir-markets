@@ -75,7 +75,7 @@ function Bar({
       <div className="flex items-baseline justify-between gap-3 text-[13px]">
         <span className="text-cream">{label}</span>
         <span className="font-mono tabular-nums text-muted">
-          {loading ? "—" : `${count} · ${pct}%`}
+          {loading ? "-" : `${count} · ${pct}%`}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-panel-2" aria-hidden>
@@ -116,7 +116,7 @@ export default function StatsClient() {
   const creatorWins = settlements.filter((s) => s.winnerSide === 1).length;
   const challengerWins = settlements.filter((s) => s.winnerSide === 2).length;
   const decided = creatorWins + challengerWins;
-  const dash = <span className="text-dim">—</span>;
+  const dash = <span className="text-dim">-</span>;
 
   return (
     <>

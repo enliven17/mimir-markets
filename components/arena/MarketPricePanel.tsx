@@ -3,7 +3,7 @@
 /**
  * The price of a live claim: what the money already staked implies, and what
  * taking the challenger side would pay. The derivation is stated, not implied.
- * Hidden once a verdict is in — a decided market has an outcome, not a price.
+ * Hidden once a verdict is in: a decided market has an outcome, not a price.
  */
 import { TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";

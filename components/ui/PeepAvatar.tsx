@@ -10,7 +10,7 @@ const TONE_BORDER: Record<Tone, string> = {
 };
 
 interface PeepAvatarProps {
-  /** Stable seed — a wallet address or persona slug, prefixed by role. */
+  /** Stable seed: a wallet address or persona slug, prefixed by role. */
   seed: string;
   /** Pixel size (square). */
   size?: number;

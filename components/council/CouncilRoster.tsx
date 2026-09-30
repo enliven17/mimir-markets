@@ -38,7 +38,7 @@ export interface RosterPersona {
 
 const TRACKS: Track[] = ["classic", "philosopher"];
 
-const short = (a: string) => (a.length > 8 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a || "—");
+const short = (a: string) => (a.length > 8 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a || "-");
 
 export default function CouncilRoster({ personas }: { personas: RosterPersona[] }) {
   const t = useTranslations("council");
@@ -140,7 +140,7 @@ function PersonaCard({
           title={hasRecord ? t("recordTitle", { won: p.won, lost: p.lost }) : t("noRecord")}
         >
           <span className="sr-only">{hasRecord ? t("recordTitle", { won: p.won, lost: p.lost }) : t("noRecord")}</span>
-          <span aria-hidden>{hasRecord ? t("record", { won: p.won, lost: p.lost }) : "—"}</span>
+          <span aria-hidden>{hasRecord ? t("record", { won: p.won, lost: p.lost }) : "-"}</span>
         </span>
       </div>
       <p className="m-0 line-clamp-2 min-h-[2.8em] text-[13px] leading-[1.4] text-muted">{p.bio}</p>

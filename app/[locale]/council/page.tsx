@@ -19,7 +19,7 @@ import { formatUsdcUnitsBare } from "@/lib/money";
  */
 export const dynamic = "force-dynamic";
 
-const short = (a: string) => (a.length > 8 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a || "—");
+const short = (a: string) => (a.length > 8 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a || "-");
 
 function toRoster(s: PersonaStats): RosterPersona {
   const p = s.persona;

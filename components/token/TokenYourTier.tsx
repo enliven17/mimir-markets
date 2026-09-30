@@ -49,7 +49,7 @@ export default function TokenYourTier() {
               {t(`tier.${state.tier}`)}
             </p>
             <p className="m-0 mt-2 font-mono text-[13px] text-muted">
-              {t("held", { symbol: state.symbol, mimir: state.launched ? fmt(state.balances.mimir) : "—", ansem: fmt(state.balances.ansem) })}
+              {t("held", { symbol: state.symbol, mimir: state.launched ? fmt(state.balances.mimir) : "-", ansem: fmt(state.balances.ansem) })}
             </p>
           </>
         ) : loaded ? (

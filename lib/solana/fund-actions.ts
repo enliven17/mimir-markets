@@ -29,7 +29,7 @@ export async function depositAndDelegate(
       await new Promise((r) => setTimeout(r, 1500));
       back = await onBase(m);
     }
-    if (!back) throw new Error("Your balance is still in the rollup — try again in a minute.");
+    if (!back) throw new Error("Your balance is still in the rollup. Try again in a minute.");
   }
   onStep?.("deposit");
   await depositUsdc(m, units);

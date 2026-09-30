@@ -56,7 +56,7 @@ export default function LiveStrip() {
     ready ? (
       <RollingNumber value={rolled ? n : 0} format={format} flash duration={1.4} mono={false} className="num" />
     ) : (
-      <span className="text-muted">—</span>
+      <span className="text-muted">-</span>
     );
 
   return (

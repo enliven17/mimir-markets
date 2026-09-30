@@ -67,7 +67,7 @@ function StakePane() {
         <div className="l-mock-row">
           <span className="k">{t("mockPool")}</span>
           <span className="font-mono text-[22px] leading-none text-cream">
-            {claim ? formatUsdcBare(poolUsdc(claim)) : "—"} <small className="text-[12px] text-muted">USDC</small>
+            {claim ? formatUsdcBare(poolUsdc(claim)) : "-"} <small className="text-[12px] text-muted">USDC</small>
           </span>
         </div>
         <div className="l-mock-btn">{t("mockPick")}</div>
@@ -91,7 +91,7 @@ function CouncilPane({ roster }: { roster: Roster }) {
       <div className="l-mock-row">
         <span className="k">{t("rosterLabel")}</span>
         <span className="text-cream">
-          {roster.status === "ready" ? t("personas", { count: personas.length }) : "—"}
+          {roster.status === "ready" ? t("personas", { count: personas.length }) : "-"}
         </span>
       </div>
       {roster.status === "error" ? (

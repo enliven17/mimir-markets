@@ -72,7 +72,7 @@ export function impliedOdds(split: StakeSplit, opts: { inUsdc?: boolean } = {}):
 
 /** Percentage for display. Null probabilities render as a dash, not as zero. */
 export function formatProbability(probability: number | null): string {
-  if (probability === null || !Number.isFinite(probability)) return "—";
+  if (probability === null || !Number.isFinite(probability)) return "-";
   return `${Math.round(probability * 100)}%`;
 }
 
