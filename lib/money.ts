@@ -49,3 +49,8 @@ export function formatUsdcUnits(units: bigint | string | number | null | undefin
 export function formatUsdcUnitsBare(units: bigint | string | number | null | undefined): string {
   return formatUsdcBare(unitsToUsdc(units));
 }
+
+/** Keep an amount and its unit on one line ("7.00 USDC" never wraps before "USDC"). */
+export function nowrap(amount: string): string {
+  return amount.replace(/ /g, " ");
+}

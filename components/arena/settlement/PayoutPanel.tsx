@@ -13,7 +13,7 @@ import type { BrowserMimir } from "@/lib/solana/browser-client";
 import { payoutChallenger, payoutCreator, refundBond } from "@/lib/solana/browser-client-lazy";
 import { BOND_REFUND_DUE, ST_RESOLVED } from "@/lib/solana/config";
 import { challengerGross, creatorGross, splitFees } from "@/lib/solana/fees";
-import { formatUsdcUnits } from "@/lib/money";
+import { formatUsdcUnits, nowrap } from "@/lib/money";
 import Disclosure from "@/components/ui/Disclosure";
 import { shortKey, useSettleAction } from "./useSettleAction";
 
@@ -111,7 +111,7 @@ export default function PayoutPanel({ claim, mimir, viewer, onChanged }: Props) 
                   {mine ? <span className="ml-1.5 text-[12px] text-coral">{t("you")}</span> : null}
                 </p>
                 <p className="m-0 font-mono text-[12px] tabular-nums text-muted">
-                  {t("legAmounts", { gross: formatUsdcUnits(leg.gross), net: formatUsdcUnits(leg.net) })}
+                  {t("legAmounts", { gross: nowrap(formatUsdcUnits(leg.gross)), net: nowrap(formatUsdcUnits(leg.net)) })}
                 </p>
               </div>
               {leg.paid ? (

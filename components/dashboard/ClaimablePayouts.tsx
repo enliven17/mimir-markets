@@ -16,7 +16,7 @@ import { Link } from "@/i18n/navigation";
 import type { BrowserMimir } from "@/lib/solana/browser-client";
 import { payoutChallenger, payoutCreator } from "@/lib/solana/browser-client-lazy";
 import { claimableLegs, type ClaimableLeg, type PositionClaim } from "@/lib/dashboard-positions";
-import { formatUsdcUnits } from "@/lib/money";
+import { formatUsdcUnits, nowrap } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 
 interface Props {
@@ -75,7 +75,7 @@ export default function ClaimablePayouts({ claims, viewer, mimir, onPaid }: Prop
                 {byId.get(leg.claimId)?.question}
               </Link>
               <p className="m-0 font-mono text-[12px] tabular-nums text-muted">
-                {t("legAmounts", { gross: formatUsdcUnits(leg.gross), net: formatUsdcUnits(leg.net) })}
+                {t("legAmounts", { gross: nowrap(formatUsdcUnits(leg.gross)), net: nowrap(formatUsdcUnits(leg.net)) })}
               </p>
             </div>
             <Button
