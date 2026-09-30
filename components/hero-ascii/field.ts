@@ -21,14 +21,22 @@ export interface Field {
   paint(frame: number): void;
 }
 
+/** Vignette levels baked into each cell; cells below the first level are skipped. */
+const FADE_STEPS = 6;
+
 export function createField(
   canvas: AnyCanvas,
   makeCanvas: (w: number, h: number) => AnyCanvas,
   opts: { dpr: number; base: RGB; peak: RGB },
 ): Field | null {
-  const ctx = canvas.getContext("2d") as AnyCtx | null;
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true }) as AnyCtx | null;
   if (!ctx) return null;
   const { dpr, base, peak } = opts;
+  // Overall strength, baked in instead of a CSS opacity on the wrapper.
+  let gain = 0.55;
+  // Per-cell vignette level (0 = skip), baked in instead of a CSS mask so the
+  // compositor never re-renders a masked layer on every frame.
+  let fade = new Uint8Array(0);
 
   let cols = 0;
   let rows = 0;
@@ -67,7 +75,8 @@ export function createField(
 
   function resize(width: number, height: number) {
     // Bigger cells on phones: fewer glyphs, same texture.
-    cell = width < 640 ? 16 : 14;
+    cell = width < 640 ? 18 : 16;
+    gain = width < 640 ? 0.32 : 0.55;
     cw = cell * 0.6;
     gw = Math.ceil(cw * dpr);
     gh = Math.ceil(cell * dpr);
@@ -81,6 +90,18 @@ export function createField(
       for (let x = 0; x < cols; x++) {
         const cx = x / cols - 0.5;
         dist[y * cols + x] = Math.sqrt(cx * cx + cy * cy) * 12;
+      }
+    }
+    // Same shape as the old CSS mask: an ellipse (72% × 62%, centred at 46%
+    // down) that is clear inside 18% of its radius and full beyond 78%.
+    fade = new Uint8Array(cols * rows);
+    for (let y = 0; y < rows; y++) {
+      const ey = (y / rows - 0.46) / 0.62;
+      for (let x = 0; x < cols; x++) {
+        const ex = (x / cols - 0.5) / 0.72;
+        const d = Math.sqrt(ex * ex + ey * ey);
+        const f = Math.min(1, Math.max(0, (d - 0.18) / 0.6));
+        fade[y * cols + x] = Math.round(f * FADE_STEPS);
       }
     }
     colNoise = new Float32Array(cols);
@@ -98,11 +119,18 @@ export function createField(
     for (let x = 0; x < cols; x++) colNoise[x] = Math.sin(x * 0.3 + frame * 0.01) * 0.3;
     for (let y = 0; y < rows; y++) rowNoise[y] = Math.cos(y * 0.3 + frame * 0.02);
     const last = CHARS.length - 1;
+    let alphaLevel = -1;
     for (let y = 0; y < rows; y++) {
       const rn = rowNoise[y];
       const dy = ys[y];
       const off = y * cols;
       for (let x = 0; x < cols; x++) {
+        const level = fade[off + x];
+        if (level === 0) continue;
+        if (level !== alphaLevel) {
+          alphaLevel = level;
+          c.globalAlpha = (level / FADE_STEPS) * gain;
+        }
         const wave = Math.sin(dist[off + x] - phase) * 0.5 + 0.5;
         let val = wave * 0.7 + colNoise[x] * rn;
         if (val < 0) val = 0;

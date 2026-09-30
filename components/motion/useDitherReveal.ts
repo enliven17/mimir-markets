@@ -121,11 +121,18 @@ export function useDitherReveal(scope: RefObject<HTMLElement | null>, deps: unkn
         timers.delete(t);
         if (tok !== s.tok) return;
         const t0 = performance.now();
+        let shownLevel = -1;
         const step = (now: number) => {
           if (tok !== s.tok) return;
           const k = Math.min(1, (now - t0) / dur);
           const e = 1 - Math.pow(1 - k, 3);
-          setMask(el, m[Math.round(e * 64)], size);
+          // A new mask image repaints the whole masked element, so step it in
+          // 17 levels and only when the level changes; the rise stays smooth.
+          const level = Math.round(e * 16) * 4;
+          if (level !== shownLevel) {
+            shownLevel = level;
+            setMask(el, m[level], size);
+          }
           el.style.transform = `translateY(${(1 - e) * rise}px)`;
           if (k < 1) {
             const f = requestAnimationFrame(step);

@@ -81,14 +81,9 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  -webkit-mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, transparent 18%, #000 78%);
-  mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, transparent 18%, #000 78%);
-  opacity: 0.55;
-}
-@media (max-width: 640px) {
-  .l-hero-field {
-    opacity: 0.32;
-  }
+  /* The vignette and strength are painted into the canvas (hero-ascii/field.ts):
+     a CSS mask or opacity here would re-render a masked layer every frame. */
+  contain: strict;
 }
 .l-hero-field::after {
   content: "";

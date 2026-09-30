@@ -7,8 +7,10 @@
  * - Runs in a worker on an OffscreenCanvas where the browser supports it; the
  *   main thread only forwards size and visibility. Otherwise it draws on the
  *   main thread at a lower frame rate.
- * - Device pixel ratio capped at 1.5 (1 on low-power devices, `html.lite`).
- * - 24fps, 12fps on low-power devices and on the main-thread fallback.
+ * - Device pixel ratio capped at 1.25 (1 on low-power devices, `html.lite`).
+ * - 20fps, 12fps on low-power devices and on the main-thread fallback.
+ * - Holds still while the page scrolls, so canvas uploads never compete with
+ *   scroll frames; resumes shortly after the scroll comes to rest.
  * - Starts on an idle callback, so it never competes with hydration; stops
  *   while offscreen or in a hidden tab.
  * - Reduced motion or Save-Data: one static frame.
@@ -93,18 +95,33 @@ export function HeroAscii({ className = "" }: { className?: string }) {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches || saveData();
     let driver: Driver | null = null;
     let visible = true;
+    let scrolling = false;
+    let restTimer = 0;
 
-    const sync = () => driver?.run(visible && !document.hidden);
+    const sync = () => driver?.run(visible && !scrolling && !document.hidden);
+
+    const onScroll = () => {
+      if (!scrolling) {
+        scrolling = true;
+        sync();
+      }
+      window.clearTimeout(restTimer);
+      restTimer = window.setTimeout(() => {
+        scrolling = false;
+        sync();
+      }, 180);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     const boot = () => {
       const rect = canvas.getBoundingClientRect();
       const init = {
         width: rect.width,
         height: rect.height,
-        dpr: lite ? 1 : Math.min(window.devicePixelRatio || 1, 1.5),
+        dpr: lite ? 1 : Math.min(window.devicePixelRatio || 1, 1.25),
         base: readToken("--cream-rgb", [243, 234, 214]),
         peak: readToken("--coral-rgb", [255, 81, 72]),
-        fps: lite ? 12 : 24,
+        fps: lite ? 12 : 20,
         still,
       };
       driver = workerDriver(canvas, init) ?? mainDriver(canvas, { ...init, fps: 12 });
@@ -135,6 +152,8 @@ export function HeroAscii({ className = "" }: { className?: string }) {
       if (hasIdle) window.cancelIdleCallback(idle);
       else window.clearTimeout(idle);
       window.clearTimeout(resizeTimer);
+      window.clearTimeout(restTimer);
+      window.removeEventListener("scroll", onScroll);
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
