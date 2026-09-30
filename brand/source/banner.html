@@ -6,17 +6,17 @@
   <link rel="stylesheet" href="base.css" />
   <style>
     /* 1500×500. X puts the avatar over the lower-left corner (roughly x<380,
-       y>320) and crops the sides on phones, so all copy sits in the top band
-       and the lower left stays empty. */
+       y>320) and crops the sides on phones, so the copy sits upper right and the
+       lower left holds only the wave field. */
     .canvas { width: 1500px; height: 500px; }
     .glow {
       position: absolute; inset: 0;
       background:
-        radial-gradient(ellipse 520px 360px at 1120px 250px, rgb(255 43 43 / 0.26), rgb(143 14 23 / 0.12) 45%, rgb(17 15 14 / 0) 75%);
+        radial-gradient(ellipse 520px 360px at 380px 250px, rgb(255 43 43 / 0.26), rgb(143 14 23 / 0.12) 45%, rgb(17 15 14 / 0) 75%);
     }
-    .copy { position: absolute; left: 112px; top: 64px; }
+    .copy { position: absolute; right: 112px; top: 64px; text-align: right; }
     .eyebrow {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; justify-content: flex-end; gap: 12px;
       font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted);
     }
     .eyebrow .sq { width: 9px; height: 9px; background: var(--red); box-shadow: 0 0 12px rgb(255 43 43 / 0.8); }
@@ -26,7 +26,7 @@
     .scribble { position: absolute; left: -4px; right: -10px; bottom: -14px; height: 24px; width: calc(100% + 14px); image-rendering: pixelated; }
     .sub { margin-top: 30px; font-size: 22px; color: var(--muted); }
     .sub b { color: var(--cream); font-weight: 400; }
-    .pills { position: absolute; right: 64px; bottom: 44px; display: flex; gap: 10px; }
+    .pills { position: absolute; right: 112px; bottom: 48px; display: flex; gap: 10px; }
     .pill {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 16px; border-radius: 999px;
@@ -59,10 +59,10 @@
   <script type="module">
     import { drawField, drawScribble } from './parts.js'
     await document.fonts.ready
-    // Wave rings centred right of the copy; faded out behind the headline.
+    // Wave rings on the left, behind the avatar; faded out before the copy.
     drawField(document.getElementById('field'), {
-      cell: 14, frame: 40, cx: 0.8, cy: 0.52, spread: 12,
-      mask: (x) => Math.max(0, Math.min(1, (x - 0.58) / 0.2)),
+      cell: 14, frame: 40, cx: 0.22, cy: 0.5, spread: 12,
+      mask: (x) => Math.max(0, Math.min(1, (0.46 - x) / 0.2)),
     })
     drawScribble(document.getElementById("scribble"), 3)
     document.body.dataset.ready = '1'

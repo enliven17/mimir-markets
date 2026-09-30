@@ -3,7 +3,7 @@
 | File | Use | Size |
 |---|---|---|
 | `x-profile.png` | X avatar; circle-safe (the mark sits inside the middle 70%) | 800×800 (upload as is, X shows 400×400) |
-| `x-banner.png` | X header; all copy in the top band, the lower-left corner left empty for the avatar | 3000×1000 (X's 1500×500 at 2×) |
+| `x-banner.png` | X header; copy upper right, only the wave field in the lower-left corner behind the avatar | 3000×1000 (X's 1500×500 at 2×) |
 | `logo/mimir-mark.svg` | the mark: cream M, red period; for dark backgrounds | vector |
 | `logo/mimir-mark-mono.svg` | one colour (`currentColor`), for single-colour print or embossing | vector |
 | `logo/mimir-mark-tile.svg` | the mark on a rounded ink square; app icon, favicon, social tile | 1024×1024 |
