@@ -80,7 +80,7 @@ export default function CopyClient() {
     body = (
       <section
         aria-labelledby="copy-connect-heading"
-        className={`${SURFACE} mx-auto grid w-full max-w-[520px] justify-items-center gap-3 px-6 py-10 text-center`}
+        className="mx-auto grid w-full max-w-[520px] justify-items-center gap-3 px-6 py-16 text-center sm:py-24"
       >
         <h2 id="copy-connect-heading" className="m-0 font-display text-[1.6rem] leading-none text-cream">
           {t("connectTitle")}
