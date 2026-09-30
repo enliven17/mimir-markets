@@ -23,6 +23,15 @@ import { holdsStakes } from "@/lib/claim-status";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Shared-cache window: every viewer polls this every few seconds, so the CDN
+ * answers from a copy at most a couple of seconds old and refreshes it in the
+ * background, instead of each poll paying a cold function and a database or
+ * RPC round trip. Browsers always revalidate (max-age=0).
+ */
+const INDEX_CACHE = "public, max-age=0, s-maxage=2, stale-while-revalidate=30";
+const CHAIN_CACHE = "public, max-age=0, s-maxage=4, stale-while-revalidate=30";
+
 const STATE_MAP: Record<string, number[]> = {
   open: [0],
   active: [1],
@@ -93,7 +102,7 @@ export async function GET(req: NextRequest) {
           totalResolved: stats.totalResolved,
           openPool: stats.openPool,
         },
-      });
+      }, { headers: { "Cache-Control": INDEX_CACHE } });
     }
 
     // ── Fallback: read directly from chain ───────────────────────────────
@@ -118,7 +127,7 @@ export async function GET(req: NextRequest) {
         totalResolved: scan.totalResolved,
         openPool: openPool.toString(),
       },
-    });
+    }, { headers: { "Cache-Control": CHAIN_CACHE } });
   } catch (error: any) {
     console.error("[api/arena/claims] failed:", error);
     return NextResponse.json(
