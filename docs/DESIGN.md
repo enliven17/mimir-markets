@@ -189,3 +189,30 @@ never a React sibling, and every section stays mounted through loading.
 Sections that change height call `requestScrollRefresh()`. Avoid
 `position: sticky` on the landing (the body's `overflow-x` clip breaks it);
 use a pin.
+
+## Arena (`app/[locale]/arena/`, `components/arena/`, `components/create/`)
+
+- **Feed** (`/arena`): `Arena` plus one live line (open claims, USDC in
+  play), a one-line setup banner (`OnboardingBanner`, the full checklist in a
+  sheet), one control row (`feed/ArenaControls.tsx`: Open / Live / Settled
+  tabs with counts, search, a Filters popover with category, minimum stake
+  and sort), the card grid and a collapsed "Suggested claims" rail that only
+  fetches once scrolled into view. Selectors live in `lib/arena-feed.ts`
+  (tested in `tests/node/arena-feed.test.ts`).
+- **Card** (`ClaimCard.tsx`): question, a transform-only split bar
+  (`OddsBar` / `SplitBar`) with both sides, then pool (rolling), time left and
+  status. Category and seats show on hover or focus. Memoized; polls keep
+  unchanged claim objects so only moved cards re-render.
+- **Claim** (`/arena/[id]`, `detail/`): `Hero` (question, duel with shares
+  and stakes, pool, countdown, 4-step lifecycle; a receipt with the Verify
+  link once resolved), `ActionDock` (challenge, dispute, finalize, refund or
+  payouts; sticky bottom on phones while live, sticky right card on
+  desktop), and `DetailTabs` (Evidence, Council, People, Terms; each panel
+  mounts on first open). "Manage balance" opens `BalanceSheet`.
+- **Create** (`/arena/create`): four steps in one sheet (Question, Stake,
+  Deadline & source, Review) driven by `create/useCreateDraft.ts`; Next
+  validates the step, Back keeps the draft, `?source=` prefills step 1.
+- **Cost rules**: countdowns are `Countdown` (one shared 1s interval writing
+  `textContent`, no React renders); page clocks are coarse (15 to 30s);
+  lists, panels and big sheets use the unblurred fills in
+  `components/arena/surface.ts` instead of the blurred glass primitives.
