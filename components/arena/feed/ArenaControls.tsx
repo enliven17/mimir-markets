@@ -31,7 +31,8 @@ export default function ArenaControls({
 }: {
   view: ArenaView;
   onView: (v: ArenaView) => void;
-  counts: Record<ArenaView, number>;
+  /** Null while the feed loads: the tabs show no counts yet. */
+  counts: Record<ArenaView, number> | null;
   filters: ArenaFilters;
   onFilters: (f: ArenaFilters) => void;
   categories: string[];
@@ -48,7 +49,7 @@ export default function ArenaControls({
         onChange={onView}
         tone="maroon"
         className="md:w-[380px] md:flex-none"
-        options={ARENA_VIEWS.map((v) => ({ value: v, label: t(`views.${v}`), count: counts[v] }))}
+        options={ARENA_VIEWS.map((v) => ({ value: v, label: t(`views.${v}`), count: counts?.[v] }))}
       />
       <div className="flex min-w-0 flex-1 items-center gap-2 md:justify-end">
         <label className="relative min-w-0 flex-1 md:max-w-[320px]">

@@ -153,10 +153,19 @@ export default function ArenaPage() {
         <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
         <p className="m-0 flex items-center gap-2 text-[14px] text-muted" aria-live="off">
           <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
-          <RollingNumber value={totals.open} format={count} className="text-cream" />
+          {claims === null ? (
+            // Not "0 open": the count is unknown until the first answer.
+            <span className="text-cream">—</span>
+          ) : (
+            <RollingNumber value={totals.open} format={count} className="text-cream" />
+          )}
           <span>{t("statusOpen")}</span>
           <span aria-hidden>·</span>
-          <RollingNumber value={totals.inPlay} format={money} flash className="text-cream" />
+          {claims === null ? (
+            <span className="text-cream">—</span>
+          ) : (
+            <RollingNumber value={totals.inPlay} format={money} flash className="text-cream" />
+          )}
           <span>{t("statusInPlay")}</span>
         </p>
       </header>
@@ -167,7 +176,7 @@ export default function ArenaPage() {
         <ArenaControls
           view={view}
           onView={(v) => startTransition(() => setView(v))}
-          counts={counts}
+          counts={claims === null ? null : counts}
           filters={filters}
           onFilters={setFilters}
           categories={categories}
