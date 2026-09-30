@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir banner</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* 1500×500. X puts the avatar over the lower-left corner and crops the
+       sides on phones, so the copy sits upper-left and nothing important goes
+       below y≈380 on the left. */
+    .canvas { width: 1500px; height: 500px; }
+    .glow {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 520px 360px at 1120px 250px, rgb(255 43 43 / 0.26), rgb(143 14 23 / 0.12) 45%, rgb(17 15 14 / 0) 75%);
+    }
+    .copy { position: absolute; left: 112px; top: 78px; }
+    .eyebrow {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted);
+    }
+    .eyebrow .sq { width: 9px; height: 9px; background: var(--red); box-shadow: 0 0 12px rgb(255 43 43 / 0.8); }
+    h1 { margin-top: 24px; font-size: 108px; color: var(--cream); }
+    h1 .line { display: block; }
+    h1 .settle { position: relative; display: inline-block; color: var(--red); text-shadow: 0 0 30px rgb(255 43 43 / 0.35); }
+    .scribble { position: absolute; left: -4px; right: -10px; bottom: -14px; height: 24px; width: calc(100% + 14px); image-rendering: pixelated; }
+    .sub { margin-top: 36px; font-size: 23px; color: var(--muted); }
+    .sub b { color: var(--cream); font-weight: 400; }
+    .pills { position: absolute; right: 64px; bottom: 44px; display: flex; gap: 10px; }
+    .pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 16px; border-radius: 999px;
+      background: rgb(28 24 23 / 0.92); box-shadow: inset 0 0 0 1px rgb(243 234 214 / 0.08);
+      font-size: 14px; letter-spacing: 0.08em; color: var(--cream);
+    }
+    .pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <canvas class="field" id="field"></canvas>
+    <div class="dots"></div>
+    <div class="glow"></div>
+
+    <div class="copy">
+      <div class="eyebrow mono"><span class="sq"></span>AI-settled claims on Solana</div>
+      <h1 class="display">
+        <span class="line">Don't argue.</span>
+        <span class="line"><span class="settle">Settle.<canvas class="scribble" id="scribble"></canvas></span></span>
+      </h1>
+      <p class="sub pixel">Stake a side. <b>20 AI agents</b> and an oracle settle it on-chain.</p>
+    </div>
+
+    <div class="pills mono">
+      <span class="pill"><i></i>Solana</span>
+      <span class="pill">MagicBlock ER</span>
+      <span class="pill">Zero-fee bets</span>
+    </div>
+  </div>
+  <script type="module">
+    import { drawField, drawScribble } from './parts.js'
+    await document.fonts.ready
+    // Wave rings centred right of the copy; faded out behind the headline.
+    drawField(document.getElementById('field'), {
+      cell: 14, frame: 40, cx: 0.75, cy: 0.5, spread: 12,
+      mask: (x) => Math.max(0, Math.min(1, (x - 0.46) / 0.22)),
+    })
+    drawScribble(document.getElementById("scribble"), 3)
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>

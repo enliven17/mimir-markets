@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir profile</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* 400×400, circle-safe: X crops avatars to a circle, so everything that
+       matters sits inside the middle 70%. */
+    .canvas { width: 400px; height: 400px; display: grid; place-items: center; }
+    .glow {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 52%, rgb(255 43 43 / 0.34), rgb(143 14 23 / 0.16) 38%, rgb(17 15 14 / 0) 62%);
+    }
+    .mark { position: relative; display: flex; align-items: baseline; font-size: 228px; transform: translateY(6px); }
+    .mark .m { color: var(--cream); text-shadow: 0 0 24px rgb(255 81 72 / 0.25); }
+    .mark .dot { color: var(--red); margin-left: 4px; text-shadow: 0 0 22px rgb(255 43 43 / 0.7); }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <canvas class="field" id="field"></canvas>
+    <div class="dots"></div>
+    <div class="glow"></div>
+    <div class="mark display"><span class="m">M</span><span class="dot">.</span></div>
+  </div>
+  <script type="module">
+    import { drawField } from './parts.js'
+    await document.fonts.ready
+    // Rings around the mark, fading out towards the circle crop.
+    drawField(document.getElementById('field'), {
+      cell: 12, frame: 52, cx: 0.5, cy: 0.5, spread: 16,
+      mask: (x, y) => {
+        const d = Math.hypot(x - 0.5, y - 0.5)
+        return d < 0.2 ? d / 0.2 * 0.5 : Math.max(0, 1 - (d - 0.2) / 0.32)
+      },
+    })
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>
