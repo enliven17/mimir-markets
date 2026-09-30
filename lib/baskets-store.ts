@@ -15,6 +15,8 @@ import { validateBasket, type BasketDefinition, type BasketMember } from "@/lib/
 
 export interface BasketRow extends BasketDefinition {
   followers: number;
+  /** A council mix that ships with the app (lib/house-baskets.ts), not a stored one. */
+  house?: boolean;
 }
 
 function parseMembers(raw: unknown): BasketMember[] {
@@ -58,6 +60,17 @@ export async function listBaskets(limit = 100): Promise<BasketRow[]> {
 export async function getBasket(id: string): Promise<BasketRow | null> {
   const rows = await query(`${WITH_FOLLOWERS} WHERE b.id = $1`, [id]);
   return rows[0] ? toRow(rows[0]) : null;
+}
+
+/** Active follower counts for baskets that have no stored row (the house baskets). */
+export async function followerCounts(ids: string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  const rows = await query(
+    `SELECT basket_id, COUNT(*) AS n FROM basket_subscriptions
+      WHERE per_market_cap_usdc > 0 AND basket_id = ANY($1) GROUP BY basket_id`,
+    [ids],
+  );
+  return new Map(rows.map((r) => [String(r.basket_id), Number(r.n ?? 0)]));
 }
 
 export class BasketExistsError extends Error {

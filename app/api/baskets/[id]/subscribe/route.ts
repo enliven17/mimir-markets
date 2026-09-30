@@ -18,7 +18,8 @@ import {
   MAX_FOLLOW_CAP_USDC,
   MIN_FOLLOW_CAP_USDC,
 } from "@/lib/baskets";
-import { getBasket, getSubscription, setSubscription } from "@/lib/baskets-store";
+import { getSubscription, setSubscription } from "@/lib/baskets-store";
+import { findBasket } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { isDbEnabled } from "@/lib/server/db";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -55,7 +56,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     );
   }
 
-  const basket = await getBasket(id).catch(() => null);
+  const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");
 
   const signedOk = verifyAgentSignature({

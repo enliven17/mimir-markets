@@ -7,7 +7,7 @@
  * "what this mix would have done", not a statement about anyone's money.
  */
 import { simulateVirtualBasket, VIRTUAL_BASKET_INITIAL_NAV } from "@/lib/baskets";
-import { getBasket } from "@/lib/baskets-store";
+import { findBasket } from "@/lib/house-baskets";
 import { loadMemberSettlements, resolveAgentWallets } from "@/lib/baskets-performance";
 import { unitsToUsdc } from "@/lib/money";
 import { councilRoster } from "@/lib/server/council-roster";
@@ -24,7 +24,7 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   if (!(await allowRequest("baskets-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const { id } = await ctx.params;
 
-  const basket = await getBasket(id).catch(() => null);
+  const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");
 
   const wallets = await resolveAgentWallets(basket.members.map((m) => m.agentId)).catch(

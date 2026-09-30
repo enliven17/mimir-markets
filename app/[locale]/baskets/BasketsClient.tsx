@@ -20,6 +20,7 @@ interface BasketSummary {
   name: string;
   thesis: string;
   creatorWallet: string;
+  house?: boolean;
   members: Array<{ agentId: string; weightBps: number }>;
   followers: number;
   createdAt: number;
@@ -90,7 +91,10 @@ export default function BasketsClient() {
                   <h2 className="m-0 min-w-0 truncate font-display text-[1.45rem] leading-tight text-cream group-hover:text-coral">
                     {b.name}
                   </h2>
-                  <span className="flex-none whitespace-nowrap text-[13px] text-muted">
+                  <span className="flex flex-none items-center gap-2 whitespace-nowrap text-[13px] text-muted">
+                    {b.house ? (
+                      <span className="rounded-full bg-maroon px-2 py-0.5 text-[12px] text-cream">{t("councilTag")}</span>
+                    ) : null}
                     {t("followers", { count: b.followers })}
                   </span>
                 </div>

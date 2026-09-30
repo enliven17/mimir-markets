@@ -1459,6 +1459,8 @@
     "composeFirst": "Compose the first one",
     "followers": "{count, plural, one {# follower} other {# followers}}",
     "composedBy": "composed by {address}",
+    "composedByCouncil": "a council mix",
+    "councilTag": "Council",
     "notFound": "Basket not found",
     "back": "All baskets",
     "curve": "Replayed curve",

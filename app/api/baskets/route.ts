@@ -17,7 +17,8 @@ import {
   sanitizeMembers,
   validateBasket,
 } from "@/lib/baskets";
-import { BasketExistsError, createBasket, listBaskets } from "@/lib/baskets-store";
+import { BasketExistsError, createBasket } from "@/lib/baskets-store";
+import { basketDirectory, isHouseBasketId } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { isDbEnabled } from "@/lib/server/db";
 import { walletTier } from "@/lib/server/holder";
@@ -30,10 +31,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   try {
-    const baskets = isDbEnabled() ? await listBaskets() : [];
+    // The house baskets need no database, so the directory is never empty.
+    const baskets = await basketDirectory();
     return basketJson({ baskets }, { cache: "s-maxage=15, stale-while-revalidate=60" });
   } catch {
-    // No database, or it is down: an empty directory is truthful, a 500 is not.
     return basketJson({ baskets: [] });
   }
 }
@@ -56,6 +57,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!isValidBasketId(id)) {
     return basketFail(400, "bad_id", "id must be 3-64 chars of [a-z0-9-], starting alphanumeric");
   }
+  if (isHouseBasketId(id)) return basketFail(409, "basket_exists", "that id belongs to a council basket");
   if (!creatorWallet) return basketFail(400, "bad_wallet", "creatorWallet must be a Solana public key");
   if (!isFreshSignature(signedAt)) {
     return basketFail(401, "stale_signature", "signedAt must be a ms timestamp within 5 minutes of now");

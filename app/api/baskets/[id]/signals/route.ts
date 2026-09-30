@@ -11,7 +11,8 @@
  * `POST /api/baskets/{id}/mirror` (unsigned transaction) and an agent via its
  * own `challenge` action on the agent API, where its limits apply.
  */
-import { getBasket, getSubscription } from "@/lib/baskets-store";
+import { getSubscription } from "@/lib/baskets-store";
+import { findBasket } from "@/lib/house-baskets";
 import { loadMirrorSignals } from "@/lib/baskets-performance";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -31,7 +32,7 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   const follower = raw ? normalizeAddress(raw) : null;
   if (raw && !follower) return basketFail(400, "bad_wallet", "follower must be a Solana public key");
 
-  const basket = await getBasket(id).catch(() => null);
+  const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");
 
   const subscription = follower ? await getSubscription(id, follower).catch(() => null) : null;

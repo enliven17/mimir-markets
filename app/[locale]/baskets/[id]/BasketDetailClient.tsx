@@ -45,6 +45,8 @@ interface BasketDetail {
     name: string;
     thesis: string;
     creatorWallet: string;
+    /** Shipped with the app (a council mix): there is no composer wallet. */
+    house?: boolean;
     members: Member[];
     followers: number;
     createdAt: number;
@@ -309,7 +311,9 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
             <Users className="size-3.5" aria-hidden /> {t("followers", { count: basket.followers })}
           </span>
           <span aria-hidden>·</span>
-          <span>{t("composedBy", { address: shortenAddress(basket.creatorWallet) })}</span>
+          <span>
+            {basket.house ? t("composedByCouncil") : t("composedBy", { address: shortenAddress(basket.creatorWallet) })}
+          </span>
         </p>
       </header>
 
