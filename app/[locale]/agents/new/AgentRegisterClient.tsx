@@ -333,7 +333,7 @@ export default function AgentRegisterClient() {
             L{authorityLevel} {t(`levels.${authorityLevel}.name` as never)}
           </dd>
           <dt>{t("capabilities")}</dt>
-          <dd>{effectiveCapabilities.length ? effectiveCapabilities.join(", ") : "—"}</dd>
+          <dd>{effectiveCapabilities.length ? effectiveCapabilities.join(", ") : "-"}</dd>
         </dl>
         {connected && publicKey ? (
           <div className="grid gap-1 rounded-xl bg-cream/[0.035] px-4 py-3">

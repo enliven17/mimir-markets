@@ -136,7 +136,7 @@ function Duel({
         </p>
         <p className="m-0 flex items-baseline justify-between gap-2">
           {probability === null ? (
-            <span className="font-display text-[2rem] leading-none text-dim">—</span>
+            <span className="font-display text-[2rem] leading-none text-dim">-</span>
           ) : (
             <RollingNumber value={probability * 100} format={pct} className="font-display text-[2rem] leading-none text-cream" mono={false} />
           )}

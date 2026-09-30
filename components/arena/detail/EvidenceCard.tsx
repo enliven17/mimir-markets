@@ -28,7 +28,7 @@ export default function EvidenceCard({ claim }: { claim: ApiClaim }) {
               {host} ↗
             </a>
           ) : (
-            "—"
+            "-"
           )}
         </dd>
         <dt>{t("settledBy")}</dt>

@@ -11,7 +11,7 @@ import Disclosure from "@/components/ui/Disclosure";
 
 /** Compact display for a Solana base58 address: first 4 chars + "…" + last 4. */
 function formatWalletForTicket(address: string | null | undefined): string {
-  if (!address) return "—";
+  if (!address) return "-";
   const a = address.trim();
   return a.length < 10 ? a : `${a.slice(0, 4)}…${a.slice(-4)}`;
 }
@@ -39,7 +39,7 @@ export type CreateChallengeTicketProps = {
 export default function CreateChallengeTicket(p: CreateChallengeTicketProps) {
   const t = useTranslations("create");
   const tf = useTranslations("arena.create");
-  const stake = Number.isFinite(p.stakeAmount) ? p.stakeAmount.toFixed(2) : "—";
+  const stake = Number.isFinite(p.stakeAmount) ? p.stakeAmount.toFixed(2) : "-";
 
   return (
     <div className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
@@ -62,7 +62,7 @@ export default function CreateChallengeTicket(p: CreateChallengeTicketProps) {
         <dt>{tf("reviewStake")}</dt>
         <dd className="text-cream">{stake} USDC</dd>
         <dt>{tf("reviewDeadline")}</dt>
-        <dd>{p.deadline ? new Date(p.deadline * 1000).toLocaleString() : "—"}</dd>
+        <dd>{p.deadline ? new Date(p.deadline * 1000).toLocaleString() : "-"}</dd>
         <dt>{tf("reviewSource")}</dt>
         <dd>{p.sourceHost ?? tf("reviewNoSource")}</dd>
         <dt>{tf("reviewCategory")}</dt>

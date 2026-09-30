@@ -80,7 +80,7 @@ export default function BalanceCard({
         <dt>{t("balanceTitle")}</dt>
         <dd className="text-cream">{formatUsdcUnits(balance)}</dd>
         <dt>{tb("wallet")}</dt>
-        <dd>{walletUsdc === null ? "—" : formatUsdcUnits(walletUsdc)}</dd>
+        <dd>{walletUsdc === null ? "-" : formatUsdcUnits(walletUsdc)}</dd>
       </dl>
 
       <div className="grid gap-2.5">

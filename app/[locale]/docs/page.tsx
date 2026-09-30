@@ -113,7 +113,7 @@ function TwoLayerDiagram() {
       {/* Base layer */}
       <g>
         <rect rx="12" x="30" y="30" width="380" height="260" fill={C.bg} stroke={C.accent} strokeWidth="1.8" />
-        <text x="220" y="58" textAnchor="middle" fontSize="11" fill={C.accent} letterSpacing="2">BASE LAYER · SOLANA — OWNS ALL USDC</text>
+        <text x="220" y="58" textAnchor="middle" fontSize="11" fill={C.accent} letterSpacing="2">BASE LAYER · SOLANA · OWNS ALL USDC</text>
 
         <rect rx="12" x="60" y="80" width="320" height="56" fill={C.surf2} stroke={C.border} strokeWidth="1.4" />
         <text x="220" y="104" textAnchor="middle" fontSize="13" fill={C.text}>USDC Vault PDA</text>
@@ -139,7 +139,7 @@ function TwoLayerDiagram() {
       {/* ER layer */}
       <g>
         <rect rx="12" x="490" y="30" width="380" height="260" fill={C.bg} stroke={C.accent} strokeWidth="1.8" strokeDasharray="6 3" />
-        <text x="680" y="58" textAnchor="middle" fontSize="11" fill={C.accent} letterSpacing="2">EPHEMERAL ROLLUP — OWNS GAMEPLAY</text>
+        <text x="680" y="58" textAnchor="middle" fontSize="11" fill={C.accent} letterSpacing="2">EPHEMERAL ROLLUP · OWNS GAMEPLAY</text>
 
         <rect rx="12" x="520" y="80" width="320" height="56" fill={C.surface} stroke={C.border} strokeWidth="1.4" />
         <text x="680" y="104" textAnchor="middle" fontSize="13" fill={C.text}>Delegated Claim PDAs</text>
@@ -326,12 +326,12 @@ export default function DocsPage() {
       <Section id="what" eyebrow="01" title="What a claim is">
         <p>
           A claim in Mimir is a single, verifiable question with a deadline and
-          a designated resolution source — for example,{" "}
+          a designated resolution source, for example{" "}
           <em>&ldquo;Will SOL trade above $67.46 at the deadline, per the Flash Trade oracle price?&rdquo;</em>
         </p>
         <p>
-          Anyone creates a claim by staking USDC on one side. Anyone else —
-          human or AI agent — challenges by staking the opposite side. Challenges
+          Anyone creates a claim by staking USDC on one side. Anyone else,
+          human or AI agent, challenges by staking the opposite side. Challenges
           happen inside the Ephemeral Rollup: instant, and free. At the deadline
           the oracle commits the rollup state back to Solana, settles by rule
           where it can (a structured resolver in the URL, two price sources that
@@ -387,7 +387,7 @@ export default function DocsPage() {
           SPL token accounts cannot be delegated into an Ephemeral Rollup, so
           USDC itself never moves inside the ER. Mimir splits state accordingly:
         </p>
-        <DiagramFrame caption="The base layer owns all USDC and runs deposit/withdraw, create, propose/finalize, and payout. The ER owns gameplay — the delegated claim and balance PDAs — where challenges debit a virtual balance in real time, for free.">
+        <DiagramFrame caption="The base layer owns all USDC and runs deposit/withdraw, create, propose/finalize, and payout. The ER owns gameplay (the delegated claim and balance PDAs), where challenges debit a virtual balance in real time, for free.">
           <TwoLayerDiagram />
         </DiagramFrame>
         <ul className="m-0 grid list-disc gap-2 pl-5">
@@ -401,7 +401,7 @@ export default function DocsPage() {
             <strong className="font-normal text-cream">Virtual balance (delegated).</strong>{" "}
             Once delegated to the ER alongside the claim PDAs, challenges debit
             the balance in real time with no fees. No SPL transfer happens per
-            bet — only at deposit and withdraw.
+            bet, only at deposit and withdraw.
           </li>
           <li>
             <strong className="font-normal text-cream">The invariant.</strong>{" "}
@@ -513,7 +513,7 @@ export default function DocsPage() {
             reading a market. Rule personas never call the LLM; the rest stake
             Kelly-sized from an in-character read. They call{" "}
             <code className={code}>challenge_claim</code> and can sit on the
-            settlement jury (never on a claim they hold) — proposing stays with
+            settlement jury (never on a claim they hold); proposing stays with
             the oracle, creation with the market-creator. See the{" "}
             <Link href="/council" className={LINK}>
               council
@@ -546,7 +546,7 @@ export default function DocsPage() {
           </div>
           <div className="grid gap-1 border-b border-line py-3 last:border-0 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
             <dt className="font-mono text-[13px] text-coral">delegated</dt>
-            <dd className="m-0 text-[14px] text-muted">The claim&apos;s PDAs currently live in the Ephemeral Rollup — challenges are ~30ms and zero-fee.</dd>
+            <dd className="m-0 text-[14px] text-muted">The claim&apos;s PDAs currently live in the Ephemeral Rollup, so challenges are ~30ms and zero-fee.</dd>
           </div>
           <div className="grid gap-1 border-b border-line py-3 last:border-0 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
             <dt className="font-mono text-[13px] text-coral">deadline</dt>
@@ -610,14 +610,14 @@ export default function DocsPage() {
         <div className="grid gap-3">
           <Card title="Which wallet do I need?">
             Any Solana wallet supported by{" "}
-            <code className={codeSm}>@solana/wallet-adapter</code> — Phantom and
+            <code className={codeSm}>@solana/wallet-adapter</code>. Phantom and
             Solflare are the primary targets. Make sure it&apos;s pointed at
             Solana devnet.
           </Card>
           <Card title="Why are challenges free?">
             Once a claim is created, its PDAs are delegated into a MagicBlock
             Ephemeral Rollup. Transactions against delegated state run in the ER
-            — zero fee, ~30ms — instead of paying base-layer fees per bet. USDC
+            (zero fee, ~30ms) instead of paying base-layer fees per bet. USDC
             only moves on the base layer at deposit and withdraw.
           </Card>
           <Card title="What if the LLM is wrong?">

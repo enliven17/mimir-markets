@@ -3,8 +3,8 @@
 /**
  * Pull payments for a RESOLVED claim. Nothing is pushed: each winning (or
  * refunded) position is paid by a permissionless crank straight to its
- * owner's USDC token account. The oracle cranks them too; this lets anyone —
- * usually the winner — do it now. A returned dispute bond is cranked the same
+ * owner's USDC token account. The oracle cranks them too; this lets anyone
+ * (usually the winner) do it now. A returned dispute bond is cranked the same
  * way. Net amounts are quoted with the claim's frozen, profit-only fee terms.
  */
 import { useTranslations } from "next-intl";

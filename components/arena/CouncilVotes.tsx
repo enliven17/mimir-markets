@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CouncilVotes — shows where each AI council persona stands on a claim.
+ * CouncilVotes: shows where each AI council persona stands on a claim.
  * For resolved claims also shows won/lost/refunded outcome per persona.
  * A summary line up front, every vote behind "See all votes".
  */

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "Mimir — Claims, settled in USDC on Solana.",
+    "title": "Mimir · Claims, settled in USDC on Solana.",
     "description": "1v1 prediction challenges settled by AI. No referees. No arguments. Mimir decides."
   },
   "common": {
@@ -144,7 +144,7 @@
     "needsDraft": "Fill in the question, both sides and a resolution URL first.",
     "summary": "score {score}/100 · open {open} · revise {revise} · skip {skip}",
     "stale": "draft changed since",
-    "rateLimited": "Too many checks — try again in a minute.",
+    "rateLimited": "Too many checks. Try again in a minute.",
     "unavailable": "The council is unavailable right now.",
     "decision": {
       "open": "open",
@@ -288,9 +288,9 @@
     "proposedClosedHint": "The dispute window has closed. Anyone can finalize the verdict, then the payouts can be cranked.",
     "disputeButton": "Dispute (bond {bond})",
     "bondHint": "The bond comes from your USDC token account. It is returned if the arbiter changes the verdict and goes to the platform if the verdict stands.",
-    "disputedToast": "Dispute filed — the arbiter will review it.",
+    "disputedToast": "Dispute filed. The arbiter will review it.",
     "finalizeButton": "Finalize verdict",
-    "finalizedToast": "Finalized — payouts can now be cranked.",
+    "finalizedToast": "Finalized. Payouts can now be cranked.",
     "disputedTitle": "Disputed",
     "disputedBody": "{who} disputed the proposed verdict ({side}) on {at}. The admin (arbiter) rules on it.",
     "disputedRefundIn": "If the arbiter never rules, anyone can refund every stake and the bond in {in}.",
@@ -299,9 +299,9 @@
     "awaitingBody": "If the oracle proposes nothing, anyone can refund every stake in {in}.",
     "awaitingRefundable": "The oracle did not settle this claim within its grace period. Anyone can refund every stake.",
     "refundButton": "Refund everyone",
-    "refundedToast": "Refunded — stakes return through the payout cranks.",
+    "refundedToast": "Refunded. Stakes return through the payout cranks.",
     "payoutsTitle": "Payouts",
-    "payoutsHint": "Pull payments: each position is paid to its owner's USDC account by a permissionless crank. The oracle cranks them too — you can do it now.",
+    "payoutsHint": "Pull payments: each position is paid to its owner's USDC account by a permissionless crank. The oracle cranks them too, but you can do it now.",
     "creatorLeg": "Creator",
     "challengerLeg": "Challenger #{n}",
     "legAmounts": "gross {gross} · net ≈ {net}",
@@ -314,7 +314,7 @@
     "returnBond": "Return bond",
     "bondToast": "Bond returned.",
     "feesTitle": "Terms",
-    "feesHint": "Fees are charged on profit only — refunds, draws and break-even payouts pay nothing, and being right never costs principal. Frozen when the claim was created.",
+    "feesHint": "Fees are charged on profit only: refunds, draws and break-even payouts pay nothing, and being right never costs principal. Frozen when the claim was created.",
     "platformFee": "Platform fee",
     "agentFee": "Agent-owner fee",
     "ofProfit": "of profit",
@@ -832,7 +832,7 @@
     "openChallengesBandTitle": "READY TO CHALLENGE",
     "openChallengesBandHint": "Live claims open for a rival right now. Review the terms, inspect the source, and enter the arena.",
     "aiOpportunitiesBandTitle": "WHERE SIGNALS BECOME CLAIMS",
-    "aiOpportunitiesBandHint": "Opportunities surfaced by Mimir from emerging signals, real-world trends, and verifiable sources—ready to review, refine, and launch as head-to-head challenges.",
+    "aiOpportunitiesBandHint": "Opportunities surfaced by Mimir from emerging signals, real-world trends, and verifiable sources, ready to review, refine, and launch as head-to-head challenges.",
     "aiSignalsCount": "{count} AI signals",
     "challengeOpportunities": "Emerging Narratives",
     "challengeOpportunitiesHint": "Source-backed intel the system believes is clear, claim-ready, and worth staking on.",
@@ -876,7 +876,7 @@
     "aiOpportunitiesDisabledTitle": "AI opportunities are offline",
     "aiOpportunitiesDisabledDesc": "Source-backed dossiers are disabled in this environment right now.",
     "challengeSomeone": "+ Challenge",
-    "sampleNoMatchIntro": "Nothing matches these filters — not even the demos. Try resetting or broadening your search.",
+    "sampleNoMatchIntro": "Nothing matches these filters, not even the demos. Try resetting or broadening your search.",
     "sampleNoMatchHint": "No demo card matches the current filters. Reset filters or adjust search to see examples again.",
     "sampleCreateHint": "Create your own challenge to go live on the protocol.",
     "resetFilters": "Reset filters",
@@ -898,14 +898,14 @@
         "body": "Predicting high-intensity technical exchanges. System intelligence\nsuggests a 68% probability of extended duration."
       },
       "f1": {
-        "imageAlt": "Formula 1 featured spotlight — Franco Colapinto",
+        "imageAlt": "Formula 1 featured spotlight: Franco Colapinto",
         "pill": "Featured event",
         "titleLine1": "Franco Colapinto",
         "titleLine2": "Finishes P17",
         "body": "Austin race rhythm rewards tire discipline.\nOur stack prices P17 as the modal outcome versus opening lines."
       },
       "alvarez": {
-        "imageAlt": "Argentina national team — Julián Álvarez World Cup spotlight",
+        "imageAlt": "Argentina national team: Julián Álvarez World Cup spotlight",
         "pill": "Featured event",
         "titleLine1": "Julián Álvarez +6 goals",
         "titleLine2": "FIFA World Cup 2026",
@@ -942,7 +942,7 @@
     "moderationUnavailable": "Moderation temporarily unavailable.",
     "moderationRateLimited": "Moderation rate-limited. Retry in {seconds}s.",
     "moderationConfidence": "Confidence: {value}/100",
-    "moderationConfidenceEmpty": "Confidence: —/100",
+    "moderationConfidenceEmpty": "Confidence: -/100",
     "moderationConfidenceHeading": "Confidence",
     "moderationCheckedJustNow": "Checked just now.",
     "moderationCheckedSecondsAgo": "Checked {seconds}s ago.",
@@ -1122,7 +1122,7 @@
     "privateLinkUnavailable": "This private invite link is not available on this device. Open the original invite link again to copy it.",
     "acceptAndStake": "Accept & Stake {amount} USDC",
     "accepting": "Accepting...",
-    "acceptedToast": "Accepted — {amount} USDC at stake",
+    "acceptedToast": "Accepted: {amount} USDC at stake",
     "errorAccepting": "Error accepting",
     "challengeUnavailable": "This challenge is no longer open for staking on the current contract.",
     "submittedPending": "Transaction submitted to Bradbury. The arena will refresh automatically.",
@@ -1164,7 +1164,7 @@
     "cancelling": "Cancelling...",
     "cancelledToast": "VS cancelled",
     "errorCancelling": "Error cancelling",
-    "expiredNoRivalTitle": "Deadline reached — no rival joined",
+    "expiredNoRivalTitle": "Deadline reached, no rival joined",
     "expiredNoRivalHintCreator": "Challenges are now closed because the deadline has passed. Cancel to reclaim your stake.",
     "expiredNoRivalHintViewer": "Challenges are now closed because the deadline has passed without a rival joining.",
     "notFound": "VS not found",
@@ -1191,7 +1191,7 @@
     "designPreviewReset": "Use live sample state",
     "designPreviewResolutionSummary": "Preview only: the creator side is shown as the prevailing outcome. No consensus transaction was executed.",
     "sampleModeTitle": "Preview challenge",
-    "sampleModeBody": "This is a testing page for the challenge lifecycle design. It is not a live on-chain VS—use it to review layout and copy only.",
+    "sampleModeBody": "This is a testing page for the challenge lifecycle design. It is not a live on-chain VS. Use it to review layout and copy only.",
     "sampleModeDemoBadge": "Demo",
     "sampleModeCTA": "Create Real Challenge",
     "invalidChallengeStakeMin": "Enter a stake of at least {amount} USDC",
@@ -1268,7 +1268,7 @@
     "featureOffDesc": "Enable NEXT_PUBLIC_FEATURE_XMTP in .env.local and restart the dev server. See docs/xmtp-integration.md.",
     "unavailableNotAccepted": "Private chat unlocks once the VS is accepted (1v1 only).",
     "unavailableWaitingOpponent": "Waiting for a fixed rival on-chain before the DM can open.",
-    "unavailableMultiChallenger": "Multi-challenger VS — XMTP chat is 1v1 only for now.",
+    "unavailableMultiChallenger": "Multi-challenger VS: XMTP chat is 1v1 only for now.",
     "withPeer": "With {address}",
     "needsAccepted": "Private chat between players unlocks once the VS is accepted (1v1).",
     "needsWallet": "Connect your wallet to open an encrypted DM with your rival on XMTP.",
@@ -1281,7 +1281,7 @@
     "clearMyMessagesAria": "Hide your sent messages from this view on this device",
     "clearMyMessagesConfirm": "Hide all messages you sent in this chat on this device? They remain on XMTP for your rival; this only clears your view here.",
     "syncingMessages": "Syncing…",
-    "peerUnreachable": "Your rival hasn't connected to XMTP yet. Ask them to open Mimir and sign in with their wallet once — then tap Retry to start the chat.",
+    "peerUnreachable": "Your rival hasn't connected to XMTP yet. Ask them to open Mimir and sign in with their wallet once, then tap Retry to start the chat.",
     "rateLimited": "XMTP is temporarily limiting requests. Wait a moment and tap Refresh.",
     "networkError": "Network issue while syncing messages. Check your connection and try Refresh.",
     "errorGeneric": "Could not open chat. Try again.",
@@ -1304,11 +1304,11 @@
     "chatPreviewBanner": "Your rival hasn't joined XMTP yet. Once they sign in to Mimir (or any XMTP app) with their wallet, tap Retry.",
     "chatPreviewAriaLabel": "Demo conversation layout",
     "chatPreviewSrHint": "Sample messages between rival {peer} and you {you}.",
-    "chatPreviewBubblePeer": "Hey — we good to settle on the linked source at deadline?",
+    "chatPreviewBubblePeer": "Hey, we good to settle on the linked source at deadline?",
     "chatPreviewBubbleYou": "Yes. Same rule for both sides.",
     "chatPreviewBubblePeerShort": "👍",
     "chatPreviewInputPlaceholder": "Unavailable until the thread opens",
-    "chatPreviewFootnote": "Sample layout only — nothing is sent over XMTP until the rival is reachable."
+    "chatPreviewFootnote": "Sample layout only. Nothing is sent over XMTP until the rival is reachable."
   },
   "strategies": {
     "title": "Strategies",
@@ -1319,7 +1319,7 @@
   "messagesHub": {
     "eyebrow": "End-to-end encrypted · XMTP",
     "title": "MESSAGES",
-    "subtitle": "Private chat with your rival on each accepted 1v1 duel. No public feed—only duel-scoped threads tied to your wallet.",
+    "subtitle": "Private chat with your rival on each accepted 1v1 duel. No public feed, only duel-scoped threads tied to your wallet.",
     "pageDescription": "Encrypted XMTP channels with your duel rivals. Wallet-scoped, no public feed.",
     "loadingAria": "Loading your channels",
     "featureOffEyebrow": "Messaging unavailable",
@@ -1354,10 +1354,10 @@
     "badgeNoComms": "No comms",
     "viewVs": "View",
     "reason": {
-      "sample": "Demo VS — chat only on real on-chain duels.",
+      "sample": "Demo VS: chat only on real on-chain duels.",
       "not_accepted": "Chat unlocks when the VS is accepted.",
       "waiting_opponent": "Waiting for a fixed rival before DM opens.",
-      "multi_challenger": "Multi-challenger VS — XMTP is 1v1 only for now."
+      "multi_challenger": "Multi-challenger VS: XMTP is 1v1 only for now."
     }
   },
   "emergingNarratives": {

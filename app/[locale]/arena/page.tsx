@@ -163,14 +163,14 @@ export default function ArenaPage() {
           <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
           {claims === null ? (
             // Not "0 open": the count is unknown until the first answer.
-            <span className="text-cream">—</span>
+            <span className="text-cream">-</span>
           ) : (
             <RollingNumber value={totals.open} format={count} className="text-cream" />
           )}
           <span>{t("statusOpen")}</span>
           <span aria-hidden>·</span>
           {claims === null ? (
-            <span className="text-cream">—</span>
+            <span className="text-cream">-</span>
           ) : (
             <RollingNumber value={totals.inPlay} format={money} flash className="text-cream" />
           )}

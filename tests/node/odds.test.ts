@@ -66,8 +66,8 @@ test("probabilities always complement each other", () => {
 });
 
 test("a null probability renders as a dash rather than zero", () => {
-  assert.equal(formatProbability(null), "—");
-  assert.equal(formatProbability(Number.NaN), "—");
+  assert.equal(formatProbability(null), "-");
+  assert.equal(formatProbability(Number.NaN), "-");
   assert.equal(formatProbability(0.5), "50%");
   assert.equal(formatProbability(0.004), "0%");
   assert.equal(formatProbability(1), "100%");

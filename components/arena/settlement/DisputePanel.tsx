@@ -2,12 +2,12 @@
 
 /**
  * V3 optimistic-resolution controls on the claim page:
- *   PROPOSED — the proposed verdict, a live countdown to the end of the dispute
+ *   PROPOSED: the proposed verdict, a live countdown to the end of the dispute
  *              window, the bond and who may post it, a dispute button for
  *              participants, and finalize once the window has closed.
- *   DISPUTED — who disputed and when; the admin (arbiter) rules. If it never
+ *   DISPUTED: who disputed and when; the admin (arbiter) rules. If it never
  *              does, anyone can refund everyone after the resolution grace.
- *   OPEN / ACTIVE past the deadline — the refund_expired escape hatch once
+ *   OPEN / ACTIVE past the deadline: the refund_expired escape hatch once
  *              deadline + grace has passed.
  * Renders nothing when there is nothing to show. Unstyled block: the action
  * dock supplies the card.
@@ -56,7 +56,7 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
         <div className="grid gap-1.5">
           <p className={TITLE}>{t("proposedTitle")}</p>
           <p className="m-0 font-display text-[1.7rem] leading-none text-cream">
-            {SIDE_LABEL[claim.proposedSide] ?? "—"}
+            {SIDE_LABEL[claim.proposedSide] ?? "-"}
             <span className="ml-2 font-mono text-[14px] text-muted">{claim.confidence}%</span>
           </p>
           {claim.resolutionSummary ? <p className={`${NOTE} line-clamp-3`}>{claim.resolutionSummary}</p> : null}
@@ -119,9 +119,9 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
         <p className={`${TITLE} !text-danger`}>{t("disputedTitle")}</p>
         <p className="m-0 text-[14px] leading-relaxed text-cream">
           {t("disputedBody", {
-            side: SIDE_LABEL[claim.proposedSide] ?? "—",
-            who: claim.disputer ? shortKey(claim.disputer) : "—",
-            at: claim.disputedAt ? new Date(claim.disputedAt * 1000).toLocaleString() : "—",
+            side: SIDE_LABEL[claim.proposedSide] ?? "-",
+            who: claim.disputer ? shortKey(claim.disputer) : "-",
+            at: claim.disputedAt ? new Date(claim.disputedAt * 1000).toLocaleString() : "-",
           })}
         </p>
         <p className={NOTE}>

@@ -193,7 +193,7 @@ export async function finalizeResolution(m: BrowserMimir, claimId: bigint): Prom
 
 /**
  * Escape hatch: refund an unresolved claim after deadline + resolution grace
- * (7 days by default). The claim must be on the base layer — if it is still
+ * (7 days by default). The claim must be on the base layer; if it is still
  * delegated, undelegateClaim first. Stakes then come back via the payout cranks.
  */
 export async function refundExpired(m: BrowserMimir, claimId: bigint): Promise<string> {
@@ -315,7 +315,7 @@ export async function refundExpiredFromAnywhere(m: BrowserMimir, claimId: bigint
   const pda = claimPda(claimId);
   if (await isDelegatedAccount(m, pda)) {
     await undelegateClaim(m, claimId);
-    if (!(await waitUntilOnBase(m, pda))) throw new Error("The claim is still in the rollup — try again in a minute.");
+    if (!(await waitUntilOnBase(m, pda))) throw new Error("The claim is still in the rollup. Try again in a minute.");
   }
   return refundExpired(m, claimId);
 }
@@ -329,7 +329,7 @@ export async function withdrawAllBalance(m: BrowserMimir): Promise<{ units: bigi
   const pda = balancePda(m.owner);
   if (await isDelegatedAccount(m, pda)) {
     await undelegateBalance(m);
-    if (!(await waitUntilOnBase(m, pda))) throw new Error("Your balance is still in the rollup — try again in a minute.");
+    if (!(await waitUntilOnBase(m, pda))) throw new Error("Your balance is still in the rollup. Try again in a minute.");
   }
   const b: any = await (m.base.account as any).userBalance.fetchNullable(pda);
   const units = b ? BigInt(b.amount.toString()) : 0n;

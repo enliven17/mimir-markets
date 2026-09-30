@@ -110,11 +110,11 @@ export default async function TokenPage() {
             </p>
             <p className="m-0 mt-2 flex flex-wrap gap-x-2 text-[13px] text-muted">
               <span>
-                {t("supply")} <span className="font-mono text-cream">{supply ? compact(supply.supply) : "—"}</span>
+                {t("supply")} <span className="font-mono text-cream">{supply ? compact(supply.supply) : "-"}</span>
               </span>
               <span aria-hidden>·</span>
               <span>
-                {t("fdv")} <span className="font-mono text-cream">{supply && price !== null ? usd(supply.supply * price) : "—"}</span>
+                {t("fdv")} <span className="font-mono text-cream">{supply && price !== null ? usd(supply.supply * price) : "-"}</span>
               </span>
               <span aria-hidden>·</span>
               <a href={`https://solscan.io/token/${mint}`} target="_blank" rel="noreferrer" className={`font-mono ${LINK}`}>

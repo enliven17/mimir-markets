@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CouncilPreflight — optional "ask the council" check for a draft claim on
+ * CouncilPreflight: optional "ask the council" check for a draft claim on
  * /arena/create. Posts the draft to /api/council/preflight and shows each
  * persona's open / revise / skip call. Advisory only: it never blocks
  * publishing, and a draft that changes after a check shows the result as stale.
@@ -106,7 +106,7 @@ export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
         <div className={`grid gap-2 ${stale ? "opacity-60" : ""}`}>
           <p className="m-0 font-mono text-[12px] text-muted">
             {t("summary", {
-              score: result.averageScore ?? "—",
+              score: result.averageScore ?? "-",
               open: result.openVotes,
               revise: result.reviseVotes,
               skip: result.skipVotes,

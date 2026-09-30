@@ -66,7 +66,7 @@ function Hero({ report, verdict, claimId, t }: { report: VerificationReport | nu
       {c && report?.hasVerdict ? (
         <div className="grid gap-1 border-t border-line pt-5">
           <p className="m-0 text-[15px] text-cream">
-            {SIDE_LABEL[side] ?? "—"} <span className="text-muted">· {t("confidence", { n: c.confidence })}</span>
+            {SIDE_LABEL[side] ?? "-"} <span className="text-muted">· {t("confidence", { n: c.confidence })}</span>
           </p>
           {c.summary ? <p className="m-0 line-clamp-3 text-[14px] leading-relaxed text-muted">{c.summary}</p> : null}
         </div>
@@ -139,7 +139,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
               <Section summary={t("howDecided")}>
                 <KeyValue
                   rows={[
-                    { label: t("decidedBy"), value: b.model ?? (b.council ? t("councilTally") : "—") },
+                    { label: t("decidedBy"), value: b.model ?? (b.council ? t("councilTally") : "-") },
                     { label: t("decidedAt"), value: new Date(b.decidedAt).toISOString() },
                     ...(b.rawVerdict
                       ? [{ label: t("rawVerdict"), value: `${b.rawVerdict.verdict} (${b.rawVerdict.confidence}%)` }]
