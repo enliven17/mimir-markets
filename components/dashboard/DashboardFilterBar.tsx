@@ -32,17 +32,17 @@ export default function DashboardFilterBar({ filters, counts, onChange, onRefres
   const t = useTranslations("dashboard");
 
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <Segmented
         label={t("tabsAria")}
         value={filters.tab}
         onChange={(tab) => onChange({ tab })}
         tone="maroon"
-        className="md:w-[440px] md:flex-none"
+        className="lg:w-[440px] lg:flex-none"
         options={DASHBOARD_TABS.map((tab) => ({ value: tab, label: t(`tabs.${tab}`), count: counts[tab] }))}
       />
-      <div className="flex min-w-0 flex-1 items-center gap-2 md:justify-end">
-        <label className="relative min-w-0 flex-1 md:max-w-[280px]">
+      <div className="flex min-w-0 flex-1 items-center gap-2 lg:justify-end">
+        <label className="relative min-w-0 flex-1 lg:max-w-[280px]">
           <span className="sr-only">{t("searchLabel")}</span>
           <Search size={16} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-dim" />
           <input
