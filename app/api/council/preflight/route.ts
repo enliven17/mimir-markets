@@ -1,5 +1,5 @@
 /**
- * POST /api/council/preflight — let a few council personas vet a draft claim
+ * POST /api/council/preflight: let a few council personas vet a draft claim
  * before it is published (the optional "Ask the council" check on
  * /arena/create).
  *

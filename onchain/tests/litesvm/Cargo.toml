@@ -1,5 +1,5 @@
 # Host-side integration tests for the Mimir program, run against the built
-# mimir.so in LiteSVM (no validator needed — solana-test-validator cannot run
+# mimir.so in LiteSVM (no validator needed: solana-test-validator cannot run
 # on Windows without symlink privileges). Standalone workspace so its solana-*
 # versions never mix with the program's.
 #

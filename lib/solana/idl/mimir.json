@@ -4,7 +4,7 @@
     "name": "mimir",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Mimir — AI-settled claim market on Solana with MagicBlock Ephemeral Rollups"
+    "description": "Mimir: AI-settled claim market on Solana with MagicBlock Ephemeral Rollups"
   },
   "instructions": [
     {

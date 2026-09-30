@@ -1,5 +1,5 @@
 /**
- * GET /api/arena/[id] — one claim with its V3 lifecycle fields, for the claim
+ * GET /api/arena/[id]: one claim with its V3 lifecycle fields, for the claim
  * page. From the read index when available (never capped to the newest rows
  * like the feed), else straight from chain.
  */

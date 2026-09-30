@@ -1,5 +1,5 @@
 /**
- * MimirSolanaClient — high-level client for the Mimir program (V3).
+ * MimirSolanaClient: high-level client for the Mimir program (V3).
  *
  * Two connections:
  *  - base:  Solana devnet (deposits, claim creation, resolution, disputes, payouts)
@@ -346,7 +346,7 @@ export class MimirSolanaClient {
     });
   }
 
-  /** Runs inside the Ephemeral Rollup — zero fee, ~30ms */
+  /** Runs inside the Ephemeral Rollup (zero fee, ~30ms) */
   async challengeClaimER(claimId: bigint, stake: bigint, agent?: PublicKey | null): Promise<string> {
     return this.challenge(this.er, claimId, stake, agent).rpc({ skipPreflight: true });
   }
@@ -586,7 +586,7 @@ export class MimirSolanaClient {
   }
 
   /**
-   * Batch delegation check — single getMultipleAccountsInfo call for all IDs.
+   * Batch delegation check: single getMultipleAccountsInfo call for all IDs.
    * Replaces N individual isDelegated() calls with one RPC round-trip.
    */
   async isDelegatedBatch(ids: bigint[]): Promise<Map<bigint, boolean>> {

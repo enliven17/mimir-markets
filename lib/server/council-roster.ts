@@ -1,7 +1,7 @@
 /**
  * Server-side council roster: derives each persona's public address from the
  * admin secret (same derivation the worker uses) so the UI can map on-chain
- * challenger addresses back to a persona — without ever exposing a secret key.
+ * challenger addresses back to a persona without ever exposing a secret key.
  */
 import { loadAgentKeypair, derivePersonaKeypair } from "@/lib/solana/keypair";
 import { COUNCIL_PERSONAS, trackOf, type CouncilTrack } from "@/agents/council/personas";
@@ -55,7 +55,7 @@ export function councilRoster(): RosterEntry[] {
   try {
     admin = loadAgentKeypair();
   } catch {
-    // No keypair available (e.g. web service without the secret) — roster
+    // No keypair available (e.g. web service without the secret): roster
     // addresses are unknown, but the page can still render personas.
     return COUNCIL_PERSONAS.map((p) => ({
       slug: p.slug,

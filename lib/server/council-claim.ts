@@ -4,7 +4,7 @@
  * for 20s so a burst of council API reads costs one lookup per claim.
  *
  * Null when the claim does not exist; throws on an RPC failure (callers must
- * not report that as "not found" to a client, nor cache it — cachedFor drops
+ * not report that as "not found" to a client, nor cache it; cachedFor drops
  * rejections).
  */
 import "server-only";

@@ -1,5 +1,5 @@
 /**
- * GET /api/baskets/candidates — who can be a basket member on this deploy.
+ * GET /api/baskets/candidates: who can be a basket member on this deploy.
  *
  * Council personas whose staking wallet this deploy can derive, plus
  * registered agents (their operator wallet stakes). An unresolvable persona

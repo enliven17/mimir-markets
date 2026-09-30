@@ -39,7 +39,7 @@ fn settle(
 }
 
 /// Oracle proposes a verdict. With a zero dispute window (snapshotted on the
-/// claim) it settles immediately — V3's `disputeWindow == 0` fast path.
+/// claim) it settles immediately (V3's `disputeWindow == 0` fast path).
 pub fn propose_resolution(
     ctx: Context<ProposeResolution>,
     winner_side: u8,

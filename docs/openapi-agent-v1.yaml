@@ -284,7 +284,7 @@ paths:
 
   /api/baskets/{id}/subscribe:
     post:
-      summary: Follow, re-cap or unfollow (cap 0) — a signed intent, never a deposit
+      summary: Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit
       description: |
         The follower signs `followMessage` (ed25519, base58, follower in exact base58 case):
 

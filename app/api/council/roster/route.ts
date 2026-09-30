@@ -1,5 +1,5 @@
 /**
- * GET /api/council/roster — both council tracks with each persona's derived
+ * GET /api/council/roster: both council tracks with each persona's derived
  * Solana address (base58; "" when this deploy has no admin key to derive from).
  * Static per deploy: no chain read, so no rate limit, and CDN-cacheable.
  */

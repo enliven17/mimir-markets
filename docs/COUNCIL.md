@@ -35,10 +35,10 @@ cannot explain.
 ## The two tracks
 
 The roster is one list, [`agents/council/personas.ts`](../agents/council/personas.ts)
-(`COUNCIL_PERSONAS` = classic first, then philosophers). Every consumer — the
-worker, the jury, the APIs and the pages — reads it.
+(`COUNCIL_PERSONAS` = classic first, then philosophers). Every consumer (the
+worker, the jury, the APIs and the pages) reads it.
 
-### Classic jury — ten temperaments
+### Classic jury: ten temperaments
 
 | Persona | Archetype | Strategy | Categories |
 |---|---|---|---|
@@ -53,7 +53,7 @@ worker, the jury, the APIs and the pages — reads it.
 | 💀 The Doomer | LLM-biased | Worst case is the base case, +7% on disaster reads. | All |
 | 🗣️ The Yapper | Micro | 60% threshold, broad coverage (program minimum stake). | All |
 
-### Philosopher jury — ten epistemic frames
+### Philosopher jury: ten epistemic frames
 
 [`agents/council/philosophers.ts`](../agents/council/philosophers.ts). They
 disagree about *what counts as knowing*, which produces genuinely different
@@ -87,7 +87,7 @@ The biases are style, not licence to hallucinate.
 Each persona signs with a keypair derived from the admin secret:
 `sha256(adminSecret ‖ "mimir-council:<slug>")` → ed25519 seed
 ([`lib/solana/keypair.ts`](../lib/solana/keypair.ts) `derivePersonaKeypair`).
-Stateless — it survives ephemeral container filesystems. A local
+Stateless, so it survives ephemeral container filesystems. A local
 `.keys/council/<slug>.json` wins when present. Adding the philosopher track did
 not change any classic address (same seed per slug).
 
@@ -101,7 +101,7 @@ npm run system:status   # every wallet: SOL, token account, ER balance, and the 
 npm run system:fund     # tops up SOL from the admin, sweeps any token-account USDC into the vault + ER
 ```
 
-`system:status` ends with a shortfall list (target 25 USDC per persona) — send
+`system:status` ends with a shortfall list (target 25 USDC per persona). Send
 that much from the faucet or another wallet to each philosopher address, then
 run `system:fund` (or just let the worker's next cycle sweep it). A persona
 with an empty ER balance sits out staking but still sits on the jury (jurors
@@ -264,7 +264,7 @@ npm run workers:solana                         # oracle + market-creator + counc
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SOLANA_KEYPAIR[_JSON]` | — | Admin key: persona keys derive from it; pays persona SOL fees. |
+| `SOLANA_KEYPAIR[_JSON]` | - | Admin key: persona keys derive from it; pays persona SOL fees. |
 | `COUNCIL_GEMINI_API_KEY` | `GEMINI_API_KEY` | The council's own LLM key (worker, reasoning, preflight). |
 | `COUNCIL_TRACK` | both | `classic` or `philosopher`: one jury only, for staking and settlement. |
 | `COUNCIL_POLL_INTERVAL_MS` | 60000 | Cycle interval. |
@@ -275,7 +275,7 @@ npm run workers:solana                         # oracle + market-creator + counc
 | `COUNCIL_PEER_READS` / `_PER_PERSONA` | off / 2 | In-process peer reads. |
 | `COUNCIL_DRY_RUN` | off | Same as `--dry-run`. |
 | `MIMIR_PAUSE_COUNCIL_WORKER`, `MIMIR_PAUSE_STAKE` | off | Skip whole cycles / just the staking sweep. |
-| `COUNCIL_SETTLEMENT`, `COUNCIL_SELF_RESOLVING`, `COUNCIL_QUORUM`, `COUNCIL_ALPHA`, `COUNCIL_BONUS_USDC` | — | Settlement jury (oracle). |
+| `COUNCIL_SETTLEMENT`, `COUNCIL_SELF_RESOLVING`, `COUNCIL_QUORUM`, `COUNCIL_ALPHA`, `COUNCIL_BONUS_USDC` | - | Settlement jury (oracle). |
 | `MARKET_CREATOR_PREFLIGHT`, `_MIN_SCORE`, `_PERSONAS` | off, 60, socrates,aurelius,statistician | Market-creator draft vetting. |
 
 ---

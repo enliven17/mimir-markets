@@ -1,5 +1,5 @@
 /**
- * GET /api/council/reasoning?claimId=12&persona=socrates — one persona's take
+ * GET /api/council/reasoning?claimId=12&persona=socrates: one persona's take
  * on a claim, in character.
  *
  * The source build sold this per read over x402; here it is free, so it is

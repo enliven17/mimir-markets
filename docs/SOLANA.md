@@ -1,4 +1,4 @@
-# Mimir on Solana — program deep-dive & ops notes
+# Mimir on Solana: program deep-dive & ops notes
 
 The product story, architecture diagrams, and quickstart live in the
 [README](../README.md). This document covers the on-chain program design,
@@ -9,14 +9,14 @@ deployed artifacts, and the build/deploy mechanics.
 | Thing | Value |
 |---|---|
 | Program (V3) | `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` |
-| Legacy program (pre-V3, funds migrated out) | `J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR` — IDL kept at `scripts/solana/idl/mimir-v2.json` |
-| USDC mint (Circle devnet, 6 dp) | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` — fund wallets at faucet.circle.com |
+| Legacy program (pre-V3, funds migrated out) | `J9MZfzQt2LVkdfvqvTRPhcSN41gSmGKDWNVjxUQPxSDR`; IDL kept at `scripts/solana/idl/mimir-v2.json` |
+| USDC mint (Circle devnet, 6 dp) | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (fund wallets at faucet.circle.com) |
 | Admin = oracle = fee recipient | `J98R1EtNppvAFPXrviBUhFZbxoDpTCL7vjBwDRxVpKyk` |
 | Initial policy | 50 bps platform + 50 bps agent-owner fee on profit, 24h dispute window, 7-day resolution grace |
 | Base RPC | `https://api.devnet.solana.com` |
 | ER RPC | `https://devnet-as.magicblock.app/` (router: `devnet-router.magicblock.app`) |
 | ER validator | `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57` |
-| Program keypair | `onchain/target/deploy/mimir-keypair.json` (gitignored — upgrade authority; backups next to it as `mimir-v3-program-keypair.BACKUP.json` and at `~/.config/solana/mimir-v3-program-keypair.json`) |
+| Program keypair | `onchain/target/deploy/mimir-keypair.json` (gitignored, upgrade authority; backups next to it as `mimir-v3-program-keypair.BACKUP.json` and at `~/.config/solana/mimir-v3-program-keypair.json`) |
 
 ## Program design
 
@@ -59,11 +59,11 @@ A claim created while `dispute_window = 0` settles directly on `propose_resoluti
 ```
 Governance (base layer):
   initialize(InitArgs)               oracle, fee recipient, fee bps, dispute window, grace
-  set_paused(bool)                   admin — blocks create / challenge / propose only
+  set_paused(bool)                   admin: blocks create / challenge / propose only
   propose_admin → accept_admin       two-step admin transfer (zero key rejected)
   queue_oracle → execute_oracle      2-day timelock; execute is permissionless; cancel_oracle
   queue_fee_policy → execute_fee_policy   2-day timelock, ≤ 1000 bps total; cancel_fee_policy
-  set_windows(dispute, grace)        admin — only claims created afterwards (terms are frozen per claim)
+  set_windows(dispute, grace)        admin: only claims created afterwards (terms are frozen per claim)
   withdraw_fees(amount)              admin or fee recipient → fee recipient's token account
 
 Escrow (base layer, never paused):
@@ -73,7 +73,7 @@ Escrow (base layer, never paused):
 Claim lifecycle:
   create_claim(args{…, agent?})      USDC straight from the creator's ATA; snapshots fees + windows
   cancel_claim                       OPEN, no challengers
-  challenge_claim(stake, agent?)     BOTH layers — zero-fee inside the ER; reads Config for the pause
+  challenge_claim(stake, agent?)     BOTH layers: zero-fee inside the ER; reads Config for the pause
 
 Optimistic resolution (base layer, after undelegation):
   propose_resolution(side, summary, confidence, evidence_hash)   oracle-only, ≥ deadline
@@ -153,9 +153,9 @@ LiteSVM suite asserts this after every settlement path.
 | Two-step ownership, timelocked oracle | ✓ `propose_admin/accept_admin`, `queue/cancel/execute_oracle` (2 days) |
 | Profit-only fees, cap, snapshot, timelock, pull accrual | ✓ |
 | Events for admin actions | ✓ Anchor `emit!` on every governance, escrow and lifecycle instruction |
-| Parked push payouts, `withdrawTo`, gas stipend | N/A — payouts are already pull cranks to the owner's token account |
+| Parked push payouts, `withdrawTo`, gas stipend | N/A: payouts are already pull cranks to the owner's token account |
 | Permit, multicall | N/A (EVM-only); Solana transactions batch instructions natively |
-| Rematch attribution, fixed odds, private claims, market types | N/A — not part of the Solana program |
+| Rematch attribution, fixed odds, private claims, market types | N/A: not part of the Solana program |
 | wins/losses counters | Off-chain (indexer) |
 
 Deviation from V3: dispute/grace windows are admin-settable but frozen onto
@@ -203,8 +203,8 @@ npm run demo:solana
    Yes/No price drafts.
 4. No evidence: retried for 6h, then proposed UNRESOLVABLE (refund).
 5. The oracle's LLM verdict (never via the OpenRouter free router; the model is
-   recorded), or with `COUNCIL_SETTLEMENT=1` the council jury — personas that
-   hold a position are excluded; `COUNCIL_SELF_RESOLVING=1` runs the
+   recorded), or with `COUNCIL_SETTLEMENT=1` the council jury (personas that
+   hold a position are excluded); `COUNCIL_SELF_RESOLVING=1` runs the
    arXiv:2306.04305 sequential jury scored against an evidence-only reference.
 6. Price cross-check: sources that disagree, or a model contradicting
    agreeing sources, refund; agreement adds confidence only for the side the
@@ -213,7 +213,7 @@ npm run demo:solana
 
 Everything is sealed into a canonical-JSON **verdict bundle**;
 `evidence_hash = sha256(bundle)`, stored in `verdict_bundles` before the
-proposal. `/verify/<id>` (and `/api/verify/<id>?raw=1`) recompute it —
+proposal. `/verify/<id>` (and `/api/verify/<id>?raw=1`) recompute it:
 `sha256sum` of the downloaded file must equal the on-chain hash. Every
 pre-deadline forecast (oracle and personas) lands in `forecasts`;
 `/calibration` shows Brier scores once claims resolve. `ORACLE_DRY_RUN=1`
@@ -221,7 +221,7 @@ decides and logs without writing anything.
 
 ### How the market creator drafts (`agents/market-creator/`)
 
-Every draft is built by rule from a source that can settle it — no model
+Every draft is built by rule from a source that can settle it; no model
 writes the question, threshold, date or URL:
 
 | Source | Claim | Resolution URL | Deadline |
@@ -273,13 +273,13 @@ below apply to that one service. (Two services from the same repo also work:
 workers with `npm run workers:solana`, web with `npm run start:railway`.)
 
 **Worker variables:**
-- `DATABASE_URL` (Neon pooler) — the indexer mirrors on-chain claim state here
+- `DATABASE_URL` (Neon pooler): the indexer mirrors on-chain claim state here
   and `/api/arena/*` reads from it. Optional: without it the feed falls back to
   reading the chain directly on every request.
 - Variables:
-  - `SOLANA_KEYPAIR_JSON` — the admin/oracle secret key as a JSON byte array
+  - `SOLANA_KEYPAIR_JSON`: the admin/oracle secret key as a JSON byte array
     (paste the contents of the keypair file); no filesystem needed
-  - `CREATOR_KEYPAIR_JSON` — a separate wallet for the market-creator (paste
+  - `CREATOR_KEYPAIR_JSON`: a separate wallet for the market-creator (paste
     `.keys/creator.json`). Without it the creator falls back to the admin
     key and the oracle will skip auto-challenging its claims (the program
     rejects self-challenges).
@@ -297,7 +297,7 @@ routes run as normal Node routes, no serverless timeout concerns.
 `/api/health` reports each worker's heartbeat and the active pause switches.
 
 Mark `SOLANA_KEYPAIR_JSON` as sealed: it carries the admin + oracle
-authority in one key. USDC funding is external — top wallets up at
+authority in one key. USDC funding is external: top wallets up at
 https://faucet.circle.com (Solana Devnet), then `npm run system:fund`
 sweeps bettor balances into the ER.
 
@@ -323,9 +323,9 @@ cp /c/mimir-target/deploy/mimir.so target/deploy/   # then: solana program deplo
 3. **os error 32 (file locked)**: rust-analyzer in VS Code locks
    `onchain/target`. Fix: build with `CARGO_TARGET_DIR=C:\mimir-target`.
 4. `--skip-tools-install` leaks into the IDL `cargo test` invocation and
-   breaks it — generate the IDL separately with `anchor idl build`.
+   breaks it, so generate the IDL separately with `anchor idl build`.
 
 Also note: anchor-lang 1.0 changed `CpiContext::new` to take a `Pubkey`
 program id (not `AccountInfo`), and `@coral-xyz/anchor`'s ESM build doesn't
-export `Wallet` — the local `KeypairWallet` in `lib/solana/client.ts` exists
+export `Wallet`; the local `KeypairWallet` in `lib/solana/client.ts` exists
 because Turbopack bundles the ESM build.

@@ -233,7 +233,7 @@ export async function callLLM(prompt: string, opts: CallLLMOptions = {}): Promis
     const next = chain.slice(i + 1).find((q) => cooldown(q, o.keyEnv) === 0);
     const wait = cooldown(p, o.keyEnv);
     if (wait > 0) {
-      lastError = new Error(`LLM quota cooldown (${p}) — ${Math.ceil(wait / 1000)}s remaining`);
+      lastError = new Error(`LLM quota cooldown (${p}): ${Math.ceil(wait / 1000)}s remaining`);
       continue;
     }
     try {
@@ -280,7 +280,7 @@ async function callGeminiModel(apiKey: string, model: string, prompt: string, o:
   if (!isGemma) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   let text = prompt;
   if (o.jsonOnly) {
-    if (isGemma) text = `${prompt}\n\nReturn valid JSON only — no markdown, no code fences.`;
+    if (isGemma) text = `${prompt}\n\nReturn valid JSON only, with no markdown and no code fences.`;
     else {
       generationConfig.responseMimeType = "application/json";
       if (o.jsonSchema) generationConfig.responseSchema = o.jsonSchema;
@@ -302,7 +302,7 @@ async function callGeminiModel(apiKey: string, model: string, prompt: string, o:
     const body = (await res.text()).slice(0, 500);
     if (res.status === 429) {
       geminiCooldownByCombo.set(`${fingerprint(apiKey)}|${model}`, Date.now() + GEMINI_QUOTA_COOLDOWN_MS);
-      console.warn(`[llm] Gemini ${model}@…${fingerprint(apiKey)} 429 — ${Math.round(GEMINI_QUOTA_COOLDOWN_MS / 1000)}s cooldown`);
+      console.warn(`[llm] Gemini ${model}@…${fingerprint(apiKey)} 429, ${Math.round(GEMINI_QUOTA_COOLDOWN_MS / 1000)}s cooldown`);
       throw new Error(`Gemini ${model} 429: ${body}`);
     }
     if (!TRANSIENT.has(res.status) || attempt === MAX_ATTEMPTS) throw new Error(`Gemini ${model} ${res.status}: ${body}`);

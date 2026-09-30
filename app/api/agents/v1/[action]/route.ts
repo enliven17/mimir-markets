@@ -1,5 +1,5 @@
 /**
- * POST /api/agents/v1/{action} — the agent API.
+ * POST /api/agents/v1/{action}: the agent API.
  *
  * One signed envelope format for everything (lib/agents/api.ts). Errors are
  * explicit: 400 for a malformed envelope or body, 401 for a rejected

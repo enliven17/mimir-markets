@@ -1,5 +1,5 @@
 /**
- * GET /api/baskets/{id} — one basket, with its replayed curve.
+ * GET /api/baskets/{id}: one basket, with its replayed curve.
  *
  * The curve is a projection of what the member agents actually settled on
  * chain (RESOLVED claims in the read index, after the program's profit-only

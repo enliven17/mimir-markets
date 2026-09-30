@@ -1,14 +1,14 @@
 /**
- * Flash Trade integration — Solana's asset-backed perpetuals DEX.
+ * Flash Trade integration: Solana's asset-backed perpetuals DEX.
  *
  * Free public REST API, no key needed, 10 req/s limit.
  * Docs: https://docs.flash.trade/.../flash-trade-api
  *
  * Two roles in Mimir:
- *   A) Resolution source — claims resolve against Flash Trade oracle prices
+ *   A) Resolution source: claims resolve against Flash Trade oracle prices
  *      (the resolutionUrl IS a flashapi.trade endpoint; the oracle agent
  *      fetches it like any other evidence URL).
- *   B) Auto-hedge — when an agent stakes on a price-directional claim, it
+ *   B) Auto-hedge: when an agent stakes on a price-directional claim, it
  *      offsets the exposure with a perp position built by the Flash Trade
  *      transaction-builder.
  */
@@ -63,7 +63,7 @@ export async function getFlashPositions(owner: string): Promise<any> {
 
 /**
  * Build a ready-to-sign open-position transaction.
- * Returns whatever the API gives us — typically a base64-serialized tx.
+ * Returns whatever the API gives us, typically a base64-serialized tx.
  */
 export async function buildOpenPositionTx(req: OpenPositionRequest): Promise<any> {
   return flashFetch("/transaction-builder/open-position", {
@@ -88,7 +88,7 @@ export async function buildClosePositionTx(req: {
 /** Symbols Flash Trade prices that Mimir lets the market-creator use. */
 export const FLASH_CLAIM_SYMBOLS = ["BTC", "ETH", "SOL"] as const;
 
-/** Resolution URL for a price claim — the oracle fetches this as evidence. */
+/** Resolution URL for a price claim; the oracle fetches this as evidence. */
 export function flashResolutionUrl(symbol: string): string {
   return `${FLASH_API_BASE}/prices/${symbol.toUpperCase()}`;
 }

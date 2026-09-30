@@ -1,5 +1,5 @@
 /**
- * POST /api/baskets/{id}/mirror — the unsigned transaction for one copy.
+ * POST /api/baskets/{id}/mirror: the unsigned transaction for one copy.
  *
  * Body: `{ follower, claimId }`. The follower must have an active signed
  * subscription and the claim must be a current signal for them; the stake is

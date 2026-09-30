@@ -1,6 +1,6 @@
 /**
- * GET  /api/baskets — the basket directory, ranked by followers.
- * POST /api/baskets — compose a basket.
+ * GET  /api/baskets: the basket directory, ranked by followers.
+ * POST /api/baskets: compose a basket.
  *
  * Creating a basket costs nothing and moves nothing, but it is still signed
  * (ed25519 over `composeMessage`, base58): a basket carries its composer's

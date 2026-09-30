@@ -1,5 +1,5 @@
 /**
- * GET /api/challenge-opportunities?limit=8 — source-backed claim drafts for the
+ * GET /api/challenge-opportunities?limit=8: source-backed claim drafts for the
  * arena feed. Read-only: the set is rebuilt by the market-creator worker, so
  * no request here triggers an LLM call. Behind NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS.
  */

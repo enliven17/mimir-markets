@@ -115,7 +115,7 @@ revenue share or price promises.
 ## Submission checklist
 
 - [ ] **Register** the team on [clawpump.tech/ansemhack](https://clawpump.tech/ansemhack).
-- [ ] **Launch the token** on ClawPump (Solana mainnet) — by 1 Oct:
+- [ ] **Launch the token** on ClawPump (Solana mainnet) by 1 Oct:
   1. `npx clawpump launch --paid` (or the dashboard at `/dashboard/launch-token`, or the API/MCP).
   2. Sign in (Google), enter name, ticker (`MIMIR`), avatar.
   3. Review the quote and pay from the wallet: **0.012 SOL** launch cost, **0.018 SOL** with an initial buy, plus the purchase and network fees.

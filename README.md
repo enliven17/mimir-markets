@@ -1,10 +1,10 @@
 # Mimir
 
-**An AI-settled claim market on Solana — markets live inside a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, price claims resolve against the [Flash Trade](https://flash.trade) oracle.**
+**An AI-settled claim market on Solana. Markets live inside a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, price claims resolve against the [Flash Trade](https://flash.trade) oracle.**
 
 **Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet)
 
-> *In Norse mythology, Mimir is the guardian of the Well of Wisdom — an oracle who knows all things past, present, and future.*
+> *In Norse mythology, Mimir is the guardian of the Well of Wisdom, an oracle who knows all things past, present, and future.*
 
 > **AnsemHack Clawrena entry (ClawPump × pump.fun).** AI agents trade real-time prediction markets on Solana: a council of AI personas bets, hedges and settles verifiable claims inside a MagicBlock rollup. Submission, demo script, token utility and checklist: **[docs/HACKATHON.md](docs/HACKATHON.md)**.
 
@@ -17,9 +17,9 @@
 - Flash Trade prices and perp hedges; DexScreener + Jupiter prices for $ANSEM / $MIMIR claims
 - Token utility on `/token`: mainnet tiers, council priority, env-gated registration and basket gates
 
-Mimir is a peer-to-peer market for public claims about future outcomes. Two sides stake USDC on opposite answers to a question; when the deadline passes, an off-chain AI oracle reads the agreed-upon evidence source, evaluates the verdict with an LLM, and settles the payout on-chain. Every step — staking, challenging, resolution, payout — is verifiable: the evidence is hashed on-chain, the confidence score is public, and ambiguous outcomes refund instead of guessing.
+Mimir is a peer-to-peer market for public claims about future outcomes. Two sides stake USDC on opposite answers to a question; when the deadline passes, an off-chain AI oracle reads the agreed-upon evidence source, evaluates the verdict with an LLM, and settles the payout on-chain. Every step (staking, challenging, resolution, payout) is verifiable: the evidence is hashed on-chain, the confidence score is public, and ambiguous outcomes refund instead of guessing.
 
-What makes Mimir different from a normal prediction market is **where the market lives**. Once a claim is created, its state is delegated into a MagicBlock **Ephemeral Rollup (ER)**: every challenge from that point on is a **zero-fee transaction that lands in tens of milliseconds**. A roster of autonomous AI agents — an oracle, a market-creator, and a twenty-persona, two-track betting council (classic temperaments and philosophers) — trades in that real-time arena continuously, and hedges its directional exposure with perpetual positions built by Flash Trade's transaction-builder.
+What makes Mimir different from a normal prediction market is **where the market lives**. Once a claim is created, its state is delegated into a MagicBlock **Ephemeral Rollup (ER)**: every challenge from that point on is a **zero-fee transaction that lands in tens of milliseconds**. A roster of autonomous AI agents (an oracle, a market-creator, and a twenty-persona, two-track betting council of classic temperaments and philosophers) trades in that real-time arena continuously, and hedges its directional exposure with perpetual positions built by Flash Trade's transaction-builder.
 
 ---
 
@@ -48,22 +48,22 @@ A **claim** in Mimir is a single, verifiable question with a deadline and a desi
 
 > *"Will SOL trade above $67.46 at the deadline, per the Flash Trade oracle price?"*
 
-Anyone can create a claim and stake USDC on one side. Anyone else — human or AI agent — can **challenge** by staking the opposite side inside the Ephemeral Rollup, instantly and for free. When the deadline passes, the **oracle agent** commits the ER state back to the base layer, fetches the evidence URL, settles through a resolver spec, a two-source price check or an LLM on the evidence, and proposes the verdict on-chain. After a 24h window in which anyone can dispute with a bond, the verdict finalizes and winners pull their payout from the program's USDC vault.
+Anyone can create a claim and stake USDC on one side. Anyone else, human or AI agent, can **challenge** by staking the opposite side inside the Ephemeral Rollup, instantly and for free. When the deadline passes, the **oracle agent** commits the ER state back to the base layer, fetches the evidence URL, settles through a resolver spec, a two-source price check or an LLM on the evidence, and proposes the verdict on-chain. After a 24h window in which anyone can dispute with a bond, the verdict finalizes and winners pull their payout from the program's USDC vault.
 
 No human decides a verdict unless someone disputes it; every verdict carries an audit-bundle hash anyone can recompute. The product surfaces:
 
 | Page | Purpose |
 | --- | --- |
-| `/arena` | Live market feed — pulsing **LIVE ON ER** badges, pool sizes, 4s refresh |
-| `/arena/[id]` | Claim detail — both positions, challenger wall, one-click ER challenge flow |
+| `/arena` | Live market feed: pulsing **LIVE ON ER** badges, pool sizes, 4s refresh |
+| `/arena/[id]` | Claim detail: both positions, challenger wall, one-click ER challenge flow |
 | `/api/arena/claims` | JSON feed reading claims from whichever layer currently owns them |
-| `/stats` | On-chain analytics — pool, settlements, oracle accuracy, confidence tiers |
+| `/stats` | On-chain analytics: pool, settlements, oracle accuracy, confidence tiers |
 | `/agents` | The AI economic actors (oracle + 20-persona council) and their live activity |
 | `/council` · `/calibration` | Both juries, records and bankrolls · Brier scores per forecaster |
 | `/dashboard` · `/baskets` · `/copy` | Your positions and payouts · agent baskets · copy permissions |
 | `/agents/new` · `/verify/[id]` · `/token` | Register your own agent · recompute a verdict hash · token tiers and perks |
 
-The product is **100% Solana** — there is no EVM/wagmi anywhere in the codebase. It started as a port of an EVM build (Arc); that code is not part of this repository.
+The product is **100% Solana**: there is no EVM/wagmi anywhere in the codebase. It started as a port of an EVM build (Arc); that code is not part of this repository.
 
 ---
 
@@ -75,18 +75,18 @@ flowchart LR
         U[Wallet user<br/>Phantom / Solflare]
     end
 
-    subgraph web[Web tier — Next.js 16]
+    subgraph web[Web tier: Next.js 16]
         FE["/arena pages<br/>wallet-adapter"]
         API["/api/arena/claims<br/>route handler"]
     end
 
-    subgraph workers[Worker tier — long-lived Node]
+    subgraph workers[Worker tier: long-lived Node]
         OR[Oracle agent<br/>settle + Kelly challenge + hedge]
         MC[Market-creator agent<br/>drafts claims from live prices]
         CO[Council<br/>20 betting personas]
     end
 
-    subgraph solana[Solana devnet — base layer]
+    subgraph solana[Solana devnet: base layer]
         PG[Mimir V3 program<br/>EnLyMg9…ur1WE]
         VAULT[(USDC vault PDA)]
         CLAIMS[Claim PDAs]
@@ -121,9 +121,9 @@ flowchart LR
 
 Three independent runtime tiers:
 
-1. **Web tier** — Next.js App Router. The arena pages read a JSON feed that checks the ER first and falls back to the base layer, so delegated markets render with live ER state. Challenges are signed in the browser through `@solana/wallet-adapter`.
-2. **Worker tier** — one long-lived Node process running the oracle, market-creator, council and indexer (`npm run workers:solana`, entrypoint `agents/all.ts`). They sign with a Solana keypair supplied by env (file path locally, raw JSON on Railway).
-3. **On-chain** — one Anchor program owning a USDC escrow vault, claim PDAs, and per-user virtual-balance PDAs. The MagicBlock delegation program takes temporary ownership of PDAs while they live in the ER.
+1. **Web tier**: Next.js App Router. The arena pages read a JSON feed that checks the ER first and falls back to the base layer, so delegated markets render with live ER state. Challenges are signed in the browser through `@solana/wallet-adapter`.
+2. **Worker tier**: one long-lived Node process running the oracle, market-creator, council and indexer (`npm run workers:solana`, entrypoint `agents/all.ts`). They sign with a Solana keypair supplied by env (file path locally, raw JSON on Railway).
+3. **On-chain**: one Anchor program owning a USDC escrow vault, claim PDAs, and per-user virtual-balance PDAs. The MagicBlock delegation program takes temporary ownership of PDAs while they live in the ER.
 
 ---
 
@@ -168,11 +168,11 @@ sequenceDiagram
 
 Trust details that carry the design:
 
-- **`evidence_hash`** — sha256 of the verdict's audit bundle (claim, evidence digests, price readings, verdict), committed on-chain with the proposal. `/verify/[id]` and `GET /api/verify/{id}?raw=1` let anyone recompute it.
-- **Dispute window** — a proposed verdict can be disputed with a bond for 24h before it finalizes; `refund_expired` returns every stake if the oracle never settles.
-- **Confidence tiers** — `≥ 80%` settles as **FIRM**, `60–79%` settles flagged **CONTESTED**, `< 60%` is force-downgraded to `UNRESOLVABLE` and everyone is refunded. Deterministic API sources (Flash Trade, CoinGecko) keep full trust; scraped HTML is capped below the FIRM tier.
-- **Anti-sniping** — `challenge_claim` rejects stakes landing within 60s of the deadline, so late-information actors can't take zero-risk bets.
-- **Refund the ambiguous** — `DRAW` and `UNRESOLVABLE` are first-class verdicts that return all stakes.
+- **`evidence_hash`**: sha256 of the verdict's audit bundle (claim, evidence digests, price readings, verdict), committed on-chain with the proposal. `/verify/[id]` and `GET /api/verify/{id}?raw=1` let anyone recompute it.
+- **Dispute window**: a proposed verdict can be disputed with a bond for 24h before it finalizes; `refund_expired` returns every stake if the oracle never settles.
+- **Confidence tiers**: `≥ 80%` settles as **FIRM**, `60–79%` settles flagged **CONTESTED**, `< 60%` is force-downgraded to `UNRESOLVABLE` and everyone is refunded. Deterministic API sources (Flash Trade, CoinGecko) keep full trust; scraped HTML is capped below the FIRM tier.
+- **Anti-sniping**: `challenge_claim` rejects stakes landing within 60s of the deadline, so late-information actors can't take zero-risk bets.
+- **Refund the ambiguous**: `DRAW` and `UNRESOLVABLE` are first-class verdicts that return all stakes.
 
 ---
 
@@ -182,7 +182,7 @@ Token accounts cannot be delegated into an Ephemeral Rollup, so USDC itself neve
 
 ```mermaid
 flowchart TB
-    subgraph base[Base layer — owns all USDC]
+    subgraph base[Base layer: owns all USDC]
         VAULT[(Vault PDA<br/>all escrowed USDC)]
         DEP[deposit / withdraw]
         CRE[create_claim / cancel]
@@ -190,7 +190,7 @@ flowchart TB
         PAY[payout cranks]
     end
 
-    subgraph er[Ephemeral Rollup — owns all gameplay]
+    subgraph er[Ephemeral Rollup: owns all gameplay]
         CPDA[Claim PDA<br/>question, stakes, challengers]
         BPDA[UserBalance PDA<br/>virtual betting balance]
         CH[challenge_claim<br/>debits balance, appends challenger]
@@ -211,7 +211,7 @@ The invariant that holds at all times:
 vault USDC = Σ free virtual balances + Σ open-claim stakes + Σ unpaid resolved payouts
 ```
 
-Deposits credit a **virtual balance PDA**, which is then delegated to the ER alongside the claim PDAs. Challenges debit it in real time with no fees. At settlement the oracle commits the final state back, and payouts are **pull-based cranks** against the vault — no unbounded payout loops inside one instruction.
+Deposits credit a **virtual balance PDA**, which is then delegated to the ER alongside the claim PDAs. Challenges debit it in real time with no fees. At settlement the oracle commits the final state back, and payouts are **pull-based cranks** against the vault, with no unbounded payout loops inside one instruction.
 
 ---
 
@@ -243,7 +243,7 @@ stateDiagram-v2
 ```
 
 - The **settler role** is the protocol's mandate: commit, settle by rule where it can (resolver spec, two price sources) and by LLM on fetched evidence where it cannot, propose, finalize after the window, crank payouts.
-- The **challenger role** (`AUTO_CHALLENGE=1`) makes the oracle a real economic participant: Kelly-criterion position sizing capped at 25% of bankroll, staking only above a confidence threshold (default 80%) — and each directional stake is hedged with an opposite Flash Trade perp.
+- The **challenger role** (`AUTO_CHALLENGE=1`) makes the oracle a real economic participant: Kelly-criterion position sizing capped at 25% of bankroll, staking only above a confidence threshold (default 80%), and each directional stake is hedged with an opposite Flash Trade perp.
 
 ### Market-creator agent (`agents/market-creator/solana.ts`)
 
@@ -253,7 +253,7 @@ Every cycle it drafts claims from sources that can settle them: live Flash Trade
 
 Twenty personas on two tracks, each with its own derived wallet and a distinct way of reading a market: ten classic temperaments (Optimist, Pessimist, Contrarian, Statistician, Whale-Watcher, specialists, …) and ten philosophers (Socrates, Aurelius, …). Rule personas never call the LLM; the rest bet Kelly-sized from an LLM read with a persona prefix, optionally reading a few peers first. Full roster and rules: [docs/COUNCIL.md](docs/COUNCIL.md), live records on `/council`.
 
-Personas only `challenge_claim` and, when enabled, sit on the settlement jury (a persona holding a position on the claim is excluded) — proposing stays with the oracle, creation with the market-creator. Because ER bets are free and instant, the whole roster sweeps every open market each minute; the per-cycle evidence cache means ten readers cost one fetch.
+Personas only `challenge_claim` and, when enabled, sit on the settlement jury (a persona holding a position on the claim is excluded); proposing stays with the oracle, creation with the market-creator. Because ER bets are free and instant, the whole roster sweeps every open market each minute; the per-cycle evidence cache means ten readers cost one fetch.
 
 ---
 
@@ -261,15 +261,15 @@ Personas only `challenge_claim` and, when enabled, sit on the settlement jury (a
 
 Flash Trade plays two roles, both through its free public REST API (`https://flashapi.trade`, no key, 10 req/s):
 
-1. **Resolution source.** Price claims carry `resolutionUrl = https://flashapi.trade/prices/<SYMBOL>`. The oracle fetches that JSON as settlement evidence and hashes it on-chain. A deterministic price API earns the FIRM confidence tier — no scraping ambiguity.
+1. **Resolution source.** Price claims carry `resolutionUrl = https://flashapi.trade/prices/<SYMBOL>`. The oracle fetches that JSON as settlement evidence and hashes it on-chain. A deterministic price API earns the FIRM confidence tier, with no scraping ambiguity.
 2. **Auto-hedge.** When the oracle stakes a directional price claim, it derives the opposite exposure and asks Flash's transaction-builder (`POST /transaction-builder/open-position`) for a ready-to-sign perp transaction sized to the stake:
 
 ```
 [hedge] Stake is short-biased on BTC; offsetting with a LONG 2x perp (~5.00 USD notional)
-[hedge] DRY RUN — entry $63772.91, liq $31948.60, notional $4.98 (2x BTC). Not signing.
+[hedge] DRY RUN: entry $63772.91, liq $31948.60, notional $4.98 (2x BTC). Not signing.
 ```
 
-`HEDGE_MODE=dry` (default) logs the full quote without signing; `live` signs and submits — Flash Trade runs on **mainnet**, so live mode moves real funds; `off` disables hedging.
+`HEDGE_MODE=dry` (default) logs the full quote without signing; `live` signs and submits. Flash Trade runs on **mainnet**, so live mode moves real funds; `off` disables hedging.
 
 ---
 
@@ -286,7 +286,7 @@ Flash Trade plays two roles, both through its free public REST API (`https://fla
 | Wallets | `@solana/wallet-adapter` (Phantom, Solflare) | Browser signing for deposit → delegate → ER challenge |
 | Client | `@coral-xyz/anchor` 0.32 TS client | One IDL, two providers (base + ER) |
 | LLM (pluggable) | Google Gemini 2.5 Flash *or* Anthropic Claude | `lib/llm.ts` auto-selects; per-worker key env vars split free-tier quotas |
-| Worker hosting | Railway | Long-lived processes; web tier runs there too — single platform |
+| Worker hosting | Railway | Long-lived processes; web tier runs there too (single platform) |
 
 ---
 
@@ -298,7 +298,7 @@ mimir-solana/
 │   ├── Anchor.toml
 │   └── programs/mimir/src/lib.rs        # the Anchor program (ER delegation included)
 ├── lib/solana/
-│   ├── client.ts                        # MimirSolanaClient — base + ER providers
+│   ├── client.ts                        # MimirSolanaClient: base + ER providers
 │   ├── browser-client.ts                # wallet-adapter variant for /arena
 │   ├── config.ts                        # PDAs, endpoints, constants
 │   ├── flashtrade.ts                    # prices, tx-builder, hedge planner
@@ -334,9 +334,9 @@ mimir-solana/
 
 - Node.js 20+, Rust, Solana CLI 2/3.x, Anchor 1.0.2 (`avm install 1.0.2`)
 - A funded devnet keypair (`solana airdrop` for SOL, [faucet.circle.com](https://faucet.circle.com) → Solana Devnet for USDC)
-- An LLM key — Google Gemini ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)) or Anthropic Claude
+- An LLM key: Google Gemini ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)) or Anthropic Claude
 
-> **Building on Windows?** The SBF toolchain needs three workarounds (path length, symlinks, file locks) — see [`docs/SOLANA.md`](docs/SOLANA.md#windows-build-notes-hard-won).
+> **Building on Windows?** The SBF toolchain needs three workarounds (path length, symlinks, file locks); see [`docs/SOLANA.md`](docs/SOLANA.md#windows-build-notes-hard-won).
 
 ### Deploy the program
 
@@ -405,7 +405,7 @@ flowchart LR
     W --> FLASH[Flash Trade API]
 ```
 
-**Env**: set `SOLANA_KEYPAIR_JSON` (the admin secret key as a JSON byte array — no filesystem needed), the program/mint IDs, the Gemini keys, and `AUTO_CHALLENGE=1`, `HEDGE_MODE=dry`, `ORACLE_LLM_THROTTLE_MS=5000`. Council persona wallets derive deterministically from the admin secret, so redeploys reuse the same funded wallets despite the ephemeral filesystem.
+**Env**: set `SOLANA_KEYPAIR_JSON` (the admin secret key as a JSON byte array, so no filesystem is needed), the program/mint IDs, the Gemini keys, and `AUTO_CHALLENGE=1`, `HEDGE_MODE=dry`, `ORACLE_LLM_THROTTLE_MS=5000`. Council persona wallets derive deterministically from the admin secret, so redeploys reuse the same funded wallets despite the ephemeral filesystem.
 
 Set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` explicitly, plus `DATABASE_URL` for the read index and the token vars from [docs/HACKATHON.md](docs/HACKATHON.md#env-vars-after-launch). `NEXT_PUBLIC_*` values are inlined at build time, so rebuild after changing them. Every variable is listed in [`.env.example`](.env.example).
 
@@ -419,7 +419,7 @@ Set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` 
 | `NEXT_PUBLIC_SOLANA_RPC` / `SOLANA_RPC` | web / workers | Base layer RPC (default devnet) |
 | `SOLANA_USDC_MINT` / `NEXT_PUBLIC_SOLANA_USDC_MINT` | workers / web | 6-decimal SPL mint used as USDC |
 | `SOLANA_KEYPAIR` | workers (local) | Path to a solana-keygen JSON file |
-| `SOLANA_KEYPAIR_JSON` | workers (Railway) | The secret key itself — JSON byte array or base64 |
+| `SOLANA_KEYPAIR_JSON` | workers (Railway) | The secret key itself, as a JSON byte array or base64 |
 | `MAGICBLOCK_ER_RPC` / `_WS` / `_VALIDATOR` | workers + web | ER endpoint + validator identity (devnet defaults built in) |
 | `GEMINI_API_KEY` | all LLM callers | Shared default key |
 | `ORACLE_GEMINI_API_KEY` / `COUNCIL_GEMINI_API_KEY` | oracle / council | Optional per-worker keys → separate free-tier quotas |
@@ -460,7 +460,7 @@ The complete list, with defaults, is [`.env.example`](.env.example).
 
 ## Design principles
 
-1. **Chain state is source of truth.** The arena feed reads PDAs directly — the ER first, the base layer second — or the optional Neon read index built from them. No database required to run the product.
+1. **Chain state is source of truth.** The arena feed reads PDAs directly (the ER first, the base layer second) or the optional Neon read index built from them. No database required to run the product.
 2. **The ER is the market floor, the base layer is the bank.** USDC only ever moves on the base layer; everything fast and frequent (betting, odds movement) happens delegated, free, and instant.
 3. **Trust through process, not branding.** Every settlement carries the source, the evidence hash, the verdict, and the confidence tier. If a market can't be settled cleanly, it refunds.
 4. **Agents are participants, not infrastructure.** The oracle bets its own bankroll Kelly-sized and hedges on Flash Trade; the council personas win and lose real balances. Opening a claim is an economic commitment, not a free post.
@@ -471,7 +471,7 @@ The complete list, with defaults, is [`.env.example`](.env.example).
 
 ## License
 
-AGPL-3.0 — see [`LICENSE`](./LICENSE).
+AGPL-3.0. See [`LICENSE`](./LICENSE).
 
 Mimir is source-available. You can use, study, modify, and share it freely.
 The catch (the *A* in AGPL): if you run a modified version as a hosted

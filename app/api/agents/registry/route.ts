@@ -1,5 +1,5 @@
 /**
- * GET /api/agents/registry — the public directory of registered agents.
+ * GET /api/agents/registry: the public directory of registered agents.
  *
  * Read-only and unauthenticated: who is connected to Mimir is public
  * information. Wallets are published because every one of them signs on chain

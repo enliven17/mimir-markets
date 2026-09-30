@@ -1,5 +1,5 @@
 /**
- * POST /api/baskets/{id}/subscribe — follow, re-cap, or unfollow.
+ * POST /api/baskets/{id}/subscribe: follow, re-cap, or unfollow.
  *
  * Following is mirroring, never depositing. This route stores a signed intent
  * (ed25519 over `followMessage`, base58) and a per-market ceiling; it never

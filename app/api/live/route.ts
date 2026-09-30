@@ -1,5 +1,5 @@
 /**
- * GET /api/live — platform liveness probe.
+ * GET /api/live: platform liveness probe.
  *
  * Always 200 when the web process can serve a request. Deliberately decoupled
  * from worker health: a stalled oracle is an ops problem, not a reason for a

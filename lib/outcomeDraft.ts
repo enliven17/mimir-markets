@@ -3,7 +3,7 @@
  *
  * Turns a free-text question ("Will BTC hit $100k by June?") into a
  * creator/opponent statement pair using light English/Spanish grammar
- * rules — auxiliaries, weather phrasing, event verbs, do-support. Pure
+ * rules (auxiliaries, weather phrasing, event verbs, do-support). Pure
  * string logic, no React: unit-test it here, not through the page.
  */
 function normalizeQuestionForOutcomeDraft(value: string): string {

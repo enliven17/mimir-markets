@@ -1,5 +1,5 @@
 /**
- * POST /api/copy/signals — what this execution agent may copy, and the
+ * POST /api/copy/signals: what this execution agent may copy, and the
  * unsigned transaction to do it.
  *
  * Authenticated as the execution agent with the same signed envelope every
