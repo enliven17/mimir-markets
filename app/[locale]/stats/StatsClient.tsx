@@ -55,14 +55,27 @@ const TIER_CLASS: Record<Tier, string> = {
 const PAGE_ROWS = 30;
 const pctOf = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
-function Bar({ label, count, total, fill }: { label: string; count: number; total: number; fill: string }) {
+function Bar({
+  label,
+  count,
+  total,
+  fill,
+  loading = false,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  fill: string;
+  /** Before the first answer: a dash, not "0 · 0%". */
+  loading?: boolean;
+}) {
   const pct = pctOf(count, total);
   return (
     <div className="grid gap-2">
       <div className="flex items-baseline justify-between gap-3 text-[13px]">
         <span className="text-cream">{label}</span>
         <span className="font-mono tabular-nums text-muted">
-          {count} · {pct}%
+          {loading ? "—" : `${count} · ${pct}%`}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-panel-2" aria-hidden>
@@ -130,9 +143,9 @@ export default function StatsClient() {
             </h2>
             <span className="text-[13px] text-muted">{data ? t("refundRate", { pct: pctOf(refunds, settled) }) : null}</span>
           </div>
-          <Bar label={t("tier.firm")} count={firm} total={settled} fill="bg-coral" />
-          <Bar label={t("tier.contested")} count={contested} total={settled} fill="bg-cream/60" />
-          <Bar label={t("tier.low")} count={low} total={settled} fill="bg-dim" />
+          <Bar label={t("tier.firm")} count={firm} total={settled} loading={!data} fill="bg-coral" />
+          <Bar label={t("tier.contested")} count={contested} total={settled} loading={!data} fill="bg-cream/60" />
+          <Bar label={t("tier.low")} count={low} total={settled} loading={!data} fill="bg-dim" />
         </section>
 
         <section aria-labelledby="stats-won" className={`${SURFACE} grid content-start gap-5 p-5 sm:p-6`}>
