@@ -173,7 +173,7 @@ function PersonaCard({
         role="region"
         aria-label={t("details")}
         // `invisible` (visibility: hidden) also takes the closed panel out of tab order and the a11y tree.
-        className={`absolute inset-x-0 top-[calc(100%-6px)] z-30 origin-top rounded-2xl p-4 ${SURFACE_DEEP} transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none ${
+        className={`absolute inset-x-0 top-[calc(100%-6px)] z-30 origin-top rounded-2xl p-4 ${SURFACE_DEEP} !bg-[rgb(16_10_11)] transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none ${
           open ? "visible translate-y-0 scale-100 opacity-100" : "invisible -translate-y-1 scale-[0.98] opacity-0"
         }`}
       >
