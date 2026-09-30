@@ -14,19 +14,8 @@ import localFont from "next/font/local";
  * page's script on every route). Only the two faces above the fold, the
  * display face and the body face, are preloaded; Mono and Sans are single
  * variable files fetched when first used. All use font-display: swap.
+ * (next/font needs literal options, so the fallback lists are spelled out.)
  */
-const MONO_FALLBACK = [
-  "ui-monospace",
-  "SFMono-Regular",
-  "Roboto Mono",
-  "Menlo",
-  "Monaco",
-  "Liberation Mono",
-  "DejaVu Sans Mono",
-  "Courier New",
-  "monospace",
-];
-
 export const fontDisplay = localFont({
   src: "../app/fonts/terminal-grotesque.ttf",
   weight: "400",
@@ -40,7 +29,7 @@ export const fontPixel = localFont({
   weight: "500",
   variable: "--font-geist-pixel-square",
   display: "swap",
-  fallback: ["Geist Mono", ...MONO_FALLBACK],
+  fallback: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Liberation Mono", "DejaVu Sans Mono", "Courier New", "monospace"],
   adjustFontFallback: false,
 });
 
@@ -50,7 +39,7 @@ export const fontMono = localFont({
   variable: "--font-geist-mono",
   display: "swap",
   preload: false,
-  fallback: MONO_FALLBACK,
+  fallback: ["ui-monospace", "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Liberation Mono", "DejaVu Sans Mono", "Courier New", "monospace"],
   adjustFontFallback: false,
 });
 
