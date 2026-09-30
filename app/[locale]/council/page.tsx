@@ -56,7 +56,9 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
           <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-muted">{t("oracle.blurb")}</p>
         </div>
       </div>
-      <dl className="m-0 flex flex-none items-baseline gap-5 text-[13px]">
+      <div className="flex flex-none items-baseline gap-5 text-[13px]">
+        {/* The explorer link sits beside the list, not inside it: a dl holds only dt/dd groups. */}
+        <dl className="m-0 contents">
         <div>
           <dt className="text-muted">{t("stakes")}</dt>
           <dd className="m-0 font-mono text-[16px] tabular-nums text-cream">{oracle.stakes}</dd>
@@ -65,6 +67,7 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
           <dt className="text-muted">{t("oracle.staked")}</dt>
           <dd className="m-0 font-mono text-[16px] tabular-nums text-cream">{formatUsdcUnitsBare(oracle.staked)}</dd>
         </div>
+        </dl>
         {oracle.address ? (
           <a
             href={`https://explorer.solana.com/address/${oracle.address}?cluster=devnet`}
@@ -75,7 +78,7 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
             {short(oracle.address)} ↗
           </a>
         ) : null}
-      </dl>
+      </div>
     </article>
   );
 }
