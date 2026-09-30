@@ -1,26 +1,24 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
 import {
   REDUCED_MOTION_QUERY,
-  ScrollTrigger,
   getLenis,
+  requestRefresh,
   scrollToHash,
   startSmoothScroll,
   stopSmoothScroll,
 } from "@/lib/motion";
 
 /**
- * Mounted once in the root layout. Starts the single Lenis instance (off under
- * reduced motion, and torn down if the setting flips while the page is open),
+ * Mounted once in the root layout. Starts the single Lenis instance (only on
+ * fine-pointer, non-low-power devices; off under reduced motion, and torn
+ * down if the setting flips while the page is open),
  * pauses it while the tab is hidden, routes in-page anchor clicks through
  * Lenis, and refreshes ScrollTrigger once fonts have loaded (the pixel fonts
- * change line boxes) and after every route change.
+ * change line boxes). Route changes refresh from RouteEffects.
  */
 export default function MotionProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-
   useEffect(() => {
     const root = document.documentElement;
     const mq = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -59,7 +57,7 @@ export default function MotionProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     document.fonts?.ready.then(() => {
-      if (!cancelled) ScrollTrigger.refresh();
+      if (!cancelled) requestRefresh();
     });
 
     return () => {
@@ -71,15 +69,6 @@ export default function MotionProvider({ children }: { children: ReactNode }) {
       stopSmoothScroll();
     };
   }, []);
-
-  // New route: Lenis re-measures the document and triggers re-read layout.
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      getLenis()?.resize();
-      ScrollTrigger.refresh();
-    });
-    return () => cancelAnimationFrame(id);
-  }, [pathname]);
 
   return <>{children}</>;
 }

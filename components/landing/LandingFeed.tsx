@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ScrollTrigger } from "@/lib/motion";
+import { requestRefresh } from "@/lib/motion";
 import type { LandingFeed } from "@/lib/landing";
 
 /**
@@ -28,16 +28,10 @@ export function useLandingFeed(): FeedState {
  * Re-measure every scroll trigger once the layout has settled. Sections that
  * change height when data lands (the inspector, the ledger) would otherwise
  * leave the pinned and scrubbed triggers below them measured against the
- * loading layout. Batched to one refresh per frame.
+ * loading layout. Coalesced to one refresh per frame (lib/motion).
  */
-let refreshQueued = false;
 export function requestScrollRefresh(): void {
-  if (typeof window === "undefined" || refreshQueued) return;
-  refreshQueued = true;
-  requestAnimationFrame(() => {
-    refreshQueued = false;
-    ScrollTrigger.refresh();
-  });
+  requestRefresh();
 }
 
 export default function LandingFeedProvider({ children }: { children: ReactNode }) {
