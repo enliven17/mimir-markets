@@ -4,6 +4,7 @@ import { fontVariables } from "@/lib/fonts";
 import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/next";
 
 // Dark only: the site's colour scheme and theme colour.
 export const viewport: Viewport = {
@@ -48,6 +49,7 @@ export default function RootLayout({
             />
           </SolanaWalletProviders>
         </MotionProvider>
+        <Analytics />
       </body>
     </html>
   );
