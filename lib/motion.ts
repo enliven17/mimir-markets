@@ -192,19 +192,40 @@ export function stopSmoothScroll(): void {
   gsap.ticker.lagSmoothing(500, 33);
 }
 
-let refreshQueued = 0;
+let refreshQueued = false;
+let lastScrollAt = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("scroll", () => (lastScrollAt = performance.now()), { passive: true });
+}
+
+/** Scrolling now, or within the last 150ms (smooth or native). */
+function scrollingNow(): boolean {
+  return Boolean(state.lenis?.isScrolling) || performance.now() - lastScrollAt < 150;
+}
+
 /**
- * Re-measure scroll triggers (and Lenis) once, on the next frame after a
- * burst of callers (route change, fonts, data landing). Skipped when the page
- * has no triggers.
+ * Re-measure scroll triggers (and Lenis) once after a burst of callers (route
+ * change, fonts, data landing). Skipped when the page has no triggers.
+ * A refresh lays out the whole page (pins included): run in the middle of a
+ * scroll it was a 250ms+ frame at 4x CPU throttle, so it waits until the
+ * scroll comes to rest (at most 2s), then runs on the next frame.
  */
 export function requestRefresh(): void {
   if (typeof window === "undefined" || refreshQueued) return;
-  refreshQueued = requestAnimationFrame(() => {
-    refreshQueued = 0;
-    state.lenis?.resize();
-    if (ScrollTrigger.getAll().length > 0) ScrollTrigger.refresh();
-  });
+  refreshQueued = true;
+  const queuedAt = performance.now();
+  const run = () => {
+    if (scrollingNow() && performance.now() - queuedAt < 2000) {
+      window.setTimeout(run, 150);
+      return;
+    }
+    requestAnimationFrame(() => {
+      refreshQueued = false;
+      state.lenis?.resize();
+      if (ScrollTrigger.getAll().length > 0) ScrollTrigger.refresh();
+    });
+  };
+  run();
 }
 
 /** Pause smooth scroll while an overlay is open (menus, sheets, modals). */
