@@ -77,10 +77,10 @@ export function parseScoreboard(payload: any, league: SportsLeague, now: number,
 export function sportsDraft(g: SportsGame): DraftClaim {
   const day = formatDay(g.startMs);
   const question = `Will ${g.home} beat ${g.away} in their ${g.league.name} game on ${day}?`;
-  const counter = g.league.canDraw ? `No — draw or ${g.away} win` : `No — ${g.away} win`;
+  const counter = g.league.canDraw ? `No: draw or ${g.away} win` : `No: ${g.away} win`;
   return {
     question,
-    creatorPosition: clampBytes(`Yes — ${g.home} win`, MAX_POSITION_BYTES),
+    creatorPosition: clampBytes(`Yes: ${g.home} win`, MAX_POSITION_BYTES),
     counterPosition: clampBytes(counter, MAX_POSITION_BYTES),
     category: "sports",
     resolutionUrl: gameResolutionUrl(g),

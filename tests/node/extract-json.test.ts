@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { extractJson } from "../../lib/llm";
 
 test("extracts first balanced object, ignoring trailing prose (Gemma case)", () => {
-  const out = extractJson('Sure! {"verdict":"DRAW","confidence":50} — hope that helps {extra}');
+  const out = extractJson('Sure! {"verdict":"DRAW","confidence":50} Hope that helps {extra}');
   assert.equal(out, '{"verdict":"DRAW","confidence":50}');
 });
 

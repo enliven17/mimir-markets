@@ -25,14 +25,14 @@ test("q is clamped away from 0 and 1 so log scores stay finite", () => {
   assert.equal(verdictToProbability("CHALLENGERS_WIN", 250, Q_PRIOR), 0.98);
 });
 
-test("DRAW and UNRESOLVABLE carry no information — q stays at qPrev", () => {
+test("DRAW and UNRESOLVABLE carry no information, so q stays at qPrev", () => {
   assert.equal(verdictToProbability("DRAW", 90, 0.7), 0.7);
   assert.equal(verdictToProbability("UNRESOLVABLE", 90, 0.3), 0.3);
 });
 
 // ── crossEntropyScore ─────────────────────────────────────────────────────────
 
-test("no update scores exactly zero — parroting the prior pays nothing", () => {
+test("no update scores exactly zero: parroting the prior pays nothing", () => {
   assert.equal(crossEntropyScore(0.9, 0.5, 0.5), 0);
 });
 
@@ -54,7 +54,7 @@ test("reporting the reference belief itself maximizes the score", () => {
 
 test("scores are additive along the chain (market scoring rule telescopes)", () => {
   // Two sequential jurors moving 0.5→0.7→0.9 together earn what one juror
-  // moving 0.5→0.9 would — payment splits by marginal contribution.
+  // moving 0.5→0.9 would; payment splits by marginal contribution.
   const qT = 0.9;
   const combined = crossEntropyScore(qT, 0.7, 0.5) + crossEntropyScore(qT, 0.9, 0.7);
   const direct = crossEntropyScore(qT, 0.9, 0.5);
@@ -76,7 +76,7 @@ function makeVote(overrides: Partial<CouncilVote>): CouncilVote {
 test("scoreCouncilVotes chains q from the prior and skips abstainers", () => {
   const votes = [
     makeVote({ slug: "a", probability: 0.8 }),
-    makeVote({ slug: "b", probability: undefined }), // abstained — no q
+    makeVote({ slug: "b", probability: undefined }), // abstained, no q
     makeVote({ slug: "c", probability: 0.9 }),
   ];
   const scored = scoreCouncilVotes(votes, 0.9);

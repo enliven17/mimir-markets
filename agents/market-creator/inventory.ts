@@ -58,7 +58,7 @@ export async function cancelExpiredEmpty(client: MimirSolanaClient, ids: bigint[
       }
       await client.cancelClaim(id);
       cancelled++;
-      console.log(`[creator] cancelled expired empty claim #${id} — stake refunded`);
+      console.log(`[creator] cancelled expired empty claim #${id}, stake refunded`);
     } catch (err: any) {
       console.warn(`[creator] cancel #${id} failed:`, err?.message ?? err);
     }

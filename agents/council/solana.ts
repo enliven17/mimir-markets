@@ -1,5 +1,5 @@
 /**
- * Mimir Council — Solana × MagicBlock ER edition
+ * Mimir Council: Solana × MagicBlock ER edition
  *
  * Two juries of personas (agents/council/personas.ts: the classic ten and the
  * philosophers) sweep every open market. Every bet is an Ephemeral Rollup
@@ -14,7 +14,7 @@
  * a fenced bias prompt over one cached evidence fetch per claim, Kelly-sized
  * stakes against the ER bankroll.
  *
- * Personas can only challenge — settlement stays with the oracle, market
+ * Personas can only challenge; settlement stays with the oracle, market
  * creation with the market-creator. Agreeing with the creator means abstaining.
  *
  * Run:  npm run council:solana [-- --dry-run] [-- --once]
@@ -101,7 +101,7 @@ async function fundPersona(connection: Connection, admin: Keypair, member: Counc
   if (ata < ER_FLOOR) {
     member.funded = er > 0n;
     if (!member.reportedEmpty) {
-      console.log(`[fund] ${spec.emoji} ${spec.slug}: no USDC to fund (ER ${fromUsdcUnits(er)}, ATA ${fromUsdcUnits(ata)}) — sits out staking`);
+      console.log(`[fund] ${spec.emoji} ${spec.slug}: no USDC to fund (ER ${fromUsdcUnits(er)}, ATA ${fromUsdcUnits(ata)}), sits out staking`);
       member.reportedEmpty = true;
     }
     return false;
@@ -121,7 +121,7 @@ async function fundPersona(connection: Connection, admin: Keypair, member: Counc
 
   // A delegated balance PDA can't take a base-layer deposit: pull it back first.
   if (await client.isBalanceDelegated(keypair.publicKey)) {
-    console.log(`[fund] ${spec.emoji} ${spec.slug}: rebalancing — undelegating ER balance…`);
+    console.log(`[fund] ${spec.emoji} ${spec.slug}: rebalancing, undelegating ER balance…`);
     try {
       await client.undelegateBalance();
     } catch (err: any) {
@@ -173,18 +173,18 @@ async function joinableClaims(reader: MimirSolanaClient, claimCount: bigint): Pr
 
 async function cycle(members: CouncilMember[], reader: MimirSolanaClient): Promise<void> {
   if (isPaused("stake")) {
-    console.log("[council] Staking paused (MIMIR_PAUSE_STAKE) — skipping the sweep.");
+    console.log("[council] Staking paused (MIMIR_PAUSE_STAKE), skipping the sweep.");
     return;
   }
   const cfg = await reader.getConfig();
   if (!cfg) return;
   if (cfg.paused) {
-    console.log("[council] Program is PAUSED on-chain — challenges are rejected, skipping the sweep.");
+    console.log("[council] Program is PAUSED on-chain: challenges are rejected, skipping the sweep.");
     return;
   }
 
   const claims = await joinableClaims(reader, cfg.claimCount);
-  console.log(`\n[council] ── ${new Date().toISOString()} — ${claims.length} joinable market(s)${DRY_RUN ? " [dry run]" : ""}`);
+  console.log(`\n[council] ── ${new Date().toISOString()}: ${claims.length} joinable market(s)${DRY_RUN ? " [dry run]" : ""}`);
 
   const now = Date.now();
   for (const [k, until] of decidedUntil) if (until <= now) decidedUntil.delete(k);
@@ -218,7 +218,7 @@ async function cycle(members: CouncilMember[], reader: MimirSolanaClient): Promi
           claim.challengers.push({ addr: client.publicKey, stake: out.stakeUnits, paid: false, agent: PublicKey.default });
           console.log(
             `[council] ${spec.emoji} ${spec.slug} ${out.sig ? "staked" : "would stake"} ${fromUsdcUnits(out.stakeUnits)} USDC ` +
-              `on claim #${claim.id}${out.sig ? " via ER" : ""} — ${out.decision.rationale.slice(0, 140)}`,
+              `on claim #${claim.id}${out.sig ? " via ER" : ""}: ${out.decision.rationale.slice(0, 140)}`,
           );
         }
       } catch (err: any) {
@@ -226,7 +226,7 @@ async function cycle(members: CouncilMember[], reader: MimirSolanaClient): Promi
       }
     }
   }
-  console.log(`[council] Cycle complete — ${stakes} ${DRY_RUN ? "would-be " : ""}stake(s).`);
+  console.log(`[council] Cycle complete: ${stakes} ${DRY_RUN ? "would-be " : ""}stake(s).`);
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ async function main() {
   const tracks = [...new Set(members.map((m) => trackOf(m.spec)))].join(" + ");
 
   console.log("═══════════════════════════════════════════════");
-  console.log("  Mimir Council — Solana × MagicBlock ER");
+  console.log("  Mimir Council · Solana × MagicBlock ER");
   console.log(`  Tracks   : ${tracks} (${members.length} personas)`);
   console.log(`  Personas : ${members.map((m) => m.spec.emoji).join(" ")}`);
   console.log(`  Cadence  : every ${POLL_INTERVAL_MS / 1000}s · ≤${MAX_CLAIMS} claims · LLM gap ${LLM_THROTTLE_MS / 1000}s`);
@@ -260,7 +260,7 @@ async function main() {
   };
 
   if (ONCE) {
-    if (isPaused("council_worker")) console.log("[council] Paused (MIMIR_PAUSE_COUNCIL_WORKER) — nothing to do.");
+    if (isPaused("council_worker")) console.log("[council] Paused (MIMIR_PAUSE_COUNCIL_WORKER), nothing to do.");
     else await run();
     process.exit(0);
   }
@@ -272,7 +272,7 @@ async function main() {
 }
 
 // web3.js confirm subscriptions can reject on detached promises when the
-// public devnet RPC throws 429s — don't let those kill the worker.
+// public devnet RPC throws 429s; don't let those kill the worker.
 process.on("unhandledRejection", (err) => {
   console.warn("[council] Unhandled rejection (non-fatal):", err);
 });

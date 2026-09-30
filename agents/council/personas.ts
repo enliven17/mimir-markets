@@ -1,15 +1,15 @@
 /**
- * Mimir Council — two juries of AI personas that bet on prediction markets.
+ * Mimir Council: two juries of AI personas that bet on prediction markets.
  *
  * Each persona is an autonomous economic actor with:
  *   - Its own Solana keypair, derived from the admin secret + slug
  *     (lib/solana/keypair.ts), staking from a balance delegated to the
  *     MagicBlock Ephemeral Rollup
  *   - A distinct decision-making strategy:
- *       • LLM-biased — an LLM call with a personality prompt prefix
- *       • Rule-based — pure logic, no LLM call (cheap, deterministic)
- *       • Specialist — only bets on a specific claim category
- *       • Micro      — small stakes, broad coverage
+ *       • LLM-biased: an LLM call with a personality prompt prefix
+ *       • Rule-based: pure logic, no LLM call (cheap, deterministic)
+ *       • Specialist: only bets on a specific claim category
+ *       • Micro:      small stakes, broad coverage
  *
  * The runtime in agents/council/shared/ reads this list; the worker is
  * agents/council/solana.ts. Client pages import this module, so it must stay
@@ -51,11 +51,11 @@ export interface PersonaSpec {
   longBio:        string;
   /** How this persona decides. */
   archetype:      PersonaArchetype;
-  /** For llm-biased / specialist personas — prepended to the oracle's claim prompt. */
+  /** For llm-biased / specialist personas: prepended to the oracle's claim prompt. */
   promptBias?:    string;
-  /** For specialists — only bet claims whose category exactly equals one of these (case-insensitive). */
+  /** For specialists: only bet claims whose category exactly equals one of these (case-insensitive). */
   categoryFilter?: string[];
-  /** For rule-based personas — which rule to evaluate. */
+  /** For rule-based personas: which rule to evaluate. */
   ruleEvaluator?: RuleEvaluator;
   /** Minimum LLM confidence to stake. Defaults to 75. Statistician is strict; Yapper is loose. */
   minConfidence?: number;
@@ -71,7 +71,7 @@ export interface PersonaSpec {
 }
 
 /**
- * The classic ten — kept here so key derivation, runtime config and UI all
+ * The classic ten, kept here so key derivation, runtime config and UI all
  * share one source of truth. Order matters: the Council page renders in
  * this order.
  */
@@ -114,7 +114,7 @@ export const CLASSIC_PERSONAS: PersonaSpec[] = [
     slug:          "contrarian",
     displayName:   "The Contrarian",
     emoji:         "🔁",
-    bio:           "Bets against the crowd. No LLM — pure pool-imbalance math.",
+    bio:           "Bets against the crowd. No LLM, pure pool-imbalance math.",
     longBio:       "Reads the current pool sizes and always stakes the smaller side. The Contrarian doesn't think; it just resists. When the crowd is wrong, it gets paid.",
     archetype:     "rule-based",
     ruleEvaluator: "contrarian",
@@ -133,7 +133,7 @@ export const CLASSIC_PERSONAS: PersonaSpec[] = [
     bio:           "Rare but decisive. Only bets when the data is overwhelming.",
     longBio:       "Demands rigorous evidence before staking. The Statistician skips most claims but bets larger when it does move. Lean toward UNRESOLVABLE-equivalent abstention if data is sparse.",
     archetype:     "llm-biased",
-    promptBias:    "You are the Statistician on the Mimir Council. Demand rigorous, citable evidence before asserting a verdict. Only return high confidence (>= 90) when the evidence is overwhelming and unambiguous. When data is sparse or contested, return lower confidence — the runner will abstain. Cite base rates and historical priors when possible. Never invent evidence or numbers that are not in the source.",
+    promptBias:    "You are the Statistician on the Mimir Council. Demand rigorous, citable evidence before asserting a verdict. Only return high confidence (>= 90) when the evidence is overwhelming and unambiguous. When data is sparse or contested, return lower confidence and the runner will abstain. Cite base rates and historical priors when possible. Never invent evidence or numbers that are not in the source.",
     minConfidence: 90,
     stakeUsdc:     3,
     accent: {
@@ -147,7 +147,7 @@ export const CLASSIC_PERSONAS: PersonaSpec[] = [
     slug:          "whale-watcher",
     displayName:   "The Whale-Watcher",
     emoji:         "🐋",
-    bio:           "Copies the largest existing staker. No analysis — pure follow.",
+    bio:           "Copies the largest existing staker. No analysis, pure follow.",
     longBio:       "Reads the on-chain stake distribution and copies whichever side the single largest staker chose. The Whale-Watcher believes the rich know things the rest of us don't.",
     archetype:     "rule-based",
     ruleEvaluator: "whale-follow",
@@ -235,9 +235,9 @@ export const CLASSIC_PERSONAS: PersonaSpec[] = [
     displayName:   "The Yapper",
     emoji:         "🗣️",
     bio:           "Touches every market. Tiny stakes, maximum coverage.",
-    longBio:       "Bets on everything that crosses its desk, but with micro-stakes. The Yapper exists to keep the market lively — its win rate doesn't matter much, but its presence does.",
+    longBio:       "Bets on everything that crosses its desk, but with micro-stakes. The Yapper exists to keep the market lively; its win rate doesn't matter much, but its presence does.",
     archetype:     "micro",
-    promptBias:    "You are the Yapper on the Mimir Council. You stake small but often. Make a verdict on almost every claim. Confidence of 60 or higher is enough for you — leave abstention to the cautious. Never invent evidence; if the evidence is empty, abstain.",
+    promptBias:    "You are the Yapper on the Mimir Council. You stake small but often. Make a verdict on almost every claim. Confidence of 60 or higher is enough for you. Leave abstention to the cautious. Never invent evidence; if the evidence is empty, abstain.",
     minConfidence: 60,
     stakeUsdc:     0.5,
     accent: {

@@ -57,7 +57,7 @@ async function main() {
   console.log("✓ balance PDA delegated to MagicBlock ER:", del);
 
   const bal = await client.getBalance();
-  console.log(`Done — ER-ready virtual balance: ${fromUsdcUnits(bal)} USDC`);
+  console.log(`Done. ER-ready virtual balance: ${fromUsdcUnits(bal)} USDC`);
 }
 
 main().catch((e) => {

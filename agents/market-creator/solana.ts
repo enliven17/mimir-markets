@@ -1,19 +1,19 @@
 /**
- * Mimir Market-Creator Agent — Solana edition
+ * Mimir Market-Creator Agent: Solana edition
  *
  * Every cycle it drafts short-horizon claims from sources that can settle
  * them, scores each on decidability, drops duplicates of joinable claims,
  * stakes USDC on the rest, creates them on-chain and delegates each to the
  * MagicBlock Ephemeral Rollup so challenges are real-time and fee-less:
  *
- *   1. CRYPTO     — price claims around the live Flash Trade spot (BTC/ETH/SOL)
+ *   1. CRYPTO:      price claims around the live Flash Trade spot (BTC/ETH/SOL)
  *                   with a deterministic price resolver in the URL fragment.
- *   2. SPORTS     — scheduled World Cup / Premier League / Champions League /
+ *   2. SPORTS:      scheduled World Cup / Premier League / Champions League /
  *                   NFL / NBA games from ESPN, betting closes at kickoff.
- *   3. STOCKS     — large-cap day direction, read off stockanalysis.com.
- *   2b. ANSEM     — $ANSEM price claims around the live mainnet DEX price
+ *   3. STOCKS:      large-cap day direction, read off stockanalysis.com.
+ *   2b. ANSEM:      $ANSEM price claims around the live mainnet DEX price
  *                   (DexScreener + Jupiter), same deterministic resolver.
- *   4. POLYMARKET — live, contested binary markets (MARKET_CREATOR_POLYMARKET=1);
+ *   4. POLYMARKET:  live, contested binary markets (MARKET_CREATOR_POLYMARKET=1);
  *                   the oracle waits for the UMA resolution before settling.
  *
  * Every draft here is built from live source data by rule, not written by a
@@ -170,7 +170,7 @@ async function publish(client: MimirSolanaClient, d: DraftClaim): Promise<void> 
       maxChallengers: 16,
     });
     console.log(
-      `[creator] ✓ Claim #${claimId} [${d.category}] ${d.label} — ` +
+      `[creator] ✓ Claim #${claimId} [${d.category}] ${d.label}: ` +
         `https://explorer.solana.com/tx/${txSig}?cluster=devnet`,
     );
     // Hand the market to the Ephemeral Rollup right away: from here on,
@@ -196,19 +196,19 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
 
   // Cancelling above returns stake, so it runs even while creation is paused.
   if (isPaused("create_market")) {
-    console.log("[creator] Market creation paused (MIMIR_PAUSE_CREATE_MARKET) — skipping drafts.");
+    console.log("[creator] Market creation paused (MIMIR_PAUSE_CREATE_MARKET), skipping drafts.");
     return;
   }
   // The program's admin pause rejects create_claim; don't burn source/LLM calls on drafts.
   if ((await client.getConfig())?.paused) {
-    console.log("[creator] Program is PAUSED on-chain — skipping drafts.");
+    console.log("[creator] Program is PAUSED on-chain, skipping drafts.");
     return;
   }
 
   console.log(`[creator] joinable claims: ${inventory.joinable} (cap ${MAX_ACTIVE_CLAIMS})`);
   const headroom = MAX_ACTIVE_CLAIMS - inventory.joinable;
   if (headroom <= 0) {
-    console.log("[creator] inventory at cap — skipping drafts.");
+    console.log("[creator] inventory at cap, skipping drafts.");
     return;
   }
 
@@ -228,7 +228,7 @@ async function runCycle(client: MimirSolanaClient): Promise<void> {
   const usdcBal = await usdcBalance(client);
   if (usdcBal < needed) {
     console.log(
-      `[creator] insufficient USDC (${usdcBal.toFixed(2)} < ${needed} needed) — ` +
+      `[creator] insufficient USDC (${usdcBal.toFixed(2)} < ${needed} needed), ` +
         `top up ${client.publicKey.toBase58()} (faucet.circle.com or admin transfer). ` +
         (DRY_RUN ? "Listing the drafts anyway (dry run)." : "Skipping cycle."),
     );
@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   const cfg = await client.getConfig();
 
   console.log("═══════════════════════════════════════════════");
-  console.log("  Mimir Market-Creator — crypto · ansem · sports · stocks · polymarket");
+  console.log("  Mimir Market-Creator · crypto · ansem · sports · stocks · polymarket");
   console.log(`  Program  : ${client.base.programId.toBase58()}`);
   console.log(`  Creator  : ${client.publicKey.toBase58()}`);
   console.log(`  Claims   : ${cfg?.claimCount ?? "config missing!"}`);

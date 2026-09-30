@@ -60,8 +60,8 @@ export function stockDraft(t: { symbol: string; name: string }, closeMs: number)
   const day = formatDay(closeMs);
   return {
     question: `Will ${t.name} (${t.symbol}) close above its previous close on ${day}?`,
-    creatorPosition: `Yes — ${t.symbol} closes up on the day`,
-    counterPosition: `No — ${t.symbol} closes flat or down on the day`,
+    creatorPosition: `Yes: ${t.symbol} closes up on the day`,
+    counterPosition: `No: ${t.symbol} closes flat or down on the day`,
     category: "stocks",
     resolutionUrl: stockResolutionUrl(t.symbol),
     settlementRule:

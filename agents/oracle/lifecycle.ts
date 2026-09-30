@@ -32,7 +32,7 @@ export async function advanceLifecycle(client: MimirSolanaClient, claim: Onchain
   try {
     if (canFinalize(claim, now)) {
       const sig = await client.finalizeResolution(claim.id);
-      console.log(`[lifecycle] ✓ Claim #${claim.id} finalized — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+      console.log(`[lifecycle] ✓ Claim #${claim.id} finalized: https://explorer.solana.com/tx/${sig}?cluster=devnet`);
       await crank(client, claim.id);
       return true;
     }
@@ -42,7 +42,7 @@ export async function advanceLifecycle(client: MimirSolanaClient, claim: Onchain
         return false;
       }
       const sig = await client.refundExpired(claim.id);
-      console.log(`[lifecycle] ✓ Claim #${claim.id} refunded after the grace period — ${sig}`);
+      console.log(`[lifecycle] ✓ Claim #${claim.id} refunded after the grace period: ${sig}`);
       await crank(client, claim.id);
       return true;
     }
@@ -53,7 +53,7 @@ export async function advanceLifecycle(client: MimirSolanaClient, claim: Onchain
     if (claim.state === ST_DISPUTED && !reportedDisputes.has(key)) {
       reportedDisputes.add(key);
       console.log(
-        `[lifecycle] Claim #${claim.id} is DISPUTED by ${claim.disputer.toBase58()} — ` +
+        `[lifecycle] Claim #${claim.id} is DISPUTED by ${claim.disputer.toBase58()}. ` +
           "waiting for the admin: scripts/solana/admin.ts settle"
       );
     }

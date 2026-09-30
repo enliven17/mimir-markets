@@ -9,7 +9,7 @@
  * Eligibility: evidence-reasoning personas (a promptBias) from both tracks
  * (COUNCIL_TRACK narrows it to one), specialists only in their exact category
  * (the same rule the staking worker uses), and never a persona that holds a
- * position in the claim — a juror with a stake would be judging its own bet.
+ * position in the claim: a juror with a stake would be judging its own bet.
  * Each juror answers through the shared persona prompt in "judge" mode: its
  * character sets the voice of the explanation, never the verdict.
  *
@@ -17,7 +17,7 @@
  * decisive votes it returns null and the oracle settles solo.
  *
  * Self-resolving mode (COUNCIL_SELF_RESOLVING=1) implements "Self-Resolving
- * Prediction Markets for Unverifiable Outcomes" (Srinivasan, Karger, Chen —
+ * Prediction Markets for Unverifiable Outcomes" (Srinivasan, Karger, Chen,
  * arXiv:2306.04305): jurors report sequentially in random order seeing the
  * prior reports; the round stops with probability alpha after each vote once
  * quorum is met; jurors are scored with a cross-entropy market scoring rule
@@ -76,7 +76,7 @@ export interface SelfResolvingConfig {
 export const Q_PRIOR = 0.5;
 const Q_MIN = 0.02;
 const Q_MAX = 0.98;
-/** Bonus shares below this are dust — skipped rather than transferred. */
+/** Bonus shares below this are dust, skipped rather than transferred. */
 export const BONUS_DUST_USDC = 0.0005;
 
 function clampQ(q: number): number {
@@ -217,7 +217,7 @@ export async function gatherCouncilVerdict(args: {
       const q = verdictToProbability(r.verdict, r.confidence, qPrev);
       vote.probability = q;
       qHistory.push(q);
-      history.push(`${p.displayName}: ${Math.round(q * 100)}% challengers — ${r.explanation}`);
+      history.push(`${p.displayName}: ${Math.round(q * 100)}% challengers: ${r.explanation}`);
       qPrev = q;
     }
     votes.push(vote);

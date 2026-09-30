@@ -195,8 +195,8 @@ export function polymarketDraft(c: PolymarketCandidate): DraftClaim | null {
   const short = clampBytes(c.question.replace(/\?$/, ""), 60);
   return {
     question,
-    creatorPosition: "Yes — Polymarket resolves this market YES",
-    counterPosition: "No — Polymarket resolves this market NO",
+    creatorPosition: "Yes: Polymarket resolves this market YES",
+    counterPosition: "No: Polymarket resolves this market NO",
     // Not "sports" even for sports markets: that category takes the oracle's 12h
     // match grace, and a UMA resolution needs the 72h Polymarket one.
     category: "custom",

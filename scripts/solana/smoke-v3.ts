@@ -73,7 +73,7 @@ async function main() {
   const tester = new MimirSolanaClient(testerKp);
   const conn = admin.baseConnection;
   const cfg = await admin.getConfig();
-  if (!cfg) throw new Error("program not initialized — run scripts/solana/initialize.ts");
+  if (!cfg) throw new Error("program not initialized; run scripts/solana/initialize.ts");
   if (!cfg.admin.equals(adminKp.publicKey) || !cfg.oracle.equals(adminKp.publicKey)) {
     throw new Error("smoke needs the admin keypair to also be the oracle");
   }
@@ -98,7 +98,7 @@ async function main() {
   const need = toUsdcUnits(8) - (await usdcBalance(conn, testerKp.publicKey));
   await sendUsdc(conn, adminKp, testerKp.publicKey, need);
   if ((await tester.getBalance()) < 3n * STAKE) {
-    if (await tester.isBalanceDelegated()) throw new Error("tester balance is delegated — undelegate it first");
+    if (await tester.isBalanceDelegated()) throw new Error("tester balance is delegated; undelegate it first");
     console.log("  deposit:", explorer(await tester.deposit(3n * STAKE)));
   }
 
@@ -129,7 +129,7 @@ async function main() {
   const erSig = await tester.challengeClaimER(A, STAKE);
   await sleep(1500);
   const aLive = await admin.getClaim(A);
-  check(aLive?.challengers.length === 1, `ER challenge landed (${Date.now() - t0}ms incl. confirm) — ${erSig}`);
+  check(aLive?.challengers.length === 1, `ER challenge landed (${Date.now() - t0}ms incl. confirm): ${erSig}`);
 
   await waitUntil(deadline + 3, "the deadline");
 

@@ -1,8 +1,8 @@
 /**
- * Mimir Oracle Agent — Solana × MagicBlock ER edition
+ * Mimir Oracle Agent: Solana × MagicBlock ER edition
  *
  * Roles:
- *   1. SETTLER    — when a claim's deadline passes: commit + undelegate it
+ *   1. SETTLER:     when a claim's deadline passes: commit + undelegate it
  *                   from the Ephemeral Rollup and decide it (agents/oracle/decide.ts:
  *                   structured resolver → deadline prices + cross-check →
  *                   council jury or LLM → tiers), publish the verdict audit
@@ -11,7 +11,7 @@
  *                   After the dispute window: finalize, crank payouts; past
  *                   deadline + grace: refund_expired (agents/oracle/lifecycle.ts).
  *                   Honors the on-chain pause.
- *   2. CHALLENGER — (AUTO_CHALLENGE=1) forecast open claims early (every
+ *   2. CHALLENGER:  (AUTO_CHALLENGE=1) forecast open claims early (every
  *                   forecast is logged for /calibration) and stake on
  *                   mispriced ones INSIDE the ER (zero fee, ~30ms),
  *                   Kelly-sized, optionally hedged on Flash Trade perps.
@@ -151,9 +151,9 @@ async function settle(client: MimirSolanaClient, ctx: DecideContext, claim: Onch
 
   // Step 1: if the claim still lives in the ER, commit + undelegate it
   if (!DRY_RUN && (await client.isDelegated(claim.id))) {
-    console.log("[settle] Claim is in the ER — committing + undelegating...");
+    console.log("[settle] Claim is in the ER, committing + undelegating...");
     if (!(await client.ensureClaimOnBase(claim.id))) {
-      throw new Error("claim is still delegated after undelegate — retry later");
+      throw new Error("claim is still delegated after undelegate, retry later");
     }
     console.log("[settle] Claim is back on the base layer");
   }
@@ -172,7 +172,7 @@ async function settle(client: MimirSolanaClient, ctx: DecideContext, claim: Onch
   console.log(`[settle] Verdict: ${verdict.verdict} (${verdict.confidence}%) · evidence_hash ${hashHex}`);
 
   if (DRY_RUN) {
-    console.log(`[settle] DRY RUN — would propose side ${verdictToSide(verdict.verdict)}: "${verdict.explanation.slice(0, 120)}"`);
+    console.log(`[settle] DRY RUN: would propose side ${verdictToSide(verdict.verdict)}: "${verdict.explanation.slice(0, 120)}"`);
     decidedVerdicts.delete(key);
     return;
   }
@@ -188,7 +188,7 @@ async function settle(client: MimirSolanaClient, ctx: DecideContext, claim: Onch
   // scan, so re-read the base layer right before signing.
   const fresh = await client.getBaseClaim(claim.id);
   if (!fresh || fresh.state !== ST_ACTIVE) {
-    console.log(`[settle] Claim #${claim.id} is no longer ACTIVE on the base layer — nothing to write.`);
+    console.log(`[settle] Claim #${claim.id} is no longer ACTIVE on the base layer, nothing to write.`);
     decidedVerdicts.delete(key);
     return;
   }
@@ -209,11 +209,11 @@ async function settle(client: MimirSolanaClient, ctx: DecideContext, claim: Onch
 
   if (fresh.disputeWindow > 0) {
     const until = new Date((Math.floor(Date.now() / 1000) + fresh.disputeWindow) * 1000).toISOString();
-    console.log(`[settle] ✓ Proposed (disputable until ~${until}) — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+    console.log(`[settle] ✓ Proposed (disputable until ~${until}): https://explorer.solana.com/tx/${sig}?cluster=devnet`);
     return;
   }
   // Zero dispute window: the proposal settled immediately, crank payouts now.
-  console.log(`[settle] ✓ Resolved (no dispute window) — https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+  console.log(`[settle] ✓ Resolved (no dispute window): https://explorer.solana.com/tx/${sig}?cluster=devnet`);
   const { paid, failed } = await client.crankPayouts(claim.id);
   console.log(`[settle] ✓ ${paid} payout leg(s) cranked${failed.length ? `, ${failed.length} to retry` : ""}`);
 }
@@ -256,7 +256,7 @@ async function challengeIfMispriced(client: MimirSolanaClient, claim: OnchainCla
 
   const evidence = await fetchEvidence(claim.resolutionUrl);
   if (evidence.fetcher === "none") {
-    console.log("[challenge] Skipping LLM — no evidence available");
+    console.log("[challenge] Skipping LLM, no evidence available");
     return;
   }
   let rawVerdict: OracleVerdict;
@@ -279,7 +279,7 @@ async function challengeIfMispriced(client: MimirSolanaClient, claim: OnchainCla
   console.log(`[challenge] Early verdict: ${verdict.verdict} (${verdict.confidence}%)`);
 
   if (verdict.verdict !== "CHALLENGERS_WIN" || verdict.confidence < CHALLENGE_CONFIDENCE) {
-    console.log("[challenge] Not confident enough to stake — skipping");
+    console.log("[challenge] Not confident enough to stake, skipping");
     return;
   }
 
@@ -289,14 +289,14 @@ async function challengeIfMispriced(client: MimirSolanaClient, claim: OnchainCla
     Math.round(Math.max(CHALLENGE_STAKE_USDC, Math.min(bankroll * kelly, bankroll * 0.1)) * 100) / 100;
 
   if (DRY_RUN) {
-    console.log(`[challenge] DRY RUN — would stake ${stakeUsdc} USDC in the ER`);
+    console.log(`[challenge] DRY RUN: would stake ${stakeUsdc} USDC in the ER`);
     return;
   }
   console.log(`[challenge] Kelly ${(kelly * 100).toFixed(1)}% → staking ${stakeUsdc} USDC INSIDE the ER...`);
   const t0 = Date.now();
   const sig = await client.challengeClaimER(claim.id, toUsdcUnits(stakeUsdc));
   challengedClaimIds.add(key);
-  console.log(`[challenge] ✓ ER stake landed in ${Date.now() - t0}ms (zero fee) — ${sig}`);
+  console.log(`[challenge] ✓ ER stake landed in ${Date.now() - t0}ms (zero fee): ${sig}`);
 
   // ── Flash Trade hedge ──────────────────────────────────────────────────
   if (HEDGE_MODE !== "off") {
@@ -316,7 +316,7 @@ async function hedgeStake(
       stakeUsd,
     });
     if (!plan) {
-      console.log("[hedge] Claim is not price-directional — no hedge needed");
+      console.log("[hedge] Claim is not price-directional, no hedge needed");
       return;
     }
     const px = await getFlashPrice(plan.symbol);
@@ -333,7 +333,7 @@ async function hedgeStake(
     });
     if (HEDGE_MODE === "dry") {
       console.log(
-        `[hedge] DRY RUN — Flash Trade built a ready-to-sign ${plan.tradeType} tx: ` +
+        `[hedge] DRY RUN: Flash Trade built a ready-to-sign ${plan.tradeType} tx: ` +
           `entry $${built?.newEntryPrice}, liq $${built?.newLiquidationPrice}, ` +
           `notional $${built?.youRecieveUsdUi} (${plan.leverage}x ${plan.symbol}). Not signing.`
       );
@@ -355,7 +355,7 @@ async function poll(client: MimirSolanaClient, ctx: DecideContext): Promise<void
   const now = Math.floor(Date.now() / 1000);
   const cfg = await client.getConfig();
   if (!cfg) {
-    console.warn("[oracle] Program config not found — is the program initialized?");
+    console.warn("[oracle] Program config not found. Is the program initialized?");
     return;
   }
   console.log(`\n[oracle] ── Poll at ${new Date().toISOString()} ── ${cfg.claimCount} claims`);
@@ -363,7 +363,7 @@ async function poll(client: MimirSolanaClient, ctx: DecideContext): Promise<void
   // The on-chain pause blocks propose/challenge (the program would reject
   // them); finalize, refunds and payout cranks keep running.
   const settlementPaused = isPaused("oracle_settlement") || cfg.paused;
-  if (cfg.paused) console.log("[oracle] Program is PAUSED on-chain — no proposals or challenges this poll.");
+  if (cfg.paused) console.log("[oracle] Program is PAUSED on-chain, no proposals or challenges this poll.");
   const ids: bigint[] = [];
   for (let id = 1n; id <= cfg.claimCount; id++) ids.push(id);
   const delegated = await client.isDelegatedBatch(ids);
@@ -409,7 +409,7 @@ async function main(): Promise<void> {
   const cfg = await client.getConfig();
 
   console.log("═══════════════════════════════════════════════");
-  console.log("  Mimir Oracle Agent — Solana × MagicBlock ER");
+  console.log("  Mimir Oracle Agent · Solana × MagicBlock ER");
   console.log(`  Program    : ${client.base.programId.toBase58()}`);
   console.log(`  Oracle     : ${client.publicKey.toBase58()}`);
   console.log(`  Base RPC   : ${client.baseConnection.rpcEndpoint}`);

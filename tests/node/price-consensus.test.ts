@@ -170,9 +170,9 @@ test("only single-asset, single-threshold claims are cross-checked", () => {
 test("consensusWinner maps agreeing sources to a side only when the wording is unambiguous", async () => {
   const { consensusWinner } = await import("../../lib/price-consensus");
   const q = "Will BTC close above $100,000 on Friday?";
-  assert.equal(consensusWinner(q, "Yes — momentum", "No — resistance", "agree_above"), "CREATOR_WINS");
-  assert.equal(consensusWinner(q, "Yes — momentum", "No — resistance", "agree_below"), "CHALLENGERS_WIN");
-  assert.equal(consensusWinner(q, "No — resistance", "Yes — momentum", "agree_above"), "CHALLENGERS_WIN");
+  assert.equal(consensusWinner(q, "Yes: momentum", "No: resistance", "agree_above"), "CREATOR_WINS");
+  assert.equal(consensusWinner(q, "Yes: momentum", "No: resistance", "agree_below"), "CHALLENGERS_WIN");
+  assert.equal(consensusWinner(q, "No: resistance", "Yes: momentum", "agree_above"), "CHALLENGERS_WIN");
   assert.equal(consensusWinner("Will ETH drop below $2,000?", "Yes", "No", "agree_below"), "CREATOR_WINS");
   // Inclusive or ambiguous wording, free-form positions, or no agreement: no call.
   assert.equal(consensusWinner("Will BTC reach $100,000?", "Yes", "No", "agree_above"), null);

@@ -36,10 +36,10 @@ const SIDES: Record<string, number> = {
 async function status(client: MimirSolanaClient): Promise<void> {
   const c = await client.getConfig();
   if (!c) throw new Error("program not initialized");
-  const eta = (t: number) => (t ? new Date(t * 1000).toISOString() : "—");
+  const eta = (t: number) => (t ? new Date(t * 1000).toISOString() : "-");
   console.log(`program        ${client.base.programId.toBase58()}`);
-  console.log(`admin          ${c.admin.toBase58()}  (pending: ${c.pendingAdmin.equals(PublicKey.default) ? "—" : c.pendingAdmin.toBase58()})`);
-  console.log(`oracle         ${c.oracle.toBase58()}  (queued: ${c.pendingOracleEta ? `${c.pendingOracle.toBase58()} at ${eta(c.pendingOracleEta)}` : "—"})`);
+  console.log(`admin          ${c.admin.toBase58()}  (pending: ${c.pendingAdmin.equals(PublicKey.default) ? "-" : c.pendingAdmin.toBase58()})`);
+  console.log(`oracle         ${c.oracle.toBase58()}  (queued: ${c.pendingOracleEta ? `${c.pendingOracle.toBase58()} at ${eta(c.pendingOracleEta)}` : "-"})`);
   console.log(`paused         ${c.paused}`);
   console.log(`windows        dispute ${c.disputeWindow}s, grace ${c.resolutionGrace}s`);
   console.log(`fees           ${c.platformFeeBps} bps platform → ${c.feeRecipient.toBase58()}, ${c.agentFeeBps} bps agent owner`);
@@ -52,7 +52,7 @@ async function status(client: MimirSolanaClient): Promise<void> {
     const claim = await client.getBaseClaim(id).catch(() => null);
     if (claim?.state === ST_DISPUTED) {
       console.log(
-        `  #${id} ${STATE_LABELS[claim.state]} proposed=${claim.proposedSide} by disputer ${claim.disputer.toBase58()} — "${claim.question.slice(0, 60)}"`
+        `  #${id} ${STATE_LABELS[claim.state]} proposed=${claim.proposedSide} by disputer ${claim.disputer.toBase58()}: "${claim.question.slice(0, 60)}"`
       );
     }
   }

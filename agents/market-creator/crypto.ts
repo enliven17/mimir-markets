@@ -44,8 +44,8 @@ export function cryptoDraft(symbol: string, threshold: number, direction: "above
   const base = flashResolutionUrl(symbol);
   return {
     question,
-    creatorPosition: `Yes — ${symbol} will be ${direction} $${fmt(threshold)}`,
-    counterPosition: `No — ${symbol} will not be ${direction} $${fmt(threshold)}`,
+    creatorPosition: `Yes: ${symbol} will be ${direction} $${fmt(threshold)}`,
+    counterPosition: `No: ${symbol} will not be ${direction} $${fmt(threshold)}`,
     category: "crypto",
     resolutionUrl: spec ? withResolverFragment(base, spec) : base,
     settlementRule:

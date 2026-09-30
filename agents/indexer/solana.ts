@@ -1,7 +1,7 @@
 /**
- * Mimir Indexer — mirrors on-chain claim state into the Neon read-index.
+ * Mimir Indexer: mirrors on-chain claim state into the Neon read-index.
  *
- * Every cycle it walks all claims (reading from whichever layer owns each —
+ * Every cycle it walks all claims (reading from whichever layer owns each:
  * the Ephemeral Rollup for delegated claims, the base layer otherwise) and
  * upserts a denormalized snapshot into Postgres. The arena feed then serves
  * from one SQL query instead of fanning out RPC reads on every poll.
@@ -29,7 +29,7 @@ const CLAIM_FETCH_DELAY_MS = Number(process.env.INDEXER_CLAIM_DELAY_MS ?? "150")
 async function cycle(client: MimirSolanaClient): Promise<void> {
   const cfg = await client.getConfig();
   if (!cfg) {
-    console.warn("[indexer] config not found — is the program initialized?");
+    console.warn("[indexer] config not found. Is the program initialized?");
     return;
   }
   const now = Math.floor(Date.now() / 1000);
@@ -108,18 +108,18 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
     console.warn("[indexer] notifications failed:", String(err).slice(0, 120));
     return 0;
   });
-  console.log(`[indexer] ${new Date().toISOString()} — synced ${written}/${cfg.claimCount} claims, ${fresh} new notifications`);
+  console.log(`[indexer] ${new Date().toISOString()}: synced ${written}/${cfg.claimCount} claims, ${fresh} new notifications`);
 }
 
 async function main(): Promise<void> {
   if (!isIndexEnabled()) {
-    console.log("[indexer] DATABASE_URL not set — nothing to index, exiting cleanly.");
+    console.log("[indexer] DATABASE_URL not set, nothing to index, exiting cleanly.");
     return;
   }
   const client = new MimirSolanaClient(loadAgentKeypair());
 
   console.log("═══════════════════════════════════════════════");
-  console.log("  Mimir Indexer — Solana → Neon read-index");
+  console.log("  Mimir Indexer · Solana → Neon read-index");
   console.log(`  Program : ${client.base.programId.toBase58()}`);
   console.log(`  Cadence : every ${POLL_INTERVAL_MS / 1000}s`);
   console.log("═══════════════════════════════════════════════\n");

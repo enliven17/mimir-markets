@@ -2,8 +2,8 @@
  * Per-persona evaluation + staking pipeline.
  *
  * For one persona and one claim:
- *   1. Cheap skips (own claim, already in, full, bankroll below 2× base stake)
- *      — before any evidence fetch or LLM call.
+ *   1. Cheap skips (own claim, already in, full, bankroll below 2× base stake),
+ *      before any evidence fetch or LLM call.
  *   2. Decide: specialists outside their exact category abstain; rule-based
  *      personas read the pool; everyone else asks the LLM with its bias
  *      prompt over the cycle's cached evidence (and, when enabled, a few
@@ -58,7 +58,7 @@ export function createThrottle(gapMs: number): () => Promise<void> {
   };
 }
 
-/** Decision only — no on-chain writes. */
+/** Decision only: no on-chain writes. */
 export async function evaluatePersonaForClaim(
   persona: PersonaSpec,
   claim: CouncilClaim,
@@ -68,7 +68,7 @@ export async function evaluatePersonaForClaim(
     return {
       shouldStake: false,
       stakeUsdc: 0,
-      rationale: `${persona.displayName} only watches ${persona.categoryFilter?.join(" / ")} markets — this one is out of scope.`,
+      rationale: `${persona.displayName} only watches ${persona.categoryFilter?.join(" / ")} markets; this one is out of scope.`,
       skipReason: "category-filter",
     };
   }
@@ -82,7 +82,7 @@ export async function evaluatePersonaForClaim(
     return {
       shouldStake: false,
       stakeUsdc: 0,
-      rationale: `${persona.displayName}: no usable evidence at the resolution URL — abstaining.`,
+      rationale: `${persona.displayName}: no usable evidence at the resolution URL, abstaining.`,
       skipReason: "no-evidence",
     };
   }

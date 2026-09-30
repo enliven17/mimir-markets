@@ -34,7 +34,7 @@ export async function withRetry<T>(label: string, fn: () => Promise<T>, tries = 
     } catch (err: any) {
       if (i >= tries) throw err;
       const wait = 3000 * i;
-      console.warn(`  (${label} failed: ${String(err?.message ?? err).slice(0, 100)} — retry ${i}/${tries - 1} in ${wait / 1000}s)`);
+      console.warn(`  (${label} failed: ${String(err?.message ?? err).slice(0, 100)}, retry ${i}/${tries - 1} in ${wait / 1000}s)`);
       await sleep(wait);
     }
   }

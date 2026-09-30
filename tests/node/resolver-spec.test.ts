@@ -44,7 +44,7 @@ test("json specs read a path and compare", () => {
 });
 
 test("a met condition maps to a side only for Yes/No positions", () => {
-  assert.equal(winnerFor(true, "Yes — momentum", "No"), "CREATOR_WINS");
+  assert.equal(winnerFor(true, "Yes: momentum", "No"), "CREATOR_WINS");
   assert.equal(winnerFor(false, "Yes", "No"), "CHALLENGERS_WIN");
   assert.equal(winnerFor(true, "No", "Yes"), "CHALLENGERS_WIN");
   assert.equal(winnerFor(true, "Bulls", "Bears"), null);

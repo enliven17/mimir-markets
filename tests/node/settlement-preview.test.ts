@@ -24,6 +24,6 @@ test("the confidence tier reads what the oracle wrote on chain", () => {
   assert.equal(confidenceTier(1, 95, "[RESOLVER] BTC > 100000"), "deterministic");
   assert.equal(confidenceTier(1, 88, "clear evidence"), "firm");
   assert.equal(confidenceTier(2, 70, "[CONTESTED] [via-direct] ..."), "contested");
-  assert.equal(confidenceTier(4, 40, "[LOW CONFIDENCE — refunded]"), "refunded");
+  assert.equal(confidenceTier(4, 40, "[LOW CONFIDENCE, refunded]"), "refunded");
   assert.equal(confidenceTier(3, 90, "tie"), "refunded");
 });
