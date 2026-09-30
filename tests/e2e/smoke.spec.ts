@@ -247,6 +247,51 @@ test("a Wallet Standard wallet connects from the sheet and disconnects from the 
   await expect(page.locator("header").getByRole("button", { name: /^Connect$/ })).toBeVisible();
 });
 
+test("portfolio opens the balance sheet from the hero when connected", async ({ page }) => {
+  await page.addInitScript(registerTestWallet);
+  await page.route("**/api/arena/user/**", (route) =>
+    route.fulfill({ json: { success: true, data: { claims: [], indexedAt: 0 } } }),
+  );
+  await page.goto("/en/dashboard?tab=done");
+  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
+  await page.getByRole("dialog", { name: "Connect a wallet" }).getByRole("button", { name: /Mimir Test Wallet/ }).click();
+  await expect(page.getByRole("heading", { name: "Portfolio", level: 1 })).toBeVisible();
+  // Filter state stays in the URL.
+  await expect(page.getByRole("tablist", { name: "Positions by phase" }).getByRole("tab", { name: /^Done/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByText("No positions yet. Challenge a claim or publish one.")).toBeVisible();
+  await page.getByRole("button", { name: "Deposit", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Balance" });
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+});
+
+test("agent registration steps through four validated steps", async ({ page }) => {
+  await page.goto("/en/agents/new", { waitUntil: "networkidle" });
+  await expect(page.getByText("Step 1 of 4")).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Use 3 to 64 lowercase letters, digits or dashes.")).toBeVisible();
+  await page.getByLabel("Agent id").fill("e2e-agent");
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 2 of 4")).toBeVisible();
+  await page.getByRole("radio", { name: /Stake/ }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 3 of 4")).toBeVisible();
+  await page.getByRole("button", { name: /council_juror/ }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 4 of 4")).toBeVisible();
+  // The last step recaps what the wallet will sign.
+  await expect(page.getByText("council_juror")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign and register" })).toBeDisabled();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Agent id")).toHaveValue("e2e-agent");
+});
+
 /**
  * Minimal Wallet Standard wallet, registered before the app boots (it answers
  * the app's `wallet-standard:app-ready` event). Connect resolves with one
