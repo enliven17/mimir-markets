@@ -9,7 +9,8 @@
  * so headline tiles, the confidence breakdown, and the settlement timeline all
  * stay fresh while the council settles markets.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePolledJson } from "@/lib/usePolledJson";
 import { Link } from "@/i18n/navigation";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
@@ -148,39 +149,13 @@ function ConfidenceBar({
 const PAGE_ROWS = 30;
 
 export default function StatsPage() {
-  const [data, setData] = useState<ClaimsData | null>(null);
   const [shown, setShown] = useState(PAGE_ROWS);
 
-  // Poll every 5s while the tab is visible. The body is compared as text, so
-  // an unchanged feed never re-renders the page.
-  useEffect(() => {
-    let alive = true;
-    let lastBody = "";
-    const load = async () => {
-      if (document.hidden) return;
-      try {
-        const res = await fetch("/api/arena/claims");
-        const body = await res.text();
-        if (!alive || body === lastBody) return;
-        lastBody = body;
-        const json = JSON.parse(body) as ClaimsResponse;
-        if (json.success) setData(json.data);
-      } catch {
-        // keep last good state
-      }
-    };
-    load();
-    const t = setInterval(load, 5000);
-    const onVisible = () => {
-      if (!document.hidden) void load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      alive = false;
-      clearInterval(t);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
+  // Polls every 5s while visible; an unchanged feed never re-renders.
+  const data = usePolledJson<ClaimsData>("/api/arena/claims", 5000, (json) => {
+    const r = json as ClaimsResponse;
+    return r.success ? r.data : undefined;
+  });
 
   const claims = data?.claims ?? [];
   const totalMarkets = data?.claimCount ?? 0;

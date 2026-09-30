@@ -9,7 +9,7 @@
  * the client-side 5s poll against /api/arena/agents and render that layout.
  * The page never touches the chain, the DB, or any server-only persona module.
  */
-import { useEffect, useState } from "react";
+import { usePolledJson } from "@/lib/usePolledJson";
 import { Link } from "@/i18n/navigation";
 import { BlueprintHeading } from "@/components/BlueprintGrid";
 import PeepAvatar from "@/components/ui/PeepAvatar";
@@ -174,26 +174,11 @@ function PersonaCard({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
-  const [data, setData] = useState<AgentsData | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/arena/agents");
-        const json: AgentsResponse = await res.json();
-        if (alive && json.success) setData(json.data);
-      } catch {
-        // keep last good state
-      }
-    };
-    load();
-    const t = setInterval(load, 5000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, []);
+  // Polls every 5s while visible; an unchanged roster never re-renders.
+  const data = usePolledJson<AgentsData>("/api/arena/agents", 5000, (json) => {
+    const r = json as AgentsResponse;
+    return r.success ? r.data : undefined;
+  });
 
   const personas = data?.personas ?? [];
   const oracle = data?.oracle;
@@ -300,7 +285,9 @@ export default function AgentsPage() {
       )}
 
       {!data ? (
-        <div className="border border-pv-border/25 bg-pv-surface p-12 text-center">
+        // Holds roughly the roster's height, so the sections below stay put
+        // (no layout shift) when it lands.
+        <div className="grid min-h-[75svh] place-items-center border border-pv-border/25 bg-pv-surface p-12 text-center">
           <p className="text-base text-pv-text">Loading the council…</p>
         </div>
       ) : personas.length === 0 ? (

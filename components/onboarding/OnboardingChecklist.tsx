@@ -91,7 +91,9 @@ export function OnboardingBanner({ className = "" }: { className?: string }) {
 
   const steps = onboardingSteps({ isConnected: connected, ...funds, hasStake });
   const done = steps.filter((s) => s.done).length;
-  if (dismissed !== false || (currentOnboardingStep(steps) === null && !open)) return null;
+  // Unknown (before the localStorage read) renders like "not dismissed", the
+  // server HTML's state, so the banner never pops in and shoves the feed.
+  if (dismissed === true || (currentOnboardingStep(steps) === null && !open)) return null;
 
   return (
     <>
@@ -140,7 +142,8 @@ export function OnboardingChecklistView({ funds, mimir, hasStake, onFunded, clas
   const allDone = current === null;
   const expanded = bare || (expandedOverride ?? !allDone);
 
-  if (!bare && dismissed !== false) return null;
+  // As in the banner: unknown renders, so the card never pops in (no layout shift).
+  if (!bare && dismissed === true) return null;
 
   const units = (() => {
     const n = Number(amount);

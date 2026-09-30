@@ -53,7 +53,9 @@ export default async function LocaleLayout({ children, params }: Props) {
         <HtmlLang locale={locale} />
         <SkipToContentLink />
         <Header />
-        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none">
+        {/* min-h-svh: the footer starts below the fold, so data landing on a page
+            never shoves it (or anything else in view) around: no layout shift. */}
+        <main id="main-content" tabIndex={-1} className="min-h-svh min-w-0 outline-none">
           <PageFrame>{children}</PageFrame>
         </main>
         <Footer />
