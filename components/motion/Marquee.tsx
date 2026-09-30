@@ -6,7 +6,8 @@ import { getLenis, gsap, reducedMotion, useGSAP } from "@/lib/motion";
 /**
  * Scroll ticker: the content is
  * rendered twice and slides on GSAP's ticker; Lenis scroll velocity speeds it
- * up and flips it with the scroll direction. Pauses while hovered.
+ * up and flips it with the scroll direction. Pauses while hovered and while
+ * offscreen; per frame it only writes a transform (no layout reads).
  * Reduced motion: a static row, the duplicate is not rendered.
  *
  * Decorative by default (`aria-hidden`); pass `label` to expose it.
@@ -34,27 +35,42 @@ export default function Marquee({
       track.dataset.loop = "true";
       let x = 0;
       let dir = 1;
-      let paused = false;
-      const half = () => track.scrollWidth / 2;
+      let hovered = false;
+      let onScreen = true;
+      // The loop width is measured by a ResizeObserver, never read per frame:
+      // a scrollWidth read after the last frame's transform write forced a
+      // synchronous layout on every tick (the landing's biggest scroll cost).
+      let half = track.scrollWidth / 2;
+      const ro = new ResizeObserver(() => {
+        half = track.scrollWidth / 2;
+      });
+      ro.observe(track);
+      const set = gsap.quickSetter(track, "x", "px");
       const tick = (_time: number, dt: number) => {
-        if (paused) return;
+        if (hovered || !onScreen) return;
         const v = getLenis()?.velocity ?? 0;
         if (Math.abs(v) > 0.5) dir = v > 0 ? 1 : -1;
         x -= (speed * dt * dir * (1 + Math.min(Math.abs(v) / 8, 4))) / 1000;
-        const w = half();
-        if (w > 0) {
-          if (x <= -w) x += w;
-          if (x > 0) x -= w;
+        if (half > 0) {
+          if (x <= -half) x += half;
+          if (x > 0) x -= half;
         }
-        gsap.set(track, { x });
+        set(x);
       };
-      const pause = () => (paused = true);
-      const resume = () => (paused = false);
+      // Offscreen, the tick returns at once.
+      const io = new IntersectionObserver(([entry]) => {
+        onScreen = entry?.isIntersecting ?? true;
+      });
+      io.observe(root);
+      const pause = () => (hovered = true);
+      const resume = () => (hovered = false);
       root.addEventListener("pointerenter", pause);
       root.addEventListener("pointerleave", resume);
       gsap.ticker.add(tick);
       return () => {
         gsap.ticker.remove(tick);
+        ro.disconnect();
+        io.disconnect();
         root.removeEventListener("pointerenter", pause);
         root.removeEventListener("pointerleave", resume);
       };

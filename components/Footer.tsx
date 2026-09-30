@@ -105,7 +105,9 @@ export default function Footer() {
           duration: 1.1,
           ease: "expo.out",
           stagger: 0.06,
-          scrollTrigger: { trigger: ".footer-mark", start: "top 96%", toggleActions: "play none none reverse" },
+          // fastScrollEnd: a fling past the footer finishes the climb at once
+          // instead of leaving a tween running under the next frames.
+          scrollTrigger: { trigger: ".footer-mark", start: "top 96%", toggleActions: "play none none reverse", fastScrollEnd: true },
         });
       });
       return () => mm.revert();
