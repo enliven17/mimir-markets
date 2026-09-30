@@ -118,7 +118,13 @@ Layout: gutter `--gut` (`clamp(16px, 4vw, 40px)`), feeds 1180px
   `document.fonts.ready`, each route change and layout-changing data. Pins use
   `pinType()` (transform with Lenis, fixed without). Plugins register once;
   the instance lives on `globalThis` so HMR never adds a second ticker
-  callback. SplitText registers in `SplitReveal` only.
+  callback. SplitText registers in `SplitReveal` only. Lenis keeps only
+  `lenis` and `lenis-stopped` on `<html>` (its per-gesture
+  `lenis-scrolling` / `lenis-smooth` flips restyled the whole page); key
+  Lenis CSS on `html.lenis`. Outside the landing, import motion primitives
+  from their own files, not the `components/motion` barrel.
+- No infinite main-thread animations at frame rate: the wordmark heat
+  (`background-position`) runs in `steps(120)`.
 - `html.lite` (head script in `app/layout.tsx`): 4 cores or fewer, 4GB or
   less, or Save-Data. No Lenis, no nav blur, the hero field at 12fps and DPR 1.
 - Reduced motion: no Lenis (torn down live if the setting flips), no

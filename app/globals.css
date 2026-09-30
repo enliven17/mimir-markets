@@ -169,18 +169,23 @@
     var(--ink);
 }
 
-/* ── Lenis ── */
+/* ── Lenis ──
+   Keyed on the constant `lenis` class only: Lenis would otherwise flip
+   lenis-scrolling / lenis-smooth on <html> at the start and end of every
+   gesture, and each flip restyled the page (a 70-100ms task at 4x CPU
+   throttle, right as a scroll begins). lib/motion.ts keeps only
+   `lenis-stopped`, which changes when an overlay opens. */
 html.lenis,
 html.lenis body {
   height: auto;
 }
-.lenis.lenis-smooth {
+html.lenis {
   scroll-behavior: auto !important;
 }
-.lenis.lenis-smooth [data-lenis-prevent] {
+html.lenis [data-lenis-prevent] {
   overscroll-behavior: contain;
 }
-.lenis.lenis-stopped {
+html.lenis.lenis-stopped {
   overflow: clip;
 }
 
@@ -903,7 +908,10 @@ html.lenis body {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: wordmark-heat 8s ease-in-out -3s infinite alternate;
+    /* 120 steps over 8s: the slow drift still reads as smooth, and the
+       background-position animation (main thread, a repaint per update)
+       runs at 15 updates a second instead of every frame, forever. */
+    animation: wordmark-heat 8s steps(120) -3s infinite alternate;
   }
 
   .marquee {

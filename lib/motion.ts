@@ -144,6 +144,16 @@ export function startSmoothScroll(): Lenis | null {
     // Driven from GSAP's ticker below, never from a second rAF loop.
     autoRaf: false,
   });
+  // Root classes: keep `lenis` (set by the constructor) and `lenis-stopped`
+  // only. The stock updater rewrites every lenis-* class on <html> whenever
+  // the scroll state flips, restyling the whole page at each gesture's start
+  // and end (see the Lenis block in app/globals.css).
+  const root = document.documentElement;
+  // `updateClassName` is private in the typings; this is a deliberate override.
+  (lenis as unknown as { updateClassName: () => void }).updateClassName = () => {
+    root.classList.toggle("lenis-stopped", lenis.isStopped);
+  };
+  root.classList.remove("lenis-scrolling", "lenis-smooth");
   lenis.on("scroll", ScrollTrigger.update);
   // Any scroll (smooth or native: keys, scrollbar) keeps the tick awake.
   lenis.on("scroll", wake);
