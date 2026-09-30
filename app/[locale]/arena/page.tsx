@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { RollingNumber } from "@/components/motion";
+import RollingNumber from "@/components/motion/RollingNumber";
 import { ArenaCardSkeleton } from "@/components/ui";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import ArenaControls from "@/components/arena/feed/ArenaControls";

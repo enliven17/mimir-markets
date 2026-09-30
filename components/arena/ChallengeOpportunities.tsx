@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useInViewOnce } from "@/components/motion";
+import { useInViewOnce } from "@/components/motion/hooks";
 import { Disclosure, Rail } from "@/components/ui";
 import ChallengeOpportunityCard from "@/components/explorer/ChallengeOpportunityCard";
 import type { ChallengeOpportunitiesResponse, ChallengeOpportunity } from "@/lib/claimDrafts";

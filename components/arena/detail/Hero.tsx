@@ -8,7 +8,7 @@
 import { SURFACE } from "@/components/arena/surface";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { RollingNumber } from "@/components/motion";
+import RollingNumber from "@/components/motion/RollingNumber";
 import { Pending, Progress, StatusPill, buttonClass } from "@/components/ui";
 import HolderBadge from "@/components/token/HolderBadge";
 import type { ApiClaim } from "@/lib/server/arena-claim";

@@ -9,7 +9,7 @@
 import { memo, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { RollingNumber } from "@/components/motion";
+import RollingNumber from "@/components/motion/RollingNumber";
 import { FeedCard } from "@/components/ui";
 import OddsBar from "@/components/arena/OddsBar";
 import { claimPhase, displayedSide, type ClaimPhase } from "@/lib/claim-status";
