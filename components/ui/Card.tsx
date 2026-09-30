@@ -55,7 +55,7 @@ export const FeedCard = forwardRef<HTMLDivElement, DivProps & { index?: number }
   return (
     <div
       ref={ref}
-      className={`card-in relative rounded-2xl bg-[linear-gradient(145deg,rgb(36_25_30/.8),rgb(10_8_12/.72))] shadow-bubble backdrop-blur-[18px] transition-[transform,box-shadow] duration-300 ease-overshoot hover:-translate-y-[5px] hover:-rotate-[.8deg] hover:shadow-bubble-hover motion-reduce:hover:transform-none ${className}`}
+      className={`card-in relative rounded-2xl bg-[linear-gradient(145deg,rgb(33_23_27/.94),rgb(11_9_12/.94))] shadow-bubble transition-[transform,box-shadow] duration-300 ease-overshoot hover:-translate-y-[5px] hover:-rotate-[.8deg] hover:shadow-bubble-hover motion-reduce:hover:transform-none ${className}`}
       style={index === undefined ? style : ({ ...style, "--i": index } as React.CSSProperties)}
       {...props}
     />

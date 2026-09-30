@@ -20,7 +20,7 @@ export default function CreateSuccess({ published, onAnother }: { published: Pub
   ].filter(Boolean) as { label: string; sig: string; href: string; where: string }[];
 
   return (
-    <Sheet center className={`pop-in mx-auto max-w-[560px] ${SURFACE_DEEP} ![-webkit-backdrop-filter:none] ![backdrop-filter:none]`}>
+    <Sheet center className={`pop-in mx-auto max-w-[560px] ${SURFACE_DEEP}`}>
       <Pending>{tc("createSuccessBadgeLive")}</Pending>
       <h1 className="m-0 mt-5 font-display text-app-h1 text-cream">{t("successTitle")}</h1>
       <p className="m-0 mt-2 font-mono text-[13px] text-muted">#{published.id.toString()}</p>

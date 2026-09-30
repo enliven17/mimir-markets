@@ -78,7 +78,7 @@ const ClaimCard = memo(function ClaimCard({ claim, now, index = 0 }: { claim: So
         : null;
 
   return (
-    <FeedCard index={Math.min(index, 8)} className="group h-full ![-webkit-backdrop-filter:none] ![backdrop-filter:none] focus-within:shadow-bubble-hover">
+    <FeedCard index={Math.min(index, 8)} className="group h-full focus-within:shadow-bubble-hover">
       <Link
         href={`/arena/${claim.id}`}
         className="flex h-full min-h-[212px] flex-col gap-4 rounded-2xl p-5 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral sm:p-6"

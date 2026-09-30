@@ -9,7 +9,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Dialog base: light blurred backdrop, deep glass
+ * Dialog base: dimmed backdrop, deep glass
  * dialog `rounded-3xl` with shadow-modal and a 30px round close button.
  *
  * - `variant="dialog"`: centred card, max 460px.
@@ -106,7 +106,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[90] grid bg-[rgb(3_1_2/.3)] p-5 backdrop-blur-[1.5px] motion-safe:animate-[modal-in_160ms_ease-out_both] ${
+      className={`fixed inset-0 z-[90] grid bg-[rgb(3_1_2/.42)] p-5 motion-safe:animate-[modal-in_160ms_ease-out_both] ${
         isSheet ? "place-items-end pb-0 sm:place-items-center sm:pb-5" : "place-items-center"
       }`}
       onMouseDown={(e) => {

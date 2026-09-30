@@ -35,9 +35,11 @@
   --line-strong: rgba(243, 234, 214, 0.3);
   --dash: 1px dashed rgb(235 220 216 / 0.28);
 
-  --glass: rgb(14 7 9 / 0.66);
-  --glass-card: rgba(36, 24, 25, 0.62);
-  --glass-deep: rgb(14 7 9 / 0.72);
+  /* Near-opaque fills that match the old blurred glass over the wall. No
+     scrolled frame and was a third of the scroll render cost. */
+  --glass: rgb(14 9 10 / 0.93);
+  --glass-card: rgb(28 20 21 / 0.93);
+  --glass-deep: rgb(16 10 11 / 0.95);
 
   --ink-rgb: 17 15 14;
   --ink-deep-rgb: 10 8 8;
@@ -149,18 +151,22 @@
 }
 
 /* ── Backdrop: 4px dot screen over a dark vertical gradient.
-   Mimir has no photo of its own yet, so a faint coral bloom stands in. ── */
+   Mimir has no photo of its own yet, so a faint coral bloom stands in.
+   One static, viewport-sized layer: painted once, never repainted on scroll
+   (fixed element, not background-attachment: fixed), no filter (the old
+   saturate(0.8) is baked into the bloom colour), and contained so nothing
+   inside it can invalidate the page. ── */
 .wall {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  contain: strict;
   background:
     radial-gradient(rgba(0, 0, 0, 0.55) 1px, transparent 1.4px) 0 0 / 4px 4px,
     linear-gradient(180deg, rgba(17, 15, 14, 0.8), rgba(17, 15, 14, 0.9) 60%, rgba(17, 15, 14, 0.97)),
-    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(143, 14, 23, 0.35), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(123, 20, 27, 0.35), transparent 70%),
     var(--ink);
-  filter: saturate(0.8);
 }
 
 /* ── Lenis ── */
@@ -217,15 +223,15 @@ html.lenis body {
 }
 
 /* ── Route enter ── */
+/* Transform and opacity only: a filter blur here re-rasterised the whole
+   page on every frame of the entrance, right while it hydrates. */
 @keyframes route-panel-enter {
   from {
     opacity: 0;
-    filter: blur(5px);
     transform: translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
-    filter: blur(0);
     transform: translateY(0) scale(1);
   }
 }
@@ -364,18 +370,12 @@ html.lenis body {
   /* ── Surfaces ── */
   .glass {
     background: var(--glass);
-    -webkit-backdrop-filter: blur(5px) saturate(1.08);
-    backdrop-filter: blur(5px) saturate(1.08);
   }
   .glass-card {
     background: var(--glass-card);
-    -webkit-backdrop-filter: blur(8px) saturate(1.1);
-    backdrop-filter: blur(8px) saturate(1.1);
   }
   .glass-deep {
     background: var(--glass-deep);
-    -webkit-backdrop-filter: blur(7px) saturate(108%);
-    backdrop-filter: blur(7px) saturate(108%);
   }
   .grain {
     position: relative;
@@ -422,8 +422,6 @@ html.lenis body {
     @apply inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-4 font-display text-lg text-cream
            disabled:cursor-not-allowed disabled:opacity-40;
     background: var(--glass);
-    -webkit-backdrop-filter: blur(5px) saturate(1.08);
-    backdrop-filter: blur(5px) saturate(1.08);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px rgb(0 0 0 / 0.22);
     transition: transform 160ms var(--ease-out), background 200ms ease;
   }
@@ -467,7 +465,7 @@ html.lenis body {
       background: linear-gradient(100deg, #ef4640, #ff5b52 48%, #ff8078);
     }
     .btn-ghost:hover:not(:disabled) {
-      background: rgba(34, 20, 22, 0.78);
+      background: rgb(30 18 20 / 0.93);
     }
     .btn-cyan:hover:not(:disabled),
     .btn-fuch:hover:not(:disabled) {
@@ -500,8 +498,6 @@ html.lenis body {
   .card {
     @apply relative overflow-hidden rounded-2xl;
     background: var(--glass-card);
-    -webkit-backdrop-filter: blur(8px) saturate(1.1);
-    backdrop-filter: blur(8px) saturate(1.1);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
     transition: transform 280ms var(--ease-overshoot), box-shadow 280ms ease, background 200ms ease;
   }
@@ -510,7 +506,7 @@ html.lenis body {
   }
   @media (hover: hover) and (pointer: fine) {
     .card-hover:hover {
-      background: rgba(44, 30, 31, 0.7);
+      background: rgb(36 25 26 / 0.93);
     }
   }
 
@@ -717,8 +713,6 @@ html.lenis body {
     @apply rounded-lg;
     padding: 13px 15px;
     background: var(--glass-deep);
-    -webkit-backdrop-filter: blur(18px) saturate(115%);
-    backdrop-filter: blur(18px) saturate(115%);
   }
   .disclosure > summary {
     display: flex;
@@ -775,9 +769,7 @@ html.lenis body {
     grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
     border-block: 1px solid var(--line);
-    background: rgba(17, 15, 14, 0.6);
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
+    background: rgb(16 14 13 / 0.93);
   }
   .strip-cell {
     display: grid;
@@ -997,15 +989,13 @@ html.lenis body {
   font-size: 1.05rem;
   line-height: 1;
   white-space: nowrap;
-  -webkit-backdrop-filter: blur(5px) saturate(108%);
-  backdrop-filter: blur(5px) saturate(108%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px rgb(0 0 0 / 0.22);
   transition: background 280ms ease, color 280ms ease, transform 160ms var(--ease-out);
 }
 .wallet-chip:hover,
 .wallet-chip:focus-visible,
 .wallet-chip[aria-expanded="true"] {
-  background: rgb(24 22 22 / 0.82);
+  background: rgb(24 22 22 / 0.93);
   color: var(--cream);
 }
 .wallet-chip.is-connected {
@@ -1126,9 +1116,17 @@ html.lenis body {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / calc(0.06 * var(--nav-p))),
     0 10px 30px rgb(0 0 0 / calc(0.28 * var(--nav-p)));
-  background-color: color-mix(in srgb, rgb(14 7 9) calc(var(--nav-p) * 72%), transparent);
-  -webkit-backdrop-filter: blur(calc(var(--nav-p) * 18px)) saturate(1.08);
-  backdrop-filter: blur(calc(var(--nav-p) * 18px)) saturate(1.08);
+  /* Near-opaque by default (phones, low-power devices): no blur to recompute
+     on every scrolled frame. Desktops with a fine pointer keep the frosted
+     pill, the one small blurred surface on the site. */
+  background-color: color-mix(in srgb, rgb(14 7 9) calc(var(--nav-p) * 92%), transparent);
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+  html:not(.lite) .nav-bar {
+    background-color: color-mix(in srgb, rgb(14 7 9) calc(var(--nav-p) * 72%), transparent);
+    -webkit-backdrop-filter: blur(calc(var(--nav-p) * 18px)) saturate(1.08);
+    backdrop-filter: blur(calc(var(--nav-p) * 18px)) saturate(1.08);
+  }
 }
 .nav-bar .wordmark {
   font-size: calc(25px - var(--nav-p) * 3px);
@@ -1221,9 +1219,7 @@ html.lenis body {
   overscroll-behavior: contain;
   padding: 12px 12px 16px;
   border-radius: 24px;
-  background: rgb(14 7 9 / 0.94);
-  -webkit-backdrop-filter: blur(18px) saturate(1.08);
-  backdrop-filter: blur(18px) saturate(1.08);
+  background: rgb(14 7 9 / 0.97);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.055), 0 28px 80px rgb(0 0 0 / 0.42);
   animation: wallet-menu-in 180ms ease-out both;
 }
@@ -1319,9 +1315,10 @@ html.lenis body {
   padding: 0.04em 0 0.12em;
   user-select: none;
 }
+/* No standing will-change: GSAP's force3D promotes the letters only while
+   they climb, instead of keeping five huge glyph layers alive forever. */
 .mark-char {
   display: inline-block;
-  will-change: transform;
 }
 .footer-bottom {
   max-width: var(--wrap);

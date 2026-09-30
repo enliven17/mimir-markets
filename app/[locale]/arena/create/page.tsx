@@ -93,7 +93,7 @@ export default function CreateClaimPage() {
         ) : null}
       </div>
 
-      <Sheet className={`!px-5 !py-7 sm:!px-9 sm:!py-9 ${SURFACE_DEEP} ![-webkit-backdrop-filter:none] ![backdrop-filter:none]`}>
+      <Sheet className={`!px-5 !py-7 sm:!px-9 sm:!py-9 ${SURFACE_DEEP}`}>
         <div className="grid gap-5">
           <div className="flex items-baseline justify-between gap-3">
             <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>

@@ -1,7 +1,7 @@
 import RouteEffects from "@/components/motion/RouteEffects";
 
 /**
- * Remounts on every navigation: a short route entrance (blur + fade +
+ * Remounts on every navigation: a short route entrance (fade + scale +
  * 8px rise, 400ms; off under reduced motion, see `.route-enter`) and a jump to
  * the top.
  */

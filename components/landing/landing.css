@@ -62,8 +62,6 @@
 .l-mock {
   border-radius: 22px;
   background: var(--glass-card);
-  -webkit-backdrop-filter: blur(8px) saturate(1.1);
-  backdrop-filter: blur(8px) saturate(1.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 }
 
@@ -195,9 +193,7 @@
   margin: 0;
   padding-inline: max(var(--gut), calc((100% - var(--wrap)) / 2));
   border-block: 1px solid var(--line);
-  background: rgba(17, 15, 14, 0.6);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  background: rgb(16 14 13 / 0.93);
 }
 .l-stat {
   display: grid;
@@ -867,8 +863,6 @@
   padding: 18px;
   border-radius: 20px;
   background: var(--glass-card);
-  -webkit-backdrop-filter: blur(8px) saturate(1.1);
-  backdrop-filter: blur(8px) saturate(1.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
   transition: transform 320ms var(--ease-overshoot), box-shadow 320ms ease;
 }
@@ -945,7 +939,10 @@
   }
 }
 
-/* ── Edge fog: top and bottom bands blur while scrolling. ── */
+/* ── Edge fog: top and bottom bands haze over while scrolling. One gradient
+   layer per band driven by opacity alone (compositor only). It used to be
+   five stacked backdrop blurs per band, re-blurred on every scrolled frame,
+   which is exactly when it was visible. ── */
 .l-fog {
   position: fixed;
   left: 0;
@@ -953,8 +950,12 @@
   z-index: 40;
   height: min(22vh, 200px);
   pointer-events: none;
+  opacity: 0;
   visibility: hidden;
-  --f: 0;
+  contain: strict;
+  background:
+    radial-gradient(ellipse 60% 100% at 50% 100%, rgba(17, 15, 14, 0.35), transparent 75%),
+    linear-gradient(transparent, rgba(17, 15, 14, 0.4) 55%, rgba(17, 15, 14, 0.75));
 }
 .l-fog[data-on] {
   visibility: visible;
@@ -965,43 +966,6 @@
 .l-fog.t {
   top: 0;
   transform: scaleY(-1);
-}
-.l-fog i {
-  position: absolute;
-  inset: 0;
-  opacity: var(--f);
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-}
-.l-fog i:nth-child(1) {
-  -webkit-backdrop-filter: blur(0.8px);
-  backdrop-filter: blur(0.8px);
-  -webkit-mask-image: linear-gradient(transparent 0%, #000 16%, #000 34%, transparent 50%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-  mask-image: linear-gradient(transparent 0%, #000 16%, #000 34%, transparent 50%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-}
-.l-fog i:nth-child(2) {
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-  -webkit-mask-image: linear-gradient(transparent 16%, #000 34%, #000 50%, transparent 66%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-  mask-image: linear-gradient(transparent 16%, #000 34%, #000 50%, transparent 66%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-}
-.l-fog i:nth-child(3) {
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(transparent 34%, #000 50%, #000 66%, transparent 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-  mask-image: linear-gradient(transparent 34%, #000 50%, #000 66%, transparent 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-}
-.l-fog i:nth-child(4) {
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  -webkit-mask-image: linear-gradient(transparent 50%, #000 66%, #000 84%, transparent 100%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-  mask-image: linear-gradient(transparent 50%, #000 66%, #000 84%, transparent 100%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-}
-.l-fog i:nth-child(5) {
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  -webkit-mask-image: linear-gradient(transparent 66%, #000 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
-  mask-image: linear-gradient(transparent 66%, #000 84%), linear-gradient(90deg, #000, rgba(0, 0, 0, 0.28) 50%, #000);
 }
 
 /* ── Reduced motion: every section is a static block. ── */
