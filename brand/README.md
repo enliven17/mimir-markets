@@ -8,6 +8,8 @@
 | `logo/mimir-horn-red.svg` | the horn in red with coral linework | vector |
 | `logo/mimir-horn-tile.svg` | the cream horn on a rounded ink square | 1024×1024 |
 | `../app/icon.png`, `../app/apple-icon.png` | the site's tab icon and iOS home-screen icon, rendered from `source/icon.html` | 256×256, 180×180 |
+| `launch.mp4` | launch post: "Don't argue. Settle." over the wave field, then one claim card walks Create → Challenge (stakes streaming in on the rollup, zero fee, ~30 ms) → deadline → Resolve (the oracle reads the evidence, proposes "No" at 91% with a verify hash, 24h dispute window with a bond; the 20 council jurors vote) → Payout (winners pull), then the horn, the slogan and `mimirmarkets.xyz`. Sources in `launch-video/` | 1920×1080, 20 s, 60 fps, with sound |
+| `launch-square.mp4` | the same cut laid out for phone feeds | 1080×1080, 20 s, 60 fps, with sound |
 | `logo/mimir-mark.svg` | alternate mark: cream M, red period | vector |
 | `logo/mimir-mark-mono.svg` | the M. mark in one colour (`currentColor`) | vector |
 | `logo/mimir-mark-tile.svg` | the M. mark on a rounded ink square | 1024×1024 |
@@ -25,3 +27,39 @@ npm run render     # → x-profile.png, x-banner.png, ../app/icon.png, ../app/ap
 ```
 
 Set `CHROME_PATH` to use another Chromium browser.
+
+## Launch video
+
+Made with [ft-motion](https://github.com/imserhatdemir/ft-motion): every frame is `draw(ctx, t)` in Canvas 2D, rendered in headless Chrome/Edge with motion blur, encoded by ffmpeg, and scored by a Python synth on the same 120 BPM grid (one bar = 2 s). The project is `launch-video/`:
+
+| File | What |
+|---|---|
+| `project.json` / `project.square.json` | canvas (1920×1080 / 1080×1080), 60 fps, 20 s, 120 BPM, fonts |
+| `scene.js` | the scene; copy and the illustrative claim at the top, every time on the beat grid (`T`) |
+| `sound.py` | the soundtrack; its times mirror `T` in `scene.js` |
+| `fonts.css`, `fonts/` | Terminal Grotesque, Geist Pixel Square, Geist Mono (licences alongside) |
+| `horn.svg`, `avatars/` | the logo; the council's open-peeps portraits (seed `council-<slug>`, the site's palette) and eight wallet portraits |
+
+The pieces are the site's: tokens from `app/globals.css`, the ASCII field from `components/hero-ascii/field.ts`, the scribble from `components/landing/Scribble.tsx`, the Bayer dither from `components/motion/useDitherReveal.ts`, the rolling step numeral from `components/landing/HowItSettles.tsx`, the card and odds bar from `components/arena/ClaimCard.tsx` and `OddsBar.tsx`, the roster from `agents/council/`. The claim, wallets, stakes, latencies, price, confidence and hash are illustrations, not live data.
+
+ft-motion scenes import its engine by relative path (`../../engine/core.js`), so render from an ft-motion checkout (Node 18+, Python 3.10+ with numpy and scipy, ffmpeg on `PATH`, Chrome or Edge):
+
+```sh
+git clone https://github.com/imserhatdemir/ft-motion ../../ft-motion && cd ../../ft-motion && npm install && pip install -r requirements.txt
+cp -r ../mimir-solana/brand/launch-video examples/mimir-launch
+python examples/mimir-launch/sound.py              # → out/audio.wav (prints LUFS / true peak)
+node ft.mjs sheet examples/mimir-launch 16         # contact sheet to check the frames
+node ft.mjs preview examples/mimir-launch          # live player (space, ←/→, b = motion blur)
+node ft.mjs render examples/mimir-launch           # → examples/mimir-launch/out/mimir-launch.mp4
+
+# the square cut: same scene, the square project file
+cp -r ../mimir-solana/brand/launch-video examples/mimir-launch-square
+cp examples/mimir-launch-square/project.square.json examples/mimir-launch-square/project.json
+python examples/mimir-launch-square/sound.py && node ft.mjs render examples/mimir-launch-square
+
+# into the brand folder, audio at 192 kbps
+ffmpeg -i examples/mimir-launch/out/mimir-launch.mp4 -c:v copy -c:a aac -b:a 192k -movflags +faststart ../mimir-solana/brand/launch.mp4
+ffmpeg -i examples/mimir-launch-square/out/mimir-launch-square.mp4 -c:v copy -c:a aac -b:a 192k -movflags +faststart ../mimir-solana/brand/launch-square.mp4
+```
+
+A full render takes a while (1200 frames × 6 motion-blur subframes); `--sub 1` renders a quick draft.
