@@ -21,7 +21,8 @@ import { DISPUTE_BOND_UNITS, ST_ACTIVE, ST_DISPUTED, ST_OPEN, ST_PROPOSED } from
 import { toLifecycle } from "@/lib/arena-lifecycle";
 import { SIDE_LABEL, formatCountdown } from "@/lib/claim-status";
 import { formatUsdcUnits } from "@/lib/money";
-import { Button, Disclosure } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Disclosure from "@/components/ui/Disclosure";
 import Countdown from "@/components/arena/Countdown";
 import { shortKey, useNowSec, useSettleAction } from "./useSettleAction";
 

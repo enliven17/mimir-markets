@@ -7,7 +7,7 @@
  */
 import { SURFACE } from "@/components/arena/surface";
 import { useTranslations } from "next-intl";
-import { Disclosure } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
 
 /** Compact display for a Solana base58 address: first 4 chars + "…" + last 4. */
 function formatWalletForTicket(address: string | null | undefined): string {

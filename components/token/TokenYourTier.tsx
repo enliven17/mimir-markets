@@ -5,7 +5,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-import { Button, Skeleton } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Skeleton from "@/components/ui/Skeleton";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { useHolderTier } from "./useHolderTier";
 

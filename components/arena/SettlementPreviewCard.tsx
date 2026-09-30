@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { ApiClaim } from "@/lib/server/arena-claim";
 import { confidenceTier, settlementPreview } from "@/lib/settlement-preview";
-import { StatusPill } from "@/components/ui";
+import { StatusPill } from "@/components/ui/StatusPill";
 import { displayedSide, isPendingVerdict } from "@/lib/claim-status";
 import { ST_RESOLVED } from "@/lib/solana/config";
 

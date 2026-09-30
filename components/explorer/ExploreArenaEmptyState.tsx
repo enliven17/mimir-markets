@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@/i18n/navigation";
-import { buttonClass } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
 import ExploreEmptyStateShell from "./ExploreEmptyStateShell";
 
 export type ExploreArenaEmptyStateProps = {

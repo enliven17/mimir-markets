@@ -11,7 +11,7 @@ import { useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { Disclosure } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
 import type { ChallengeOpportunity } from "@/lib/claimDrafts";
 import { createPrefillHref } from "@/lib/create-prefill";
 

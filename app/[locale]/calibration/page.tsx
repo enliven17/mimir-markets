@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { SURFACE } from "@/components/arena/surface";
 import StatsHeader from "@/components/stats/StatsHeader";
-import { EmptyState } from "@/components/ui";
+import EmptyState from "@/components/ui/EmptyState";
 import { COUNCIL_PERSONAS } from "@/agents/council/personas";
 import { calibrate, COIN_FLIP_BRIER, type CalibrationRow } from "@/lib/calibration";
 import { scoredForecasts } from "@/lib/server/forecasts";

@@ -18,7 +18,10 @@ import { Plus } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
-import { Button, EmptyState, Modal, Skeleton, buttonClass } from "@/components/ui";
+import Button, { buttonClass } from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import Modal from "@/components/ui/Modal";
+import Skeleton from "@/components/ui/Skeleton";
 import CopyPermissionList from "@/components/copy/CopyPermissionList";
 import { probeCopyTrading } from "@/lib/copy-client";
 

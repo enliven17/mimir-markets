@@ -10,7 +10,8 @@ import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 
 import { SURFACE } from "@/components/arena/surface";
-import { Button, EmptyState } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 
 import { followerProofMessage } from "@/lib/copy-trading";
 import {

@@ -7,7 +7,7 @@
  */
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { Disclosure } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
 import FeeTermsCard from "@/components/arena/settlement/FeeTermsCard";
 import SettlementPreviewCard from "@/components/arena/SettlementPreviewCard";
 import type { ApiClaim } from "@/lib/server/arena-claim";

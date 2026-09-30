@@ -3,7 +3,7 @@
 /** Step 4: the ticket as it will be published, the optional council preflight, and publish (or connect first). */
 import { useTranslations } from "next-intl";
 import { Zap } from "lucide-react";
-import { Button } from "@/components/ui";
+import Button from "@/components/ui/Button";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import CreateChallengeTicket from "@/components/vs/CreateChallengeTicket";
 import CouncilPreflight from "@/components/council/CouncilPreflight";

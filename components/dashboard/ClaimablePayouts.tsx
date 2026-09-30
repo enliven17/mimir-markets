@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SURFACE } from "@/components/arena/surface";
-import { Button } from "@/components/ui";
+import Button from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation";
 import type { BrowserMimir } from "@/lib/solana/browser-client";
 import { payoutChallenger, payoutCreator } from "@/lib/solana/browser-client-lazy";

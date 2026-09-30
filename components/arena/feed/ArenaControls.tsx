@@ -7,7 +7,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { Chip, Segmented } from "@/components/ui";
+import Chip from "@/components/ui/Chip";
+import Segmented from "@/components/ui/Segmented";
 import {
   activeFilterCount,
   ARENA_VIEWS,

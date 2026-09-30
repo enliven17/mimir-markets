@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui";
+import Skeleton from "@/components/ui/Skeleton";
 
 /** Shown while the council's stakes and bankrolls are read on a cold cache: the page's shape, no text. */
 export default function CouncilLoading() {

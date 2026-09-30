@@ -12,7 +12,7 @@
  */
 import { useId } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import Button from "@/components/ui/Button";
 import DisputePanel from "@/components/arena/settlement/DisputePanel";
 import PayoutPanel from "@/components/arena/settlement/PayoutPanel";
 import type { ApiClaim } from "@/lib/server/arena-claim";

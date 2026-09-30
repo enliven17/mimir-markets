@@ -10,7 +10,7 @@ import { memo, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import RollingNumber from "@/components/motion/RollingNumber";
-import { FeedCard } from "@/components/ui";
+import { FeedCard } from "@/components/ui/Card";
 import OddsBar from "@/components/arena/OddsBar";
 import { claimPhase, displayedSide, type ClaimPhase } from "@/lib/claim-status";
 import Countdown from "@/components/arena/Countdown";

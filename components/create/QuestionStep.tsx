@@ -3,7 +3,7 @@
 /** Step 1: the question and its two sides, with a one-click draft of both sides from the question. */
 import { useTranslations } from "next-intl";
 import { Wand2 } from "lucide-react";
-import { Input, Textarea } from "@/components/ui";
+import Input, { Textarea } from "@/components/ui/Input";
 import type { CreateDraft } from "./useCreateDraft";
 
 export default function QuestionStep({ draft }: { draft: CreateDraft }) {

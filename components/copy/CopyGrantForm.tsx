@@ -32,7 +32,8 @@ import {
 import { formatUsdc } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 import { Link } from "@/i18n/navigation";
-import { Button, Disclosure } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Disclosure from "@/components/ui/Disclosure";
 import { useSignText } from "./useSignText";
 
 type NumericField =

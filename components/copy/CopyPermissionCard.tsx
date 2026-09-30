@@ -5,7 +5,10 @@ import { ArrowUpRight } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
-import { Button, Disclosure, KeyValue, StatusPill } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Disclosure from "@/components/ui/Disclosure";
+import KeyValue from "@/components/ui/KeyValue";
+import { StatusPill } from "@/components/ui/StatusPill";
 import { formatUsdc } from "@/lib/money";
 import type { CopyPermissionView } from "@/lib/copy-client";
 import { COPY_CATEGORIES } from "@/lib/copy-form";

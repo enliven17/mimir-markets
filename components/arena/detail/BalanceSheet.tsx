@@ -2,7 +2,7 @@
 
 /** "Manage balance" from the action dock: the rollup balance, deposit and delegate, withdraw. */
 import { useTranslations } from "next-intl";
-import { Modal } from "@/components/ui";
+import Modal from "@/components/ui/Modal";
 import BalanceCard from "@/components/arena/settlement/BalanceCard";
 import { useWalletFunds } from "@/hooks/useWalletFunds";
 import type { BrowserMimir } from "@/lib/solana/browser-client";

@@ -11,7 +11,9 @@ import { memo, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { SURFACE } from "@/components/arena/surface";
-import { EmptyState, Skeleton, buttonClass } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 

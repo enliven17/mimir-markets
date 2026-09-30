@@ -1,6 +1,6 @@
 "use client";
 
-import { buttonClass } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
 import ExploreEmptyStateShell from "./ExploreEmptyStateShell";
 
 export type ExploreFilteredEmptyStateProps = {

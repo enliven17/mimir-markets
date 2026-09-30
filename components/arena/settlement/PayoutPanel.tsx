@@ -14,7 +14,7 @@ import { payoutChallenger, payoutCreator, refundBond } from "@/lib/solana/browse
 import { BOND_REFUND_DUE, ST_RESOLVED } from "@/lib/solana/config";
 import { challengerGross, creatorGross, splitFees } from "@/lib/solana/fees";
 import { formatUsdcUnits } from "@/lib/money";
-import { Disclosure } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
 import { shortKey, useSettleAction } from "./useSettleAction";
 
 interface Props {

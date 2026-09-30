@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { getLenis, gsap, MOTION_OK_QUERY, pinType, ScrollTrigger, useGSAP } from "@/lib/motion";
 import { SplitReveal, useRiseBatch } from "@/components/motion";
-import { Segmented } from "@/components/ui";
+import Segmented from "@/components/ui/Segmented";
 import { featuredClaim, poolUsdc } from "@/lib/landing";
 import { formatUsdcBare } from "@/lib/money";
 import { requestScrollRefresh, useLandingFeed } from "./LandingFeed";

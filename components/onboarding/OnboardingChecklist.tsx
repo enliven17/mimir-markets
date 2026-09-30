@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Check, ChevronDown, ExternalLink, X } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
-import { Modal } from "@/components/ui";
+import Modal from "@/components/ui/Modal";
 import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
 import { useUserPositions } from "@/hooks/useUserPositions";
 import { useWalletFunds, type WalletFunds } from "@/hooks/useWalletFunds";

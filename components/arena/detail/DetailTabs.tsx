@@ -8,7 +8,7 @@
 import { SURFACE } from "@/components/arena/surface";
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Segmented } from "@/components/ui";
+import Segmented from "@/components/ui/Segmented";
 
 export type DetailTab = "evidence" | "council" | "people" | "terms";
 const TABS: DetailTab[] = ["evidence", "council", "people", "terms"];

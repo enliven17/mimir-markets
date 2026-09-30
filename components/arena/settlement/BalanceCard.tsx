@@ -17,7 +17,7 @@ import { depositAndDelegate } from "@/lib/solana/fund-actions";
 import { MIN_STAKE_UNITS, toUsdcUnits } from "@/lib/solana/config";
 import { formatUsdcUnits } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
-import { Button } from "@/components/ui";
+import Button from "@/components/ui/Button";
 import { explorerTx } from "./useSettleAction";
 
 export default function BalanceCard({

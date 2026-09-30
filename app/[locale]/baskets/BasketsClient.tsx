@@ -10,7 +10,9 @@ import { Plus } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
-import { EmptyState, Skeleton, buttonClass } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import Skeleton from "@/components/ui/Skeleton";
 import { PeepStack } from "@/components/ui/PeepAvatar";
 
 interface BasketSummary {

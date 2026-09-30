@@ -9,7 +9,9 @@
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Wand2 } from "lucide-react";
-import { Chip, Disclosure, Input, Textarea } from "@/components/ui";
+import Chip from "@/components/ui/Chip";
+import Disclosure from "@/components/ui/Disclosure";
+import Input, { Textarea } from "@/components/ui/Input";
 import ResolverToggle from "@/components/arena/ResolverToggle";
 import { CATEGORIES, DEADLINE_PRESET_IDS, DEADLINE_PRESET_SECONDS, normalizeCategoryId } from "@/lib/constants";
 import { formatLocalDateInputValue, type CreateDraft } from "./useCreateDraft";

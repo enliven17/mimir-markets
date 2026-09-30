@@ -10,7 +10,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useInViewOnce } from "@/components/motion/hooks";
-import { Disclosure, Rail } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
+import Rail from "@/components/ui/Rail";
 import ChallengeOpportunityCard from "@/components/explorer/ChallengeOpportunityCard";
 import type { ChallengeOpportunitiesResponse, ChallengeOpportunity } from "@/lib/claimDrafts";
 

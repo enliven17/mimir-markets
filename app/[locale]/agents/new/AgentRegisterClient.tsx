@@ -21,7 +21,9 @@ import bs58 from "bs58";
 import { Check, Copy } from "lucide-react";
 
 import { SURFACE_DEEP } from "@/components/arena/surface";
-import { Button, Progress, Sheet } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/Card";
+import Progress from "@/components/ui/Progress";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 import {

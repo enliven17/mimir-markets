@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { SURFACE } from "@/components/arena/surface";
-import { Disclosure } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
 import TokenYourTier from "@/components/token/TokenYourTier";
 import { fetchDexReadings } from "@/lib/server/dex-prices";
 import { mainnetMintSupply } from "@/lib/server/mainnet";

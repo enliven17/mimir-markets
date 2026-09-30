@@ -17,7 +17,11 @@ import { Check, Plus, Scale, TriangleAlert, X } from "lucide-react";
 
 import { Link, useRouter } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
-import { Button, Chip, Input, Meter, Skeleton, Textarea } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Chip from "@/components/ui/Chip";
+import Input, { Textarea } from "@/components/ui/Input";
+import { Meter } from "@/components/ui/Progress";
+import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import {
   composeMessage,

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { EmptyState } from "@/components/ui";
+import EmptyState from "@/components/ui/EmptyState";
 
 export type ExploreEmptyStateShellProps = {
   /** One line. */

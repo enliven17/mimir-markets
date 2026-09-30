@@ -4,7 +4,7 @@
 import { useTranslations } from "next-intl";
 
 import { SURFACE_DEEP } from "@/components/arena/surface";
-import { Sheet } from "@/components/ui";
+import { Sheet } from "@/components/ui/Card";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 

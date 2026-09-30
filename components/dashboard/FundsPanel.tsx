@@ -9,7 +9,8 @@
 import { useTranslations } from "next-intl";
 
 import BalanceCard from "@/components/arena/settlement/BalanceCard";
-import { Modal, Skeleton } from "@/components/ui";
+import Modal from "@/components/ui/Modal";
+import Skeleton from "@/components/ui/Skeleton";
 import type { WalletFunds } from "@/hooks/useWalletFunds";
 import type { BrowserMimir } from "@/lib/solana/browser-client";
 

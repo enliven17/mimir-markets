@@ -10,7 +10,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { SURFACE } from "@/components/arena/surface";
-import { Disclosure, Segmented } from "@/components/ui";
+import Disclosure from "@/components/ui/Disclosure";
+import Segmented from "@/components/ui/Segmented";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";

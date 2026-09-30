@@ -3,7 +3,8 @@
 /** Step 2: the creator stake, from a slider, a preset or a typed amount (minimum 2 USDC). */
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Chip, Slider } from "@/components/ui";
+import Chip from "@/components/ui/Chip";
+import Slider from "@/components/ui/Slider";
 import { MIN_STAKE } from "@/lib/constants";
 import { formatUsdcBare } from "@/lib/money";
 import type { CreateDraft } from "./useCreateDraft";

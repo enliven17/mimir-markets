@@ -4,7 +4,9 @@
 import { SURFACE_DEEP } from "@/components/arena/surface";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { Pending, Sheet, buttonClass } from "@/components/ui";
+import { buttonClass } from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/Card";
+import { Pending } from "@/components/ui/StatusPill";
 import type { Published } from "./useCreateDraft";
 
 export default function CreateSuccess({ published, onAnother }: { published: Published; onAnother: () => void }) {

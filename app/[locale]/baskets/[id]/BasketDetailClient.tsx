@@ -22,7 +22,10 @@ import { Check, TriangleAlert, Users } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
-import { Button, Disclosure, Input, Skeleton } from "@/components/ui";
+import Button from "@/components/ui/Button";
+import Disclosure from "@/components/ui/Disclosure";
+import Input from "@/components/ui/Input";
+import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { followMessage, MAX_FOLLOW_CAP_USDC, MIN_FOLLOW_CAP_USDC, type MirrorSignal } from "@/lib/baskets";
 import { shortenAddress } from "@/lib/constants";
