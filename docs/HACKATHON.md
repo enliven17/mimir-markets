@@ -11,9 +11,10 @@ agent and a twenty-persona council trade each other (and you) on short,
 checkable claims, and every verdict can be re-checked by anyone.
 
 - **Product:** Solana **devnet**. V3 program `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE`, Circle devnet USDC.
-- **Token:** Solana **mainnet**, launched on ClawPump (pump.fun). The mint comes
-  from `NEXT_PUBLIC_MIMIR_TOKEN_MINT`; until it is set every surface shows
-  "launching on ClawPump".
+- **Token:** $MIMIR on Solana **mainnet**, launched on ClawPump (pump.fun):
+  mint [`8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V`](https://solscan.io/token/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V),
+  [clawpump.tech/tokens/8r2Lge…](https://clawpump.tech/tokens/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V). 25% of the
+  creator fee share buys $MIMIR back automatically.
 
 ---
 
@@ -83,8 +84,8 @@ markets on the publish page. Mint `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`
 The market creator also drafts $ANSEM price claims on its own (`agents/market-creator/ansem.ts`): a ±2% threshold around the live DEX price, only when DexScreener and Jupiter agree.
 
 **Roadmap:** devnet product → mainnet program with the same V3 rules and USDC
-stakes → ClawPump creator fees (75% share) fund oracle/council inference, RPC
-and audits; protocol fee use (e.g. buybacks) decided in the open. No yield,
+stakes → ClawPump creator fees (75% share): 25% of it buys $MIMIR back, the
+rest funds oracle/council inference, RPC and audits. No yield,
 revenue share or price promises.
 
 ---
@@ -115,13 +116,13 @@ revenue share or price promises.
 ## Submission checklist
 
 - [ ] **Register** the team on [clawpump.tech/ansemhack](https://clawpump.tech/ansemhack).
-- [ ] **Launch the token** on ClawPump (Solana mainnet) by 1 Oct:
+- [x] **Launch the token** on ClawPump (Solana mainnet): `8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V`, 25% auto-buyback.
   1. `npx clawpump launch --paid` (or the dashboard at `/dashboard/launch-token`, or the API/MCP).
   2. Sign in (Google), enter name, ticker (`MIMIR`), avatar.
   3. Review the quote and pay from the wallet: **0.012 SOL** launch cost, **0.018 SOL** with an initial buy, plus the purchase and network fees.
   4. Fee split: **75%** of trading fees to the creator payout wallet, **25%** to ClawPump (per their docs, part of it buys $CLAW and $ANSEM).
   5. Set the env vars below on Railway (web + workers) and redeploy.
-- [ ] **Railway:** set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` explicitly (web + workers), rebuild, and check `/api/health` is 200 with every worker reporting.
+- [x] **Railway:** set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` explicitly (web + workers), rebuild, and check `/api/health` is 200 with every worker reporting.
 - [ ] **Top up the council** (`npm run system:status`, then fund the shortfall from faucet.circle.com and `npm run system:fund`).
 - [ ] **Post on X** (draft below) and **follow @clawpumptech**.
 - [ ] README top section and this file linked in the submission.
@@ -130,9 +131,9 @@ revenue share or price promises.
 ### Env vars after launch
 
 ```
-NEXT_PUBLIC_MIMIR_TOKEN_MINT=<mint from ClawPump>
+NEXT_PUBLIC_MIMIR_TOKEN_MINT=8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V
 NEXT_PUBLIC_MIMIR_TOKEN_SYMBOL=MIMIR
-NEXT_PUBLIC_MIMIR_TOKEN_URL=https://clawpump.tech/tokens/<mint>
+NEXT_PUBLIC_MIMIR_TOKEN_URL=https://clawpump.tech/tokens/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V
 SOLANA_MAINNET_RPC=<helius mainnet url>          # public endpoint works but is rate-limited
 # optional, turn perks on:
 AGENT_REGISTER_MIN_MIMIR=10000
@@ -150,4 +151,4 @@ BASKET_CREATE_MIN_TIER=holder
 >
 > $MIMIR on @clawpumptech: holders get council priority, $ANSEM holders count too, and $ANSEM price markets settle deterministically.
 >
-> mimirmarkets.xyz · <token url>
+> mimirmarkets.xyz · clawpump.tech/tokens/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V
