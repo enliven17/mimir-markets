@@ -151,7 +151,7 @@ export default async function TokenPage() {
         </h2>
         <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-3">
           {TIERS.map((tier, i) => (
-            <li key={tier} className={`${SURFACE} card-in grid content-start gap-3 p-5`} style={{ "--i": i } as React.CSSProperties}>
+            <li key={tier} className={`${SURFACE} card-in grid content-start gap-3 p-5 sm:row-span-3 sm:grid-rows-subgrid`} style={{ "--i": i } as React.CSSProperties}>
               <p className="m-0 font-display text-[1.35rem] leading-none text-cream">{t(`tier.${tier}`)}</p>
               <p className="m-0 font-mono text-[14px] text-cream">
                 ≥ {t("needsAtLeast", { n: fmtN(need[tier]), symbol })}
@@ -159,7 +159,8 @@ export default async function TokenPage() {
                   <span className="block text-[12px] text-muted">{t("orAnsem", { n: fmtN(thresholds.ansemHolderMin) })}</span>
                 ) : null}
               </p>
-              <ul className="m-0 grid list-none gap-1.5 border-t border-line p-0 pt-3 text-[13px] text-muted">
+              {/* Subgrid rows: the dividers line up although only Holder has a second threshold line. */}
+              <ul className="m-0 grid list-none content-start gap-1.5 border-t border-line p-0 pt-3 text-[13px] text-muted">
                 <li className="flex items-center gap-2">
                   <span aria-hidden className="h-1 w-1 rounded-[1px] bg-coral" />
                   {t("tierCouncil", { x: TIER_RATE_MULTIPLIER[tier] })}
