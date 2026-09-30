@@ -9,7 +9,8 @@
  * stakes through an agent. Dismissal is remembered in localStorage.
  *
  * - `OnboardingBanner`: one dismissible line ("Deposit, delegate, challenge ·
- *   2 of 5 done · Continue") that opens the full checklist in a sheet.
+ *   2 of 5 done · Continue") that opens the full checklist in a sheet;
+ *   `OnboardingBannerView` is the same over data the page already reads.
  * - `OnboardingChecklistView`: the checklist itself, as a card or bare inside
  *   a sheet.
  */
@@ -73,12 +74,6 @@ function useDismissed() {
     setDismissed(true);
   };
   return { dismissed, dismiss };
-}
-
-/** Self-fetching checklist card for pages that do not already read the wallet's funds. */
-export default function OnboardingChecklist({ className = "" }: { className?: string }) {
-  const { funds, hasStake } = useOnboardingData();
-  return <OnboardingChecklistView funds={funds} mimir={funds.mimir} hasStake={hasStake} onFunded={funds.reload} className={className} />;
 }
 
 /** One line with progress and Continue; the checklist opens in a sheet. Hidden once done or dismissed. */
