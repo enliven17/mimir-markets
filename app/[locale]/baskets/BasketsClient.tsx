@@ -79,9 +79,9 @@ export default function BasketsClient() {
           {t("empty")}
         </EmptyState>
       ) : (
-        <ul className="m-0 grid list-none gap-4 p-0 md:grid-cols-2">
+        <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2">
           {baskets.map((b) => (
-            <li key={b.id}>
+            <li key={b.id} className="min-w-0">
               <Link
                 href={`/baskets/${b.id}`}
                 className={`${SURFACE} group flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-[inset_0_0_0_1px_rgb(255_81_72/.32)]`}
