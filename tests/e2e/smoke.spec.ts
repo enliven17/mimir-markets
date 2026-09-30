@@ -102,6 +102,66 @@ test("create page accepts an opportunity-card prefill link", async ({ page }) =>
   });
   await page.goto(`/en/arena/create?${q}`);
   await expect(page.getByText(/Prefilled from example\.com/)).toBeVisible();
+  // The prefill lands on step 1, filled.
+  await expect(page.getByText("Step 1 of 4")).toBeVisible();
+  await expect(page.getByLabel("Question")).toHaveValue(/BTC trade above \$150,000/);
+});
+
+test("arena feed has one control row and a filters popover", async ({ page }) => {
+  await page.goto("/en/arena");
+  const views = page.getByRole("tablist", { name: "Claims" });
+  await expect(views.getByRole("tab", { name: /^Open/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("searchbox", { name: "Search claims" })).toBeVisible();
+  // The old quick-filter dropdown only offered "All"; it is gone.
+  await expect(page.getByRole("button", { name: "Filter view" })).toHaveCount(0);
+  const filters = page.getByRole("button", { name: /^Filters/ });
+  await filters.click();
+  const popover = page.getByRole("dialog", { name: "Filters" });
+  await expect(popover.getByText("Category")).toBeVisible();
+  await expect(popover.getByText("Minimum stake")).toBeVisible();
+  await expect(popover.getByRole("group", { name: "Sort" })).toBeVisible();
+  await popover.getByRole("button", { name: "25+" }).click();
+  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
+  await views.getByRole("tab", { name: /^Settled/ }).click();
+  await expect(views.getByRole("tab", { name: /^Settled/ })).toHaveAttribute("aria-selected", "true");
+});
+
+test("claim detail keeps the action in view on a phone", async ({ page }) => {
+  await mockFixtureClaim(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/en/arena/${FIXTURE_CLAIM_ID}`);
+  const dock = page.getByTestId("action-dock");
+  await expect(dock.getByText("Take the other side")).toBeVisible();
+  await expect(dock).toBeInViewport();
+  // Everything else is one tab away.
+  const tabs = page.getByRole("tablist", { name: "Claim details" });
+  await tabs.getByRole("tab", { name: "Terms" }).click();
+  await expect(page.getByText("Market terms")).toBeVisible();
+});
+
+test("create flow validates each step and keeps the draft", async ({ page }) => {
+  await page.goto("/en/arena/create", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Fill in all fields")).toBeVisible();
+  await page.getByLabel("Question").fill("Will ETH trade above $5,000 on Coinbase by the deadline?");
+  await page.getByLabel("Your side").fill("Yes, ETH trades above $5,000");
+  await page.getByLabel("The other side").fill("No, ETH stays at or below $5,000");
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 2 of 4")).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 3 of 4")).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Choose a future deadline")).toBeVisible();
+  await page.getByRole("button", { name: "1 week" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByText("Step 4 of 4")).toBeVisible();
+  await expect(page.getByText("Will ETH trade above $5,000 on Coinbase by the deadline?")).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Question")).toHaveValue(/Will ETH trade above/);
 });
 
 test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobile }) => {
