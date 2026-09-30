@@ -36,7 +36,7 @@ export default function CoinMarketCapMark({
   const [assetMissing, setAssetMissing] = useState(!HAS_LOGO);
 
   const mark = assetMissing ? (
-    <span className="font-semibold">CoinMarketCap</span>
+    <span className="text-cream">CoinMarketCap</span>
   ) : (
     // eslint-disable-next-line @next/next/no-img-element
     <img

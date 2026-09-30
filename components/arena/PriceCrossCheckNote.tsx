@@ -31,10 +31,9 @@ export default function PriceCrossCheckNote({
       <ShieldCheck size={14} className="mt-0.5 shrink-0 text-coral" aria-hidden />
       <span>
         {t("crossCheck", { symbol: target.symbol, threshold: target.threshold.toLocaleString("en-US") })}{" "}
-        <span className="inline-flex flex-wrap items-center gap-1">
-          {t("crossCheckData")}
-          <CoinMarketCapMark height={11} className="translate-y-px" />
-        </span>
+        {/* Inline, so the sentence wraps as text and the mark stays on the line after "and". */}
+        {t("crossCheckData")}{" "}
+        <CoinMarketCapMark height={11} className="align-baseline" />
       </span>
     </p>
   );
