@@ -1,5 +1,5 @@
 /**
- * GET /api/health — ops probe.
+ * GET /api/health: ops probe.
  *
  * Reports every worker's heartbeat and returns 503 only when something is
  * critical (a worker that never reported, or one silent for four intervals).

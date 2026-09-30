@@ -1,5 +1,5 @@
 /**
- * GET /api/baskets/{id}/signals?follower=<base58> — what to mirror right now.
+ * GET /api/baskets/{id}/signals?follower=<base58>: what to mirror right now.
  *
  * Open (OPEN / ACTIVE) positions the basket's member agents hold that the
  * follower has not copied yet, with a suggested stake capped by the

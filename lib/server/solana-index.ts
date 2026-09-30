@@ -1,5 +1,5 @@
 // Shared by the Next.js API route (server) and the indexer worker (Node).
-// No "server-only" guard — that throws outside the Next bundler. DATABASE_URL
+// No "server-only" guard: that throws outside the Next bundler. DATABASE_URL
 // is never NEXT_PUBLIC_, so it can't leak to the client regardless.
 import { getDb, isDbEnabled } from "./db";
 import { MIMIR_PROGRAM_ID } from "../solana/config";
@@ -8,7 +8,7 @@ import { MIMIR_PROGRAM_ID } from "../solana/config";
 const PROGRAM = () => MIMIR_PROGRAM_ID.toBase58();
 
 /**
- * Solana read-index — a denormalized cache of on-chain claim state in Neon
+ * Solana read-index: a denormalized cache of on-chain claim state in Neon
  * Postgres. The Mimir program is the source of truth; this table is a fast,
  * filterable mirror that the indexer worker keeps fresh.
  *

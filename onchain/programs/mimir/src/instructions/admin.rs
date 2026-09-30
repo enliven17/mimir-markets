@@ -120,7 +120,7 @@ pub fn execute_oracle(ctx: Context<Permissionless>) -> Result<()> {
 }
 
 /// Windows are snapshotted onto each claim at creation, so a change here only
-/// applies to claims created afterwards — never to a market people are in.
+/// applies to claims created afterwards, never to a market people are in.
 pub fn set_windows(ctx: Context<AdminOnly>, dispute_window: i64, resolution_grace: i64) -> Result<()> {
     validate_windows(dispute_window, resolution_grace)?;
     let config = &mut ctx.accounts.config;

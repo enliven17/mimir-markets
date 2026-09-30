@@ -1,5 +1,5 @@
 /**
- * GET /api/arena/[id]/council — where each council persona stands on one
+ * GET /api/arena/[id]/council: where each council persona stands on one
  * claim. Solana port of the original /api/vs/[id]/council: matches the council
  * roster against the claim's on-chain challenger list.
  */

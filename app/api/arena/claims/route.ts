@@ -1,9 +1,9 @@
 /**
- * GET /api/arena/claims — Solana claim feed for the /arena pages.
+ * GET /api/arena/claims: Solana claim feed for the /arena pages.
  *
  * Serves from the Neon read-index when DATABASE_URL is set (one SQL query,
  * kept fresh by the indexer worker). Falls back to reading every claim from
- * chain — the ER for delegated claims, the base layer otherwise — when the
+ * chain (the ER for delegated claims, the base layer otherwise) when the
  * index is unavailable, so the product still works database-free.
  *
  * Optional query params:

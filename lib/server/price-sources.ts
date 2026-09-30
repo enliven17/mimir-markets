@@ -5,7 +5,7 @@
  * would agree with each other about the same mistake. CoinGecko and
  * CoinMarketCap run separate exchange sets and separate weighting, Chainlink is
  * an on-chain oracle network, and Flash Trade quotes the Pyth price its Solana
- * perps settle on — so when they agree the number is not in doubt, and when
+ * perps settle on, so when they agree the number is not in doubt, and when
  * they do not, something is wrong. Flash Trade only serves the live price, so
  * it joins only when the oracle runs within minutes of the deadline.
  *

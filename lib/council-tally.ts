@@ -2,11 +2,11 @@
  * Per-persona council tallies from a claim list (pure; the data comes from
  * lib/server/council-stats.ts). Amounts stay in USDC base units (bigint).
  *
- *   stakes   — lifetime challenges
- *   staked   — lifetime USDC staked
- *   atRisk   — stake on claims still holding stakes (not RESOLVED / CANCELLED:
+ *   stakes:   lifetime challenges
+ *   staked:   lifetime USDC staked
+ *   atRisk:   stake on claims still holding stakes (not RESOLVED / CANCELLED:
  *              a PROPOSED or DISPUTED verdict can still change)
- *   won/lost — resolved claims the challengers won / the creator won
+ *   won/lost: resolved claims the challengers won / the creator won
  *              (draws and refunds count as neither)
  */
 import { holdsStakes } from "./claim-status";

@@ -26,7 +26,7 @@ const COINGECKO_API_BASE = "https://api.coingecko.com/api/v3";
 const JINA_READER_BASE = "https://r.jina.ai/";
 
 // Markers that strongly suggest we got an anti-bot interstitial instead of
-// actual content. Keep this list conservative — false positives mean we
+// actual content. Keep this list conservative: false positives mean we
 // uselessly burn a Jina fallback call.
 const CLOUDFLARE_MARKERS = [
   "verifying you are human",
@@ -129,7 +129,7 @@ async function fetchGenericSnapshot(
         fetcher: "direct",
       };
     }
-    // Body parsed but is too short to be useful — fall through to Jina.
+    // Body parsed but is too short to be useful, so fall through to Jina.
   }
 
   if (opts.disableJinaFallback) {
@@ -276,7 +276,7 @@ async function fetchCoinGeckoSnapshot(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
-    return null; // network error — let caller fall back to generic path
+    return null; // network error: let caller fall back to generic path
   }
 
   if (!response.ok) {
@@ -298,7 +298,7 @@ async function fetchCoinGeckoSnapshot(
   if (!md || typeof md !== "object") return null;
 
   const lines: string[] = [];
-  lines.push(`CoinGecko snapshot — ${name}${symbol ? ` (${symbol})` : ""}`);
+  lines.push(`CoinGecko snapshot: ${name}${symbol ? ` (${symbol})` : ""}`);
   lines.push(`Source: ${url.toString()}`);
   if (payload.last_updated) lines.push(`Last updated: ${payload.last_updated}`);
   lines.push("");
@@ -330,7 +330,7 @@ async function fetchCoinGeckoSnapshot(
 
   return {
     sourceUrl: url.toString(),
-    title: `${name}${symbol ? ` (${symbol})` : ""} — CoinGecko`,
+    title: `${name}${symbol ? ` (${symbol})` : ""} · CoinGecko`,
     text,
     fetchedAt: Date.now(),
     fetcher: "coingecko-api",
@@ -380,7 +380,7 @@ async function fetchFlashTradeSnapshot(
   const confidence = typeof payload.confidence === "number" ? payload.confidence : null;
 
   const lines = [
-    `Flash Trade price snapshot — ${symbol}`,
+    `Flash Trade price snapshot: ${symbol}`,
     `Source: ${url.toString()}`,
     `Fetched at: ${fetchedAt}`,
     ``,
@@ -401,7 +401,7 @@ async function fetchFlashTradeSnapshot(
 
   return {
     sourceUrl: url.toString(),
-    title: `${symbol} — Flash Trade`,
+    title: `${symbol} · Flash Trade`,
     text,
     fetchedAt: Date.now(),
     fetcher: "flashtrade-api",
@@ -500,7 +500,7 @@ async function fetchEspnSnapshot(
 function looksLikeCloudflareInterstitial(body: string): boolean {
   if (!body) return false;
   const lower = body.toLowerCase();
-  // Short HTML bodies that mention CF challenge markers are the giveaway —
+  // Short HTML bodies that mention CF challenge markers are the giveaway:
   // a real article rarely has both a tiny body AND these strings.
   if (lower.length > 50_000) return false;
   return CLOUDFLARE_MARKERS.some((marker) => lower.includes(marker));

@@ -1,5 +1,5 @@
 /**
- * GET /api/arena/agents — the AI economic actors and their recent activity.
+ * GET /api/arena/agents: the AI economic actors and their recent activity.
  *
  * Combines the council persona roster (with derived addresses) and the oracle
  * address with the indexed claim feed, producing a per-agent activity summary

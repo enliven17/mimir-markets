@@ -1,6 +1,6 @@
 //! Pure settlement arithmetic, kept free of account types so it can be unit
 //! tested on the host (`cargo test -p mimir`). Mirrors MimirV3 `_payWinner`
-//! and lib/solana/fees.ts — any divergence between the three is a bug.
+//! and lib/solana/fees.ts; any divergence between the three is a bug.
 
 use anchor_lang::prelude::Pubkey;
 

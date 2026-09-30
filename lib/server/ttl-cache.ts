@@ -1,6 +1,6 @@
 /**
  * Per-instance memoization for expensive async reads (chain scans, RPC
- * fan-outs) that return values `unstable_cache` can't safely store — e.g.
+ * fan-outs) that return values `unstable_cache` can't safely store, e.g.
  * bigint fields, which JSON.stringify throws on.
  *
  * Deduped per warm serverless instance only, not shared across instances.

@@ -27,7 +27,7 @@ archive/
 # ========================
 # Blockchain / Secrets
 # ========================
-# Private keys and sensitive deploy config — NUNCA commitear
+# Private keys and sensitive deploy config (NUNCA commitear)
 deploy/.env
 deploy/keystore/
 *.key

@@ -1,5 +1,5 @@
 // Shared by the Next.js API routes (server) and the workers (Node). No
-// "server-only" guard — that throws outside the Next bundler. DATABASE_URL is
+// "server-only" guard: that throws outside the Next bundler. DATABASE_URL is
 // never NEXT_PUBLIC_, so it can't leak to the client regardless.
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import { createHash } from "node:crypto";

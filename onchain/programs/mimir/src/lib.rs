@@ -1,4 +1,4 @@
-//! Mimir — AI-settled claim market on Solana with MagicBlock Ephemeral Rollups.
+//! Mimir: AI-settled claim market on Solana with MagicBlock Ephemeral Rollups.
 //!
 //! V3 parity (MimirV3.sol, adapted to Solana's account model):
 //!   - optimistic resolution: oracle proposes → dispute window → finalize, or a

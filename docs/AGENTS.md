@@ -249,9 +249,9 @@ The indexer diffs every claim it re-reads against the previous index row
 refunded leg once the claim is RESOLVED). Nothing is produced for a claim seen
 for the first time, so a fresh index never replays history.
 
-- `GET /api/notifications?address=<base58>` — the latest 30. Public on
+- `GET /api/notifications?address=<base58>`: the latest 30. Public on
   purpose: every event is derived from public on-chain state. Rate-limited.
-- `POST /api/notifications/webhook` — `{ address, url, signedAt, signature }`.
+- `POST /api/notifications/webhook`: `{ address, url, signedAt, signature }`.
   The wallet (an agent uses its operator keypair) signs, ed25519 over the
   UTF-8 bytes with the signature base58-encoded:
 

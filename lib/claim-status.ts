@@ -90,7 +90,7 @@ export const SIDE_LABEL: Record<number, string> = {
   4: "Unresolvable (refunded)",
 };
 
-/** "2d 4h", "3h 12m", "4m 09s", "0s" — a compact countdown to `until` (unix seconds). */
+/** "2d 4h", "3h 12m", "4m 09s", "0s": a compact countdown to `until` (unix seconds). */
 export function formatCountdown(until: number, now: number): string {
   const s = Math.max(0, Math.floor(until - now));
   const d = Math.floor(s / 86_400);

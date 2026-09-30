@@ -1,8 +1,8 @@
 /**
  * Memoizes council reasoning per (claim, persona).
  *
- * The prompt is built only from a claim's question and its two sides — all
- * immutable once the claim exists — so the same pair always regenerates the same
+ * The prompt is built only from a claim's question and its two sides (all
+ * immutable once the claim exists), so the same pair always regenerates the same
  * kind of text. In the source build 13K reads burned 22 minutes of active CPU (plus
  * 13K LLM calls) for four distinct pairs. Reads are free here, which makes the
  * cache (plus the route's rate limits) the only thing between a scraper and the
@@ -69,7 +69,7 @@ export function setCachedReasoning(
   entries.set(key, { ...value, at: nowMs });
 }
 
-/** Test seam — production code never needs this. */
+/** Test seam: production code never needs this. */
 export function clearReasoningCache(): void {
   entries.clear();
 }

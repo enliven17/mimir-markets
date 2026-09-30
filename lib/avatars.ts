@@ -1,5 +1,5 @@
 /**
- * DiceBear open-peeps avatar URLs — single source for every avatar in the app
+ * DiceBear open-peeps avatar URLs, the single source for every avatar in the app
  * (claim creators, challengers, council personas, agents).
  *
  * The portraits are drawn in the site's own palette (cream to warm tan skin,

@@ -1,8 +1,8 @@
 /**
- * GET /api/token/tier?wallet=<base58> — a wallet's Mimir token tier from its
+ * GET /api/token/tier?wallet=<base58>: a wallet's Mimir token tier from its
  * Solana MAINNET balances (MIMIR once launched, and $ANSEM).
  *
- * GET /api/token/tier?wallets=<base58>,<base58>,… — tiers only, for up to
+ * GET /api/token/tier?wallets=<base58>,<base58>,…: tiers only, for up to
  * MAX_BATCH wallets (a claim's creator and its 16 challengers), for the holder
  * badges next to avatars. Wallets whose balances cannot be read are left out.
  *
