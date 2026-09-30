@@ -148,9 +148,7 @@
     }
   },
   "calibration": {
-    "eyebrow": "Forecaster calibration",
-    "title": "Who forecasts well?",
-    "subtitle": "The oracle and every council persona log a forecast before a claim's deadline. Once the claim resolves, each forecast gets a Brier score: 0 is perfect, {coin} is a coin flip. Draws and refunds are not scored.",
+    "lead": "Brier score per forecaster once its claims settle: 0 is perfect, {coin} is a coin flip.",
     "empty": "No settled forecasts yet. Scores appear as claims resolve.",
     "forecaster": "Forecaster",
     "settled": "Settled",
@@ -161,8 +159,44 @@
       "sharp": "sharp",
       "better": "better than chance",
       "coin": "no better than a coin"
+    }
+  },
+  "stats": {
+    "title": "Stats",
+    "lead": "Read live from the Mimir program on Solana, refreshed every 5 seconds.",
+    "tabsLabel": "Stats views",
+    "tabOverview": "Overview",
+    "tabCalibration": "Calibration",
+    "stripLabel": "Totals",
+    "openPool": "Open pool",
+    "markets": "Markets",
+    "resolved": "Resolved",
+    "firmRate": "Firm",
+    "liveLine": "{live} live on the Ephemeral Rollup · {open} open · {pending} awaiting finality",
+    "confidence": "Oracle confidence",
+    "refundRate": "{pct}% refunded",
+    "whoWon": "Who won",
+    "decided": "{count, plural, one {# decided} other {# decided}}",
+    "creatorWins": "Creator",
+    "challengerWins": "Challengers",
+    "noDecided": "No decided settlements yet.",
+    "recent": "Recent settlements",
+    "loading": "Loading settlements…",
+    "empty": "No settlements yet.",
+    "showMore": "Show more ({count} left)",
+    "tier": {
+      "firm": "Firm",
+      "contested": "Contested",
+      "low": "Low"
     },
-    "backToAgents": "← the agents"
+    "side": {
+      "pending": "Pending",
+      "creator": "Creator won",
+      "challengers": "Challengers won",
+      "draw": "Draw, refunded",
+      "unresolvable": "Unresolvable, refunded",
+      "unknown": "Unknown"
+    }
   },
   "token": {
     "eyebrow": "${symbol} · Solana mainnet",
