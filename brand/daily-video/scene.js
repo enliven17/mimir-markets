@@ -1,8 +1,10 @@
-// Mimir daily 01, "What is Mimir?" (1:1, 12 s, 120 BPM, bar = 2 s). A hook over the ASCII wave field, the
-// slogan with its scribble, three fast beats (stake a side, agents challenge on the rollup, the oracle stamps a
-// verdict with a verify hash), then the horn, the name and the URL. The on-screen words are the caption track,
-// so the clip reads without sound. Pieces and helpers come from ../launch-video/scene.js (the site's tokens,
-// the hero field, the scribble, the Bayer dither, the rolling numbers, the claim card and its odds bar).
+// Mimir daily 01, "What is Mimir?" (12 s, 120 BPM, bar = 2 s). A hook over the ASCII wave field, the slogan
+// with its scribble, three fast beats (stake a side, agents challenge on the rollup, the oracle stamps a verdict
+// with a verify hash), then the horn, the name and the URL. The on-screen words are the caption track, so the
+// clip reads without sound. Layout reads from `api.W` / `api.H`: project.json is the 1080×1080 cut,
+// project.wide.json the 1920×1080 one (headline on the left, card and panels on the right). Pieces and helpers
+// come from ../launch-video/scene.js (the site's tokens, the hero field, the scribble, the Bayer dither, the
+// rolling numbers, the claim card and its odds bar).
 import { TAU, prog, rgba, E, EASE, spring, setFont, clamp, lerp, shake, vignette, rrect, pointer } from '../../engine/core.js';
 
 // ── tokens (app/globals.css)
@@ -19,6 +21,8 @@ const COPY = {
     replies: 'replies', settled: '0 settled',
     lead: "Don't argue.", accent: 'Settle.',
     beats: [['Stake a side.'], ['AI agents challenge it.', 'Zero fee.'], ['An AI oracle settles it,', 'with receipts.']],
+    // the same words broken for the narrower 16:9 column
+    beatsWide: [['Stake a side.'], ['AI agents', 'challenge it.', 'Zero fee.'], ['An AI oracle', 'settles it,', 'with receipts.']],
     yes: 'Yes', no: 'No',
     name: 'Mimir', url: 'mimirmarkets.xyz',
   },
@@ -429,12 +433,11 @@ function oracle(c, t, x, y, w, h) {
 }
 
 // ── the headline block: a rolling step numeral beside one or two big lines
-const HEAD = { x: 64, nb: 262, ns: 214 };
-function headline(c, t, W) {
+function headline(c, t, HD, W) {
   const marks = [T.B1, T.B2, T.B3];
   let idx = 0; marks.forEach((m, i) => { if (t >= m) idx = i; });
   const t0 = marks[idx], p = idx ? E.inOutCubic(prog(t, t0, t0 + 0.5)) : 1;
-  const { x, nb, ns } = HEAD;
+  const { x, nb, ns } = HD;
   // numeral: a column of digits rolling up (l-how-digits), with the red glow
   font(c, ns, DISPLAY, 400, -0.04 * ns);
   const numW = width(c, '2');
@@ -446,21 +449,37 @@ function headline(c, t, W) {
   for (let d = 0; d < 3; d++) { const off = (d - pos) * ns * 0.94; if (Math.abs(off) < ns) text(c, String(d + 1), x, nb + off, RED); }
   c.restore();
   // lines: the old pair lifts away, the new pair rises out of its mask
-  const tx = x + numW + 40, maxW = W - 56 - tx;
-  const fs = Math.min(...COPY.en.beats.map(b => fitSize(c, b, maxW, 104)));
+  // beside: the lines sit right of the numeral, bottom-aligned to it (1:1); below: they hang under it (16:9)
+  const beside = HD.mode === 'beside', tx = beside ? x + numW + 40 : x, maxW = HD.right - tx;
+  const beats = HD.mode === 'beside' ? COPY.en.beats : COPY.en.beatsWide, rows = Math.max(...beats.map(b => b.length));
+  const fs = Math.min(...beats.map(b => fitSize(c, b, maxW, HD.cap))), lift = fs * (rows + 0.1);
+  const baseOf = (i, n) => (beside ? nb - (n - 1 - i) * fs : HD.lb + i * fs);
   const drawLines = (ls, dy, a) => {
     display(c, fs);
-    ls.forEach((s, i) => line(c, s, tx, nb - (ls.length - 1 - i) * fs * 1.0 + dy, i === 1 ? RED : CREAM, a));
+    ls.forEach((s, i) => line(c, s, tx, baseOf(i, ls.length) + dy, ls.length > 1 && i === ls.length - 1 ? RED : CREAM, a));
   };
-  c.save(); c.beginPath(); c.rect(tx - 20, nb - fs * 2.05, W, fs * 2.35); c.clip();
-  if (idx && p < 1) drawLines(COPY.en.beats[idx - 1], -p * fs * 2.1, clamp(1 - p * 1.8));
-  const ip = idx ? EASE.expo(prog(t, t0 + 0.08, t0 + 0.6)) : 1;
-  drawLines(COPY.en.beats[idx], (1 - ip) * fs * 2.1, 1);
+  const top = beside ? nb - fs * 2.05 : HD.lb - fs * 1.05;
+  c.save(); c.beginPath(); c.rect(tx - 20, top, W, fs * (rows + 0.35)); c.clip();
+  if (idx && p < 1) drawLines(beats[idx - 1], -p * lift, clamp(1 - p * 4));
+  const ip = idx ? EASE.expo(prog(t, t0 + 0.14, t0 + 0.62)) : 1;
+  drawLines(beats[idx], (1 - ip) * lift, 1);
   c.restore();
 }
 
-// ── layout (1080 square)
-const L = { x: 70, w: 940, cardH: 330, y: 322, gap: 24, bottom: 1016 };
+// ── layout: the card and its panels live in a 940-wide column, placed and scaled per aspect ratio
+const L = { w: 940, cardH: 330, gap: 24, ph: 340 };
+const COL_H = L.cardH + L.gap + L.ph;
+function layoutFor(W, H) {
+  if (W / H > 1.3) {
+    const k = 1, cx = W - 100 - 940 * k;
+    return { wide: true, hookCap: 150, nobodyCap: 190, sloganFs: 168, counter: 44, horn: 470, name: 180, urlSz: 46, field: 16,
+      head: { mode: 'below', x: 120, nb: 430, ns: 260, lb: 570, right: cx - 70, cap: 116 },
+      col: { x: cx, y: (H - COL_H * k) / 2, k } };
+  }
+  return { wide: false, hookCap: 118, nobodyCap: 150, sloganFs: 124, counter: 40, horn: 420, name: 168, urlSz: 44, field: 14,
+    head: { mode: 'beside', x: 64, nb: 262, ns: 214, right: W - 56, cap: 104 },
+    col: { x: 70, y: 322, k: 1 } };
+}
 
 export default {
   async setup(api) {
@@ -471,14 +490,15 @@ export default {
       const g = cv.getContext('2d', { willReadFrequently: api.render });
       if (k === 'a') bctx = g; else b2ctx = g;
     }
-    buildField(W, H, 14);
+    buildField(W, H, layoutFor(W, H).field);
     const base = import.meta.url.replace(/scene\.js.*$/, '');
     img.horn = await loadImg(`${base}horn.svg`);
     img.w = await Promise.all(STAKES.map((_, i) => loadImg(`${base}avatars/w${i}.svg`)));
   },
 
   draw(ctx, t, api) {
-    const { W, H } = api, C = COPY[api.lang] ?? COPY.en;
+    const { W, H } = api, C = COPY[api.lang] ?? COPY.en, S = layoutFor(W, H), K = S.col;
+    const inCol = fn => c => { c.save(); c.translate(K.x, K.y); c.scale(K.k, K.k); fn(c); c.restore(); };
     // background: ink to ink-deep
     const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, rgba(INK)); bg.addColorStop(1, rgba(INK_DEEP));
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
@@ -496,44 +516,45 @@ export default {
     // ── 0 · the hook
     const h1 = life(t, T.H1, 0.45, T.H1_OUT, 0.2);
     if (h1 > 0) dither(ctx, h1, c => {
-      const fs = fitSize(c, C.hook, W - 150, 118);
-      display(c, fs); C.hook.forEach((s, i) => lineC(c, s, W / 2, 430 + i * fs * 1.04, CREAM));
+      const fs = fitSize(c, C.hook, W - 150, S.hookCap);
+      display(c, fs); C.hook.forEach((s, i) => lineC(c, s, W / 2, H * 0.398 + i * fs * 1.04, CREAM));
     }, { cell: 9, rise: 30 });
     const h2 = life(t, T.H2, 0.25, T.H2_OUT, 0.2);
     if (h2 > 0) dither(ctx, h2, c => {
-      const fs = fitSize(c, [C.nobody], W - 130, 150), k = clamp(spring(t - T.H2, 16, 9), 0, 1.2);
-      c.save(); c.translate(W / 2, 520); c.scale(lerp(1.12, 1, k), lerp(1.12, 1, k));
+      const fs = fitSize(c, [C.nobody], W - 130, S.nobodyCap), k = clamp(spring(t - T.H2, 16, 9), 0, 1.2);
+      c.save(); c.translate(W / 2, H * 0.482); c.scale(lerp(1.12, 1, k), lerp(1.12, 1, k));
       display(c, fs); lineC(c, C.nobody, 0, fs * 0.3, CREAM); c.restore();
     }, { cell: 9, rise: 20 });
     // the thread under it: replies roll up, nothing settles
     const th = life(t, T.H1 + 0.3, 0.35, T.H2_OUT, 0.2);
     if (th > 0) dither(ctx, th, c => {
       const ev = [[0, '0'], [0.45, '14'], [0.7, '96'], [0.95, '388'], [1.2, '1,204']];
-      font(c, 40, MONO, 500); const rest = ` ${C.replies}  ·  `, full = width(c, '1,204' + rest + C.settled);
+      const cy = H * 0.667, sz = S.counter;
+      font(c, sz, MONO, 500); const rest = ` ${C.replies}  ·  `, full = width(c, '1,204' + rest + C.settled);
       const x0 = W / 2 - full / 2, nW = width(c, '1,204');
-      rolling(c, ev, t, x0 + nW, 720, { size: 40, col: MUTED, align: 'right' });
-      font(c, 40, MONO, 500); c.textAlign = 'left'; text(c, rest, x0 + nW, 720, DIM);
+      rolling(c, ev, t, x0 + nW, cy, { size: sz, col: MUTED, align: 'right' });
+      font(c, sz, MONO, 500); c.textAlign = 'left'; text(c, rest, x0 + nW, cy, DIM);
       const hot = t >= T.H2 ? 1 : 0, fl = hot ? 1 - prog(t, T.H2, T.H2 + 0.6) : 0;
-      text(c, C.settled, x0 + nW + width(c, rest), 720, hot ? [255, lerp(43, 120, fl), lerp(43, 110, fl)] : DIM);
+      text(c, C.settled, x0 + nW + width(c, rest), cy, hot ? [255, lerp(43, 120, fl), lerp(43, 110, fl)] : DIM);
     }, { cell: 4, rise: 16, second: true });
 
     // ── the turn: "Don't argue. Settle." with the scribble
     const tp = life(t, T.TURN, 0.4, T.TURN_OUT, 0.22);
-    if (tp > 0) dither(ctx, tp, c => slogan(c, W / 2, H * 0.5 + 36 - (t > T.TURN_OUT ? EASE.expo(prog(t, T.TURN_OUT, T.TURN_OUT + 0.3)) * 50 : 0), 124, prog(t, T.SCRIB, T.SCRIB + 0.65)), { cell: 9, rise: 36 });
+    if (tp > 0) dither(ctx, tp, c => slogan(c, W / 2, H * 0.5 + S.sloganFs * 0.29 - (t > T.TURN_OUT ? EASE.expo(prog(t, T.TURN_OUT, T.TURN_OUT + 0.3)) * 50 : 0), S.sloganFs, prog(t, T.SCRIB, T.SCRIB + 0.65)), { cell: 9, rise: 36 });
 
     // ── 1–3 · the headline, the card and one panel per beat
     const how = life(t, T.B1, 0.4, T.END, 0.3);
     if (how > 0) {
       dither(ctx, how, c => {
-        headline(c, t, W);
+        headline(c, t, S.head, W);
         const k = clamp(spring(t - T.B1, 11, 7), 0, 1.1);
-        claimCard(c, t, L.x, L.y + (1 - k) * 60, L.w, L.cardH);
+        inCol(g => claimCard(g, t, 0, (1 - k) * 60, L.w, L.cardH))(c);
       }, { cell: 7, rise: 0 });
-      const py = L.y + L.cardH + L.gap, ph = L.bottom - py;
+      const py = L.cardH + L.gap, ph = L.ph;
       const panels = [
-        [T.B1 + 0.1, T.B2, 0.2, c => sides(c, t, L.x, py + (ph - 124) / 2, L.w)],
-        [T.B2 + 0.15, T.B3, 0.22, c => feed(c, t, L.x, py, L.w, ph)],
-        [T.B3 + 0.08, T.END, 0.3, c => oracle(c, t, L.x, py, L.w, ph)],
+        [T.B1 + 0.1, T.B2, 0.2, inCol(c => sides(c, t, 0, py + (ph - 124) / 2, L.w))],
+        [T.B2 + 0.15, T.B3, 0.22, inCol(c => feed(c, t, 0, py, L.w, ph))],
+        [T.B3 + 0.08, T.END, 0.3, inCol(c => oracle(c, t, 0, py, L.w, ph))],
       ];
       panels.forEach(([a, b, dout, fn]) => {
         const p = Math.min(life(t, a, 0.35, b, dout), how);
@@ -546,7 +567,7 @@ export default {
 
     // ── end card: the horn, the name, the URL
     if (t >= T.END) {
-      const hp = prog(t, T.HORN, T.HORN + 0.8), hs = 420, hx = W / 2, hy = H * 0.37;
+      const hp = prog(t, T.HORN, T.HORN + 0.8), hs = S.horn, hx = W / 2, hy = H * 0.37;
       const glow = EASE.expo(prog(t, T.HORN, T.HORN + 1.4));
       if (glow > 0) {
         const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, hs * 1.15);
@@ -560,8 +581,8 @@ export default {
         c.drawImage(img.horn, hx - hw / 2, hy - hh / 2 + drift, hw, hh); c.restore();
       }, { cell: 8, rise: 40 });
       const base = H * 0.8;
-      dither(ctx, prog(t, T.NAME, T.NAME + 0.6), c => { display(c, 168); lineC(c, C.name + '.', W / 2, base, CREAM); }, { cell: 8, rise: 30 });
-      dither(ctx, prog(t, T.URL, T.URL + 0.5), c => { font(c, 44, MONO, 500); c.textAlign = 'center'; text(c, C.url, W / 2, base + 92, MUTED); c.textAlign = 'left'; }, { cell: 4, rise: 16 });
+      dither(ctx, prog(t, T.NAME, T.NAME + 0.6), c => { display(c, S.name); lineC(c, C.name + '.', W / 2, base, CREAM); }, { cell: 8, rise: 30 });
+      dither(ctx, prog(t, T.URL, T.URL + 0.5), c => { font(c, S.urlSz, MONO, 500); c.textAlign = 'center'; text(c, C.url, W / 2, base + S.name * 0.55, MUTED); c.textAlign = 'left'; }, { cell: 4, rise: 16 });
     }
     ctx.restore();
   },
