@@ -1,0 +1,15 @@
+{
+  "name": "mimir-daily-01",
+  "width": 1080,
+  "height": 1080,
+  "fps": 60,
+  "duration": 12,
+  "bpm": 120,
+  "speed": 1,
+  "subframes": 6,
+  "fonts": {
+    "css": ["fonts.css"],
+    "preload": ["400 40px 'Terminal Grotesque'", "500 40px 'Geist Pixel Square'", "400 40px 'Geist Mono'", "600 40px 'Geist Mono'"],
+    "sample": "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789$%.,:;'·×↗✓+-#@=*"
+  }
+}

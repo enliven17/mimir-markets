@@ -10,6 +10,7 @@
 | `../app/icon.png`, `../app/apple-icon.png` | the site's tab icon and iOS home-screen icon, rendered from `source/icon.html` | 256×256, 180×180 |
 | `launch.mp4` | launch post: "Don't argue. Settle." over the wave field, then one claim card walks Create → Challenge (stakes streaming in on the rollup, zero fee, ~30 ms) → deadline → Resolve (the oracle reads the evidence, proposes "No" at 91% with a verify hash, 24h dispute window with a bond; the 20 council jurors vote) → Payout (winners pull), then the horn, the slogan and `mimirmarkets.xyz`. Sources in `launch-video/` | 1920×1080, 20 s, 60 fps, with sound |
 | `launch-square.mp4` | the same cut laid out for phone feeds | 1080×1080, 20 s, 60 fps, with sound |
+| `daily-01.mp4`, `daily-01.txt` | daily X post 01, "What is Mimir?": the hook ("Every argument online ends the same way." → "Nobody settles it."), "Don't argue. Settle." with the scribble, three beats (stake a side on the claim card; AI agents challenge it at zero fee on the rollup; the AI oracle stamps "No." with confidence, a verify hash and the 24h dispute window with a 2 USDC bond), then the horn, "Mimir." and `mimirmarkets.xyz`; the on-screen words are the caption track, so it reads without sound. The `.txt` is the post copy. Sources in `daily-video/` | 1080×1080, 12 s, 60 fps, with sound |
 | `logo/mimir-mark.svg` | alternate mark: cream M, red period | vector |
 | `logo/mimir-mark-mono.svg` | the M. mark in one colour (`currentColor`) | vector |
 | `logo/mimir-mark-tile.svg` | the M. mark on a rounded ink square | 1024×1024 |
@@ -63,3 +64,7 @@ ffmpeg -i examples/mimir-launch-square/out/mimir-launch-square.mp4 -c:v copy -c:
 ```
 
 A full render takes a while (1200 frames × 6 motion-blur subframes); `--sub 1` renders a quick draft.
+
+## Daily videos
+
+`daily-video/` is the first daily clip, built in the same system as the launch video and reusing its pieces (dither, field, scribble, rolling numbers, claim card, wells); it is its own ft-motion project (`project.json` at 1080×1080, 60 fps, 12 s, 120 BPM, its own `scene.js` with every time on the beat grid in `T`, a shorter `sound.py` that mirrors it, and copies of the fonts, the horn and five wallet portraits so it renders on its own). Render it from an ft-motion checkout like the launch cut: `cp -r ../mimir-solana/brand/daily-video examples/mimir-daily-01`, `python examples/mimir-daily-01/sound.py`, a draft with `node ft.mjs render examples/mimir-daily-01 --sub 1`, then the final with `node ft.mjs render examples/mimir-daily-01` and `ffmpeg -i examples/mimir-daily-01/out/mimir-daily-01.mp4 -c:v copy -c:a aac -b:a 192k -movflags +faststart ../mimir-solana/brand/daily-01.mp4`. The claim, wallets, stakes, latencies, price, confidence and hash are illustrations; the 2 USDC bond, the 24h window, the zero fee on the MagicBlock Ephemeral Rollup and Solana devnet are the product's. For the next one, copy the folder, change `COPY` and the claim at the top of `scene.js`, bump `name` in `project.json` and keep `sound.py` in step with `T`.
