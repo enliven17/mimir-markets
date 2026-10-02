@@ -1,0 +1,4 @@
+Coming next to Mimir: Jev, TypeSafe AI's decision model.
+Typed choices with probabilities, no free text, for oracle second opinions, council stakes and claim quality.
+The goal: verdicts that are faster, cheaper and better calibrated, measured on /calibration.
+mimirmarkets.xyz
