@@ -58,7 +58,7 @@ import {
   settlementAdjustment,
   type PriceReading,
 } from "../../lib/price-consensus";
-import { fetchPriceReadings, hasSecondPriceSource } from "../../lib/server/price-sources";
+import { deadlineReadingsRequired, fetchPriceReadings, hasSecondPriceSource } from "../../lib/server/price-sources";
 import { sealBundle, VERDICT_BUNDLE_VERSION, type VerdictBundle } from "../../lib/verdict-bundle";
 import { evaluateClaim, isEventFinal, type OracleVerdict } from "./evaluate";
 import {
@@ -89,11 +89,12 @@ export const PRICE_DEFER_SECS = envHours("PRICE_DEFER_HOURS", 6);
 
 /**
  * A price claim settles on deadline prices, never on a model reading a web
- * page: with fewer than two readings at the deadline it waits (a source may
- * be briefly down) and then refunds. "ok" = enough data, carry on.
+ * page: with fewer readings than the asset can have at its deadline (two, or
+ * one for an asset only CoinGecko prices historically) it waits, a source may
+ * be briefly down, and then refunds. "ok" = enough data, carry on.
  */
-export function priceDataGate(readingCount: number, deadline: number, nowSec: number): "ok" | "defer" | "refund" {
-  if (readingCount >= 2) return "ok";
+export function priceDataGate(readingCount: number, deadline: number, nowSec: number, required: 1 | 2 = 2): "ok" | "defer" | "refund" {
+  if (readingCount >= required) return "ok";
   return nowSec <= deadline + PRICE_DEFER_SECS ? "defer" : "refund";
 }
 
@@ -432,6 +433,13 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
     }
     if (pm.detail) console.warn(`[settle] Claim #${claim.id}: no deterministic Polymarket settlement (${pm.detail}), normal path.`);
   }
+  // Any Polymarket claim the deterministic path did not settle (multi-market
+  // event, unbound market, unmappable URL) still waits out UMA's window: trading
+  // closing at the deadline is not a result for a model to read.
+  if (isPolymarketUrl(claim.resolutionUrl) && nowSec <= claim.deadline + POLYMARKET_SETTLE_GRACE_SECS) {
+    console.log(`[settle] Claim #${claim.id}: Polymarket claim inside UMA's window, deferring.`);
+    return null;
+  }
 
   const evidence = await fetchEvidence(claim.resolutionUrl);
   console.log(`[settle] Evidence fetcher: ${evidence.fetcher}`);
@@ -454,7 +462,7 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
   }
   const prices = await deadlinePrices(claim, spec);
   if (prices) {
-    const gate = priceDataGate(prices.readings.length, claim.deadline, nowSec);
+    const gate = priceDataGate(prices.readings.length, claim.deadline, nowSec, deadlineReadingsRequired(prices.symbol));
     if (gate === "defer") {
       console.log(`[settle] Claim #${claim.id}: ${prices.readings.length} deadline price reading(s) for ${prices.symbol}, deferring.`);
       return null;

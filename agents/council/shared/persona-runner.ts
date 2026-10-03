@@ -219,9 +219,11 @@ export async function runPersonaForClaim(
     sizeStakeUnits({ ...pool, bankrollUnits: bankroll }) ??
     sizeStakeUnits({ ...pool, bankrollUnits: 10n ** 12n })!; // dry run with no bankroll: a notional 1M USDC
   if (stakeUnits === 0n) {
-    // The pool moves: look again next cycle rather than remembering this no.
+    // The creator's stake is fixed and challengers only add to the pool, so
+    // the odds only get worse: remember this no (COUNCIL_REEVAL_MS) instead
+    // of paying for a fresh LLM evaluation every cycle.
     return {
-      kind: "retry",
+      kind: "abstained",
       decision: {
         ...decision,
         shouldStake: false,

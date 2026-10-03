@@ -250,6 +250,19 @@ async function fetchAllReadings(symbol: string, atMs?: number): Promise<PriceRea
   return results.filter((r): r is PriceReading => r !== null);
 }
 
+/**
+ * Readings a past deadline can get for `symbol`: CoinGecko history, CMC
+ * history (with a key) and Chainlink rounds (listed feeds). DEX-priced tokens
+ * report 2 so they never settle off a single CoinGecko number: their pools are
+ * the manipulable part, and CoinGecko prices them from the same pools.
+ */
+export function deadlineReadingsRequired(symbol: string): 1 | 2 {
+  const s = symbol.toUpperCase();
+  if (dexMintFor(s)) return 2;
+  const sources = (coingeckoIdFor(s) ? 1 : 0) + (process.env.CMC_API_KEY?.trim() ? 1 : 0) + (s in CHAINLINK_FEEDS ? 1 : 0);
+  return sources >= 2 ? 2 : 1;
+}
+
 /** CMC needs a key; Chainlink, Flash Trade and the DEX pair (token mints) are keyless but only cover some assets. */
 export function hasSecondPriceSource(symbol?: string): boolean {
   if (process.env.CMC_API_KEY?.trim()) return true;

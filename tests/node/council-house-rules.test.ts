@@ -97,8 +97,8 @@ test("a confident persona still sits out a pool where no stake is +EV", async ()
   const stakes: bigint[] = [];
   // 2 USDC creator vs 20 USDC of challengers: b ≈ 0.09, 80% is not enough.
   const out = await runPersonaForClaim(persona("pessimist"), fakeClient(100, stakes), claim(2, [20]), ctxWith("coingecko-api", { confidence: 80 }));
-  assert.equal(out.kind, "retry");
-  assert.equal(out.kind === "retry" && out.decision.skipReason, "negative-ev");
+  assert.equal(out.kind, "abstained", "remembered: the odds only get worse");
+  assert.equal(out.kind === "abstained" && out.decision.skipReason, "negative-ev");
   assert.deepEqual(stakes, []);
 });
 
