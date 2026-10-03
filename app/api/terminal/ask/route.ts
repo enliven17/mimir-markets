@@ -22,11 +22,13 @@ import { confirmCharge, readAllowance, releaseCharge, reserveCharge, sessionWall
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
 import { callLLM } from "@/lib/llm";
 import { readLimitedJson } from "@/lib/server/body-limit";
-import { loadCouncilClaim } from "@/lib/server/council-claim";
+import { liveCouncilClaims, loadCouncilClaim } from "@/lib/server/council-claim";
 import { rateIdentity } from "@/lib/server/holder";
 import { allowLlmRequest } from "@/lib/server/llm-route-guard";
 import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
 import { tokenInfo } from "@/lib/server/token-info";
+import { councilRoster } from "@/lib/server/council-roster";
+import { houseChatPriceUnits } from "@/lib/terminal/pay";
 import { MAX_REPLY_CHARS, claimIdIn, parseAskRequest, personaChatPrompt, ruleChatReply } from "@/lib/terminal/chat";
 import { rateLimitFor } from "@/lib/token-tiers";
 
@@ -50,12 +52,13 @@ export async function POST(req: Request) {
     Promise.all([
       claimId ? loadCouncilClaim(claimId).catch(() => null) : null,
       ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,
+      liveCouncilClaims("live").catch(() => []),
     ]);
 
   // Rule personas have no model: they run their staking rule on what is open. No LLM, no LLM budget.
   if (persona.archetype === "rule-based") {
-    const [claim, token] = await loadContext();
-    return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply: ruleChatReply(persona, { claim, token }) } });
+    const [claim, token, markets] = await loadContext();
+    return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply: ruleChatReply(persona, { claim, token, markets }) } });
   }
 
   if (
@@ -71,8 +74,14 @@ export async function POST(req: Request) {
     return tooManyRequests(60);
   }
 
-  const [claim, token] = await loadContext();
-  const prompt = personaChatPrompt({ persona, message: ask.message, history: ask.history, claim, token: token as Record<string, unknown> | null });
+  // A thinking persona is paid (once paid chat is on): its share goes to its own council wallet.
+  const address = councilRoster().find((r) => r.slug === persona.slug)?.address ?? "";
+  const priceUnits = address ? houseChatPriceUnits(persona.slug, terminalDelegate()) : 0;
+  const chargeId = await reservePaid(ask, sessionWallet(req), address, priceUnits);
+  if (chargeId instanceof Response) return chargeId;
+
+  const [claim, token, markets] = await loadContext();
+  const prompt = personaChatPrompt({ persona, message: ask.message, history: ask.history, claim, markets, token: token as Record<string, unknown> | null });
 
   let reply = "";
   try {
@@ -80,8 +89,13 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("[api/terminal/ask] llm failed:", err);
   }
-  if (!reply) return fail(503, `${persona.displayName} cannot answer right now. Try again in a minute.`);
-  return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply } });
+  if (!reply) {
+    if (chargeId !== null) await releaseCharge(chargeId).catch(() => undefined);
+    return fail(503, `${persona.displayName} cannot answer right now. Try again in a minute.`);
+  }
+  // Charged only for an answer.
+  if (chargeId !== null) await confirmCharge(chargeId);
+  return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply, chargedUsdc: chargeId !== null ? priceUnits / 1e6 : undefined } });
 }
 
 /** A registered agent with a chat endpoint: relay the message, return its reply. */
@@ -92,34 +106,38 @@ const PAY_REASONS: Record<string, string> = {
   settling: "your earlier messages are still settling: try again in a minute",
 };
 
+/**
+ * Reserve a paid message's charge before the work is done. Null for a free
+ * message; a Response when it cannot be charged (the caller returns it).
+ */
+async function reservePaid(ask: Exclude<ReturnType<typeof parseAskRequest>, string>, wallet: string | null, payoutWallet: string, priceUnits: number): Promise<number | null | Response> {
+  // The price must be the one the user saw: a price rise (or a free agent turning paid) asks again.
+  if (priceUnits > ask.maxPriceUnits) {
+    return NextResponse.json(
+      { success: false, error: `${ask.agent} charges ${priceUnits / 1e6} USDC per message`, code: "price", priceUsdc: priceUnits / 1e6 },
+      { status: 409 },
+    );
+  }
+  if (priceUnits <= 0) return null;
+  const delegate = terminalDelegate();
+  if (!delegate) return fail(503, "paid agents are not switched on yet");
+  if (!wallet) return NextResponse.json({ success: false, error: "sign in to the terminal to message paid agents", code: "session" }, { status: 401 });
+  const allowance = await readAllowance(wallet).catch(() => null);
+  if (!allowance) return fail(503, "could not read your spending limit right now");
+  const reserved = await reserveCharge({ wallet, agentId: ask.agent, payoutWallet, priceUnits: BigInt(priceUnits), allowance, delegate });
+  if ("reason" in reserved) {
+    return NextResponse.json({ success: false, error: PAY_REASONS[reserved.reason], code: reserved.reason }, { status: 402 });
+  }
+  return reserved.id;
+}
+
 async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>, wallet: string | null): Promise<Response> {
   const target = isDbEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
   if (!target) return fail(404, `no agent called ${ask.agent} takes questions. Type agents for the list.`);
 
-  // The price must be the one the user saw: an owner raising it (or turning a free agent paid) asks again.
-  if (target.priceUnits > ask.maxPriceUnits) {
-    return NextResponse.json(
-      { success: false, error: `${ask.agent} charges ${target.priceUnits / 1e6} USDC per message`, code: "price", priceUsdc: target.priceUnits / 1e6 },
-      { status: 409 },
-    );
-  }
-
   // A paid agent: reserve the charge before relaying, release it if no answer comes.
-  let chargeId: number | null = null;
-  if (target.priceUnits > 0) {
-    const delegate = terminalDelegate();
-    if (!delegate) return fail(503, "paid agents are not switched on yet");
-    if (!wallet) return NextResponse.json({ success: false, error: "sign in to the terminal to message paid agents", code: "session" }, { status: 401 });
-    const allowance = await readAllowance(wallet).catch(() => null);
-    if (!allowance) return fail(503, "could not read your spending limit right now");
-    const reserved = await reserveCharge({
-      wallet, agentId: ask.agent, payoutWallet: target.payoutWallet, priceUnits: BigInt(target.priceUnits), allowance, delegate,
-    });
-    if ("reason" in reserved) {
-      return NextResponse.json({ success: false, error: PAY_REASONS[reserved.reason], code: reserved.reason }, { status: 402 });
-    }
-    chargeId = reserved.id;
-  }
+  const chargeId = await reservePaid(ask, wallet, target.payoutWallet, target.priceUnits);
+  if (chargeId instanceof Response) return chargeId;
   const [claim, token] = await Promise.all([
     ask.context.claimId ? loadCouncilClaim(ask.context.claimId).catch(() => null) : null,
     ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,

@@ -10,6 +10,21 @@
  * `terminalSessionMessage` once, and every paid request carries it.
  */
 
+import { getPersonaBySlug } from "../../agents/council/personas";
+
+/**
+ * A house persona that thinks (calls our model) charges this per terminal
+ * message once paid chat is switched on: 0.01 USDC to its own wallet. Rule
+ * personas cost us nothing and stay free.
+ */
+export const HOUSE_CHAT_PRICE_UNITS = 10_000;
+
+/** A house persona's price per message in base units; 0 when free (or paid chat is off). */
+export function houseChatPriceUnits(slug: string, delegate: string | null | undefined): number {
+  const persona = getPersonaBySlug(slug);
+  return persona && persona.archetype !== "rule-based" && delegate ? HOUSE_CHAT_PRICE_UNITS : 0;
+}
+
 /** Mimir's cut of a paid message, in basis points (0.5%). */
 export const TERMINAL_FEE_BPS = 50;
 export const TERMINAL_SESSION_TTL_MS = 12 * 60 * 60 * 1000;

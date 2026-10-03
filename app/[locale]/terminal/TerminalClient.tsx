@@ -15,11 +15,12 @@ import { Link, useRouter } from "@/i18n/navigation";
 import Boot, { shouldBoot } from "@/components/terminal/Boot";
 
 import TerminalMark from "@/components/terminal/TerminalMark";
-import { Limit, useTerminalSession } from "@/components/terminal/pay";
+import { Limit, TERMINAL_DELEGATE, useTerminalSession } from "@/components/terminal/pay";
 import { Swap } from "@/components/terminal/swap";
 import { AgentReply, Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Focus, type Run } from "@/components/terminal/blocks";
 import { COMMANDS, complete, parseCommand, suggest, type Command, type CommandSpec } from "@/lib/terminal/commands";
 import { short } from "@/lib/terminal/format";
+import { houseChatPriceUnits } from "@/lib/terminal/pay";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
 import { mimirMint } from "@/lib/token-config";
 
@@ -131,15 +132,17 @@ export default function TerminalClient() {
           if (mint) setFocus({ mint, label: "$MIMIR" });
           return print(line, mint ? <Token mint={mint} run={run} label="$MIMIR" /> : <Note>$MIMIR is not launched yet.</Note>);
         }
-        case "use":
+        case "use": {
           setAgent(cmd.agent);
-          setPrice(null);
+          // House personas price from code; community agents from the registry.
+          const house = houseChatPriceUnits(cmd.agent, TERMINAL_DELEGATE);
+          setPrice(house > 0 ? house / 1e6 : null);
           // Community agents may charge: look the price up so the prompt can show it before sending.
           fetch("/api/agents/registry")
             .then((r) => r.json())
             .then((b: { agents?: { agentId: string; chat?: { priceUsdc: number } }[] }) => {
               const found = b.agents?.find((a) => a.agentId === cmd.agent);
-              if (agentRef.current === cmd.agent) setPrice(found?.chat?.priceUsdc ? found.chat.priceUsdc : null);
+              if (agentRef.current === cmd.agent && found) setPrice(found.chat?.priceUsdc ? found.chat.priceUsdc : null);
             })
             .catch(() => undefined);
           return print(
@@ -150,6 +153,7 @@ export default function TerminalClient() {
               <span className="text-cream">leave</span> to stop. Open a market or a token first and it answers about that.
             </Note>,
           );
+        }
         case "leave":
           // No agent to leave: exit means back to the site.
           if (!agentRef.current && /^(exit|quit)$/i.test(line)) {
@@ -170,7 +174,7 @@ export default function TerminalClient() {
               history={history}
               focus={focusRef.current}
               auth={{ headers: () => sessionRef.current.headers(), ensure: (fresh) => sessionRef.current.ensure(fresh) }}
-              maxPriceUsdc={cmd.agent === agentRef.current ? (priceRef.current ?? 0) : 0}
+              maxPriceUsdc={cmd.agent === agentRef.current ? (priceRef.current ?? 0) : houseChatPriceUnits(cmd.agent, TERMINAL_DELEGATE) / 1e6}
               run={run}
               onReply={(reply) =>
                 threads.current.set(cmd.agent, [...thread, { role: "user" as const, text: cmd.text }, { role: "agent" as const, text: reply }].slice(-12))

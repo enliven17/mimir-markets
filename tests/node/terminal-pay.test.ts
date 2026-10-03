@@ -112,3 +112,12 @@ test("a charge is reserved under a per-wallet lock and refused when the limit is
   assert.deepEqual(full.out, { reason: "limit_too_low" });
   assert.ok(!full.log.some((l) => l.startsWith("INSERT")), "nothing is reserved past the limit");
 });
+
+test("house personas: thinking ones charge 0.01 USDC once paid chat is on, rule ones never", async () => {
+  const { houseChatPriceUnits, HOUSE_CHAT_PRICE_UNITS } = await import("../../lib/terminal/pay");
+  assert.equal(HOUSE_CHAT_PRICE_UNITS, 10_000);
+  assert.equal(houseChatPriceUnits("optimist", "Delegate1111"), 10_000);
+  assert.equal(houseChatPriceUnits("optimist", null), 0, "no delegate: paid chat is off");
+  assert.equal(houseChatPriceUnits("contrarian", "Delegate1111"), 0, "rule personas call no model");
+  assert.equal(houseChatPriceUnits("nobody", "Delegate1111"), 0);
+});

@@ -10,7 +10,7 @@
 import "server-only";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
-import { isIndexEnabled, readClaim, type SolanaClaimRow } from "@/lib/server/solana-index";
+import { isIndexEnabled, readClaim, readClaims, type SolanaClaimRow } from "@/lib/server/solana-index";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import type { CouncilClaim } from "@/agents/council/shared/types";
 
@@ -50,3 +50,20 @@ export const loadCouncilClaim = cachedFor(async (claimId: number): Promise<Counc
   }
   return getReader().getClaim(BigInt(claimId));
 }, 20_000);
+
+const LIVE_LIMIT = 12;
+
+/** The open and live markets, newest first. Cached 30s: every terminal chat reads it. */
+export const liveCouncilClaims = cachedFor(async (_key: "live"): Promise<CouncilClaim[]> => {
+  if (isIndexEnabled()) return (await readClaims({ states: [0, 1], limit: LIVE_LIMIT })).map(fromRow);
+  // No index (local dev): walk back from the newest claim on chain.
+  // ponytail: scans at most 40 claims, so older live markets are missed without the index.
+  const client = getReader();
+  const cfg = await client.getConfig();
+  const out: CouncilClaim[] = [];
+  for (let id = cfg?.claimCount ?? 0n; id >= 1n && out.length < LIVE_LIMIT && (cfg?.claimCount ?? 0n) - id < 40n; id--) {
+    const c = await client.getClaim(id);
+    if (c && (c.state === 0 || c.state === 1)) out.push(c);
+  }
+  return out;
+}, 30_000);
