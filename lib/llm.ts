@@ -96,8 +96,10 @@ function overrideFor(prefixes: string[]): string | undefined {
 
 const DEFAULT_GEMINI_MODEL = overrideFor(["gemini", "gemma"]) || "gemini-3.5-flash";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || overrideFor(["claude"]) || "claude-sonnet-4-6";
-const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
-const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "openrouter/free";
+// Groq retired llama-3.3-70b-versatile; Qwen answers in character (gpt-oss refuses persona takes).
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b";
+// "openrouter/free" can route to a reasoning model that spends the whole budget thinking and answers nothing.
+const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "qwen/qwen3.8-27b:free";
 /** The models settlement verdicts may come from, unless SETTLEMENT_MODELS says otherwise. */
 const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.5-pro,claude-sonnet-4-6";
 
@@ -337,7 +339,7 @@ export function providerChain(opts: ChainOpts = {}): LLMProvider[] {
       : [...(primary ? [primary] : []), "groq", "anthropic", "gemini", "openrouter"];
   return order.filter((p, i) => {
     if (order.indexOf(p) !== i || !hasKey(p, scope)) return false;
-    if (opts.noFreeRouter && p === "openrouter" && DEFAULT_OPENROUTER_MODEL === "openrouter/free") return false;
+    if (opts.noFreeRouter && p === "openrouter" && (DEFAULT_OPENROUTER_MODEL === "openrouter/free" || DEFAULT_OPENROUTER_MODEL.endsWith(":free"))) return false;
     if (opts.settlement) {
       if (p === "gemini") return geminiModelsFor(undefined, true).length > 0;
       if (p === "anthropic") return anthropicModelFor(true) !== null;
