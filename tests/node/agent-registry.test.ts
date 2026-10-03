@@ -28,6 +28,7 @@ function agent(over: Partial<AgentRecord> = {}): AgentRecord {
     createdAt: 0,
     updatedAt: 0,
     lastSeenAt: null,
+    chat: { enabled: false, priceUnits: 0, bio: "" },
     ...over,
   };
 }

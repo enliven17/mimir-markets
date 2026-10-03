@@ -55,6 +55,7 @@ const PAGES: { path: string; name: string }[] = [
   { path: "/en/dashboard", name: "dashboard" },
   { path: "/en/token", name: "token" },
   { path: "/en/docs", name: "docs" },
+  { path: "/en/terminal", name: "terminal" },
 ];
 
 for (const { path, name } of PAGES) {
@@ -202,7 +203,8 @@ test("mobile menu panel traps focus and closes on Escape", async ({ page, isMobi
   const burger = page.getByRole("button", { name: "Open menu" });
   await burger.click();
   const panel = page.locator("#mobile-nav");
-  await expect(panel.getByRole("link", { name: "Arena", exact: true })).toBeFocused();
+  // Terminal leads the nav, so it takes the first focus.
+  await expect(panel.getByRole("link", { name: /^Terminal/ })).toBeFocused();
   await expect(panel.getByRole("link", { name: "Calibration" })).toBeVisible();
   await expect(panel.getByRole("link", { name: "Create a claim" })).toBeVisible();
   await page.keyboard.press("Escape");

@@ -233,6 +233,12 @@ html.lenis.lenis-stopped {
   animation: route-panel-enter 400ms var(--ease-spring) backwards;
 }
 
+/* The full-screen terminal: no scale-in entrance (a transformed ancestor would
+   also trap its fixed position and make it grow from small). */
+.route-enter:has(.terminal-root) {
+  animation: none;
+}
+
 /* Card enter, staggered by --i. */
 @keyframes card-in {
   from {
@@ -1089,6 +1095,20 @@ html.lenis.lenis-stopped {
   white-space: nowrap;
   transition: color 200ms ease, background-color 200ms ease;
 }
+/* "beta" and similar tags after a nav label */
+.nav-badge {
+  margin-left: 6px;
+  padding: 1px 6px 2px;
+  border-radius: 999px;
+  background: rgb(var(--red-rgb) / 0.16);
+  color: var(--coral);
+  font-family: var(--font-geist-pixel-square), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
 .nav-link:hover {
   color: #e6dcda;
 }

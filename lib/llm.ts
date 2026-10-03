@@ -61,6 +61,11 @@ export interface CallLLMOptions {
   settlement?: boolean;
   /** Cluster override for tests; defaults to IS_MAINNET. */
   mainnet?: boolean;
+  /**
+   * Low-stakes chat (the terminal): free-tier providers first (Groq, then
+   * OpenRouter's free models), the paid ones only as a fallback. Never with settlement.
+   */
+  preferFree?: boolean;
 }
 
 export interface LLMCallRecord {
@@ -91,8 +96,10 @@ function overrideFor(prefixes: string[]): string | undefined {
 
 const DEFAULT_GEMINI_MODEL = overrideFor(["gemini", "gemma"]) || "gemini-3.5-flash";
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || overrideFor(["claude"]) || "claude-sonnet-4-6";
-const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
-const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "openrouter/free";
+// Groq retired llama-3.3-70b-versatile; Qwen answers in character (gpt-oss refuses persona takes).
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b";
+// "openrouter/free" can route to a reasoning model that spends the whole budget thinking and answers nothing.
+const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "qwen/qwen3.8-27b:free";
 /** The models settlement verdicts may come from, unless SETTLEMENT_MODELS says otherwise. */
 const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.5-pro,claude-sonnet-4-6";
 
@@ -312,7 +319,7 @@ export function activeLLMKeyFingerprint(keyEnv?: string): string {
   return key ? `sha256:${keyId(key)}` : "(missing)";
 }
 
-type ChainOpts = Pick<CallLLMOptions, "keyEnv" | "noFreeRouter" | "role" | "settlement" | "mainnet">;
+type ChainOpts = Pick<CallLLMOptions, "keyEnv" | "noFreeRouter" | "role" | "settlement" | "mainnet" | "preferFree">;
 
 /**
  * The providers a call tries, primary first, each only when this caller has a
@@ -326,10 +333,13 @@ export function providerChain(opts: ChainOpts = {}): LLMProvider[] {
     forced === "gemini" || forced === "anthropic" || forced === "groq" || forced === "openrouter"
       ? forced
       : (["gemini", "anthropic", "groq", "openrouter"] as const).find((p) => hasKey(p, scope));
-  const order: LLMProvider[] = [...(primary ? [primary] : []), "groq", "anthropic", "gemini", "openrouter"];
+  const order: LLMProvider[] =
+    opts.preferFree && !opts.settlement
+      ? ["groq", "openrouter", "gemini", "anthropic"]
+      : [...(primary ? [primary] : []), "groq", "anthropic", "gemini", "openrouter"];
   return order.filter((p, i) => {
     if (order.indexOf(p) !== i || !hasKey(p, scope)) return false;
-    if (opts.noFreeRouter && p === "openrouter" && DEFAULT_OPENROUTER_MODEL === "openrouter/free") return false;
+    if (opts.noFreeRouter && p === "openrouter" && (DEFAULT_OPENROUTER_MODEL === "openrouter/free" || DEFAULT_OPENROUTER_MODEL.endsWith(":free"))) return false;
     if (opts.settlement) {
       if (p === "gemini") return geminiModelsFor(undefined, true).length > 0;
       if (p === "anthropic") return anthropicModelFor(true) !== null;

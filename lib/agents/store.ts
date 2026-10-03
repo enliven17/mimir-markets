@@ -9,6 +9,8 @@
  * No "server-only" guard: the worker process imports `pruneAgentTables`, and
  * the guard throws outside the Next bundler. DATABASE_URL is never public.
  */
+import { randomBytes } from "node:crypto";
+
 import { getDb, query } from "@/lib/server/db";
 import { MIMIR_PROGRAM_ID } from "@/lib/solana/config";
 import {
@@ -45,6 +47,11 @@ function toRecord(row: Record<string, unknown>): AgentRecord {
     createdAt: Number(row.created_at ?? 0),
     updatedAt: Number(row.updated_at ?? 0),
     lastSeenAt: row.last_seen_at === null || row.last_seen_at === undefined ? null : Number(row.last_seen_at),
+    chat: {
+      enabled: typeof row.chat_url === "string" && row.chat_url !== "",
+      priceUnits: Number(row.chat_price_units ?? 0),
+      bio: String(row.bio ?? ""),
+    },
   };
 }
 
@@ -114,6 +121,45 @@ export async function rotateOperator(agentId: string, operatorWallet: string, no
     now,
     agentId,
   ]);
+}
+
+/**
+ * Point an agent's terminal chat at `url` (or "" to turn it off). A new secret
+ * is minted when the URL changes or none exists yet; it is returned once and
+ * the endpoint verifies every request with it. Null secret: unchanged.
+ */
+export async function setAgentChat(
+  agentId: string,
+  chat: { url: string; priceUnits: number; bio: string },
+  now = Date.now(),
+): Promise<{ secret: string | null }> {
+  const rows = await query<{ chat_url: string | null; chat_secret: string | null }>(
+    "SELECT chat_url, chat_secret FROM agent_registry WHERE agent_id = $1",
+    [agentId],
+  );
+  const prev = rows[0];
+  const fresh = chat.url !== "" && (!prev?.chat_secret || prev.chat_url !== chat.url);
+  const secret = fresh ? randomBytes(32).toString("base64url") : null;
+  await query(
+    `UPDATE agent_registry
+        SET chat_url = $2, chat_price_units = $3, bio = $4, updated_at = $5${fresh ? ", chat_secret = $6" : ""}
+      WHERE agent_id = $1`,
+    fresh ? [agentId, chat.url || null, chat.priceUnits, chat.bio, now, secret] : [agentId, chat.url || null, chat.priceUnits, chat.bio, now],
+  );
+  return { secret };
+}
+
+/** Where to relay a terminal message for this agent, or null when its chat is off. Server-only. */
+export async function agentChatTarget(
+  agentId: string,
+): Promise<{ url: string; secret: string; priceUnits: number; payoutWallet: string } | null> {
+  const rows = await query<{ chat_url: string | null; chat_secret: string | null; chat_price_units: string | number; status: string; payout_wallet: string }>(
+    "SELECT chat_url, chat_secret, chat_price_units, status, payout_wallet FROM agent_registry WHERE agent_id = $1",
+    [agentId],
+  );
+  const r = rows[0];
+  if (!r || r.status !== "active" || !r.chat_url || !r.chat_secret) return null;
+  return { url: r.chat_url, secret: r.chat_secret, priceUnits: Number(r.chat_price_units ?? 0), payoutWallet: r.payout_wallet };
 }
 
 export async function touchAgent(agentId: string, now = Date.now()): Promise<void> {

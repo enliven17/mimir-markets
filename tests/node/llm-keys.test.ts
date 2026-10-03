@@ -126,3 +126,12 @@ test("key logs carry a hash prefix, never the key's tail", async () => {
     assert.ok(!fp.includes("abcdef"));
   });
 });
+
+test("terminal chat tries the free tiers first; settlement never does", async () => {
+  const { providerChain } = await import("../../lib/llm");
+  withEnv({ GEMINI_API_KEY: "g", GROQ_API_KEY: "q", OPENROUTER_API_KEY: "o", ANTHROPIC_API_KEY: undefined, LLM_PROVIDER: undefined }, () => {
+    assert.deepEqual(providerChain({ preferFree: true, mainnet: false }), ["groq", "openrouter", "gemini"]);
+    assert.equal(providerChain({ mainnet: false })[0], "gemini", "everything else keeps its order");
+    assert.ok(!providerChain({ preferFree: true, settlement: true, mainnet: false }).includes("groq"));
+  });
+});

@@ -47,6 +47,7 @@ export const AGENT_API_ACTIONS = [
   "listKeys",
   "revokeKey",
   "revoke",
+  "setChat",
   ...AGENT_WRITE_ACTIONS,
 ] as const;
 
@@ -60,7 +61,13 @@ export const OWNER_SIGNED_ACTIONS: AgentAction[] = [
   "listKeys",
   "revokeKey",
   "revoke",
+  "setChat",
 ];
+
+/** setChat bounds: a Mimir Terminal message costs 0 (free) to 1 USDC. */
+export const CHAT_MAX_PRICE_UNITS = 1_000_000;
+export const CHAT_MIN_PAID_UNITS = 1_000; // 0.001 USDC
+export const CHAT_BIO_MAX = 280;
 
 /** An envelope older than this is rejected, so a captured request cannot be replayed later. */
 export const AGENT_REQUEST_MAX_SKEW_MS = 5 * 60 * 1000;

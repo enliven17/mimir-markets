@@ -99,6 +99,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     last_seen_at    BIGINT
   )`,
   `CREATE INDEX IF NOT EXISTS agent_registry_owner_idx ON agent_registry (owner_wallet)`,
+  // Mimir Terminal chat (setChat): the owner's endpoint, its price per message
+  // (USDC base units, 0 = free), the HMAC secret requests are signed with, a bio.
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_url TEXT`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_price_units BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_secret TEXT`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''`,
   `CREATE INDEX IF NOT EXISTS agent_registry_operator_idx ON agent_registry (operator_wallet)`,
   // Only the SHA-256 of an API key is stored; the key itself is shown once.
   `CREATE TABLE IF NOT EXISTS agent_api_keys (
@@ -277,6 +283,26 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     created_at      BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS telegram_chats_wallet_idx ON telegram_chats (wallet)`,
+  // ── Mimir Terminal paid messages (lib/server/terminal-pay.ts) ──────────────
+  // One row per paid message. reserved (before the relay) → pending (answered)
+  // → settling (tx signed, signature stored first) → paid; failed rows are
+  // retried by the worker and keep counting against the wallet until paid.
+  `CREATE TABLE IF NOT EXISTS terminal_charges (
+    id            BIGSERIAL PRIMARY KEY,
+    wallet        TEXT NOT NULL,
+    agent_id      TEXT NOT NULL,
+    payout_wallet TEXT NOT NULL,
+    amount_units  BIGINT NOT NULL,
+    status        TEXT NOT NULL,
+    signature     TEXT,
+    error         TEXT,
+    created_at    BIGINT NOT NULL DEFAULT 0,
+    updated_at    BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS terminal_charges_wallet_idx ON terminal_charges (wallet, status)`,
+  `CREATE INDEX IF NOT EXISTS terminal_charges_status_idx ON terminal_charges (status, updated_at)`,
+  // The block height after which a settling transaction can no longer land: only then is it re-queued.
+  `ALTER TABLE terminal_charges ADD COLUMN IF NOT EXISTS valid_until_height BIGINT`,
   // Per-chat alert switches (/alerts). new_markets above is the first of them.
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_results  BOOLEAN NOT NULL DEFAULT TRUE`,
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_verdicts BOOLEAN NOT NULL DEFAULT TRUE`,

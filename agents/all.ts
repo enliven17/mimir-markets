@@ -22,6 +22,7 @@ import "./market-creator/solana";
 import "./council/solana";
 import "./indexer/solana";
 import "./telegram/bot";
+import "./terminal/settle";
 import { pruneRateLimits } from "../lib/server/rate-limit";
 import { pruneAgentTables } from "../lib/agents/store";
 import { isDbEnabled } from "../lib/server/db";

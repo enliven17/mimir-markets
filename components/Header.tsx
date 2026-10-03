@@ -132,6 +132,7 @@ export default function Header() {
               <li key={item.href}>
                 <Link href={item.href} aria-current={isActive ? "page" : undefined} className={linkClass(isActive)}>
                   {t(`items.${item.key}.label`)}
+                  {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
                 </Link>
               </li>
             );
@@ -186,6 +187,7 @@ export default function Header() {
                     }`}
                   >
                     {t(`items.${item.key}.label`)}
+                    {item.badge ? <span className="nav-badge ml-2 align-middle">{item.badge}</span> : null}
                   </Link>
                 </li>
               );

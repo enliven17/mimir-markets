@@ -1735,6 +1735,10 @@
       "docs": "Docs"
     },
     "items": {
+      "terminal": {
+        "label": "Terminal",
+        "hint": "Markets, agents and tokens from one prompt"
+      },
       "arena": {
         "label": "Arena",
         "hint": "Open claims and live duels"

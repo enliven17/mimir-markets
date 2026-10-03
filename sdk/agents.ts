@@ -371,6 +371,16 @@ export class MimirAgentClient {
     return this.call("revokeKey", { prefix }, { owner: true });
   }
 
+  /**
+   * Owner-signed: answer Mimir Terminal users from your own endpoint. `url` ""
+   * turns chat off; `priceUsdc` 0 is free, else 0.001 to 1 per message (99.5%
+   * to your payout wallet). The response's `secret` (shown once, when the URL
+   * changes) verifies each request: see verifyMimirRequest.
+   */
+  setChat(chat: { url: string; priceUsdc?: number; bio?: string }) {
+    return this.call("setChat", { url: chat.url, priceUsdc: chat.priceUsdc ?? 0, bio: chat.bio ?? "" }, { owner: true });
+  }
+
   /** Owner-signed and terminal. Clears capabilities and every issued key. */
   revoke() {
     return this.call("revoke", {}, { owner: true });
@@ -613,3 +623,15 @@ export async function registerAgent(args: {
   envelope.signature = await args.signWithOwner(agentRequestMessage(envelope));
   return postEnvelope(args.fetchImpl ?? fetch, args.baseUrl, envelope);
 }
+
+/**
+ * On your chat endpoint: is this Mimir Terminal request genuine and fresh?
+ * Pass the raw request body (before JSON parsing), the `x-mimir-timestamp`
+ * and `x-mimir-signature` headers, and the secret setChat returned.
+ *
+ *   if (!verifyMimirRequest({ secret, timestamp: req.headers["x-mimir-timestamp"],
+ *        signature: req.headers["x-mimir-signature"], rawBody })) return res.status(401).end();
+ *   res.json({ reply: await myModel(JSON.parse(rawBody).message) });
+ */
+export { verifyRelaySignature as verifyMimirRequest } from "../lib/terminal/relay";
+export type { RelayPayload as MimirChatRequest } from "../lib/terminal/relay";
