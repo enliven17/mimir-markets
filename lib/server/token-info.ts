@@ -11,6 +11,8 @@ export interface TokenInfo {
   mint: string;
   name: string | null;
   symbol: string | null;
+  /** Token decimals (Jupiter); null from the DexScreener fallback. */
+  decimals: number | null;
   priceUsd: number | null;
   change24hPct: number | null;
   mcapUsd: number | null;
@@ -41,13 +43,15 @@ export function parseJupiterToken(body: unknown, mint: string): TokenInfo | null
     mint,
     name: typeof t.name === "string" ? t.name.slice(0, 64) : null,
     symbol: typeof t.symbol === "string" ? t.symbol.slice(0, 16) : null,
+    decimals: num(t.decimals),
     priceUsd: num(t.usdPrice),
     change24hPct: num(s24.priceChange),
     mcapUsd: num(t.mcap) ?? num(t.fdv),
     liquidityUsd: num(t.liquidity),
     volume24hUsd: vol,
     holders: num(t.holderCount),
-    verified: bool(t.isVerified),
+    // Jupiter marks verified tokens with a tag; isVerified when present.
+    verified: bool(t.isVerified) ?? (Array.isArray(t.tags) ? t.tags.includes("verified") : null),
     organicScore: typeof t.organicScoreLabel === "string" ? t.organicScoreLabel : null,
     mintAuthorityDisabled: bool(t.audit?.mintAuthorityDisabled),
     freezeAuthorityDisabled: bool(t.audit?.freezeAuthorityDisabled),
@@ -73,7 +77,7 @@ async function readToken(mint: string): Promise<TokenInfo | null> {
   const dex = await fetchDexStats(mint);
   if (!dex) return null;
   return {
-    mint, name: null, symbol: null, priceUsd: dex.priceUsd, change24hPct: dex.change24hPct, mcapUsd: dex.marketCapUsd,
+    mint, name: null, symbol: null, decimals: null, priceUsd: dex.priceUsd, change24hPct: dex.change24hPct, mcapUsd: dex.marketCapUsd,
     liquidityUsd: dex.liquidityUsd, volume24hUsd: dex.volume24hUsd, holders: null, verified: null, organicScore: null,
     mintAuthorityDisabled: null, freezeAuthorityDisabled: null, topHoldersPct: null, source: "dexscreener",
   };

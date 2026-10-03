@@ -13,6 +13,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 import TerminalMark from "@/components/terminal/TerminalMark";
 import { Limit, useTerminalSession } from "@/components/terminal/pay";
+import { Swap } from "@/components/terminal/swap";
 import { AgentReply, Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Focus, type Run } from "@/components/terminal/blocks";
 import { COMMANDS, complete, parseCommand, type Command } from "@/lib/terminal/commands";
 import { short } from "@/lib/terminal/format";
@@ -147,8 +148,11 @@ export default function TerminalClient() {
           );
         }
         case "buy":
+          setFocus({ mint: cmd.mint, label: short(cmd.mint) });
+          return print(line, <Swap side="buy" mint={cmd.mint} usdc={cmd.usdc} run={run} />);
         case "sell":
-          return print(line, <Note>buy and sell open in a later update. token {short(cmd.mint)} shows its market now.</Note>);
+          setFocus({ mint: cmd.mint, label: short(cmd.mint) });
+          return print(line, <Swap side="sell" mint={cmd.mint} pct={cmd.pct} run={run} />);
         case "limit":
           return print(line, <Limit amount={cmd.revoke ? 0 : cmd.amount} revoke={cmd.revoke} run={run} />);
         case "error":

@@ -316,6 +316,8 @@ export function Token({ mint, run, label }: { mint: string; run: Run; label?: st
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-dim">
         <Cmd line="agents" run={run}>ask an agent about it →</Cmd>
+        <Cmd line={`buy ${mint} `} run={(l) => run(l, "fill")}>buy</Cmd>
+        <Cmd line={`sell ${mint} `} run={(l) => run(l, "fill")}>sell</Cmd>
         <a href={`https://pump.fun/coin/${mint}`} target="_blank" rel="noreferrer noopener" className="underline-offset-4 hover:text-cream hover:underline">
           pump.fun ↗
         </a>
