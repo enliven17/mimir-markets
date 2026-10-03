@@ -302,3 +302,86 @@ export function Token({ mint, run, label }: { mint: string; run: Run; label?: st
     </div>
   );
 }
+
+// ── agent chat ─────────────────────────────────────────────────────────────
+
+export interface Focus {
+  claimId?: number;
+  mint?: string;
+  label: string;
+}
+
+/** Reveal `text` at a typing pace (instant with reduced motion, or on click). */
+function useTyped(text: string | null, cps = 110): [string, () => void] {
+  const [n, setN] = useState(0);
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    if (!text) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setAll(true);
+      return;
+    }
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const next = Math.min(text.length, Math.floor(((now - t0) / 1000) * cps));
+      setN(next);
+      if (next < text.length) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [text, cps]);
+  return [text ? (all ? text : text.slice(0, n)) : "", () => setAll(true)];
+}
+
+export function AgentReply({
+  agent,
+  message,
+  history,
+  focus,
+  onReply,
+}: {
+  agent: string;
+  message: string;
+  history: { role: "user" | "agent"; text: string }[];
+  focus: Focus | null;
+  onReply: (reply: string) => void;
+}) {
+  const [reply, setReply] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [shown, revealAll] = useTyped(reply);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/terminal/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agent, message, history, context: { claimId: focus?.claimId, mint: focus?.mint } }),
+    })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as { data?: { reply?: string }; error?: string };
+        if (!alive) return;
+        if (!res.ok || !body.data?.reply) {
+          setError(res.status === 429 ? "slow down a little: too many questions this minute" : (body.error ?? "no answer"));
+          return;
+        }
+        setReply(body.data.reply);
+        onReply(body.data.reply);
+      })
+      .catch(() => alive && setError("network error"));
+    return () => {
+      alive = false;
+    };
+    // One request per printed block: the props of a printed block never change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (error) return <Err>{error}</Err>;
+  if (!reply) return <Wave label={`${agent} is thinking${focus ? ` about ${focus.label}` : ""}`} />;
+  return (
+    <div className="max-w-[80ch] whitespace-pre-wrap border-l-2 border-red/70 pl-4 text-cream" onClick={revealAll}>
+      {shown}
+      {shown.length < reply.length ? <span className="ml-0.5 inline-block h-[1.1em] w-[0.6ch] translate-y-[0.15em] animate-blink bg-red" aria-hidden /> : null}
+    </div>
+  );
+}

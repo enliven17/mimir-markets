@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import TerminalMark from "@/components/terminal/TerminalMark";
-import { Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Run } from "@/components/terminal/blocks";
+import { AgentReply, Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Focus, type Run } from "@/components/terminal/blocks";
 import { COMMANDS, complete, parseCommand, type Command } from "@/lib/terminal/commands";
 import { short } from "@/lib/terminal/format";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
@@ -50,6 +50,7 @@ export default function TerminalClient() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [agent, setAgent] = useState<string | null>(null);
+  const [focus, setFocus] = useState<Focus | null>(null);
   const [palette, setPalette] = useState(false);
   const [paletteIdx, setPaletteIdx] = useState(0);
   const history = useRef<string[]>([]);
@@ -59,6 +60,10 @@ export default function TerminalClient() {
   const endRef = useRef<HTMLDivElement>(null);
   const agentRef = useRef<string | null>(null);
   agentRef.current = agent;
+  const focusRef = useRef<Focus | null>(null);
+  focusRef.current = focus;
+  /** Each agent's conversation, so a follow-up keeps its thread (last turns only). */
+  const threads = useRef(new Map<string, { role: "user" | "agent"; text: string }[]>());
 
   useEffect(() => {
     history.current = loadHistory();
@@ -82,13 +87,16 @@ export default function TerminalClient() {
         case "markets":
           return print(line, <Markets filter={cmd.filter} run={run} />);
         case "market":
+          setFocus({ claimId: cmd.id, label: `#${cmd.id}` });
           return print(line, <Market id={cmd.id} run={run} />);
         case "agents":
           return print(line, <Agents run={run} />);
         case "token":
+          setFocus({ mint: cmd.mint, label: short(cmd.mint) });
           return print(line, <Token mint={cmd.mint} run={run} />);
         case "price": {
           const mint = mimirMint();
+          if (mint) setFocus({ mint, label: "$MIMIR" });
           return print(line, mint ? <Token mint={mint} run={run} label="$MIMIR" /> : <Note>$MIMIR is not launched yet.</Note>);
         }
         case "use":
@@ -96,14 +104,30 @@ export default function TerminalClient() {
           return print(
             line,
             <Note>
-              talking to <span className="text-cream">{cmd.agent}</span>. Plain text goes to it; <span className="text-cream">leave</span> to stop.
+              talking to <span className="text-cream">{cmd.agent}</span>
+              {focusRef.current ? <> about <span className="text-cream">{focusRef.current.label}</span></> : null}. Plain text goes to it;{" "}
+              <span className="text-cream">leave</span> to stop. Open a market or a token first and it answers about that.
             </Note>,
           );
         case "leave":
           setAgent(null);
           return print(line, <Note>left the agent.</Note>);
-        case "ask":
-          return print(line, <Note>agent chat opens in the next update. For now: markets, market, agents, token, price.</Note>);
+        case "ask": {
+          const thread = threads.current.get(cmd.agent) ?? [];
+          const history = thread.slice(-6);
+          return print(
+            line,
+            <AgentReply
+              agent={cmd.agent}
+              message={cmd.text}
+              history={history}
+              focus={focusRef.current}
+              onReply={(reply) =>
+                threads.current.set(cmd.agent, [...thread, { role: "user" as const, text: cmd.text }, { role: "agent" as const, text: reply }].slice(-12))
+              }
+            />,
+          );
+        }
         case "buy":
         case "sell":
           return print(line, <Note>buy and sell open in a later update. token {short(cmd.mint)} shows its market now.</Note>);
@@ -300,7 +324,7 @@ export default function TerminalClient() {
       {/* status bar */}
       <footer className="flex items-center gap-4 border-t border-line px-4 py-1.5 font-pixel text-[11px] uppercase tracking-wider text-dim sm:px-6">
         <span>{agent ? <span className="text-coral">● {agent}</span> : "● no agent"}</span>
-        <span className="max-sm:hidden">markets · agents · tokens</span>
+        <span className="max-sm:hidden">{focus ? <>focus <span className="text-cream">{focus.label}</span></> : "markets · agents · tokens"}</span>
         <span className="ml-auto">esc leaves · ctrl+l clears</span>
       </footer>
     </section>
