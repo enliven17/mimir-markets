@@ -6,7 +6,18 @@
 import { randomBytes } from "node:crypto";
 
 import { isDbEnabled, query } from "./db";
-import { LINK_CODE_TTL_MS, marketButton, newMarketText, notificationText, tg } from "../telegram";
+import {
+  ALERT_PREFS,
+  isAlertPref,
+  LINK_CODE_TTL_MS,
+  marketButton,
+  newMarketText,
+  notificationText,
+  prefForKind,
+  tg,
+  type AlertPref,
+  type AlertPrefs,
+} from "../telegram";
 import type { NotificationEvent } from "../notifications";
 
 export async function upsertChat(chatId: number, now = Date.now()): Promise<void> {
@@ -49,8 +60,28 @@ export async function unlinkChat(chatId: number): Promise<void> {
   await query("UPDATE telegram_chats SET wallet = NULL WHERE chat_id = $1", [chatId]);
 }
 
-export async function setNewMarketAlerts(chatId: number, on: boolean): Promise<void> {
-  await query("UPDATE telegram_chats SET new_markets = $2 WHERE chat_id = $1", [chatId, on]);
+// Column names below only ever come from ALERT_PREFS (checked by isAlertPref), never from user input.
+const PREF_COLUMNS = ALERT_PREFS.map((p) => p.key).join(", ");
+
+/** A chat's alert switches (every one on for a chat with no row yet). */
+export async function getAlertPrefs(chatId: number): Promise<AlertPrefs> {
+  const rows = await query<Record<AlertPref, boolean>>(`SELECT ${PREF_COLUMNS} FROM telegram_chats WHERE chat_id = $1`, [chatId]);
+  const row = rows[0];
+  return Object.fromEntries(ALERT_PREFS.map((p) => [p.key, row ? row[p.key] !== false : true])) as AlertPrefs;
+}
+
+/** Flip one switch; the chat's switches after the change. */
+export async function toggleAlertPref(chatId: number, key: string): Promise<AlertPrefs> {
+  if (!isAlertPref(key)) throw new Error(`unknown alert ${key}`);
+  await upsertChat(chatId);
+  await query(`UPDATE telegram_chats SET ${key} = NOT ${key} WHERE chat_id = $1`, [chatId]);
+  return getAlertPrefs(chatId);
+}
+
+/** Every switch on or off at once (/alerts on, /alerts off). */
+export async function setAllAlerts(chatId: number, on: boolean): Promise<void> {
+  await upsertChat(chatId);
+  await query(`UPDATE telegram_chats SET ${ALERT_PREFS.map((p) => `${p.key} = $2`).join(", ")} WHERE chat_id = $1`, [chatId, on]);
 }
 
 async function markBlocked(chatId: number): Promise<void> {
@@ -92,12 +123,14 @@ export async function broadcastNewMarkets(
   }
 }
 
-/** A wallet notification (bet result, verdict, payout) to every chat following that wallet. */
+/** A wallet notification (bet result, verdict, payout) to every chat following that wallet and wanting that kind. */
 export async function deliverTelegram(e: NotificationEvent): Promise<void> {
   const text = notificationText(e);
-  if (!text || !isDbEnabled()) return;
-  const chats = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE wallet = $1 AND NOT blocked", [
-    e.recipient,
-  ]);
+  const pref = prefForKind(e.kind);
+  if (!text || !pref || !isDbEnabled()) return;
+  const chats = await query<{ chat_id: string }>(
+    `SELECT chat_id FROM telegram_chats WHERE wallet = $1 AND NOT blocked AND ${pref}`,
+    [e.recipient],
+  );
   for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketButton(e.claimId) });
 }

@@ -6,7 +6,7 @@
  *   /link    a one-time link: the wallet signs it on the site (/telegram)
  *   /bets    the linked wallet's live positions
  *   /price   $MIMIR price, market cap, liquidity, volume + pump.fun link
- *   /alerts  on|off  new-market messages
+ *   /alerts  a switch per alert (new markets, results, verdicts, payouts); on|off sets them all
  *   /unlink  stop following the wallet
  *
  * The menu button opens the site as a Telegram Mini App. Messages for new
@@ -20,10 +20,30 @@ import { claimsChallengedBy, claimsCreatedBy } from "../../lib/agents/store";
 import { fetchDexStats } from "../../lib/server/dex-prices";
 import { mimirMint, mimirSymbol } from "../../lib/token-config";
 import { getMeta, isDbEnabled, setMeta } from "../../lib/server/db";
-import { chatWallet, newLinkCode, sendTo, setNewMarketAlerts, unlinkChat, upsertChat } from "../../lib/server/telegram";
+import {
+  chatWallet,
+  getAlertPrefs,
+  newLinkCode,
+  sendTo,
+  setAllAlerts,
+  toggleAlertPref,
+  unlinkChat,
+  upsertChat,
+} from "../../lib/server/telegram";
 import { isLiveState } from "../../lib/solana/config";
 import { SITE_URL } from "../../lib/site";
-import { claimUrl, esc, linkUrl, priceText, pumpFunUrl, telegramToken, tg, WELCOME_TEXT } from "../../lib/telegram";
+import {
+  ALERTS_TEXT,
+  alertsKeyboard,
+  claimUrl,
+  esc,
+  linkUrl,
+  priceText,
+  pumpFunUrl,
+  telegramToken,
+  tg,
+  WELCOME_TEXT,
+} from "../../lib/telegram";
 
 const VIDEO_PATH = path.join(process.cwd(), "brand", "launch.mp4");
 const THUMB_PATH = path.join(process.cwd(), "brand", "launch-thumb.jpg");
@@ -36,6 +56,20 @@ const POLL_TIMEOUT_S = 25;
 interface Update {
   update_id: number;
   message?: { chat: { id: number; type: string }; text?: string };
+  callback_query?: { id: string; data?: string; message?: { message_id: number; chat: { id: number; type: string } } };
+}
+
+/** A tap on an /alerts switch: flip it and redraw the buttons in place. */
+async function onAlertTap(q: NonNullable<Update["callback_query"]>): Promise<void> {
+  const msg = q.message;
+  const key = q.data?.startsWith("alert:") ? q.data.slice("alert:".length) : null;
+  if (!msg || msg.chat.type !== "private" || !key) {
+    await tg("answerCallbackQuery", { callback_query_id: q.id });
+    return;
+  }
+  const prefs = await toggleAlertPref(msg.chat.id, key);
+  await tg("editMessageReplyMarkup", { chat_id: msg.chat.id, message_id: msg.message_id, reply_markup: alertsKeyboard(prefs) });
+  await tg("answerCallbackQuery", { callback_query_id: q.id, text: "Saved" });
 }
 
 /** $MIMIR on mainnet (README); NEXT_PUBLIC_MIMIR_TOKEN_MINT overrides it. */
@@ -108,6 +142,7 @@ async function onBets(chatId: number): Promise<void> {
 }
 
 async function handle(update: Update): Promise<void> {
+  if (update.callback_query) return onAlertTap(update.callback_query);
   const msg = update.message;
   if (!msg?.text || msg.chat.type !== "private") return;
   const chatId = msg.chat.id;
@@ -125,10 +160,10 @@ async function handle(update: Update): Promise<void> {
     case "/price":
       return onPrice(chatId);
     case "/alerts": {
-      const on = (arg ?? "").toLowerCase() !== "off";
-      await upsertChat(chatId);
-      await setNewMarketAlerts(chatId, on);
-      return sendTo(chatId, on ? "New-market alerts are on." : "New-market alerts are off. /alerts on to resume.");
+      const all = (arg ?? "").toLowerCase();
+      if (all === "on" || all === "off") await setAllAlerts(chatId, all === "on");
+      else await upsertChat(chatId);
+      return sendTo(chatId, ALERTS_TEXT, { reply_markup: alertsKeyboard(await getAlertPrefs(chatId)) });
     }
     case "/unlink":
       await unlinkChat(chatId);
@@ -145,7 +180,7 @@ async function setup(): Promise<void> {
       { command: "link", description: "Link your wallet" },
       { command: "bets", description: "Your open positions" },
       { command: "price", description: "$MIMIR price and stats" },
-      { command: "alerts", description: "New-market alerts on|off" },
+      { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },
     ],
   });
@@ -163,7 +198,7 @@ async function main(): Promise<void> {
     try {
       const updates = await tg<Update[]>(
         "getUpdates",
-        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ["message"] },
+        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ["message", "callback_query"] },
         (POLL_TIMEOUT_S + 10) * 1000,
       );
       for (const u of updates) {

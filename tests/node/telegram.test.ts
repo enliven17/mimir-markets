@@ -47,3 +47,51 @@ test("/price reads the deepest pair, with no settlement liquidity floor, and for
   assert.match(text, /Market cap: \$17\.48K/);
   assert.equal(pumpFunUrl(mint), `https://pump.fun/coin/${mint}`);
 });
+
+test("each wallet alert answers to its own switch; new markets have theirs", async () => {
+  const { prefForKind, alertsKeyboard, ALERT_PREFS } = await import("../../lib/telegram");
+  assert.equal(prefForKind("resolved"), "alert_results");
+  assert.equal(prefForKind("cancelled"), "alert_results");
+  assert.equal(prefForKind("proposed"), "alert_verdicts");
+  assert.equal(prefForKind("payout_claimable"), "alert_payouts");
+  assert.equal(prefForKind("challenged"), null);
+  const kb = alertsKeyboard({ new_markets: false, alert_results: true, alert_verdicts: true, alert_payouts: false });
+  assert.equal(kb.inline_keyboard.length, ALERT_PREFS.length);
+  assert.match(kb.inline_keyboard[0][0].text, /^⬜ New markets/);
+  assert.match(kb.inline_keyboard[1][0].text, /^✅ Results/);
+  assert.equal(kb.inline_keyboard[1][0].callback_data, "alert:alert_results");
+});
+
+async function withFakeDb<T>(rows: (sql: string) => unknown[], fn: (log: Array<{ sql: string; args: unknown[] }>) => Promise<T>): Promise<T> {
+  const log: Array<{ sql: string; args: unknown[] }> = [];
+  const pool = { async query(sql: string, args: unknown[] = []) { const flat = sql.replace(/\s+/g, " ").trim(); log.push({ sql: flat, args }); return { rows: rows(flat) }; } };
+  const g = globalThis as Record<string, unknown>;
+  const prev = { url: process.env.DATABASE_URL, pool: g.__mimirSolanaPool, ready: g.__mimirSolanaDbReady, tok: process.env.TELEGRAM_BOT_TOKEN };
+  process.env.DATABASE_URL = "postgres://fake";
+  g.__mimirSolanaPool = pool;
+  g.__mimirSolanaDbReady = Promise.resolve(pool);
+  try {
+    return await fn(log);
+  } finally {
+    if (prev.url === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = prev.url;
+    g.__mimirSolanaPool = prev.pool;
+    g.__mimirSolanaDbReady = prev.ready;
+  }
+}
+
+test("a settlement alert only reaches chats that keep results on, whatever their new-market switch", async () => {
+  const { deliverTelegram } = await import("../../lib/server/telegram");
+  await withFakeDb(() => [], async (log) => {
+    await deliverTelegram({ recipient: "W", claimId: 1, kind: "resolved", dedupe: "r", payload: { question: "q", winnerSide: 1, youWon: true } } as never);
+    assert.match(log[0].sql, /WHERE wallet = \$1 AND NOT blocked AND alert_results$/);
+    assert.doesNotMatch(log[0].sql, /new_markets/);
+  });
+});
+
+test("an unknown alert key never reaches SQL", async () => {
+  const { toggleAlertPref } = await import("../../lib/server/telegram");
+  await withFakeDb(() => [], async (log) => {
+    await assert.rejects(() => toggleAlertPref(1, "wallet = 'x'; --"), /unknown alert/);
+    assert.equal(log.length, 0);
+  });
+});
