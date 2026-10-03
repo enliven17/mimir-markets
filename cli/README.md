@@ -1,0 +1,89 @@
+# mimir-terminal
+
+The [Mimir Terminal](https://mimirmarkets.xyz/terminal) in your own terminal. Prediction markets come from Mimir; the agents run on **your** side, on your own AI or your own code. Nothing to register, and Mimir's AI is never called.
+
+```sh
+npm i -g mimir-terminal
+mimir
+```
+
+Node 18.17+, no dependencies.
+
+## Commands
+
+```
+markets [live|closing|crypto|sports|settled]   list markets with odds
+market <id>                                    one market in full; agents then answer about it
+token <contract address>                       a Solana token: price, liquidity, red flags
+price                                          the $MIMIR token
+agents                                         your agents and the house council
+use <agent>                                    talk to an agent: plain text goes to it
+ask <agent> <question>                         one question, no switching
+agent add <name> prompt|http|exec <…>          bring your own agent (below)
+ai [<baseUrl> <model> [API_KEY_ENV]]           the AI your agents think with
+```
+
+Any command also runs once from the shell: `mimir markets live`, `mimir ask optimist "is #29 worth it?"`.
+
+## Your AI
+
+Agents think with any OpenAI-compatible endpoint. The default is [Ollama](https://ollama.com) on your machine (free, offline):
+
+```sh
+ollama pull llama3.2
+mimir                       # uses http://localhost:11434/v1, model llama3.2
+```
+
+Or point it elsewhere. The last argument is the **name** of the env var holding your key; the key itself is never stored:
+
+```sh
+mimir ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY
+mimir ai https://api.groq.com/openai/v1 qwen/qwen3.8-27b GROQ_API_KEY
+mimir ai https://api.openai.com/v1 gpt-5-mini OPENAI_API_KEY
+```
+
+The house council (optimist, doomer, socrates…) runs on it too.
+
+## Your agents
+
+Three kinds, saved in `~/.mimir/config.json`:
+
+```sh
+mimir agent add bull prompt You are a crypto bull who loves memecoins   # a persona on your AI
+mimir agent add mine http http://localhost:8787/chat                   # your agent server
+mimir agent add py exec python my_agent.py                             # a local program
+```
+
+`http` and `exec` agents get the same JSON Mimir sends a registered agent (see `setChat` in [docs/AGENTS.md](https://github.com/enliven17/mimir-solana/blob/main/docs/AGENTS.md)), so one agent works locally and on Mimir:
+
+```json
+{
+  "requestId": "uuid",
+  "agentId": "mine",
+  "message": "is #29 worth a challenge?",
+  "history": [{ "role": "user", "text": "…" }, { "role": "agent", "text": "…" }],
+  "context": {
+    "market": { "id": 29, "question": "…", "creatorStake": "3000000", "…": "…" },
+    "token": null,
+    "markets": ["#29 [open] Will … | creator 3 USDC (100%) vs challengers 0 USDC (0%) … | 18h left"]
+  },
+  "wallet": null
+}
+```
+
+Answer with `{"reply": "…"}` or plain text: as the HTTP response body, or on stdout for `exec` (the request arrives on stdin). A 20-line example:
+
+```js
+// my_agent.mjs: mimir agent add mine exec node my_agent.mjs
+let input = "";
+process.stdin.on("data", (d) => (input += d)).on("end", () => {
+  const { message, context } = JSON.parse(input);
+  const m = context.market;
+  const reply = m
+    ? `#${m.id}: ${Number(m.totalChallengerStake) === 0 ? "nobody has challenged yet, the whole creator stake is on the table." : "already contested."}`
+    : `${context.markets.length} markets are open. Ask about one by id.`;
+  console.log(JSON.stringify({ reply }));
+});
+```
+
+To stake, buy or sell, use the web terminal at https://mimirmarkets.xyz/terminal.

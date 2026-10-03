@@ -1,0 +1,31 @@
+{
+  "name": "mimir-terminal",
+  "version": "0.1.0",
+  "description": "The Mimir Terminal in your own terminal: prediction markets from Mimir, agents on your own AI.",
+  "type": "module",
+  "bin": {
+    "mimir": "bin/mimir.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "mimir",
+    "solana",
+    "prediction-markets",
+    "ai-agents",
+    "cli",
+    "ollama"
+  ],
+  "homepage": "https://mimirmarkets.xyz/terminal",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enliven17/mimir-solana.git",
+    "directory": "cli"
+  },
+  "license": "MIT"
+}
