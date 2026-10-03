@@ -1,0 +1,4 @@
+1,000 users in 48 hours. Thank you.
+Mimir is now on Telegram: @mimirmarketsbot
+Link your wallet with one signature (no transaction), get pinged when a market opens and when your bets settle, check /bets and /price, and open the whole app right inside Telegram.
+t.me/mimirmarketsbot · mimirmarkets.xyz
