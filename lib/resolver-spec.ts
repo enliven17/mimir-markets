@@ -23,7 +23,8 @@
  *
  * Pure: no network. The oracle supplies the price readings or fetched JSON.
  */
-import { mimirMint, mimirSymbol } from "./token-config";
+import { dexMintFor, mimirMint, mimirSymbol } from "./token-config";
+import { freshReadings, MAX_SOURCE_SPREAD, priceCheckTarget, type PriceReading } from "./price-consensus";
 
 export type ResolverOp = ">" | ">=" | "<" | "<=" | "==" | "!=";
 
@@ -75,6 +76,25 @@ export function resolverLine(spec: ResolverSpec): string {
   return `resolver: ${JSON.stringify(spec)}`;
 }
 
+const NUMERIC_OPS: ReadonlySet<ResolverOp> = new Set([">", ">=", "<", "<="]);
+
+/**
+ * A numeric comparison needs two finite numbers: Number("pending") is NaN and
+ * NaN > x is a silent "no", which would settle the claim for the No side.
+ * Same for equality against a number: "pending" is not an answer to "== 3".
+ */
+export function comparable(actual: unknown, op: ResolverOp, expected: unknown): boolean {
+  if (!NUMERIC_OPS.has(op)) {
+    // == / !=: same type or no answer. `"true" != true` is not a "condition not met".
+    if (typeof expected === "boolean") return typeof actual === "boolean";
+    if (typeof expected === "string") return typeof actual === "string";
+  }
+  if (typeof actual === "boolean" || typeof expected === "boolean") return false;
+  if (typeof actual === "string" && actual.trim() === "") return false;
+  if (typeof actual !== "number" && typeof actual !== "string") return false;
+  return Number.isFinite(Number(actual)) && Number.isFinite(Number(expected));
+}
+
 export function compare(actual: number | string | boolean, op: ResolverOp, expected: number | string | boolean): boolean {
   switch (op) {
     case ">": return Number(actual) > Number(expected);
@@ -101,28 +121,100 @@ export type ResolverOutcome =
   | { determined: true; conditionMet: boolean; detail: string }
   | { determined: false; detail: string };
 
+/** These read the same DEX pools: thin, cheap to move near a deadline, and not independent. */
+const DEX_SOURCES: ReadonlySet<string> = new Set(["dexscreener", "jupiter"]);
+
 /**
- * A price spec against independent readings: every reading must land on the
- * same side, or the outcome is not determined (and the LLM path takes over,
- * where the two-source rule refunds a straddle).
+ * A price spec against independent readings at the deadline (`atMs`): every
+ * fresh reading must land on the same side, within the cross-check's spread
+ * and age limits (lib/price-consensus.ts), or the outcome is not determined
+ * and the LLM path takes over, where the two-source rule refunds a straddle.
+ *
+ * DEX-priced tokens never settle here: one swap near the deadline moves the
+ * pool every reader quotes, so they take the normal path.
  */
 export function evaluatePriceSpec(
   spec: Extract<ResolverSpec, { kind: "price" }>,
-  readings: Array<{ source: string; priceUsd: number }>,
+  readings: Array<{ source: string; priceUsd: number; at: number; maxSkewMs?: number }>,
+  atMs: number,
 ): ResolverOutcome {
-  const usable = readings.filter((r) => Number.isFinite(r.priceUsd) && r.priceUsd > 0);
-  if (usable.length < 2) return { determined: false, detail: `only ${usable.length} price reading(s)` };
-  const results = usable.map((r) => compare(r.priceUsd, spec.op, spec.threshold));
+  if (dexMintFor(spec.symbol) || readings.some((r) => DEX_SOURCES.has(r.source))) {
+    return { determined: false, detail: `${spec.symbol} is DEX-priced: no structured settlement` };
+  }
+  const usable = freshReadings(readings as PriceReading[], atMs);
+  if (usable.length < 2) return { determined: false, detail: `only ${usable.length} fresh price reading(s)` };
   const shown = usable.map((r) => `${r.source} $${r.priceUsd}`).join(", ");
+  const prices = usable.map((r) => r.priceUsd);
+  const high = Math.max(...prices);
+  const spread = (high - Math.min(...prices)) / high;
+  if (spread > MAX_SOURCE_SPREAD) return { determined: false, detail: `sources ${(spread * 100).toFixed(2)}% apart: ${shown}` };
+  const results = usable.map((r) => compare(r.priceUsd, spec.op, spec.threshold));
   if (results.every(Boolean)) return { determined: true, conditionMet: true, detail: `${spec.symbol} ${spec.op} ${spec.threshold}: ${shown}` };
   if (results.every((x) => !x)) return { determined: true, conditionMet: false, detail: `${spec.symbol} not ${spec.op} ${spec.threshold}: ${shown}` };
   return { determined: false, detail: `sources straddle ${spec.threshold}: ${shown}` };
 }
 
-export function evaluateJsonSpec(spec: Extract<ResolverSpec, { kind: "json" }>, data: unknown): ResolverOutcome {
+const ESPN_HOST = "site.api.espn.com";
+
+function isEspnSpec(spec: Extract<ResolverSpec, { kind: "json" }>): boolean {
+  try {
+    return new URL(spec.url).hostname.toLowerCase() === ESPN_HOST;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Does an ESPN payload say the game the path reads from is over? A live
+ * score read mid-game is not a result. Scoreboards: `events[N].status`
+ * (or its first competition's); a summary: `header.competitions[0].status`;
+ * else a top-level `status`. Only `completed === true` counts.
+ */
+export function espnEventCompleted(data: unknown, path: string): boolean {
+  const done = (base: string) =>
+    readPath(data, `${base}status.type.completed`) === true ||
+    readPath(data, `${base}competitions[0].status.type.completed`) === true;
+  const event = /^events\[(\d+)\]/.exec(path);
+  if (event) return done(`events[${event[1]}].`);
+  if (/^header\./.test(path) || readPath(data, "header.competitions[0]") !== undefined) {
+    return readPath(data, "header.competitions[0].status.type.completed") === true;
+  }
+  return done("");
+}
+
+/**
+ * When the ESPN game the path reads from started (ms epoch), or NaN. A claim
+ * created after kickoff on a game whose score is already moving (or final)
+ * is a free option for its creator: it never settles deterministically.
+ */
+export function espnEventStart(data: unknown, path: string): number {
+  const event = /^events\[(\d+)\]/.exec(path);
+  const raw = event
+    ? readPath(data, `events[${event[1]}].date`) ?? readPath(data, `events[${event[1]}].competitions[0].date`)
+    : readPath(data, "header.competitions[0].date") ?? readPath(data, "date");
+  return typeof raw === "string" ? Date.parse(raw) : NaN;
+}
+
+export function evaluateJsonSpec(
+  spec: Extract<ResolverSpec, { kind: "json" }>,
+  data: unknown,
+  opts: { claimCreatedAtMs?: number } = {},
+): ResolverOutcome {
+  if (isEspnSpec(spec) && !espnEventCompleted(data, spec.path)) {
+    return { determined: false, detail: "ESPN does not report the event as completed" };
+  }
+  if (isEspnSpec(spec) && opts.claimCreatedAtMs !== undefined) {
+    const start = espnEventStart(data, spec.path);
+    if (!Number.isFinite(start) || start <= opts.claimCreatedAtMs) {
+      return { determined: false, detail: "the ESPN event had already started when the claim was created (or has no start time)" };
+    }
+  }
   const actual = readPath(data, spec.path);
   if (actual === undefined || actual === null || typeof actual === "object") {
     return { determined: false, detail: `${spec.path} missing in the response` };
+  }
+  if (!comparable(actual, spec.op, spec.value)) {
+    return { determined: false, detail: `${spec.path} = ${String(actual)} is not comparable with ${spec.op} ${JSON.stringify(spec.value)}` };
   }
   const met = compare(actual as number | string | boolean, spec.op, spec.value);
   return { determined: true, conditionMet: met, detail: `${spec.path} = ${String(actual)} (${spec.op} ${String(spec.value)})` };
@@ -200,6 +292,54 @@ export function resolverFromUrl(url: string | null | undefined): ResolverSpec | 
 /** A claim's spec: its resolution URL fragment first, else a settlement-rule line. */
 export function resolverSpecFor(c: { resolutionUrl: string; settlementRule?: string | null }): ResolverSpec | null {
   return resolverFromUrl(c.resolutionUrl) ?? parseResolverSpec(c.settlementRule);
+}
+
+/**
+ * Hosts whose JSON a json spec may settle from. Anyone can write a json spec
+ * into their own claim's URL, so on any other host the creator would decide
+ * the outcome by editing their own file: there the spec is ignored and the
+ * claim takes the normal (LLM, capped) path. ESPN only, and only for a game
+ * ESPN reports completed (evaluateJsonSpec). Not Polymarket Gamma: a json
+ * spec on any Gamma query would skip the market binding checks
+ * (agents/oracle/polymarket.ts). Not CoinGecko: a "live" price read at
+ * settlement time is not the price at the deadline; prices settle only
+ * through a price spec.
+ */
+export const JSON_RESOLVER_HOSTS: ReadonlySet<string> = new Set([ESPN_HOST]);
+
+export function isTrustedJsonSpec(spec: Extract<ResolverSpec, { kind: "json" }>): boolean {
+  try {
+    const url = new URL(spec.url);
+    return url.protocol === "https:" && !url.port && JSON_RESOLVER_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Does a price spec say what the question says? The spec rides in a URL
+ * fragment no model reads, so "SOL above $250?" carrying
+ * `#mimir=price:SOL:lt:250` would settle the opposite of what people staked
+ * on. Symbol, threshold and direction must all match the question.
+ */
+export function priceSpecMatchesQuestion(spec: Extract<ResolverSpec, { kind: "price" }>, question: string): boolean {
+  const target = priceCheckTarget(question);
+  if (!target || target.symbol !== spec.symbol) return false;
+  if (Math.abs(target.threshold - spec.threshold) > Math.abs(spec.threshold) * 1e-9) return false;
+  const fromQuestion = priceSpecFromQuestion(question, spec.symbol, spec.threshold);
+  return fromQuestion?.kind === "price" && fromQuestion.op === spec.op;
+}
+
+/**
+ * The spec the oracle actually honours: json specs on trusted hosts only,
+ * price specs only when they match the question. Null: settle as if the
+ * claim carried no spec.
+ */
+export function effectiveResolverSpec(c: { question: string; resolutionUrl: string; settlementRule?: string | null }): ResolverSpec | null {
+  const spec = resolverSpecFor(c);
+  if (!spec) return null;
+  if (spec.kind === "json") return isTrustedJsonSpec(spec) ? spec : null;
+  return priceSpecMatchesQuestion(spec, c.question) ? spec : null;
 }
 
 /** The on-chain resolution_url limit (onchain constants MAX_URL). */

@@ -11,12 +11,12 @@ import Disclosure from "@/components/ui/Disclosure";
 import FeeTermsCard from "@/components/arena/settlement/FeeTermsCard";
 import SettlementPreviewCard from "@/components/arena/SettlementPreviewCard";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import { claimPda, ST_CANCELLED, ST_RESOLVED } from "@/lib/solana/config";
+import { claimPda, ST_CANCELLED, ST_RESOLVED, explorerUrl, IS_MAINNET } from "@/lib/solana/config";
 import { isLiveState, isPendingVerdict } from "@/lib/claim-status";
 import { shortKey } from "@/components/arena/settlement/useSettleAction";
 import { sourceOf } from "./source";
 
-const addr = (a: string) => `https://explorer.solana.com/address/${a}?cluster=devnet`;
+const addr = (a: string) => explorerUrl("address", a);
 
 export default function DetailsDisclosures({
   claim,
@@ -108,7 +108,7 @@ export default function DetailsDisclosures({
               <dt>{t("lastTx")}</dt>
               <dd>
                 <a
-                  href={`https://explorer.magicblock.app/tx/${lastSig}?cluster=devnet`}
+                  href={`https://explorer.magicblock.app/tx/${lastSig}${IS_MAINNET ? "" : "?cluster=devnet"}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-coral"

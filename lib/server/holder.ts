@@ -7,9 +7,31 @@ import { ansemMint, mimirMint } from "@/lib/token-config";
 import { HOLDER_PROOF_HEADER, HOLDER_WALLET_HEADER, holderProofMessage, parseProofHeader } from "@/lib/token-proof";
 import { tierFor, tierThresholdsFromEnv, type TokenBalances, type TokenTier } from "@/lib/token-tiers";
 import { mainnetTokenBalance } from "./mainnet";
-import { clientIp } from "./rate-limit";
+import { allowRequest, clientIp } from "./rate-limit";
+
+/** Proofs one IP may have checked against mainnet per minute (audit P2-8). */
+function proofChecksPerMinute(): number {
+  const n = Number(process.env.HOLDER_PROOF_PER_MIN?.trim() || "20");
+  return Number.isFinite(n) && n > 0 ? n : 20;
+}
 
 /** MIMIR is 0 before launch. Throws when mainnet cannot be read. */
+/** Wallets whose balances were read within the balance cache TTL (bounded). */
+const recentReads = new Map<string, number>();
+const RECENT_READ_MS = 60_000;
+function recentlyRead(wallet: string): boolean {
+  return (recentReads.get(wallet) ?? 0) > Date.now();
+}
+function markRead(wallet: string): void {
+  recentReads.delete(wallet);
+  recentReads.set(wallet, Date.now() + RECENT_READ_MS);
+  while (recentReads.size > 5_000) {
+    const oldest = recentReads.keys().next().value;
+    if (oldest === undefined) break;
+    recentReads.delete(oldest);
+  }
+}
+
 export async function walletBalances(wallet: string): Promise<TokenBalances> {
   const mint = mimirMint();
   const [mimir, ansem] = await Promise.all([
@@ -38,8 +60,17 @@ export async function provenTier(req: Request): Promise<TokenTier> {
     signature: proof.signature,
   });
   if (!ok) return "none";
+  // Every new wallet costs mainnet RPC reads: cap them per IP before the
+  // first call, so fresh wallets cannot burn the RPC credit. A wallet read in
+  // the last minute is served from the balance cache and is not counted.
+  // Over the cap the caller just counts as a non-holder.
+  if (!recentlyRead(wallet) && !(await allowRequest("holder-proof", clientIp(req), proofChecksPerMinute(), 60_000))) {
+    return "none";
+  }
   try {
-    return (await walletTier(wallet)).tier;
+    const { tier } = await walletTier(wallet);
+    markRead(wallet);
+    return tier;
   } catch {
     return "none";
   }

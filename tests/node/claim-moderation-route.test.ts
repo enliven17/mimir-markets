@@ -214,3 +214,42 @@ test("POST /api/claim-moderation: global cooldown returns 429 + Retry-After", as
   setGlobalCooldownMs(0);
 });
 
+
+const validInput = {
+  question: "Will BTC close above 100k on Friday?",
+  creator_position: "Yes",
+  opponent_position: "No",
+  category: "crypto",
+  settlement_rule: "Resolve using the linked source at the deadline.",
+  resolution_url: "https://example.com",
+};
+
+test("POST /api/claim-moderation: fields over the on-chain byte caps are a 400 with no LLM call", async () => {
+  process.env.NEXT_PUBLIC_FEATURE_CLAIM_MODERATION = "1";
+  setGlobalCooldownMs(0);
+  const cases: Array<[string, string]> = [
+    ["question", "q".repeat(201)],
+    ["creator_position", "é".repeat(51)], // 102 bytes, 51 chars
+    ["opponent_position", "n".repeat(101)],
+    ["resolution_url", `https://example.com/${"a".repeat(190)}`],
+  ];
+  for (const [field, value] of cases) {
+    let called = false;
+    const res = await handleClaimModerationPost({
+      request: makeRequest({ locale: "en", input: { ...validInput, [field]: value } }),
+      moderateClaim: async () => {
+        called = true;
+        return { decision: "allow", violationCodes: [], confidence: 90, policyVersion: "stub:v1" };
+      },
+    });
+    assert.equal(res.status, 400, field);
+    assert.equal(called, false, `${field}: no LLM call`);
+    assert.match((await res.json()).error.message, new RegExp(field));
+  }
+});
+
+test("POST /api/claim-moderation: a body over 16KB is a 413", async () => {
+  process.env.NEXT_PUBLIC_FEATURE_CLAIM_MODERATION = "1";
+  const res = await run({ locale: "en", input: validInput, pad: "x".repeat(17_000) });
+  assert.equal(res.status, 413);
+});

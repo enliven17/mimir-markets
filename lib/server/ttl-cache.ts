@@ -6,10 +6,14 @@
  * Deduped per warm serverless instance only, not shared across instances.
  * That's an acceptable tradeoff here: it still collapses N concurrent/rapid
  * page views into one chain round-trip instead of N.
+ *
+ * Bounded: past `maxEntries` live keys the oldest insertion is evicted, so
+ * caller-chosen arguments cannot grow the map without limit.
  */
 export function cachedFor<Args extends unknown[], T>(
   fn: (...args: Args) => Promise<T>,
-  ttlMs: number
+  ttlMs: number,
+  maxEntries = 1_000
 ): (...args: Args) => Promise<T> {
   const cache = new Map<string, { value: Promise<T>; expiresAt: number }>();
 
@@ -28,7 +32,13 @@ export function cachedFor<Args extends unknown[], T>(
     }
 
     const value = fn(...args);
+    cache.delete(key);
     cache.set(key, { value, expiresAt: now + ttlMs });
+    while (cache.size > maxEntries) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
     // A failure is not cached: the next caller retries instead of being served
     // the same rejection for the whole TTL.
     value.catch(() => {

@@ -16,6 +16,7 @@ import { checkUrl } from "@/lib/research/ssrf";
 import { isDbEnabled } from "@/lib/server/db";
 import { setWebhook } from "@/lib/server/notifications";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { readLimitedJson } from "@/lib/server/body-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,17 @@ const MAX_SKEW_MS = 5 * 60 * 1000;
 
 export async function POST(req: Request) {
   if (!(await allowRequest("notifications-webhook", clientIp(req), 10, 60_000))) return tooManyRequests(60);
-  let body: Record<string, unknown>;
-  try {
-    body = (await req.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ error: "body is not valid JSON" }, { status: 400 });
+  const read = await readLimitedJson(req);
+  if (!read.ok) {
+    return NextResponse.json(
+      { error: read.status === 413 ? "body is too large" : "body is not valid JSON" },
+      { status: read.status },
+    );
   }
+  if (!read.value || typeof read.value !== "object") {
+    return NextResponse.json({ error: "body must be a JSON object" }, { status: 400 });
+  }
+  const body = read.value as Record<string, unknown>;
   const address = normalizeAddress(body.address);
   const url = typeof body.url === "string" ? body.url.trim() : "";
   const signedAt = Number(body.signedAt);

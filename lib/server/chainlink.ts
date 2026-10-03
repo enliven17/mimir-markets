@@ -20,8 +20,15 @@ export const CHAINLINK_FEEDS: Record<string, string> = {
   MATIC: "0x7bAC85A8a13A4BcD8abb3eB7d6b4d632c5a57676",
 };
 
-/** A round older than this at the target time is a stale feed, not a price. */
-const MAX_ROUND_AGE_S = 26 * 3600;
+/**
+ * A round older than this at the target time is not the price at the target:
+ * the BTC/ETH/SOL USD feeds update on a 0.5% deviation or a 1 h heartbeat, so
+ * the round current at the deadline is at most one heartbeat old.
+ */
+const MAX_ROUND_AGE_S = (() => {
+  const v = Number(process.env.CHAINLINK_MAX_ROUND_AGE_S ?? "3600");
+  return Number.isFinite(v) && v > 0 ? v : 3600;
+})();
 
 const SEL = {
   description: "0x7284e416",
@@ -106,9 +113,9 @@ export async function lastRoundAtOrBefore(
 }
 
 /**
- * The feed's price for `symbol`, now or at `atMs`. A Chainlink answer stays
- * valid until the next round, so a historical reading reports the target time
- * itself as its timestamp.
+ * The feed's price for `symbol`, now or at `atMs`: the round that was current
+ * then. Its timestamp is the round's own updatedAt, never the requested time,
+ * so the settlement's freshness rule sees how old the answer really was.
  */
 export async function fetchChainlinkPrice(symbol: string, atMs?: number): Promise<PriceReading | null> {
   const address = CHAINLINK_FEEDS[symbol.toUpperCase()];
@@ -150,7 +157,9 @@ export async function fetchChainlinkPrice(symbol: string, atMs?: number): Promis
     return {
       source: "chainlink",
       priceUsd: Number(round.answer) / scale,
-      at: atMs ?? round.updatedAt * 1000,
+      at: round.updatedAt * 1000,
+      // The round current at the target: valid from updatedAt until the next one.
+      maxSkewMs: MAX_ROUND_AGE_S * 1000,
     };
   } catch {
     return null;

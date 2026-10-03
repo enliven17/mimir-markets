@@ -2,14 +2,11 @@ import { NextResponse } from "next/server";
 
 import { generateClaimDrafts } from "@/lib/server/source-claim-generator";
 import { createApiError } from "@/lib/server/api-validation";
-import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowLlmRequest, parseClaimDraftBody } from "@/lib/server/llm-route-guard";
+import { readLimitedJson } from "@/lib/server/body-limit";
 
 export const dynamic = "force-dynamic";
-
-type ClaimDraftRequestBody = {
-  url?: unknown;
-  locale?: unknown;
-};
 
 export async function POST(request: Request) {
   if (process.env.NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS !== "1") {
@@ -19,23 +16,34 @@ export async function POST(request: Request) {
     );
   }
 
-  // Each draft is a fetch plus a Gemini call; ten a minute per IP is plenty for a human.
-  if (!(await allowRequest("claim-draft", clientIp(request), 10, 60_000))) {
+  // Each draft is a fetch plus a Gemini call; ten a minute per IP is plenty
+  // for a human, and the deploy-wide ceiling caps rotating IPs.
+  if (
+    !(await allowLlmRequest({
+      bucket: "claim-draft",
+      key: clientIp(request),
+      perKey: 10,
+      globalEnv: "CLAIM_DRAFT_GLOBAL_PER_MIN",
+      globalDefault: 30,
+    }))
+  ) {
     return tooManyRequests(60);
   }
 
+  const read = await readLimitedJson(request);
+  if (!read.ok) {
+    return NextResponse.json(
+      createApiError("invalid_request", read.status === 413 ? "Request body is too large" : "Request body must be valid JSON"),
+      { status: read.status }
+    );
+  }
+  const parsed = parseClaimDraftBody(read.value);
+  if ("error" in parsed) {
+    return NextResponse.json(createApiError("invalid_request", parsed.error), { status: 400 });
+  }
+  const { url, locale } = parsed;
+
   try {
-    const body = (await request.json()) as ClaimDraftRequestBody;
-    const url = typeof body.url === "string" ? body.url.trim() : "";
-    const locale = typeof body.locale === "string" ? body.locale.trim() : "en";
-
-    if (!url) {
-      return NextResponse.json(
-        createApiError("invalid_request", "url is required"),
-        { status: 400 }
-      );
-    }
-
     const result = await generateClaimDrafts({ sourceUrl: url, locale });
     return NextResponse.json(result);
   } catch (error) {

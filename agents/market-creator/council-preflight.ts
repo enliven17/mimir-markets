@@ -15,6 +15,7 @@ import { COUNCIL_PERSONAS, type PersonaSpec } from "../council/personas";
 import { categoryMatches } from "../council/shared/persona-rules";
 import { callLLM, extractJson, pickGeminiModel, type CallLLMOptions } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
+import { MAX_CATEGORY_BYTES, MAX_POSITION_BYTES, MAX_QUESTION_BYTES, MAX_URL_BYTES } from "./draft";
 
 export interface PreflightCandidate {
   question: string;
@@ -54,21 +55,35 @@ export const DEFAULT_PREFLIGHT_PERSONAS = "socrates,aurelius,statistician";
 export const MAX_PREFLIGHT_PERSONAS = 5;
 
 const str = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
+const fitsBytes = (s: string, max: number) => Buffer.byteLength(s, "utf8") <= max;
 
-/** Validate an untrusted candidate payload; null when a required field is missing. */
+/**
+ * Validate an untrusted candidate payload; null when a required field is
+ * missing or a field is over the program's byte limit (constants.rs: a
+ * candidate the chain would reject is not worth an LLM call).
+ */
 export function cleanCandidate(value: unknown): PreflightCandidate | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
   const c: PreflightCandidate = {
-    question: str(raw.question, 500),
-    creatorPosition: str(raw.creatorPosition, 300),
-    counterPosition: str(raw.counterPosition, 300),
-    resolutionUrl: str(raw.resolutionUrl, 600),
-    category: str(raw.category, 80).toLowerCase(),
+    question: String(raw.question ?? "").trim(),
+    creatorPosition: String(raw.creatorPosition ?? "").trim(),
+    counterPosition: String(raw.counterPosition ?? "").trim(),
+    resolutionUrl: String(raw.resolutionUrl ?? "").trim(),
+    category: String(raw.category ?? "").trim().toLowerCase(),
     settlementRule: str(raw.settlementRule, 700),
     deadlineHours: Math.max(0, Math.min(24 * 366, Number(raw.deadlineHours) || 0)),
   };
   if (c.question.length < 8 || !c.creatorPosition || !c.counterPosition || !c.resolutionUrl) return null;
+  if (
+    !fitsBytes(c.question, MAX_QUESTION_BYTES) ||
+    !fitsBytes(c.creatorPosition, MAX_POSITION_BYTES) ||
+    !fitsBytes(c.counterPosition, MAX_POSITION_BYTES) ||
+    !fitsBytes(c.resolutionUrl, MAX_URL_BYTES) ||
+    !fitsBytes(c.category, MAX_CATEGORY_BYTES)
+  ) {
+    return null;
+  }
   return c;
 }
 
@@ -127,7 +142,8 @@ Return JSON only:
 { "decision": "open" | "revise" | "skip", "score": <0-100>, "confidence": <0-100>, "reasoning": "<one tight sentence, max 45 words>" }`;
 }
 
-const defaultLLM: PreflightLLM = (prompt, opts) => callLLM(prompt, { ...opts, keyEnv: "COUNCIL_GEMINI_API_KEY" });
+/** Preflight is council traffic: never an oracle key (lib/llm.ts role). */
+const defaultLLM: PreflightLLM = (prompt, opts) => callLLM(prompt, { ...opts, keyEnv: "COUNCIL_GEMINI_API_KEY", role: "council" });
 
 export async function personaPreflight(
   persona: PersonaSpec,

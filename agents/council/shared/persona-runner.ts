@@ -8,16 +8,23 @@
  *      personas read the pool; everyone else asks the LLM with its bias
  *      prompt over the cycle's cached evidence (and, when enabled, a few
  *      peers' reads from this cycle).
- *   3. Size the stake: Kelly on the LLM confidence against the persona's ER
- *      bankroll (lib/kelly.ts, capped), the base stake for rule personas.
- *   4. Stake with challenge_claim inside the MagicBlock Ephemeral Rollup.
+ *   3. Money only on evidence the oracle trusts: an LLM persona stakes only
+ *      when the evidence came from a structured API source (the oracle's
+ *      API_FETCHERS; scraped pages can serve the bot one thing and settle on
+ *      another, audit P0-2), after the oracle's fetcher-trust cap. Rule
+ *      personas act only on house markets, off on mainnet by default (P2-4).
+ *   4. Size the stake: Kelly at the real pool odds against the persona's ER
+ *      bankroll (lib/kelly.ts challengerKellyStake, capped), the base stake
+ *      for rule personas.
+ *   5. Stake with challenge_claim inside the MagicBlock Ephemeral Rollup.
  *
  * Every LLM verdict is logged for /calibration, staked on or not: scoring only
  * the stakes would hide the calls a persona got wrong by abstaining.
  */
 import { recordForecast } from "../../../lib/server/forecasts";
 import { probabilityFromVerdict } from "../../../lib/calibration";
-import { fromUsdcUnits } from "../../../lib/solana/config";
+import { IS_MAINNET, fromUsdcUnits } from "../../../lib/solana/config";
+import { API_FETCHERS, applyFetcherTrust } from "../../oracle/decide";
 import type { MimirSolanaClient } from "../../../lib/solana/client";
 import type { PersonaSpec } from "../personas";
 import { getOrFetchEvidence } from "./evidence-cache";
@@ -27,9 +34,11 @@ import {
   DEFAULT_MIN_CONFIDENCE,
   categoryMatches,
   ruleDecision,
+  rulePersonaGate,
   sizeStakeUnits,
 } from "./persona-rules";
 import type { CouncilClaim, EvidenceCacheEntry, PersonaDecision } from "./types";
+import type { EvidenceFetcherKind } from "../../../lib/server/evidence-fetcher";
 
 export interface RunnerContext {
   /** One Map per cycle, keyed by claim id. */
@@ -42,7 +51,14 @@ export interface RunnerContext {
   llm?: PersonaLLM;
   /** Log forecasts to the DB (off for UI / preview reads). */
   recordForecasts?: boolean;
+  /** The house market-creator's address (base58); rule personas only act on its markets. null: unknown. */
+  houseCreator?: string | null;
+  /** Cluster override for tests; defaults to IS_MAINNET. */
+  mainnet?: boolean;
 }
+
+/** COUNCIL_RULE_PERSONAS_MAINNET=1 lets rule personas run on mainnet (house markets only). */
+const RULE_PERSONAS_MAINNET = process.env.COUNCIL_RULE_PERSONAS_MAINNET === "1";
 
 /** A serial gap between calls, shared by every persona in the process. */
 export function createThrottle(gapMs: number): () => Promise<void> {
@@ -73,6 +89,12 @@ export async function evaluatePersonaForClaim(
     };
   }
 
+  const gate = rulePersonaGate(persona, claim, {
+    houseCreator: ctx.houseCreator ?? null,
+    mainnet: ctx.mainnet ?? IS_MAINNET,
+    mainnetOverride: RULE_PERSONAS_MAINNET,
+  });
+  if (gate) return gate;
   const rule = ruleDecision(persona, claim);
   if (rule) return rule;
 
@@ -86,6 +108,15 @@ export async function evaluatePersonaForClaim(
       skipReason: "no-evidence",
     };
   }
+  const apiEvidence = API_FETCHERS.has(evidence.fetcher);
+  const nonApi: PersonaDecision = {
+    shouldStake: false,
+    stakeUsdc: 0,
+    rationale: `${persona.displayName} won't stake: the evidence is a scraped page (${evidence.fetcher}), not a structured API source.`,
+    skipReason: "non-api-evidence",
+  };
+  // Nothing to stake and nothing to log: skip the LLM call.
+  if (!apiEvidence && !ctx.recordForecasts) return nonApi;
 
   let verdict;
   try {
@@ -111,6 +142,10 @@ export async function evaluatePersonaForClaim(
       confidence: verdict.confidence,
     }).catch(() => undefined);
   }
+
+  // The forecast above keeps the persona's own read; money follows the oracle's trust rules.
+  if (!apiEvidence) return { ...nonApi, confidence: verdict.confidence, verdict: verdict.verdict };
+  verdict = { ...verdict, confidence: applyFetcherTrust(verdict, evidence.fetcher as EvidenceFetcherKind).confidence };
 
   const minConf = persona.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const base = { confidence: verdict.confidence, verdict: verdict.verdict };
@@ -174,9 +209,28 @@ export async function runPersonaForClaim(
     return considered ? { kind: "abstained", decision } : { kind: "retry", decision };
   }
 
+  const pool = {
+    baseUsdc: persona.stakeUsdc,
+    confidence: decision.confidence,
+    creatorStakeUnits: claim.creatorStake,
+    totalChallengerStakeUnits: claim.totalChallengerStake,
+  };
   const stakeUnits =
-    sizeStakeUnits({ baseUsdc: persona.stakeUsdc, confidence: decision.confidence, bankrollUnits: bankroll }) ??
-    sizeStakeUnits({ baseUsdc: persona.stakeUsdc, bankrollUnits: 2n ** 62n })!; // dry run with no bankroll: show the base
+    sizeStakeUnits({ ...pool, bankrollUnits: bankroll }) ??
+    sizeStakeUnits({ ...pool, bankrollUnits: 10n ** 12n })!; // dry run with no bankroll: a notional 1M USDC
+  if (stakeUnits === 0n) {
+    // The pool moves: look again next cycle rather than remembering this no.
+    return {
+      kind: "retry",
+      decision: {
+        ...decision,
+        shouldStake: false,
+        stakeUsdc: 0,
+        rationale: `${persona.displayName} sits out: no +EV stake at these pool odds (creator ${fromUsdcUnits(claim.creatorStake)} vs challengers ${fromUsdcUnits(claim.totalChallengerStake)} USDC).`,
+        skipReason: "negative-ev",
+      },
+    };
+  }
   if (ctx.dryRun) return { kind: "staked", decision, stakeUnits, sig: null };
   const sig = await client.challengeClaimER(claim.id, stakeUnits);
   return { kind: "staked", decision, stakeUnits, sig };

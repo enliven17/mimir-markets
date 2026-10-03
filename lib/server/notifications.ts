@@ -17,9 +17,13 @@ import {
   type NotificationEvent,
 } from "../notifications";
 import { assertHopAllowed, publicOnlyLookup } from "../research/gateway";
+import { createDeliveryQueue } from "./webhook-queue";
 
 const PROGRAM = () => MIMIR_PROGRAM_ID.toBase58();
 const DELIVERY_TIMEOUT_MS = 5_000;
+
+/** Deliveries run in the background: max 4 in flight, per-URL breaker (webhook-queue.ts). */
+const deliveries = createDeliveryQueue({ concurrency: 4 });
 
 export interface StoredNotification {
   id: number;
@@ -82,8 +86,9 @@ export async function recordNotifications(events: NotificationEvent[], now = Dat
     );
     if (inserted.length === 0) continue;
     fresh++;
+    // Queued, not awaited: a slow or dead receiver must not stall the indexer.
     await deliverWebhook(e, Number(inserted[0].id), now).catch((err) =>
-      console.warn("[notifications] webhook delivery failed:", err instanceof Error ? err.message : String(err)),
+      console.warn("[notifications] webhook lookup failed:", err instanceof Error ? err.message : String(err)),
     );
   }
   return fresh;
@@ -176,10 +181,11 @@ async function postOnce(rawUrl: string, body: string, headers: Record<string, st
 }
 
 /**
- * POST the event with `x-mimir-signature: sha256=<hmac>` over the raw body,
- * keyed by the secret handed out at registration. At most three attempts,
- * retrying only network errors, 429 and 5xx. The event id header lets a
- * receiver drop a repeat.
+ * Queue the event for the recipient's webhook, if any. Delivery POSTs it with
+ * `x-mimir-signature: sha256=<hmac>` over the raw body, keyed by the secret
+ * handed out at registration: at most three attempts, retrying only network
+ * errors, 429 and 5xx. The event id header lets a receiver drop a repeat.
+ * Only the webhook lookup is awaited.
  */
 async function deliverWebhook(e: NotificationEvent, id: number, now: number): Promise<void> {
   const rows = await query<{ url: string; secret: string }>(
@@ -190,8 +196,14 @@ async function deliverWebhook(e: NotificationEvent, id: number, now: number): Pr
   if (!hook?.url) return;
   const body = JSON.stringify({ id, event: e.kind, claimId: e.claimId, recipient: e.recipient, payload: e.payload, at: now });
   const headers = { "x-mimir-signature": webhookSignature(hook.secret, body), "x-mimir-event-id": String(id) };
+  if (!deliveries.enqueue(hook.url, () => postWithRetries(hook.url, body, headers))) {
+    console.warn(`[notifications] webhook skipped for event ${id}: receiver failing or queue full`);
+  }
+}
+
+async function postWithRetries(url: string, body: string, headers: Record<string, string>): Promise<void> {
   for (let attempt = 0; ; attempt++) {
-    const status = await postOnce(hook.url, body, headers);
+    const status = await postOnce(url, body, headers);
     if (status !== null && status >= 200 && status < 300) return;
     const delay = WEBHOOK_RETRY_DELAYS_MS[attempt];
     if (delay === undefined || !isRetryableStatus(status)) {

@@ -58,6 +58,21 @@ export function dexTokenMints(): Record<string, string> {
   return out;
 }
 
+/**
+ * Does the text name the Mimir token, by $ticker (or $MIMIR) or by mint? The
+ * house never opens a market on the operator's own token (audit P0-4).
+ */
+export function mentionsMimirToken(text: string): boolean {
+  const mint = mimirMint();
+  return new RegExp(`\\$(?:MIMIR|${mimirSymbol()})\\b`, "i").test(text) || (mint !== null && text.includes(mint));
+}
+
+/** Is this ticker the Mimir token's? */
+export function isMimirSymbol(symbol: string): boolean {
+  const s = symbol.trim().replace(/^\$/, "").toUpperCase();
+  return s === "MIMIR" || s === mimirSymbol();
+}
+
 export function dexMintFor(symbol: string): string | null {
   return dexTokenMints()[symbol.toUpperCase()] ?? null;
 }

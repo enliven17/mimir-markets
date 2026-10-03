@@ -30,6 +30,8 @@ import PeepAvatar from "@/components/ui/PeepAvatar";
 import { followMessage, MAX_FOLLOW_CAP_USDC, MIN_FOLLOW_CAP_USDC, type MirrorSignal } from "@/lib/baskets";
 import { shortenAddress } from "@/lib/constants";
 import { formatUsdcBare, formatUsdcUnitsBare } from "@/lib/money";
+import { MAGICBLOCK_ER_RPC, MIMIR_PROGRAM_ID, SOLANA_RPC } from "@/lib/solana/config";
+import { verifyPreparedTransaction } from "@/sdk/verify-tx";
 
 interface Member {
   agentId: string;
@@ -210,11 +212,20 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
         }
         throw new Error(payload.message ?? t("failed"));
       }
-      const { Connection, Transaction } = await import("@solana/web3.js");
+      const { Connection, PublicKey, Transaction } = await import("@solana/web3.js");
       let last = "";
       for (const p of payload.transactions ?? []) {
-        const signed = await signTransaction(Transaction.from(fromBase64(p.transaction)));
-        const connection = new Connection(p.rpcUrl, "confirmed");
+        const tx = Transaction.from(fromBase64(p.transaction));
+        // Never sign what the server says blindly: only a Mimir challenge on
+        // this claim, paid by this wallet (sdk/verify-tx.ts, audit P1-8).
+        verifyPreparedTransaction(tx, {
+          programId: MIMIR_PROGRAM_ID,
+          operator: new PublicKey(follower),
+          expect: { action: "challenge", claimId: BigInt(signal.claimId) },
+        });
+        const signed = await signTransaction(tx);
+        // Our own RPC config, never the rpcUrl in the response.
+        const connection = new Connection(p.layer === "er" ? MAGICBLOCK_ER_RPC : SOLANA_RPC, "confirmed");
         last = await connection.sendRawTransaction(signed.serialize(), {
           skipPreflight: p.layer === "er",
         });

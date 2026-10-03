@@ -8,6 +8,7 @@
  */
 import { AgentEnvelopeError, type AgentWriteAction } from "./api";
 import { CATEGORIES } from "../constants";
+import { DISPUTE_BOND_UNITS } from "../solana/config";
 
 export const MAX_QUESTION_BYTES = 200;
 export const MAX_POSITION_BYTES = 100;
@@ -76,6 +77,11 @@ export function usdcToUnits(value: unknown, key: string, min = 0): bigint {
   const units = Math.round(value * 1e6);
   if (Math.abs(units / 1e6 - value) > 1e-9) bad(`${key} has more than 6 decimals`);
   return BigInt(units);
+}
+
+/** A USDC limit (agent or follower cap) in base units, for exact comparisons. */
+export function usdcLimitUnits(usdc: number): bigint {
+  return Number.isFinite(usdc) && usdc > 0 ? BigInt(Math.round(usdc * 1e6)) : 0n;
 }
 
 export function unitsToUsdc(units: bigint): number {
@@ -158,5 +164,6 @@ export function parseWriteParams(
 /** USDC this write would put at risk: what the position and daily caps count. */
 export function stakeOf(parsed: WriteParams): bigint {
   if (parsed.action === "createClaim" || parsed.action === "challenge") return parsed.params.stakeUnits;
+  if (parsed.action === "dispute") return DISPUTE_BOND_UNITS;
   return 0n;
 }

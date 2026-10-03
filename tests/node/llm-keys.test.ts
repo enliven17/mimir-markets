@@ -52,3 +52,76 @@ test("settlement calls never reach the OpenRouter free router", async () => {
     },
   );
 });
+
+test("oracle role: dedicated key only on mainnet, shared fallback off mainnet", async () => {
+  const { geminiKeysFor, anthropicKeyFor, providerChain } = await import("../../lib/llm");
+  withEnv(
+    { GEMINI_API_KEY: "shared", GEMINI_API_KEYS: undefined, ORACLE_GEMINI_API_KEY: undefined, ANTHROPIC_API_KEY: "a-shared", ORACLE_ANTHROPIC_API_KEY: undefined, LLM_PROVIDER: undefined, GROQ_API_KEY: "q", OPENROUTER_API_KEY: "o" },
+    () => {
+      assert.deepEqual(geminiKeysFor({ role: "oracle", mainnet: true }), []);
+      assert.equal(anthropicKeyFor({ role: "oracle", mainnet: true }), "");
+      assert.deepEqual(providerChain({ role: "oracle", mainnet: true, settlement: true }), [], "no own key on mainnet: nothing to call");
+      assert.deepEqual(geminiKeysFor({ role: "oracle", mainnet: false }), ["shared"]);
+      assert.deepEqual(providerChain({ role: "oracle", mainnet: false }), ["gemini", "anthropic"], "never Groq/OpenRouter");
+    },
+  );
+  withEnv({ GEMINI_API_KEY: "shared", ORACLE_GEMINI_API_KEY: "oracle-key" }, () => {
+    assert.deepEqual(geminiKeysFor({ role: "oracle", mainnet: true }), ["oracle-key"]);
+  });
+});
+
+test("web and council roles never spend an oracle key", async () => {
+  const { geminiKeysFor, anthropicKeyFor } = await import("../../lib/llm");
+  withEnv({ GEMINI_API_KEY: "same", GEMINI_API_KEYS: "other", ORACLE_GEMINI_API_KEY: "same", COUNCIL_GEMINI_API_KEY: "c", ANTHROPIC_API_KEY: "ak", ORACLE_ANTHROPIC_API_KEY: "ak" }, () => {
+    assert.deepEqual(geminiKeysFor({ keyEnv: "COUNCIL_GEMINI_API_KEY", mainnet: true }), ["c", "other"]);
+    assert.deepEqual(geminiKeysFor({ role: "web", keyEnv: "ORACLE_GEMINI_API_KEY", mainnet: false }), ["other"], "naming the oracle env does not grant it");
+    assert.equal(anthropicKeyFor({ role: "web", mainnet: false }), "");
+  });
+});
+
+test("settlement uses only allowlisted Gemini/Claude models", async () => {
+  const { isSettlementModel, settlementModels, providerChain } = await import("../../lib/llm");
+  withEnv({ SETTLEMENT_MODELS: undefined }, () => {
+    assert.ok(isSettlementModel("gemini-3.5-flash"));
+    assert.ok(isSettlementModel("claude-sonnet-4-6"));
+    assert.equal(isSettlementModel("llama-3.3-70b-versatile"), false);
+    assert.equal(isSettlementModel("gemma-3-27b-it"), false);
+  });
+  withEnv({ SETTLEMENT_MODELS: "gemma-3-27b-it, meta/llama:free, gemini-x:free, claude-sonnet-4-6" }, () => {
+    assert.deepEqual(settlementModels(), ["claude-sonnet-4-6"], "gemma and :free never make the list");
+  });
+  withEnv(
+    { SETTLEMENT_MODELS: "claude-sonnet-4-6", GEMINI_API_KEY: "g", ORACLE_GEMINI_API_KEY: undefined, ANTHROPIC_API_KEY: undefined, ORACLE_ANTHROPIC_API_KEY: undefined, LLM_PROVIDER: undefined },
+    () => {
+      assert.deepEqual(providerChain({ role: "oracle", mainnet: false, settlement: true }), [], "no allowed Gemini model, no Claude key");
+    },
+  );
+});
+
+test("settlement calls with no allowed model throw (retry later) instead of falling back", async () => {
+  const { callLLMWithMeta } = await import("../../lib/llm");
+  const env = { GEMINI_API_KEY: undefined, GEMINI_API_KEYS: undefined, ORACLE_GEMINI_API_KEY: undefined, ANTHROPIC_API_KEY: undefined, ORACLE_ANTHROPIC_API_KEY: undefined, GROQ_API_KEY: "q", LLM_PROVIDER: undefined };
+  const prev: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(env)) {
+    prev[k] = process.env[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    await assert.rejects(callLLMWithMeta("x", { role: "oracle", settlement: true, mainnet: false }), /settlement-grade/);
+  } finally {
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test("key logs carry a hash prefix, never the key's tail", async () => {
+  const { activeLLMKeyFingerprint } = await import("../../lib/llm");
+  withEnv({ GEMINI_API_KEY: "AIzaSECRETabcdef", LLM_PROVIDER: undefined }, () => {
+    const fp = activeLLMKeyFingerprint();
+    assert.match(fp, /^sha256:[0-9a-f]{8}$/);
+    assert.ok(!fp.includes("abcdef"));
+  });
+});
