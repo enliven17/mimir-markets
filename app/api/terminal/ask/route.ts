@@ -22,7 +22,7 @@ import { confirmCharge, readAllowance, releaseCharge, reserveCharge, sessionWall
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
 import { callLLM } from "@/lib/llm";
 import { readLimitedJson } from "@/lib/server/body-limit";
-import { loadCouncilClaim } from "@/lib/server/council-claim";
+import { liveCouncilClaims, loadCouncilClaim } from "@/lib/server/council-claim";
 import { rateIdentity } from "@/lib/server/holder";
 import { allowLlmRequest } from "@/lib/server/llm-route-guard";
 import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
@@ -50,12 +50,13 @@ export async function POST(req: Request) {
     Promise.all([
       claimId ? loadCouncilClaim(claimId).catch(() => null) : null,
       ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,
+      liveCouncilClaims("live").catch(() => []),
     ]);
 
   // Rule personas have no model: they run their staking rule on what is open. No LLM, no LLM budget.
   if (persona.archetype === "rule-based") {
-    const [claim, token] = await loadContext();
-    return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply: ruleChatReply(persona, { claim, token }) } });
+    const [claim, token, markets] = await loadContext();
+    return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply: ruleChatReply(persona, { claim, token, markets }) } });
   }
 
   if (
@@ -71,8 +72,8 @@ export async function POST(req: Request) {
     return tooManyRequests(60);
   }
 
-  const [claim, token] = await loadContext();
-  const prompt = personaChatPrompt({ persona, message: ask.message, history: ask.history, claim, token: token as Record<string, unknown> | null });
+  const [claim, token, markets] = await loadContext();
+  const prompt = personaChatPrompt({ persona, message: ask.message, history: ask.history, claim, markets, token: token as Record<string, unknown> | null });
 
   let reply = "";
   try {
