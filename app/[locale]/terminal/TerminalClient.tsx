@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import TerminalMark from "@/components/terminal/TerminalMark";
+import { Limit, useTerminalSession } from "@/components/terminal/pay";
 import { AgentReply, Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Focus, type Run } from "@/components/terminal/blocks";
 import { COMMANDS, complete, parseCommand, type Command } from "@/lib/terminal/commands";
 import { short } from "@/lib/terminal/format";
@@ -47,6 +48,11 @@ function saveHistory(h: string[]) {
 
 export default function TerminalClient() {
   const { publicKey } = useWallet();
+  const session = useTerminalSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  /** Price per message of the agent in use (USDC), when it charges. */
+  const [price, setPrice] = useState<number | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [agent, setAgent] = useState<string | null>(null);
@@ -101,6 +107,15 @@ export default function TerminalClient() {
         }
         case "use":
           setAgent(cmd.agent);
+          setPrice(null);
+          // Community agents may charge: look the price up so the prompt can show it before sending.
+          fetch("/api/agents/registry")
+            .then((r) => r.json())
+            .then((b: { agents?: { agentId: string; chat?: { priceUsdc: number } }[] }) => {
+              const found = b.agents?.find((a) => a.agentId === cmd.agent);
+              if (agentRef.current === cmd.agent) setPrice(found?.chat?.priceUsdc ? found.chat.priceUsdc : null);
+            })
+            .catch(() => undefined);
           return print(
             line,
             <Note>
@@ -111,6 +126,7 @@ export default function TerminalClient() {
           );
         case "leave":
           setAgent(null);
+          setPrice(null);
           return print(line, <Note>left the agent.</Note>);
         case "ask": {
           const thread = threads.current.get(cmd.agent) ?? [];
@@ -122,6 +138,8 @@ export default function TerminalClient() {
               message={cmd.text}
               history={history}
               focus={focusRef.current}
+              auth={{ headers: () => sessionRef.current.headers(), ensure: () => sessionRef.current.ensure() }}
+              run={run}
               onReply={(reply) =>
                 threads.current.set(cmd.agent, [...thread, { role: "user" as const, text: cmd.text }, { role: "agent" as const, text: reply }].slice(-12))
               }
@@ -132,7 +150,7 @@ export default function TerminalClient() {
         case "sell":
           return print(line, <Note>buy and sell open in a later update. token {short(cmd.mint)} shows its market now.</Note>);
         case "limit":
-          return print(line, <Note>the spending limit for paid agents opens with them.</Note>);
+          return print(line, <Limit amount={cmd.revoke ? 0 : cmd.amount} revoke={cmd.revoke} run={run} />);
         case "error":
           return print(line, <Err>{cmd.message}</Err>);
       }
@@ -318,7 +336,13 @@ export default function TerminalClient() {
             </span>
           ) : null}
         </div>
-        <span className="hidden text-[12px] text-dim sm:inline">⏎ run · tab · ⌘K</span>
+        {agent && price ? (
+          <span className="shrink-0 rounded-full bg-pending/15 px-2.5 py-0.5 text-[12px] text-pending" title="charged only when the agent answers">
+            {price} USDC · ⏎
+          </span>
+        ) : (
+          <span className="hidden text-[12px] text-dim sm:inline">⏎ run · tab · ⌘K</span>
+        )}
       </div>
 
       {/* status bar */}

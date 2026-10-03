@@ -1,0 +1,99 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Keypair } from "@solana/web3.js";
+
+import { canAfford, parseSessionHeader, splitCharge, terminalSessionMessage, TERMINAL_SESSION_TTL_MS } from "../../lib/terminal/pay";
+import { groupCharges } from "../../agents/terminal/settle";
+import { signAgentMessage } from "../../lib/agents/signature";
+
+test("a charge splits 99.5% / 0.5%, the fee rounding down so the agent never loses a unit", () => {
+  assert.deepEqual(splitCharge(20_000n), { agentUnits: 19_900n, feeUnits: 100n }); // 0.02 USDC
+  assert.deepEqual(splitCharge(1_000n), { agentUnits: 995n, feeUnits: 5n }); // the minimum price
+  assert.deepEqual(splitCharge(199n), { agentUnits: 199n, feeUnits: 0n }, "0.5% of 199 rounds to 0");
+  assert.deepEqual(splitCharge(0n), { agentUnits: 0n, feeUnits: 0n });
+  for (const total of [1n, 7n, 12_345n, 1_000_000n]) {
+    const { agentUnits, feeUnits } = splitCharge(total);
+    assert.equal(agentUnits + feeUnits, total, "nothing is lost or created");
+  }
+});
+
+test("a wallet can pay only within a limit approved to the terminal and its balance, counting what it owes", () => {
+  const base = { delegate: "D", expectedDelegate: "D", delegatedUnits: 1_000_000n, balanceUnits: 5_000_000n, owedUnits: 0n, priceUnits: 20_000n };
+  assert.equal(canAfford(base), "ok");
+  assert.equal(canAfford({ ...base, delegate: "OTHER" }), "no_limit", "a limit approved to someone else is not ours");
+  assert.equal(canAfford({ ...base, delegate: null, delegatedUnits: 0n }), "no_limit");
+  assert.equal(canAfford({ ...base, owedUnits: 990_000n }), "limit_too_low", "unpaid charges eat the limit");
+  assert.equal(canAfford({ ...base, owedUnits: 980_000n }), "ok", "exactly at the limit is fine");
+  assert.equal(canAfford({ ...base, balanceUnits: 10_000n }), "balance_too_low");
+});
+
+test("a terminal session is the wallet's signature over a dated message, and it expires", () => {
+  const kp = Keypair.generate();
+  const wallet = kp.publicKey.toBase58();
+  const now = 1_800_000_000_000;
+  const sig = signAgentMessage(terminalSessionMessage(wallet, now), kp.secretKey);
+  assert.deepEqual(parseSessionHeader(`${now}.${sig}`, now + 1000), { signedAt: now, signature: sig });
+  assert.equal(parseSessionHeader(`${now}.${sig}`, now + TERMINAL_SESSION_TTL_MS + 1), null, "expired");
+  assert.equal(parseSessionHeader(`${now + 10 * 60_000}.${sig}`, now), null, "from the future");
+  assert.equal(parseSessionHeader("garbage", now), null);
+  assert.match(terminalSessionMessage(wallet, now), /within the USDC spending limit you approved/);
+});
+
+test("the worker batches charges per payer and payee, largest batch first", () => {
+  const groups = groupCharges([
+    { id: 1, wallet: "U1", payout_wallet: "A", amount_units: "20000" },
+    { id: 2, wallet: "U1", payout_wallet: "A", amount_units: "20000" },
+    { id: 3, wallet: "U1", payout_wallet: "B", amount_units: "100000" },
+    { id: 4, wallet: "U2", payout_wallet: "A", amount_units: "1000" },
+  ]);
+  assert.deepEqual(
+    groups.map((g) => [g.wallet, g.payoutWallet, g.ids, g.totalUnits]),
+    [
+      ["U1", "B", [3], 100_000n],
+      ["U1", "A", [1, 2], 40_000n],
+      ["U2", "A", [4], 1_000n],
+    ],
+  );
+  assert.equal(groupCharges([{ id: 1, wallet: "U", payout_wallet: "A", amount_units: "1" }], 0).length, 0);
+});
+
+test("a charge is reserved under a per-wallet lock and refused when the limit is used up", async () => {
+  const { reserveCharge } = await import("../../lib/server/terminal-pay");
+  const run = async (owed: string) => {
+    const log: string[] = [];
+    const client = {
+      async query(sql: string) {
+        const flat = sql.replace(/\s+/g, " ").trim();
+        log.push(flat);
+        if (flat.startsWith("SELECT COALESCE")) return { rows: [{ owed }] };
+        if (flat.startsWith("INSERT")) return { rows: [{ id: 7 }] };
+        return { rows: [] };
+      },
+      release() {},
+    };
+    const g = globalThis as Record<string, unknown>;
+    const prev = { url: process.env.DATABASE_URL, pool: g.__mimirSolanaPool, ready: g.__mimirSolanaDbReady };
+    const pool = { connect: async () => client, query: client.query };
+    process.env.DATABASE_URL = "postgres://fake";
+    g.__mimirSolanaPool = pool;
+    g.__mimirSolanaDbReady = Promise.resolve(pool);
+    try {
+      const out = await reserveCharge({
+        wallet: "U", agentId: "a", payoutWallet: "P", priceUnits: 20_000n, delegate: "D",
+        allowance: { delegate: "D", delegatedUnits: 100_000n, balanceUnits: 1_000_000n },
+      });
+      return { out, log };
+    } finally {
+      if (prev.url === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = prev.url;
+      g.__mimirSolanaPool = prev.pool;
+      g.__mimirSolanaDbReady = prev.ready;
+    }
+  };
+  const ok = await run("0");
+  assert.deepEqual(ok.out, { id: 7 });
+  assert.match(ok.log[1], /pg_advisory_xact_lock/);
+  assert.ok(ok.log.some((l) => l.startsWith("INSERT INTO terminal_charges")));
+  const full = await run("90000");
+  assert.deepEqual(full.out, { reason: "limit_too_low" });
+  assert.ok(!full.log.some((l) => l.startsWith("INSERT")), "nothing is reserved past the limit");
+});

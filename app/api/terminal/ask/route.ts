@@ -18,6 +18,7 @@ import { getPersonaBySlug } from "@/agents/council/personas";
 import { agentChatTarget } from "@/lib/agents/store";
 import { isDbEnabled } from "@/lib/server/db";
 import { relayToAgent } from "@/lib/server/terminal-relay";
+import { allowanceOf, confirmCharge, releaseCharge, reserveCharge, sessionWallet, terminalDelegate } from "@/lib/server/terminal-pay";
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
 import { callLLM } from "@/lib/llm";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   if (typeof ask === "string") return fail(400, ask);
 
   const persona = getPersonaBySlug(ask.agent);
-  if (!persona) return askCommunityAgent(ask);
+  if (!persona) return askCommunityAgent(ask, sessionWallet(req));
   if (persona.archetype === "rule-based") {
     return NextResponse.json({
       success: true,
@@ -83,12 +84,31 @@ export async function POST(req: Request) {
 }
 
 /** A registered agent with a chat endpoint: relay the message, return its reply. */
-async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>): Promise<Response> {
+const PAY_REASONS: Record<string, string> = {
+  no_limit: "no spending limit yet: run limit 5 (one signature, the USDC stays in your wallet)",
+  limit_too_low: "your spending limit is used up: run limit <usdc> to raise it",
+  balance_too_low: "not enough USDC in your wallet for this message",
+};
+
+async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>, wallet: string | null): Promise<Response> {
   const target = isDbEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
   if (!target) return fail(404, `no agent called ${ask.agent} takes questions. Type agents for the list.`);
+
+  // A paid agent: reserve the charge before relaying, release it if no answer comes.
+  let chargeId: number | null = null;
   if (target.priceUnits > 0) {
-    // Paid agents need the spending limit (limit <usdc>), which opens with payments.
-    return fail(402, `${ask.agent} charges per message; paid agents open with the spending limit.`);
+    const delegate = terminalDelegate();
+    if (!delegate) return fail(503, "paid agents are not switched on yet");
+    if (!wallet) return NextResponse.json({ success: false, error: "sign in to the terminal to message paid agents", code: "session" }, { status: 401 });
+    const allowance = await allowanceOf(wallet).catch(() => null);
+    if (!allowance) return fail(503, "could not read your spending limit right now");
+    const reserved = await reserveCharge({
+      wallet, agentId: ask.agent, payoutWallet: target.payoutWallet, priceUnits: BigInt(target.priceUnits), allowance, delegate,
+    });
+    if ("reason" in reserved) {
+      return NextResponse.json({ success: false, error: PAY_REASONS[reserved.reason], code: reserved.reason }, { status: 402 });
+    }
+    chargeId = reserved.id;
   }
   const [claim, token] = await Promise.all([
     ask.context.claimId ? loadCouncilClaim(ask.context.claimId).catch(() => null) : null,
@@ -104,10 +124,13 @@ async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>
         market: claim ? { id: ask.context.claimId, question: claim.question, creatorPosition: claim.creatorPosition, counterPosition: claim.counterPosition, category: claim.category } : null,
         token: token as Record<string, unknown> | null,
       },
-      wallet: null,
+      wallet,
     });
-    return NextResponse.json({ success: true, data: { agent: ask.agent, reply } });
+    // Charged only for an answer.
+    if (chargeId !== null) await confirmCharge(chargeId);
+    return NextResponse.json({ success: true, data: { agent: ask.agent, reply, chargedUsdc: target.priceUnits / 1e6 } });
   } catch (err) {
+    if (chargeId !== null) await releaseCharge(chargeId).catch(() => undefined);
     console.warn(`[api/terminal/ask] ${ask.agent} relay failed:`, err instanceof Error ? err.message : err);
     return fail(502, `${ask.agent} did not answer. Try again, or ask another agent.`);
   }

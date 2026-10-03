@@ -358,41 +358,69 @@ function useTyped(text: string | null, cps = 110): [string, () => void] {
   return [text ? (all ? text : text.slice(0, n)) : "", () => setAll(true)];
 }
 
+/** How a paid request proves its wallet (components/terminal/pay.tsx useTerminalSession). */
+export interface SessionAuth {
+  headers: () => Record<string, string>;
+  ensure: () => Promise<Record<string, string>>;
+}
+
 export function AgentReply({
   agent,
   message,
   history,
   focus,
+  auth,
+  run,
   onReply,
 }: {
   agent: string;
   message: string;
   history: { role: "user" | "agent"; text: string }[];
   focus: Focus | null;
+  auth: SessionAuth;
+  run: Run;
   onReply: (reply: string) => void;
 }) {
   const [reply, setReply] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [charged, setCharged] = useState<number | null>(null);
+  const [error, setError] = useState<{ text: string; fix?: string } | null>(null);
+  const [signing, setSigning] = useState(false);
   const [shown, revealAll] = useTyped(reply);
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/terminal/ask", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agent, message, history, context: { claimId: focus?.claimId, mint: focus?.mint } }),
-    })
-      .then(async (res) => {
-        const body = (await res.json().catch(() => ({}))) as { data?: { reply?: string }; error?: string };
+    const send = (headers: Record<string, string>) =>
+      fetch("/api/terminal/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ agent, message, history, context: { claimId: focus?.claimId, mint: focus?.mint } }),
+      });
+    (async () => {
+      try {
+        let res = await send(auth.headers());
+        let body = (await res.json().catch(() => ({}))) as { data?: { reply?: string; chargedUsdc?: number }; error?: string; code?: string };
+        // A paid agent and no session yet: one signature (no transaction), then the same message again.
+        if (res.status === 401 && body.code === "session") {
+          setSigning(true);
+          const headers = await auth.ensure();
+          if (!alive) return;
+          setSigning(false);
+          res = await send(headers);
+          body = (await res.json().catch(() => ({}))) as typeof body;
+        }
         if (!alive) return;
         if (!res.ok || !body.data?.reply) {
-          setError(res.status === 429 ? "slow down a little: too many questions this minute" : (body.error ?? "no answer"));
+          const fix = res.status === 402 && (body.code === "no_limit" || body.code === "limit_too_low") ? "limit 5" : undefined;
+          setError({ text: res.status === 429 ? "slow down a little: too many questions this minute" : (body.error ?? "no answer"), fix });
           return;
         }
+        setCharged(body.data.chargedUsdc ?? null);
         setReply(body.data.reply);
         onReply(body.data.reply);
-      })
-      .catch(() => alive && setError("network error"));
+      } catch (err) {
+        if (alive) setError({ text: err instanceof Error ? err.message : "network error" });
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -400,12 +428,28 @@ export function AgentReply({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (error) return <Err>{error}</Err>;
+  if (error) {
+    return (
+      <Err>
+        {error.text}
+        {error.fix ? (
+          <>
+            {" "}
+            <Cmd line={error.fix} run={run} className="text-cream">
+              › {error.fix}
+            </Cmd>
+          </>
+        ) : null}
+      </Err>
+    );
+  }
+  if (signing) return <Wave label={`${agent} charges per message: sign the terminal session in your wallet (no transaction)`} />;
   if (!reply) return <Wave label={`${agent} is thinking${focus ? ` about ${focus.label}` : ""}`} />;
   return (
     <div className="max-w-[80ch] whitespace-pre-wrap border-l-2 border-red/70 pl-4 text-cream" onClick={revealAll}>
       {shown}
       {shown.length < reply.length ? <span className="ml-0.5 inline-block h-[1.1em] w-[0.6ch] translate-y-[0.15em] animate-blink bg-red" aria-hidden /> : null}
+      {charged && shown.length >= reply.length ? <div className="mt-1 text-[12px] text-dim">− {charged} USDC · 99.5% to {agent}&apos;s creator</div> : null}
     </div>
   );
 }

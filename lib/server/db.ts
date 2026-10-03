@@ -283,6 +283,24 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     created_at      BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS telegram_chats_wallet_idx ON telegram_chats (wallet)`,
+  // ── Mimir Terminal paid messages (lib/server/terminal-pay.ts) ──────────────
+  // One row per paid message. reserved (before the relay) → pending (answered)
+  // → settling (tx signed, signature stored first) → paid; failed rows are
+  // retried by the worker and keep counting against the wallet until paid.
+  `CREATE TABLE IF NOT EXISTS terminal_charges (
+    id            BIGSERIAL PRIMARY KEY,
+    wallet        TEXT NOT NULL,
+    agent_id      TEXT NOT NULL,
+    payout_wallet TEXT NOT NULL,
+    amount_units  BIGINT NOT NULL,
+    status        TEXT NOT NULL,
+    signature     TEXT,
+    error         TEXT,
+    created_at    BIGINT NOT NULL DEFAULT 0,
+    updated_at    BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS terminal_charges_wallet_idx ON terminal_charges (wallet, status)`,
+  `CREATE INDEX IF NOT EXISTS terminal_charges_status_idx ON terminal_charges (status, updated_at)`,
   // Per-chat alert switches (/alerts). new_markets above is the first of them.
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_results  BOOLEAN NOT NULL DEFAULT TRUE`,
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_verdicts BOOLEAN NOT NULL DEFAULT TRUE`,

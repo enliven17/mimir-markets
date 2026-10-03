@@ -150,14 +150,16 @@ export async function setAgentChat(
 }
 
 /** Where to relay a terminal message for this agent, or null when its chat is off. Server-only. */
-export async function agentChatTarget(agentId: string): Promise<{ url: string; secret: string; priceUnits: number } | null> {
-  const rows = await query<{ chat_url: string | null; chat_secret: string | null; chat_price_units: string | number; status: string }>(
-    "SELECT chat_url, chat_secret, chat_price_units, status FROM agent_registry WHERE agent_id = $1",
+export async function agentChatTarget(
+  agentId: string,
+): Promise<{ url: string; secret: string; priceUnits: number; payoutWallet: string } | null> {
+  const rows = await query<{ chat_url: string | null; chat_secret: string | null; chat_price_units: string | number; status: string; payout_wallet: string }>(
+    "SELECT chat_url, chat_secret, chat_price_units, status, payout_wallet FROM agent_registry WHERE agent_id = $1",
     [agentId],
   );
   const r = rows[0];
   if (!r || r.status !== "active" || !r.chat_url || !r.chat_secret) return null;
-  return { url: r.chat_url, secret: r.chat_secret, priceUnits: Number(r.chat_price_units ?? 0) };
+  return { url: r.chat_url, secret: r.chat_secret, priceUnits: Number(r.chat_price_units ?? 0), payoutWallet: r.payout_wallet };
 }
 
 export async function touchAgent(agentId: string, now = Date.now()): Promise<void> {
