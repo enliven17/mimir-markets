@@ -277,6 +277,10 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     created_at      BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS telegram_chats_wallet_idx ON telegram_chats (wallet)`,
+  // Per-chat alert switches (/alerts). new_markets above is the first of them.
+  `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_results  BOOLEAN NOT NULL DEFAULT TRUE`,
+  `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_verdicts BOOLEAN NOT NULL DEFAULT TRUE`,
+  `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_payouts  BOOLEAN NOT NULL DEFAULT TRUE`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */

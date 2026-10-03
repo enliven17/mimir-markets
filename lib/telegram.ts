@@ -63,9 +63,50 @@ export const WELCOME_TEXT = [
   "/link connect your wallet",
   "/bets your open positions",
   "/price $MIMIR price and stats",
-  "/alerts on|off new-market alerts",
+  "/alerts choose which alerts you get",
   "/unlink disconnect your wallet",
 ].join("\n");
+
+// ── alert preferences (/alerts): one switch per kind, each its own column on telegram_chats
+export const ALERT_PREFS = [
+  { key: "new_markets", label: "New markets" },
+  { key: "alert_results", label: "Results (won, lost, refunded)" },
+  { key: "alert_verdicts", label: "Verdicts proposed" },
+  { key: "alert_payouts", label: "Payouts ready to claim" },
+] as const;
+export type AlertPref = (typeof ALERT_PREFS)[number]["key"];
+export type AlertPrefs = Record<AlertPref, boolean>;
+
+export function isAlertPref(value: string): value is AlertPref {
+  return ALERT_PREFS.some((p) => p.key === value);
+}
+
+/** Which switch a wallet notification answers to; null for kinds the bot never forwards. */
+export function prefForKind(kind: NotificationEvent["kind"]): AlertPref | null {
+  switch (kind) {
+    case "resolved":
+    case "cancelled":
+      return "alert_results";
+    case "proposed":
+      return "alert_verdicts";
+    case "payout_claimable":
+      return "alert_payouts";
+    default:
+      return null;
+  }
+}
+
+export const ALERTS_TEXT = [
+  "<b>Your alerts</b>",
+  "Tap to switch one on or off. Results, verdicts and payouts need a linked wallet (/link).",
+].join("\n");
+
+/** One toggle button per alert; callback data `alert:<key>`. */
+export function alertsKeyboard(prefs: AlertPrefs) {
+  return {
+    inline_keyboard: ALERT_PREFS.map((p) => [{ text: `${prefs[p.key] ? "✅" : "⬜"} ${p.label}`, callback_data: `alert:${p.key}` }]),
+  };
+}
 
 const usdc = (units: string | number | bigint) => (Number(units) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
