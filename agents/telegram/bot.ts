@@ -1,0 +1,176 @@
+/**
+ * Telegram bot (@mimirmarketsbot), run inside the workers process
+ * (agents/all.ts) with long polling: no webhook URL, no extra deployment.
+ *
+ *   /start   launch video, what the bot does, link + open-app buttons
+ *   /link    a one-time link: the wallet signs it on the site (/telegram)
+ *   /bets    the linked wallet's live positions
+ *   /price   $MIMIR price, market cap, liquidity, volume + pump.fun link
+ *   /alerts  on|off  new-market messages
+ *   /unlink  stop following the wallet
+ *
+ * The menu button opens the site as a Telegram Mini App. Messages for new
+ * markets and bet results are sent by the indexer (lib/server/telegram.ts).
+ * Needs TELEGRAM_BOT_TOKEN and DATABASE_URL; without either it stays off.
+ */
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+import { claimsChallengedBy, claimsCreatedBy } from "../../lib/agents/store";
+import { fetchDexStats } from "../../lib/server/dex-prices";
+import { mimirMint, mimirSymbol } from "../../lib/token-config";
+import { getMeta, isDbEnabled, setMeta } from "../../lib/server/db";
+import { chatWallet, newLinkCode, sendTo, setNewMarketAlerts, unlinkChat, upsertChat } from "../../lib/server/telegram";
+import { isLiveState } from "../../lib/solana/config";
+import { SITE_URL } from "../../lib/site";
+import { claimUrl, esc, linkUrl, priceText, pumpFunUrl, telegramToken, tg, WELCOME_TEXT } from "../../lib/telegram";
+
+const VIDEO_PATH = path.join(process.cwd(), "brand", "launch.mp4");
+const VIDEO_META_KEY = "telegram_launch_video_file_id";
+const POLL_TIMEOUT_S = 25;
+
+interface Update {
+  update_id: number;
+  message?: { chat: { id: number; type: string }; text?: string };
+}
+
+/** $MIMIR on mainnet (README); NEXT_PUBLIC_MIMIR_TOKEN_MINT overrides it. */
+const MIMIR_MINT = mimirMint() ?? "8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V";
+
+async function onPrice(chatId: number): Promise<void> {
+  const stats = await fetchDexStats(MIMIR_MINT);
+  const links = [
+    [{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }, ...(stats?.pairUrl ? [{ text: "DexScreener", url: stats.pairUrl }] : [])],
+    [{ text: "Token perks", web_app: { url: `${SITE_URL}/en/token` } }],
+  ];
+  const text = stats ? priceText(mimirSymbol(), stats) : `${esc(mimirSymbol())} price is unavailable right now.`;
+  await sendTo(chatId, `${text}
+
+<code>${MIMIR_MINT}</code>`, { reply_markup: { inline_keyboard: links } });
+}
+
+const appButton = { text: "Open Mimir", web_app: { url: `${SITE_URL}/en` } };
+
+async function linkButtons(chatId: number) {
+  const code = await newLinkCode(chatId);
+  // A plain URL, not a Mini App: wallet apps (Phantom, Solflare) connect from the browser.
+  return { inline_keyboard: [[{ text: "🔗 Link wallet", url: linkUrl(code) }], [appButton]] };
+}
+
+/** The launch video: uploaded once, then re-sent by file_id. */
+async function sendLaunchVideo(chatId: number): Promise<void> {
+  const cached = await getMeta(VIDEO_META_KEY).catch(() => null);
+  if (cached) {
+    await tg("sendVideo", { chat_id: chatId, video: cached, supports_streaming: true });
+    return;
+  }
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append("supports_streaming", "true");
+  form.append("video", new Blob([await readFile(VIDEO_PATH)], { type: "video/mp4" }), "mimir.mp4");
+  const sent = await tg<{ video?: { file_id: string } }>("sendVideo", form, 120_000);
+  if (sent.video?.file_id) await setMeta(VIDEO_META_KEY, sent.video.file_id).catch(() => undefined);
+}
+
+async function onStart(chatId: number): Promise<void> {
+  await upsertChat(chatId);
+  await sendLaunchVideo(chatId).catch((err) => console.warn("[telegram] launch video failed:", err?.message ?? err));
+  const wallet = await chatWallet(chatId);
+  const linked = wallet ? `\n\nLinked wallet: <code>${esc(wallet)}</code>` : "";
+  await sendTo(chatId, WELCOME_TEXT + linked, { reply_markup: wallet ? { inline_keyboard: [[appButton]] } : await linkButtons(chatId) });
+}
+
+async function onBets(chatId: number): Promise<void> {
+  const wallet = await chatWallet(chatId);
+  if (!wallet) {
+    await sendTo(chatId, "No wallet linked yet.", { reply_markup: await linkButtons(chatId) });
+    return;
+  }
+  const [created, challenged] = await Promise.all([claimsCreatedBy(wallet, 50), claimsChallengedBy(wallet, 50)]);
+  const live = [...created.map((c) => ({ ...c, side: "creator" })), ...challenged.map((c) => ({ ...c, side: "challenger" }))]
+    .filter((c) => isLiveState(c.state))
+    .sort((a, b) => a.deadline - b.deadline)
+    .slice(0, 15);
+  if (live.length === 0) {
+    await sendTo(chatId, "No open positions for this wallet.", { reply_markup: { inline_keyboard: [[appButton]] } });
+    return;
+  }
+  const lines = live.map(
+    (c) => `• <a href="${claimUrl(c.id)}">#${c.id}</a> ${c.side}, ${(Number(c.stake) / 1e6).toFixed(2)} USDC, closes ${new Date(c.deadline * 1000).toUTCString().slice(5, 22)} UTC`,
+  );
+  await sendTo(chatId, ["<b>Your open positions</b>", ...lines].join("\n"));
+}
+
+async function handle(update: Update): Promise<void> {
+  const msg = update.message;
+  if (!msg?.text || msg.chat.type !== "private") return;
+  const chatId = msg.chat.id;
+  const [command, arg] = msg.text.trim().split(/\s+/, 2);
+  switch (command.split("@")[0].toLowerCase()) {
+    case "/start":
+      return onStart(chatId);
+    case "/link":
+      await upsertChat(chatId);
+      return sendTo(chatId, "Open the link, connect your wallet and sign. It is valid for 15 minutes.", {
+        reply_markup: await linkButtons(chatId),
+      });
+    case "/bets":
+      return onBets(chatId);
+    case "/price":
+      return onPrice(chatId);
+    case "/alerts": {
+      const on = (arg ?? "").toLowerCase() !== "off";
+      await upsertChat(chatId);
+      await setNewMarketAlerts(chatId, on);
+      return sendTo(chatId, on ? "New-market alerts are on." : "New-market alerts are off. /alerts on to resume.");
+    }
+    case "/unlink":
+      await unlinkChat(chatId);
+      return sendTo(chatId, "Wallet unlinked. /link to connect one again.");
+    default:
+      return sendTo(chatId, WELCOME_TEXT);
+  }
+}
+
+async function setup(): Promise<void> {
+  await tg("setMyCommands", {
+    commands: [
+      { command: "start", description: "What this bot does" },
+      { command: "link", description: "Link your wallet" },
+      { command: "bets", description: "Your open positions" },
+      { command: "price", description: "$MIMIR price and stats" },
+      { command: "alerts", description: "New-market alerts on|off" },
+      { command: "unlink", description: "Unlink your wallet" },
+    ],
+  });
+  // The chat's menu button opens the site as a Mini App.
+  await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Open Mimir", web_app: { url: `${SITE_URL}/en` } } });
+}
+
+async function main(): Promise<void> {
+  if (!telegramToken()) return console.log("[telegram] TELEGRAM_BOT_TOKEN not set, bot off.");
+  if (!isDbEnabled()) return console.log("[telegram] DATABASE_URL not set, bot off.");
+  await setup().catch((err) => console.warn("[telegram] setup failed:", err?.message ?? err));
+  console.log("[telegram] bot polling");
+  let offset = 0;
+  for (;;) {
+    try {
+      const updates = await tg<Update[]>(
+        "getUpdates",
+        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ["message"] },
+        (POLL_TIMEOUT_S + 10) * 1000,
+      );
+      for (const u of updates) {
+        offset = u.update_id + 1;
+        await handle(u).catch((err) => console.warn("[telegram] update failed:", err?.message ?? err));
+      }
+    } catch (err) {
+      // 409: another process polls with the same token (e.g. a local run next to Railway).
+      const e = err as Error & { status?: number };
+      console.warn("[telegram] getUpdates failed:", e.message);
+      await new Promise((r) => setTimeout(r, e.status === 409 ? 30_000 : 5_000));
+    }
+  }
+}
+
+main().catch((err) => console.error("[telegram] stopped:", err));
