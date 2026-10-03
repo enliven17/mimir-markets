@@ -16,7 +16,7 @@ test("the report-only policy is strict: no unsafe-inline scripts, nonce-based", 
   assert.deepEqual(d["object-src"], ["'none'"]);
   assert.deepEqual(d["base-uri"], ["'self'"]);
   assert.deepEqual(d["form-action"], ["'self'"]);
-  assert.deepEqual(d["frame-ancestors"], ["'none'"]);
+  assert.deepEqual(d["frame-ancestors"], ["'self'", "https://web.telegram.org"], "only Telegram's web client may frame the Mini App");
   assert.deepEqual(d["connect-src"], ["'self'", "https:", "wss:"]);
   assert.deepEqual(d["img-src"], ["'self'", "data:", "https:"]);
 });

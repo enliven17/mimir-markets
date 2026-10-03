@@ -18,6 +18,8 @@ import {
 } from "../notifications";
 import { assertHopAllowed, publicOnlyLookup } from "../research/gateway";
 import { createDeliveryQueue } from "./webhook-queue";
+import { deliverTelegram } from "./telegram";
+import { telegramToken } from "../telegram";
 
 const PROGRAM = () => MIMIR_PROGRAM_ID.toBase58();
 const DELIVERY_TIMEOUT_MS = 5_000;
@@ -86,6 +88,11 @@ export async function recordNotifications(events: NotificationEvent[], now = Dat
     );
     if (inserted.length === 0) continue;
     fresh++;
+    if (telegramToken()) {
+      await deliverTelegram(e).catch((err) =>
+        console.warn("[notifications] telegram delivery failed:", err instanceof Error ? err.message : String(err)),
+      );
+    }
     // Queued, not awaited: a slow or dead receiver must not stall the indexer.
     await deliverWebhook(e, Number(inserted[0].id), now).catch((err) =>
       console.warn("[notifications] webhook lookup failed:", err instanceof Error ? err.message : String(err)),

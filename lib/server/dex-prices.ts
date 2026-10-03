@@ -91,3 +91,43 @@ export async function fetchDexReadings(mint: string): Promise<PriceReading[]> {
   const results = await Promise.all([fetchDexScreenerPrice(mint), fetchJupiterPrice(mint)]);
   return results.filter((r): r is PriceReading => r !== null);
 }
+
+export interface DexStats {
+  priceUsd: number;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+  change24hPct: number | null;
+  pairUrl: string | null;
+}
+
+/**
+ * Display stats for `mint` from its deepest Solana pair. For showing only
+ * (the bot's /price): no liquidity floor, so never use it to settle.
+ */
+export function parseDexStats(body: unknown, mint: string): DexStats | null {
+  const pairs = (Array.isArray(body) ? body : []) as Array<
+    DexPair & { marketCap?: number; fdv?: number; volume?: { h24?: number }; priceChange?: { h24?: number }; url?: string }
+  >;
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  const best = pairs
+    .filter((p) => p?.chainId === "solana" && p.baseToken?.address === mint && Number(p.priceUsd) > 0)
+    .sort((a, b) => Number(b.liquidity?.usd ?? 0) - Number(a.liquidity?.usd ?? 0))[0];
+  if (!best) return null;
+  return {
+    priceUsd: Number(best.priceUsd),
+    marketCapUsd: num(best.marketCap ?? best.fdv),
+    liquidityUsd: num(best.liquidity?.usd),
+    volume24hUsd: num(best.volume?.h24),
+    change24hPct: num(best.priceChange?.h24),
+    pairUrl: typeof best.url === "string" ? best.url : null,
+  };
+}
+
+export async function fetchDexStats(mint: string): Promise<DexStats | null> {
+  try {
+    return parseDexStats(await getJson(`https://api.dexscreener.com/tokens/v1/solana/${mint}`), mint);
+  } catch {
+    return null;
+  }
+}

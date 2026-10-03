@@ -29,10 +29,14 @@ if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() === "mainnet-beta") {
  * report-only by proxy.ts (lib/server/csp.ts) until its reports are clean:
  * the wallet adapters and configurable RPC/ER endpoints make a wrong enforced
  * policy break connecting.
+ *
+ * The one framer allowed is Telegram's web client, which opens the site as
+ * the bot's Mini App in an iframe (the mobile and desktop apps use a webview).
+ * No X-Frame-Options: it has no allow-list, and every current browser obeys
+ * frame-ancestors instead.
  */
 const SECURITY_HEADERS = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
-  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://web.telegram.org" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
