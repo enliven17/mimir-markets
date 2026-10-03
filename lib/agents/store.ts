@@ -9,7 +9,7 @@
  * No "server-only" guard: the worker process imports `pruneAgentTables`, and
  * the guard throws outside the Next bundler. DATABASE_URL is never public.
  */
-import { query } from "@/lib/server/db";
+import { getDb, query } from "@/lib/server/db";
 import { MIMIR_PROGRAM_ID } from "@/lib/solana/config";
 import {
   defaultLimits,
@@ -253,6 +253,52 @@ export async function recordRequest(
     "INSERT INTO agent_request_audit(agent_id, action, ok, reason, amount_units, at) VALUES ($1, $2, $3, $4, $5, $6)",
     [agentId, action, ok, reason, amountUnits.toString(), now],
   );
+}
+
+/**
+ * The daily-cap check and its record as one step (audit P2-10): under a
+ * per-agent advisory lock, insert the allowed request only when the trailing
+ * 24h staked units plus `amountUnits` stay within `maxDailyUnits`. Two
+ * concurrent requests can no longer both read the old total and overspend.
+ * Returns the audit row id (to release it if the prepare fails), or null
+ * when the cap would be exceeded.
+ */
+export async function reserveDailyStake(
+  agentId: string,
+  action: string,
+  amountUnits: bigint,
+  maxDailyUnits: bigint,
+  now = Date.now(),
+): Promise<number | null> {
+  const pool = await getDb();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // The INSERT below runs after the lock is held, so (READ COMMITTED) it
+    // sees every reservation committed by a request that held it before.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`agent-budget:${agentId}`]);
+    const res = await client.query(
+      `INSERT INTO agent_request_audit(agent_id, action, ok, reason, amount_units, at)
+       SELECT $1, $2, TRUE, NULL, $3::bigint, $4
+        WHERE (SELECT COALESCE(SUM(amount_units), 0) FROM agent_request_audit
+                WHERE agent_id = $1 AND ok AND at > $5) + $3::bigint <= $6::bigint
+       RETURNING id`,
+      [agentId, action, amountUnits.toString(), now, now - 86_400_000, maxDailyUnits.toString()],
+    );
+    await client.query("COMMIT");
+    const id = res.rows[0]?.id;
+    return id === undefined ? null : Number(id);
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Undo a reservation whose transaction was never handed out (prepare failed). */
+export async function releaseStake(id: number, reason: string): Promise<void> {
+  await query("UPDATE agent_request_audit SET ok = FALSE, reason = $2 WHERE id = $1", [id, reason]);
 }
 
 /** Only allowed calls count: failures are anyone's to send and must not rate-limit the agent. */

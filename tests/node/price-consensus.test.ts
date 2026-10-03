@@ -197,3 +197,38 @@ test("readings are judged against the deadline, on either side of it", () => {
     "insufficient",
   );
 });
+
+test("market cap, volume and TVL questions are not price claims", async () => {
+  const { priceCheckTarget } = await import("../../lib/price-consensus");
+  assert.equal(priceCheckTarget("Will Solana's market cap be above $100B?"), null);
+  assert.equal(priceCheckTarget("Will SOL 24h volume exceed $5B?"), null);
+  assert.equal(priceCheckTarget("Will Solana TVL be above $10B?"), null);
+  assert.equal(priceCheckTarget("Will BTC FDV top $3T?"), null);
+  assert.deepEqual(priceCheckTarget("Will SOL trade above $250?"), { symbol: "SOL", threshold: 250 });
+  assert.deepEqual(priceCheckTarget("Will $ANSEM trade above $0.0102?"), { symbol: "ANSEM", threshold: 0.0102 });
+});
+
+test("every spelling of a non-price metric keeps a question off the price path", async () => {
+  const { priceCheckTarget } = await import("../../lib/price-consensus");
+  for (const q of [
+    "Will Bitcoin's market capitalization be above $3T?",
+    "Will Bitcoin's market capitalisation be above $3T?",
+    "Will BTC marketcap exceed $3T?",
+    "Will BTC market-cap exceed $3T?",
+    "Will the ETH mkt cap top $1T?",
+    "Will ETH mkt. cap top $1T?",
+    "Will SOL mcap exceed $200B?",
+    "Will SOL m-cap exceed $200B?",
+    "Will SOL's FDV pass $200B?",
+    "Will SOL fully-diluted value pass $200B?",
+    "Will Solana total value locked exceed $20B?",
+    "Will ETH daily volume exceed $50B?",
+    "Will SOL circulating supply be above $500?",
+    "Will BTC dominance be above $60?",
+  ]) {
+    assert.equal(priceCheckTarget(q), null, q);
+  }
+  // Ordinary price questions are untouched.
+  assert.deepEqual(priceCheckTarget("Will BTC close above $100k on Friday?"), { symbol: "BTC", threshold: 100_000 });
+  assert.deepEqual(priceCheckTarget("Will ETH trade below $2,000 at the deadline?"), { symbol: "ETH", threshold: 2000 });
+});

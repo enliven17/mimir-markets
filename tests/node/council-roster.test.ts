@@ -82,3 +82,48 @@ test("no persona invents evidence", () => {
     assert.match(p.promptBias, /never invent/i, `${p.slug} must be told not to invent evidence`);
   }
 });
+
+import { buildRoster, parseCouncilAddresses } from "../../lib/server/council-roster";
+
+test("web roster: mainnet never loads the admin secret", () => {
+  let loaded = false;
+  const { roster, cacheable } = buildRoster({
+    addresses: null,
+    mainnet: true,
+    loadAdmin: () => {
+      loaded = true;
+      return Keypair.generate();
+    },
+  });
+  assert.equal(loaded, false);
+  assert.equal(cacheable, false);
+  assert.equal(roster.length, COUNCIL_PERSONAS.length);
+  for (const e of roster) assert.equal(e.address, "");
+});
+
+test("web roster: COUNCIL_ADDRESSES wins and never loads the secret", () => {
+  const addresses = parseCouncilAddresses('{"optimist":"Addr1111","socrates":"Addr2222"}');
+  const { roster } = buildRoster({
+    addresses,
+    mainnet: true,
+    loadAdmin: () => {
+      throw new Error("must not be called");
+    },
+  });
+  assert.equal(roster.find((e) => e.slug === "optimist")?.address, "Addr1111");
+  assert.equal(roster.find((e) => e.slug === "socrates")?.address, "Addr2222");
+  assert.equal(roster.find((e) => e.slug === "pessimist")?.address, "");
+});
+
+test("web roster: off mainnet derives from the admin key as before", () => {
+  const admin = Keypair.fromSeed(new Uint8Array(32).fill(7));
+  const { roster, cacheable } = buildRoster({ addresses: null, mainnet: false, loadAdmin: () => admin });
+  assert.equal(cacheable, true);
+  assert.equal(roster[0].address, derivePersonaKeypair(admin, roster[0].slug).publicKey.toBase58());
+});
+
+test("COUNCIL_ADDRESSES parsing rejects junk", () => {
+  assert.equal(parseCouncilAddresses(undefined), null);
+  assert.equal(parseCouncilAddresses("not json"), null);
+  assert.equal(parseCouncilAddresses("[1,2]"), null);
+});

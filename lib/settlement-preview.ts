@@ -6,7 +6,8 @@
  * preview is a promise the settlement code actually keeps. Pure.
  */
 import { priceCheckTarget } from "./price-consensus";
-import { resolverSpecFor, stripResolverFragment } from "./resolver-spec";
+import { effectiveResolverSpec, stripResolverFragment } from "./resolver-spec";
+import { dexMintFor } from "./token-config";
 
 export type SettlementMethod = "resolver-price" | "resolver-json" | "price-consensus" | "evidence-llm";
 
@@ -44,17 +45,18 @@ function duration(seconds: number): string {
 }
 
 export function settlementPreview(c: PreviewInput): SettlementPreview {
-  const spec = resolverSpecFor({ resolutionUrl: c.resolutionUrl, settlementRule: c.settlementRule });
+  // Only the specs the oracle honours (trusted JSON hosts, price specs matching the question).
+  const spec = effectiveResolverSpec({ question: c.question, resolutionUrl: c.resolutionUrl, settlementRule: c.settlementRule });
   const price = priceCheckTarget(c.question, c.settlementRule ?? "");
   const deadline = new Date(c.deadline * 1000).toISOString().replace(".000Z", "Z");
   const waitsForFinal = c.category.toLowerCase() === "sports" ? "sports" : isPolymarket(c.resolutionUrl) ? "polymarket" : null;
   const steps: string[] = [];
 
   if (waitsForFinal === "sports") steps.push("Waits for the match to be final (up to 12h after the deadline), then settles.");
-  if (waitsForFinal === "polymarket") steps.push("Waits for the Polymarket market to be resolved by UMA (up to 72h), then settles.");
+  if (waitsForFinal === "polymarket") steps.push("Waits for the Polymarket market to be resolved by UMA (up to 72h) and settles from that result; unresolved by then, everyone is refunded.");
 
   let method: SettlementMethod;
-  if (spec?.kind === "price") {
+  if (spec?.kind === "price" && !dexMintFor(spec.symbol)) {
     method = "resolver-price";
     steps.push(`Reads ${spec.symbol}/USD at ${deadline} from CoinGecko, Chainlink and Flash Trade (plus CoinMarketCap when configured).`);
     steps.push(`YES if every source shows ${spec.symbol} ${spec.op} $${spec.threshold.toLocaleString("en-US")}; sources that disagree mean a refund.`);
@@ -63,9 +65,9 @@ export function settlementPreview(c: PreviewInput): SettlementPreview {
     method = "resolver-json";
     steps.push(`Reads ${spec.path} from ${spec.url} after the deadline.`);
     steps.push(`YES if it is ${spec.op} ${JSON.stringify(spec.value)}. No AI model is involved unless the source cannot be read.`);
-  } else if (price) {
+  } else if (spec?.kind === "price" || price) {
     method = "price-consensus";
-    steps.push(`Reads the resolution source, plus ${price.symbol}/USD at ${deadline} from independent price feeds.`);
+    steps.push(`Reads the resolution source, plus ${spec?.kind === "price" ? spec.symbol : price!.symbol}/USD at ${deadline} from independent price feeds.`);
     steps.push("An AI oracle judges the evidence; if the price feeds disagree with each other or with the model, everyone is refunded.");
   } else {
     method = "evidence-llm";

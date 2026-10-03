@@ -3,7 +3,8 @@
  * (funded via https://faucet.circle.com → Solana Devnet) into the Mimir
  * vault and delegate the balance PDA to the MagicBlock ER.
  *
- * Run: npx tsx --env-file-if-exists=.env.local scripts/solana/agent-fund.ts [keypairPath] [usdcAmount]
+ * Run: npx tsx --env-file-if-exists=.env.local scripts/solana/agent-fund.ts [keypairPath] [usdcAmount] [--mainnet]
+ * Refuses on mainnet unless --mainnet.
  * Defaults: the solana CLI keypair, full token-account balance.
  */
 import { Connection, Keypair } from "@solana/web3.js";
@@ -13,14 +14,17 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { MimirSolanaClient } from "../../lib/solana/client";
 import { SOLANA_RPC, USDC_MINT, toUsdcUnits, fromUsdcUnits } from "../../lib/solana/config";
+import { positional, requireDevnetOrFlag } from "./guards";
 
 const DEFAULT_PATH =
   process.env.SOLANA_KEYPAIR ||
   join(homedir(), ".config", "solana", "talos-deploy.json");
 
 async function main() {
-  const targetPath = process.argv[2] || DEFAULT_PATH;
-  const requested = process.argv[3] ? Number(process.argv[3]) : null;
+  requireDevnetOrFlag("agent-fund");
+  const [pathArg, amountArg] = positional(process.argv.slice(2));
+  const targetPath = pathArg || DEFAULT_PATH;
+  const requested = amountArg ? Number(amountArg) : null;
 
   const connection = new Connection(SOLANA_RPC, "confirmed");
   const target = Keypair.fromSecretKey(

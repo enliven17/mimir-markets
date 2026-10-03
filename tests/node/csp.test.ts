@@ -1,0 +1,33 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { buildReportOnlyCsp, newNonce } from "../../lib/server/csp";
+
+const directives = (csp: string) =>
+  Object.fromEntries(csp.split(";").map((d) => d.trim()).filter(Boolean).map((d) => [d.split(" ")[0], d.split(" ").slice(1)]));
+
+test("the report-only policy is strict: no unsafe-inline scripts, nonce-based", () => {
+  const d = directives(buildReportOnlyCsp("abc123", false));
+  assert.deepEqual(d["default-src"], ["'self'"]);
+  assert.ok(d["script-src"].includes("'self'"));
+  assert.ok(d["script-src"].includes("'nonce-abc123'"));
+  assert.ok(!d["script-src"].includes("'unsafe-inline'"));
+  assert.ok(!d["script-src"].includes("'unsafe-eval'"));
+  assert.deepEqual(d["object-src"], ["'none'"]);
+  assert.deepEqual(d["base-uri"], ["'self'"]);
+  assert.deepEqual(d["form-action"], ["'self'"]);
+  assert.deepEqual(d["frame-ancestors"], ["'none'"]);
+  assert.deepEqual(d["connect-src"], ["'self'", "https:", "wss:"]);
+  assert.deepEqual(d["img-src"], ["'self'", "data:", "https:"]);
+});
+
+test("dev adds unsafe-eval (React debugging) and nothing else", () => {
+  const d = directives(buildReportOnlyCsp("n", true));
+  assert.ok(d["script-src"].includes("'unsafe-eval'"));
+});
+
+test("nonces are fresh and base64", () => {
+  const a = newNonce();
+  assert.notEqual(a, newNonce());
+  assert.match(a, /^[A-Za-z0-9+/=]{16,}$/);
+});

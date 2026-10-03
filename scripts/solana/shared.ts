@@ -17,13 +17,13 @@ import {
   transfer as splTransfer,
 } from "@solana/spl-token";
 import type { MimirSolanaClient } from "../../lib/solana/client";
-import { USDC_MINT } from "../../lib/solana/config";
+import { USDC_MINT, explorerUrl } from "../../lib/solana/config";
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const nowSec = () => Math.floor(Date.now() / 1000);
 
 export function explorer(sig: string, er = false): string {
-  return er ? `ER tx: ${sig}` : `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+  return er ? `ER tx: ${sig}` : explorerUrl("tx", sig);
 }
 
 /** Public devnet RPC throttles bursts; retry with backoff. */

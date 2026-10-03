@@ -49,7 +49,8 @@ export default function RootLayout({
             />
           </SolanaWalletProviders>
         </MotionProvider>
-        <Analytics />
+        {/* /_vercel/insights only exists on Vercel; elsewhere (Railway, CI) the script 404s. */}
+        {process.env.VERCEL === "1" && <Analytics />}
       </body>
     </html>
   );

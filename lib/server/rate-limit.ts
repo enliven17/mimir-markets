@@ -25,7 +25,23 @@ function sweepMemory(now: number): void {
   }
 }
 
+/**
+ * Deploy-wide caps (`*-global` buckets) live apart from the per-client map:
+ * a flood of fresh client keys evicts the oldest entries, and must not be
+ * able to evict (reset) the global count with them. A handful of keys, never swept.
+ */
+const globalWindows = new Map<string, { windowStart: number; hits: number }>();
+
 function allowInMemory(bucketKey: string, windowStart: number, limit: number, now: number): boolean {
+  if (bucketKey.split(":")[0].endsWith("-global")) {
+    const g = globalWindows.get(bucketKey);
+    if (!g || g.windowStart !== windowStart) {
+      globalWindows.set(bucketKey, { windowStart, hits: 1 });
+      return 1 <= limit;
+    }
+    g.hits += 1;
+    return g.hits <= limit;
+  }
   const entry = memoryWindows.get(bucketKey);
   if (!entry || entry.windowStart !== windowStart) {
     memoryWindows.delete(bucketKey);
@@ -68,10 +84,40 @@ export async function pruneRateLimits(olderThanMs = 86_400_000, now = Date.now()
   await query("DELETE FROM rate_limits WHERE window_start < $1", [now - olderThanMs]);
 }
 
-/** The caller's IP as the platform proxy reports it. */
-export function clientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || req.headers.get("x-real-ip")?.trim() || "unknown";
+/**
+ * Proxies in front of the app that append to X-Forwarded-For (Railway's edge:
+ * 1). The leftmost entries are whatever the client sent, so only the entry
+ * this many hops from the right is trustworthy. 0 ignores the header.
+ */
+export function trustedProxyHops(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.TRUSTED_PROXY_HOPS?.trim() || "1");
+  return Number.isInteger(n) && n >= 0 && n <= 10 ? n : 1;
+}
+
+/**
+ * The caller's IP as the trusted proxy reports it: never the leftmost
+ * (client-controlled) X-Forwarded-For value, which let anyone rotate their
+ * rate-limit key per request (audit P0-6).
+ */
+export function clientIp(req: Request, hops = trustedProxyHops()): string {
+  if (hops > 0) {
+    const parts = (req.headers.get("x-forwarded-for") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const ip = parts.length >= hops ? parts[parts.length - hops] : "";
+    if (ip) return ip;
+  }
+  return req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+/**
+ * A per-minute limit from env (e.g. CLAIM_MODERATION_GLOBAL_PER_MIN), else
+ * `fallback`. Used for the deploy-wide ceilings on LLM routes.
+ */
+export function envLimit(name: string, fallback: number, env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env[name]?.trim() || "");
+  return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
 export function tooManyRequests(retryAfterSec: number): Response {

@@ -29,6 +29,12 @@ export type SkipReason =
   | "no-pool-imbalance"
   | "no-whale-yet"
   | "no-evidence"
+  /** Evidence not from a structured API source: forecast at most, never stake (audit P0-2). */
+  | "non-api-evidence"
+  /** Rule persona outside a house market, or on mainnet (audit P2-4). */
+  | "rule-persona-gated"
+  /** No stake is +EV at this pool's odds. */
+  | "negative-ev"
   | "llm-failed";
 
 /**

@@ -29,7 +29,7 @@
  *      CREATOR_CRYPTO_PER_RUN    (default 2)
  *      CREATOR_SPORTS_PER_RUN    (default 3; falls back to CREATOR_WORLDCUP_PER_RUN)
  *      CREATOR_STOCKS_PER_RUN    (default 1)
- *      CREATOR_ANSEM_PER_RUN     (default 1; 0 turns the $ANSEM category off)
+ *      CREATOR_ANSEM_PER_RUN     (default 1, 0 on mainnet; 0 turns the $ANSEM category off)
  *      CREATOR_ANSEM_SKEW        (threshold distance from spot, default 0.02 = 2%)
  *      CREATOR_POLYMARKET_PER_RUN (default 2, only with MARKET_CREATOR_POLYMARKET=1)
  *      CREATOR_STAKE_USDC        (default 3)
@@ -44,13 +44,13 @@
 import { getAccount } from "@solana/spl-token";
 import { loadCreatorKeypair } from "../../lib/solana/keypair";
 import { MimirSolanaClient } from "../../lib/solana/client";
-import { toUsdcUnits } from "../../lib/solana/config";
+import { IS_MAINNET, explorerUrl, toUsdcUnits } from "../../lib/solana/config";
 import { isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 import { gatherCouncilPreflight, preflightKeeps, preflightPersonas } from "./council-preflight";
 import { draftProblem, scoreDraft, type DraftClaim } from "./draft";
 import { draftCryptoClaims } from "./crypto";
-import { draftAnsemClaims } from "./ansem";
+import { defaultAnsemPerRun, draftAnsemClaims } from "./ansem";
 import { draftSportsClaims } from "./sports";
 import { draftStockClaims } from "./stocks";
 import { fetchPolymarketCandidates, isPolymarketEnabled, polymarketDraft } from "./polymarket";
@@ -64,7 +64,7 @@ const INTERVAL_MS = envNum("CREATOR_INTERVAL_MS", "3600000");
 const CRYPTO_PER_RUN = envNum("CREATOR_CRYPTO_PER_RUN", "2");
 const SPORTS_PER_RUN = Number(process.env.CREATOR_SPORTS_PER_RUN ?? process.env.CREATOR_WORLDCUP_PER_RUN ?? "3");
 const STOCKS_PER_RUN = envNum("CREATOR_STOCKS_PER_RUN", "1");
-const ANSEM_PER_RUN = envNum("CREATOR_ANSEM_PER_RUN", "1");
+const ANSEM_PER_RUN = Number(process.env.CREATOR_ANSEM_PER_RUN ?? defaultAnsemPerRun(IS_MAINNET));
 const POLYMARKET_PER_RUN = envNum("CREATOR_POLYMARKET_PER_RUN", "2");
 const STAKE_USDC = envNum("CREATOR_STAKE_USDC", "3");
 const HORIZON_MIN = envNum("CREATOR_HORIZON_MIN", "30");
@@ -170,8 +170,7 @@ async function publish(client: MimirSolanaClient, d: DraftClaim): Promise<void> 
       maxChallengers: 16,
     });
     console.log(
-      `[creator] ✓ Claim #${claimId} [${d.category}] ${d.label}: ` +
-        `https://explorer.solana.com/tx/${txSig}?cluster=devnet`,
+      `[creator] ✓ Claim #${claimId} [${d.category}] ${d.label}: ${explorerUrl("tx", txSig)}`,
     );
     // Hand the market to the Ephemeral Rollup right away: from here on,
     // every challenge is a zero-fee, ~30ms ER transaction.

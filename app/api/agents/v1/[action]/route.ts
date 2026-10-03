@@ -25,7 +25,7 @@ import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys"
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
 import { dryRun } from "@/lib/agents/dry-run";
-import { parseClaimId, parseWriteParams, stakeOf, unitsToUsdc } from "@/lib/agents/params";
+import { parseClaimId, parseWriteParams, stakeOf, unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
 import {
   authorizeAction,
   grantableCapabilities,
@@ -48,6 +48,8 @@ import {
   insertApiKey,
   listApiKeys,
   recordRequest,
+  releaseStake,
+  reserveDailyStake,
   requestsLastHour,
   revokeAllApiKeys,
   revokeApiKey,
@@ -63,6 +65,8 @@ import { mimirMint, mimirSymbol } from "@/lib/token-config";
 import { agentRegisterGateFromEnv, gateEnabled, meetsGate } from "@/lib/token-tiers";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
 import { readClaims } from "@/lib/server/solana-index";
+import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
+import { impersonatesReserved, isReservedAgentId } from "@/lib/agents/reserved";
 
 export const dynamic = "force-dynamic";
 
@@ -112,12 +116,13 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     return fail(503, "registry_unavailable", "the agent registry is not configured on this deployment");
   }
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return fail(400, "malformed_json", "body is not valid JSON");
+  const read = await readLimitedJson(req);
+  if (!read.ok) {
+    return read.status === 413
+      ? fail(413, "payload_too_large", `body is over ${MAX_BODY_BYTES} bytes`)
+      : fail(400, "malformed_json", "body is not valid JSON");
   }
+  const raw = read.value;
 
   let env: AgentEnvelope;
   try {
@@ -194,6 +199,15 @@ async function onChain<T>(fn: () => Promise<T>): Promise<T> {
 // ── register ────────────────────────────────────────────────────────────────
 
 async function handleRegister(env: AgentEnvelope): Promise<Handled> {
+  // Persona slugs and house names (oracle, mimir, ...) are not for the taking,
+  // neither as the id nor as a look-alike display name.
+  const displayName = str(env.body, "displayName") || env.agentId;
+  if (isReservedAgentId(env.agentId)) {
+    throw new AgentEnvelopeError("that agent id is reserved", 409, "agent_id_reserved");
+  }
+  if (impersonatesReserved(displayName)) {
+    throw new AgentEnvelopeError("that display name is reserved", 400, "display_name_reserved");
+  }
   const ownerWallet = normalizeAddress(env.body.ownerWallet);
   const operatorWallet = normalizeAddress(env.body.operatorWallet);
   const payoutWallet = env.body.payoutWallet === undefined ? ownerWallet : normalizeAddress(env.body.payoutWallet);
@@ -264,7 +278,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     ownerWallet,
     operatorWallet,
     payoutWallet,
-    displayName: str(env.body, "displayName") || env.agentId,
+    displayName,
     authorityLevel: authorityLevel as AuthorityLevel,
     capabilities,
     status: authorityLevel > SELF_SERVICE_MAX_AUTHORITY ? "pending" : "active",
@@ -346,9 +360,28 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
   }
 
   if (write) {
+    // The check above read the total without a lock; this is the binding one:
+    // the cap check and its record in a single locked step (audit P2-10).
+    let reservation: number | null = null;
+    if (stakeUnits > 0n) {
+      reservation = await reserveDailyStake(agent.agentId, env.action, stakeUnits, usdcLimitUnits(agent.limits.maxDailyUsdc));
+      if (reservation === null) {
+        await recordRequest(agent.agentId, env.action, false, "daily_cap").catch(() => undefined);
+        return {
+          status: 403,
+          body: { ok: false, reason: "daily_cap", message: `over ${agent.limits.maxDailyUsdc} USDC at risk today` },
+        };
+      }
+    }
     const operator = new PublicKey(agent.operatorWallet);
-    const prepared = await onChain(() => prepareWrite(write, { operator, agentOwner: agentOwnerFor(agent) }));
-    await recordRequest(agent.agentId, env.action, true, null, stakeUnits).catch(() => undefined);
+    let prepared;
+    try {
+      prepared = await onChain(() => prepareWrite(write, { operator, agentOwner: agentOwnerFor(agent) }));
+    } catch (err) {
+      if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
+      throw err;
+    }
+    if (reservation === null) await recordRequest(agent.agentId, env.action, true, null, stakeUnits).catch(() => undefined);
     return {
       status: 200,
       body: {

@@ -113,8 +113,11 @@ export const ACTION_CAPABILITY: Partial<Record<string, AgentCapability>> = {
   createClaim: "market_creator",
 };
 
-/** Actions that put USDC at risk and so count against the position and daily caps. */
-export const STAKING_ACTIONS: readonly string[] = ["createClaim", "challenge"];
+/**
+ * Actions that put USDC at risk and so count against the position and daily
+ * caps. A dispute posts a bond from the operator's USDC, so it counts too.
+ */
+export const STAKING_ACTIONS: readonly string[] = ["createClaim", "challenge", "dispute"];
 
 export interface AuthorizationDecision {
   allowed: boolean;

@@ -21,6 +21,7 @@ import { INJECTION_GUARD, fenceUntrusted } from "@/lib/prompt-safety";
 import { loadCouncilClaim } from "@/lib/server/council-claim";
 import { getCachedReasoning, setCachedReasoning } from "@/lib/server/reasoning-cache";
 import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowLlmRequest } from "@/lib/server/llm-route-guard";
 import { rateIdentity } from "@/lib/server/holder";
 import { rateLimitFor } from "@/lib/token-tiers";
 
@@ -61,8 +62,14 @@ export async function GET(req: Request) {
 
   // A miss costs an LLM call: tighter per-IP budget and a deploy-wide ceiling.
   if (
-    !(await allowRequest("council-reasoning-llm", key, rateLimitFor(6, tier), 60_000)) ||
-    !(await allowRequest("council-reasoning-llm", pool, 60, 60_000))
+    !(await allowLlmRequest({
+      bucket: "council-reasoning-llm",
+      key,
+      perKey: rateLimitFor(6, tier),
+      globalEnv: "COUNCIL_REASONING_GLOBAL_PER_MIN",
+      globalDefault: 60,
+      pool,
+    }))
   ) {
     return tooManyRequests(60);
   }

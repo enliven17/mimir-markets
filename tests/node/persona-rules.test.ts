@@ -95,15 +95,16 @@ test("sub-minimum spec stakes are lifted to the program minimum of 2 USDC", () =
   assert.equal(sizeStakeUnits({ baseUsdc: 0.5, bankrollUnits: U(3) }), null);
 });
 
-test("Kelly sizing is capped at 10% of the bankroll and never below base", () => {
-  // 95% confidence → Kelly 0.9, capped at 0.15, then at the 10% bankroll share.
-  assert.equal(sizeStakeUnits({ baseUsdc: 2, confidence: 95, bankrollUnits: U(100) }), U(10));
-  // 60% confidence → Kelly 0.2 → capped 0.15 → 10% share → 5 on a 50 bankroll.
-  assert.equal(sizeStakeUnits({ baseUsdc: 2, confidence: 60, bankrollUnits: U(50) }), U(5));
-  // 52% → Kelly 0.04 → 1 USDC on 25, lifted to the base.
-  assert.equal(sizeStakeUnits({ baseUsdc: 2, confidence: 52, bankrollUnits: U(25) }), U(2));
+test("Kelly sizing at pool odds is capped at 10% of the bankroll and never below base", () => {
+  const sized = (confidence: number, bankroll: number, creator: number) =>
+    sizeStakeUnits({ baseUsdc: 2, confidence, bankrollUnits: U(bankroll), creatorStakeUnits: U(creator), totalChallengerStakeUnits: 0n, maxCreatorMultiple: 1 });
+  // A deep creator stake: long odds, Kelly capped at 0.15, then at the 10% bankroll share.
+  assert.equal(sized(95, 100, 100), U(10));
+  assert.equal(sized(60, 50, 50), U(5));
+  // 52% against a 2 USDC creator: Kelly wants ~1.86, the 2 USDC minimum is still +EV.
+  assert.equal(sized(52, 25, 2), U(2));
   // Cents only.
-  assert.equal(sizeStakeUnits({ baseUsdc: 2, confidence: 90, bankrollUnits: U(33.337) }), U(3.33));
+  assert.equal(sized(90, 33.337, 100), U(3.33));
 });
 
 // ── prompt + parsing ──────────────────────────────────────────────────────────

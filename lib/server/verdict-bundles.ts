@@ -7,11 +7,19 @@
  */
 import { isDbEnabled, query } from "./db";
 import { sealBundle, type VerdictBundle } from "../verdict-bundle";
+import { IS_MAINNET } from "../solana/config";
 
-/** Stores the bundle; returns its hash. No-op (still returns the hash) without a database. */
-export async function saveVerdictBundle(bundle: VerdictBundle): Promise<string> {
+/**
+ * Stores the bundle; returns its hash. Without a database: a no-op (still
+ * returns the hash) off mainnet, and an error with `required` (default on
+ * mainnet), so the oracle never commits a hash nobody can check.
+ */
+export async function saveVerdictBundle(bundle: VerdictBundle, opts: { required?: boolean } = {}): Promise<string> {
   const { canonical, hash } = sealBundle(bundle);
-  if (!isDbEnabled()) return hash;
+  if (!isDbEnabled()) {
+    if (opts.required ?? IS_MAINNET) throw new Error("verdict bundle store is not configured (DATABASE_URL)");
+    return hash;
+  }
   await query(
     `INSERT INTO verdict_bundles (hash, program, claim_id, bundle, created_at)
      VALUES ($1, $2, $3, $4, $5) ON CONFLICT (hash) DO NOTHING`,

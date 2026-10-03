@@ -21,7 +21,9 @@ import {
   type PreflightResult,
 } from "@/agents/market-creator/council-preflight";
 import { cachedFor } from "@/lib/server/ttl-cache";
-import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
+import { tooManyRequests } from "@/lib/server/rate-limit";
+import { allowLlmRequest } from "@/lib/server/llm-route-guard";
+import { readLimitedJson } from "@/lib/server/body-limit";
 import { rateIdentity } from "@/lib/server/holder";
 import { rateLimitFor } from "@/lib/token-tiers";
 
@@ -39,20 +41,23 @@ const cachedPreflight = cachedFor(async (candidate: PreflightCandidate, slugs: s
 export async function POST(req: Request) {
   const { key, tier, pool } = await rateIdentity(req);
   if (
-    !(await allowRequest("council-preflight", key, rateLimitFor(5, tier), 60_000)) ||
-    !(await allowRequest("council-preflight", pool, 30, 60_000))
+    !(await allowLlmRequest({
+      bucket: "council-preflight",
+      key,
+      perKey: rateLimitFor(5, tier),
+      globalEnv: "COUNCIL_PREFLIGHT_GLOBAL_PER_MIN",
+      globalDefault: 30,
+      pool,
+    }))
   ) {
     return tooManyRequests(60);
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return fail(400, "invalid JSON body");
-  }
+  const read = await readLimitedJson(req);
+  if (!read.ok) return fail(read.status, read.status === 413 ? "request body too large" : "invalid JSON body");
+  const body = read.value;
   const candidate = cleanCandidate(body);
-  if (!candidate) return fail(400, "question, both positions and a resolution URL are required");
+  if (!candidate) return fail(400, "question, both positions and a resolution URL are required, within the on-chain byte limits");
   const requested = (body as { personas?: unknown }).personas;
   const slugs = preflightPersonas(Array.isArray(requested) ? requested.map(String) : undefined).map((p) => p.slug);
 

@@ -14,7 +14,6 @@ import { USDC_MINT } from "@/lib/solana/config";
 import { councilRoster, type RosterEntry } from "@/lib/server/council-roster";
 import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
 import { cachedFor } from "@/lib/server/ttl-cache";
-import { loadAgentKeypair } from "@/lib/solana/keypair";
 import { emptyTally, tallyCouncil, type PersonaTally, type TallyClaim } from "@/lib/council-tally";
 
 export interface PersonaStats extends PersonaTally {
@@ -78,14 +77,10 @@ async function ataUnits(owner: PublicKey): Promise<bigint> {
   }
 }
 
-/** The oracle's key from the worker keypair, else from the program config. */
+/** The oracle's key from the program config: the web process holds no keypair. */
 async function oracleAddress(): Promise<string> {
-  try {
-    return loadAgentKeypair().publicKey.toBase58();
-  } catch {
-    const cfg = await getReader().getConfig().catch(() => null);
-    return cfg?.oracle.toBase58() ?? "";
-  }
+  const cfg = await getReader().getConfig().catch(() => null);
+  return cfg?.oracle.toBase58() ?? "";
 }
 
 export const councilStats = cachedFor(async (): Promise<CouncilStats> => {

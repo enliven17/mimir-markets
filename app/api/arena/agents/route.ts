@@ -10,7 +10,6 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
 import { councilRoster, personaByAddress } from "@/lib/server/council-roster";
 import { isIndexEnabled, readClaims } from "@/lib/server/solana-index";
-import { loadAgentKeypair } from "@/lib/solana/keypair";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { holdsStakes } from "@/lib/claim-status";
@@ -48,13 +47,10 @@ const agentsData = cachedFor(async () => {
   const roster = councilRoster();
   const byAddr = personaByAddress();
 
-  let oracleAddress = "";
-  try {
-    oracleAddress = loadAgentKeypair().publicKey.toBase58();
-  } catch {
-    const cfg = await getReader().getConfig();
-    oracleAddress = cfg?.oracle.toBase58() ?? "";
-  }
+  // The oracle key comes from the on-chain config: the web process never
+  // holds a private key (audit P0-1).
+  const oracleCfg = await getReader().getConfig().catch(() => null);
+  const oracleAddress = oracleCfg?.oracle.toBase58() ?? "";
 
   // Pull claims from the index when available, else from chain.
   let claims: any[] = [];

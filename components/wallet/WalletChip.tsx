@@ -18,7 +18,7 @@ import { Check, Copy, ExternalLink, LogOut, Wallet } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
-import { USDC_MINT } from "@/lib/solana/config";
+import { USDC_MINT, explorerUrl } from "@/lib/solana/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { useHolderTier } from "@/components/token/useHolderTier";
 import { useWalletSheet } from "./WalletSheetProvider";
@@ -157,7 +157,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   }
 
   const tierLabel = tier && tier.tier !== "none" ? tt(`tier.${tier.tier}`) : null;
-  const explorer = `https://explorer.solana.com/address/${address}?cluster=devnet`;
+  const explorer = explorerUrl("address", address);
 
   return (
     <div

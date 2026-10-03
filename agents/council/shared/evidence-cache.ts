@@ -6,7 +6,7 @@
  * rate-limit-prone. The worker builds one Map per cycle and drops it after, so
  * a later cycle never reasons over stale evidence.
  */
-import { fetchEvidence } from "../../../lib/server/evidence-fetcher";
+import { BROWSER_USER_AGENT, fetchEvidence } from "../../../lib/server/evidence-fetcher";
 import type { EvidenceCacheEntry } from "./types";
 
 const MAX_CONTENT_CHARS = 6_000;
@@ -26,7 +26,8 @@ export async function getOrFetchEvidence(
     try {
       const snap = await fetchEvidence(resolutionUrl, {
         maxChars: MAX_CONTENT_CHARS,
-        userAgent: "Mimir-Council/1.0",
+        // A bot UA lets a creator-controlled page tell the council apart (audit P0-2).
+        userAgent: BROWSER_USER_AGENT,
       });
       entry = { text: snap.text, fetcher: snap.fetcher };
     } catch {
