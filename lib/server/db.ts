@@ -264,6 +264,19 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     expires_at           BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS challenge_opportunities_expires_idx ON challenge_opportunities (expires_at)`,
+  // ── Telegram bot (lib/server/telegram.ts) ─────────────────────────────────
+  // One row per chat that pressed /start. The wallet is set only by a signed
+  // link (POST /api/telegram/link) redeeming the chat's short-lived code.
+  `CREATE TABLE IF NOT EXISTS telegram_chats (
+    chat_id         BIGINT PRIMARY KEY,
+    wallet          TEXT,
+    new_markets     BOOLEAN NOT NULL DEFAULT TRUE,
+    link_code       TEXT UNIQUE,
+    link_expires_at BIGINT NOT NULL DEFAULT 0,
+    blocked         BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS telegram_chats_wallet_idx ON telegram_chats (wallet)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
