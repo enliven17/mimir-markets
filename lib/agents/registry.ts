@@ -88,6 +88,8 @@ export interface AgentRecord {
   createdAt: number;
   updatedAt: number;
   lastSeenAt: number | null;
+  /** Mimir Terminal chat: set by setChat. The endpoint and its secret never leave the server. */
+  chat: { enabled: boolean; priceUnits: number; bio: string };
 }
 
 /** Minimum authority an action requires before capabilities are even considered. */

@@ -4,13 +4,20 @@
  *   → { success, data: { agent, reply } }
  *
  * House personas answer from our LLM (free, rate-limited per wallet tier like
- * /api/council/reasoning). The terminal's focus (the market or token last
- * opened) rides along as fenced context. The whole reply comes back at once;
- * the terminal types it out, so nothing streams through the server.
+ * /api/council/reasoning). Community agents answer from their own endpoint
+ * (setChat), relayed and signed by lib/server/terminal-relay.ts. The
+ * terminal's focus (the market or token last opened) rides along as context.
+ * The whole reply comes back at once; the terminal types it out, so nothing
+ * streams through the server.
  */
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { getPersonaBySlug } from "@/agents/council/personas";
+import { agentChatTarget } from "@/lib/agents/store";
+import { isDbEnabled } from "@/lib/server/db";
+import { relayToAgent } from "@/lib/server/terminal-relay";
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
 import { callLLM } from "@/lib/llm";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -35,7 +42,7 @@ export async function POST(req: Request) {
   if (typeof ask === "string") return fail(400, ask);
 
   const persona = getPersonaBySlug(ask.agent);
-  if (!persona) return fail(404, `no agent called ${ask.agent}. Type agents for the list.`);
+  if (!persona) return askCommunityAgent(ask);
   if (persona.archetype === "rule-based") {
     return NextResponse.json({
       success: true,
@@ -73,4 +80,35 @@ export async function POST(req: Request) {
   }
   if (!reply) return fail(503, `${persona.displayName} cannot answer right now. Try again in a minute.`);
   return NextResponse.json({ success: true, data: { agent: persona.slug, reply } });
+}
+
+/** A registered agent with a chat endpoint: relay the message, return its reply. */
+async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>): Promise<Response> {
+  const target = isDbEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
+  if (!target) return fail(404, `no agent called ${ask.agent} takes questions. Type agents for the list.`);
+  if (target.priceUnits > 0) {
+    // Paid agents need the spending limit (limit <usdc>), which opens with payments.
+    return fail(402, `${ask.agent} charges per message; paid agents open with the spending limit.`);
+  }
+  const [claim, token] = await Promise.all([
+    ask.context.claimId ? loadCouncilClaim(ask.context.claimId).catch(() => null) : null,
+    ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,
+  ]);
+  try {
+    const reply = await relayToAgent(target, {
+      requestId: randomUUID(),
+      agentId: ask.agent,
+      message: ask.message,
+      history: ask.history,
+      context: {
+        market: claim ? { id: ask.context.claimId, question: claim.question, creatorPosition: claim.creatorPosition, counterPosition: claim.counterPosition, category: claim.category } : null,
+        token: token as Record<string, unknown> | null,
+      },
+      wallet: null,
+    });
+    return NextResponse.json({ success: true, data: { agent: ask.agent, reply } });
+  } catch (err) {
+    console.warn(`[api/terminal/ask] ${ask.agent} relay failed:`, err instanceof Error ? err.message : err);
+    return fail(502, `${ask.agent} did not answer. Try again, or ask another agent.`);
+  }
 }

@@ -97,8 +97,14 @@ function decoded(res: IncomingMessage): Readable {
   return res;
 }
 
-/** One GET, no redirect following, body capped at `maxBytes`. */
-function requestOnce(url: URL, headers: Record<string, string> | undefined, timeoutMs: number, maxBytes: number): Promise<HopResult> {
+/** One request (GET unless a body is sent), no redirect following, body capped at `maxBytes`. */
+function requestOnce(
+  url: URL,
+  headers: Record<string, string> | undefined,
+  timeoutMs: number,
+  maxBytes: number,
+  body?: string,
+): Promise<HopResult> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const done = (fn: () => void) => {
@@ -112,8 +118,12 @@ function requestOnce(url: URL, headers: Record<string, string> | undefined, time
     const req = send(
       url,
       {
-        method: "GET",
-        headers: { "accept-encoding": "gzip, deflate, br", ...headers },
+        method: body === undefined ? "GET" : "POST",
+        headers: {
+          "accept-encoding": "gzip, deflate, br",
+          ...(body === undefined ? {} : { "content-length": String(Buffer.byteLength(body)) }),
+          ...headers,
+        },
         lookup: publicOnlyLookup as never,
       },
       (res) => {
@@ -155,7 +165,7 @@ function requestOnce(url: URL, headers: Record<string, string> | undefined, time
 
     const timer = setTimeout(() => req.destroy(new Error(`request timed out after ${timeoutMs}ms`)), timeoutMs);
     req.on("error", (err) => done(() => reject(err)));
-    req.end();
+    req.end(body);
   });
 }
 
@@ -173,6 +183,8 @@ export interface GatewayFetchOptions {
   timeoutMs?: number;
   maxBytes?: number;
   maxRedirects?: number;
+  /** POST this body instead of a GET. A POST never follows redirects. */
+  body?: string;
 }
 
 /**
@@ -188,12 +200,12 @@ export async function gatewayFetch(
 ): Promise<GatewayResponse> {
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const maxBytes = options.maxBytes ?? MAX_RESPONSE_BYTES;
-  const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
+  const maxRedirects = options.body === undefined ? (options.maxRedirects ?? MAX_REDIRECTS) : 0;
 
   let current = rawUrl;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const url = await assertHopAllowed(current);
-    const response = await requestOnce(url, options.headers, timeoutMs, maxBytes);
+    const response = await requestOnce(url, options.headers, timeoutMs, maxBytes, options.body);
 
     if (response.status >= 300 && response.status < 400) {
       if (!response.location) {

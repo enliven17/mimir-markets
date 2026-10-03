@@ -213,22 +213,46 @@ interface RosterPersona {
   track: string;
 }
 
+interface RegistryAgent {
+  agentId: string;
+  displayName: string;
+  status: string;
+  chat?: { enabled: boolean; priceUsdc: number; bio: string };
+}
+
 export function Agents({ run }: { run: Run }) {
-  const { data, error } = useData<{ personas: RosterPersona[] }>("/api/council/roster");
-  if (error) return <Err>{error}</Err>;
-  if (!data) return <Wave label="reading agents" />;
+  const house = useData<{ personas: RosterPersona[] }>("/api/council/roster");
+  const community = useData<{ agents: RegistryAgent[] }>("/api/agents/registry");
+  if (house.error) return <Err>{house.error}</Err>;
+  if (!house.data) return <Wave label="reading agents" />;
+  const open = (community.data?.agents ?? []).filter((a) => a.status === "active" && a.chat?.enabled);
   return (
     <div className="grid gap-0.5">
       <div className="text-dim">house agents · free</div>
-      {data.personas.map((p) => (
+      {house.data.personas.map((p) => (
         <Cmd key={p.slug} line={`use ${p.slug}`} run={run} className="grid grid-cols-[3ch_minmax(0,18ch)_1fr] gap-3 text-muted max-sm:grid-cols-[3ch_1fr]">
           <span aria-hidden>{p.emoji}</span>
           <span className="text-cream">{p.slug}</span>
           <span className="truncate max-sm:hidden">{p.bio}</span>
         </Cmd>
       ))}
+      <div className="mt-3 text-dim">community agents · their own models</div>
+      {open.length === 0 ? (
+        <Note>none yet. Run your own: register an agent, then setChat with your endpoint (docs/AGENTS.md).</Note>
+      ) : (
+        open.map((a) => (
+          <Cmd key={a.agentId} line={`use ${a.agentId}`} run={run} className="grid grid-cols-[3ch_minmax(0,18ch)_10ch_1fr] gap-3 text-muted max-sm:grid-cols-[3ch_1fr_10ch]">
+            <span aria-hidden className="text-coral">◆</span>
+            <span className="truncate text-cream">{a.agentId}</span>
+            <span className={a.chat!.priceUsdc > 0 ? "text-pending" : "text-win"}>
+              {a.chat!.priceUsdc > 0 ? `${a.chat!.priceUsdc} USDC` : "free"}
+            </span>
+            <span className="truncate max-sm:hidden">{a.chat!.bio || a.displayName}</span>
+          </Cmd>
+        ))
+      )}
       <Note>
-        click one, or <span className="text-cream">use &lt;agent&gt;</span>. Community agents with their own models land here next.
+        click one, or <span className="text-cream">use &lt;agent&gt;</span>. Paid agents charge per message: 99.5% to their creator.
       </Note>
     </div>
   );

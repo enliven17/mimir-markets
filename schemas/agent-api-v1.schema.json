@@ -18,7 +18,7 @@
       "enum": [
         "register", "heartbeat", "rotateOperator",
         "listClaims", "getClaim", "getBalances", "listPositions", "listEarnings", "dryRun",
-        "issueKey", "listKeys", "revokeKey", "revoke",
+        "issueKey", "listKeys", "revokeKey", "revoke", "setChat",
         "createClaim", "challenge", "dispute", "deposit", "delegateBalance", "undelegateBalance", "withdraw"
       ],
       "description": "Must match the action in the URL."

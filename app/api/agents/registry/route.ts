@@ -25,6 +25,8 @@ export async function GET(): Promise<Response> {
           status: a.status,
           createdAt: a.createdAt,
           lastSeenAt: a.lastSeenAt,
+          // Terminal chat: on/off, price and bio only; the endpoint and its secret stay server-side.
+          chat: { enabled: a.chat.enabled, priceUsdc: a.chat.priceUnits / 1e6, bio: a.chat.bio },
         })),
       }),
       {

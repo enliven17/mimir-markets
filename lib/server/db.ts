@@ -99,6 +99,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     last_seen_at    BIGINT
   )`,
   `CREATE INDEX IF NOT EXISTS agent_registry_owner_idx ON agent_registry (owner_wallet)`,
+  // Mimir Terminal chat (setChat): the owner's endpoint, its price per message
+  // (USDC base units, 0 = free), the HMAC secret requests are signed with, a bio.
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_url TEXT`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_price_units BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS chat_secret TEXT`,
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''`,
   `CREATE INDEX IF NOT EXISTS agent_registry_operator_idx ON agent_registry (operator_wallet)`,
   // Only the SHA-256 of an API key is stored; the key itself is shown once.
   `CREATE TABLE IF NOT EXISTS agent_api_keys (

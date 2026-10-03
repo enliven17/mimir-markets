@@ -16,6 +16,9 @@ import { PublicKey } from "@solana/web3.js";
 import {
   AgentEnvelopeError,
   agentRequestMessage,
+  CHAT_BIO_MAX,
+  CHAT_MAX_PRICE_UNITS,
+  CHAT_MIN_PAID_UNITS,
   isWriteAction,
   operatorProofMessage,
   validateAgentRequestEnvelope,
@@ -54,11 +57,13 @@ import {
   revokeAllApiKeys,
   revokeApiKey,
   rotateOperator,
+  setAgentChat,
   setAgentStatus,
   stakedLastDayUnits,
   storeResponse,
   touchAgent,
 } from "@/lib/agents/store";
+import { checkUrl } from "@/lib/research/ssrf";
 import { isDbEnabled } from "@/lib/server/db";
 import { walletBalances } from "@/lib/server/holder";
 import { mimirMint, mimirSymbol } from "@/lib/token-config";
@@ -480,6 +485,23 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       const revoked = await revokeApiKey(agent.agentId, prefix);
       if (revoked === 0) throw new AgentEnvelopeError("no such active key", 404, "unknown_key");
       return { status: 200, body: { ok: true, revoked } };
+    }
+
+    case "setChat": {
+      // The Mimir Terminal relays user messages to this endpoint, signed with the secret returned here.
+      const url = str(env.body, "url", 300);
+      if (url && (!url.startsWith("https://") || checkUrl(url))) {
+        throw new AgentEnvelopeError("url must be a public https URL", 400, "bad_url");
+      }
+      const price = Number(env.body.priceUsdc ?? 0);
+      const priceUnits = Math.round(price * 1e6);
+      if (!Number.isFinite(price) || priceUnits < 0 || priceUnits > CHAT_MAX_PRICE_UNITS || (priceUnits > 0 && priceUnits < CHAT_MIN_PAID_UNITS)) {
+        throw new AgentEnvelopeError("priceUsdc must be 0 (free) or between 0.001 and 1", 400, "bad_price");
+      }
+      const bio = str(env.body, "bio", CHAT_BIO_MAX);
+      const { secret } = await setAgentChat(agent.agentId, { url, priceUnits, bio });
+      // The secret is shown once (when the URL is new); keep it on the endpoint to verify requests.
+      return { status: 200, body: { ok: true, enabled: Boolean(url), priceUsdc: priceUnits / 1e6, secret } };
     }
 
     case "revoke": {
