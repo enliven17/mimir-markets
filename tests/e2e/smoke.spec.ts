@@ -16,6 +16,9 @@ function trackErrors(page: Page, baseURL: string | undefined): string[] {
     if (msg.type() !== "error") return;
     const text = msg.text();
     if (/Failed to load resource/i.test(text)) return;
+    // The CSP is report-only (lib/server/csp.ts): WebKit logs each would-be block
+    // as a console error. Those are the reports being collected, not page errors.
+    if (/^\[Report Only\]/.test(text)) return;
     errors.push(`console: ${text}`);
   });
   page.on("response", (res) => {
