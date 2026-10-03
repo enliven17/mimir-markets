@@ -39,7 +39,7 @@ jobs:
       - run: npm run build
       # Browser smoke: every page on desktop + mobile, no console errors, no
       # horizontal overflow. Runs against the build above.
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
