@@ -86,7 +86,8 @@ test("dashboard shows the wallet gate when disconnected", async ({ page }) => {
 
 test("security headers are sent", async ({ request }) => {
   const res = await request.get("/en");
-  expect(res.headers()["x-frame-options"]).toBe("DENY");
+  // Framing: only the site itself and Telegram's web client (the bot's Mini App).
+  expect(res.headers()["content-security-policy"]).toBe("frame-ancestors 'self' https://web.telegram.org");
   expect(res.headers()["x-content-type-options"]).toBe("nosniff");
 });
 
