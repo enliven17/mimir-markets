@@ -17,7 +17,7 @@ export type Command =
   | { kind: "ask"; agent: string; text: string }
   | { kind: "token"; mint: string }
   | { kind: "price" }
-  | { kind: "buy"; mint: string; usdc: number }
+  | { kind: "buy"; mint: string; sol: number }
   | { kind: "sell"; mint: string; pct: number }
   | { kind: "limit"; amount: number | null; revoke: boolean }
   | { kind: "error"; message: string };
@@ -38,8 +38,8 @@ export const COMMANDS: readonly CommandSpec[] = [
   { name: "leave", usage: "leave", summary: "stop talking to the agent" },
   { name: "token", usage: "token <contract address>", summary: "a Solana token's price, liquidity and safety" },
   { name: "price", usage: "price", summary: "$MIMIR price" },
-  { name: "buy", usage: "buy <contract address> <usdc>", summary: "buy a token with USDC (mainnet, you sign)" },
-  { name: "sell", usage: "sell <contract address> <percent>", summary: "sell a share of a token for USDC" },
+  { name: "buy", usage: "buy <contract address> <sol>", summary: "buy a token with SOL (mainnet, you sign)" },
+  { name: "sell", usage: "sell <contract address> <percent>", summary: "sell a share of a token for SOL" },
   { name: "limit", usage: "limit [<usdc>|revoke]", summary: "the spending limit for paid agents" },
   { name: "clear", usage: "clear", summary: "clear the screen" },
   { name: "help", usage: "help", summary: "this list" },
@@ -51,10 +51,10 @@ const FILTERS: readonly MarketFilter[] = ["all", "live", "closing", "crypto", "s
 
 export const isMint = (s: string) => MINT.test(s);
 
-/** A positive amount: "2", "2.5", "$2", "2usdc". */
+/** A positive amount: "2", "2.5", "$2", "2usdc", "0.5sol". */
 function amount(raw: string | undefined): number | null {
   if (!raw) return null;
-  const v = Number(raw.replace(/^\$/, "").replace(/usdc$/i, ""));
+  const v = Number(raw.replace(/^\$/, "").replace(/(usdc|sol)$/i, ""));
   return Number.isFinite(v) && v > 0 ? v : null;
 }
 
@@ -100,9 +100,9 @@ export function parseCommand(input: string, activeAgent: string | null = null): 
     case "price":
       return { kind: "price" };
     case "buy": {
-      const usdc = amount(rest[1]);
-      if (!arg || !isMint(arg) || usdc === null) return { kind: "error", message: "usage: buy <contract address> <usdc>" };
-      return { kind: "buy", mint: arg, usdc };
+      const sol = amount(rest[1]);
+      if (!arg || !isMint(arg) || sol === null) return { kind: "error", message: "usage: buy <contract address> <sol>" };
+      return { kind: "buy", mint: arg, sol };
     }
     case "sell": {
       const pct = amount((rest[1] ?? "").replace(/%$/, ""));

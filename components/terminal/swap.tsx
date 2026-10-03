@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * `buy <mint> <usdc>` / `sell <mint> <pct>`: a Jupiter Ultra quote, the
+ * `buy <mint> <sol>` / `sell <mint> <pct>`: a Jupiter Ultra quote in SOL, the
  * warnings worth reading, then one signature in the user's wallet. Solana
  * mainnet, real funds; the browser talks to Jupiter directly (lib/jupiter.ts).
  */
@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { VersionedTransaction } from "@solana/web3.js";
 
 import { useMimirWallet } from "@/hooks/useMimirWallet";
-import { MAINNET_USDC, sellAmount, swapWarnings, ultraBalance, ultraExecute, ultraOrder, type UltraOrder } from "@/lib/jupiter";
+import { SOL_DECIMALS, SOL_MINT, sellAmount, swapWarnings, ultraBalance, ultraExecute, ultraOrder, type UltraOrder } from "@/lib/jupiter";
 import { short } from "@/lib/terminal/format";
 import { Err, Note, Wave, type Run } from "./blocks";
 
@@ -36,7 +36,7 @@ type Phase =
   | { kind: "cancelled" }
   | { kind: "error"; message: string };
 
-export function Swap({ side, mint, usdc, pct }: { side: "buy" | "sell"; mint: string; usdc?: number; pct?: number; run: Run }) {
+export function Swap({ side, mint, sol, pct }: { side: "buy" | "sell"; mint: string; sol?: number; pct?: number; run: Run }) {
   const { publicKey, signTransaction } = useMimirWallet();
   const [phase, setPhase] = useState<Phase>({ kind: "quoting" });
   const [ack, setAck] = useState(false);
@@ -50,15 +50,15 @@ export function Swap({ side, mint, usdc, pct }: { side: "buy" | "sell"; mint: st
         const tokenRes = await fetch(`/api/terminal/token?mint=${mint}`).then((r) => r.json()).catch(() => null);
         const token = (tokenRes?.data ?? null) as TokenMeta | null;
         let amount: bigint;
-        if (side === "buy") amount = BigInt(Math.round((usdc ?? 0) * 1e6));
+        if (side === "buy") amount = BigInt(Math.round((sol ?? 0) * 10 ** SOL_DECIMALS));
         else {
           const bal = await ultraBalance(wallet, mint);
           amount = sellAmount(bal.raw, pct ?? 0);
           if (amount <= 0n) throw new Error(`this wallet holds no ${token?.symbol ?? short(mint)} on mainnet`);
         }
         const order = await ultraOrder({
-          inputMint: side === "buy" ? MAINNET_USDC : mint,
-          outputMint: side === "buy" ? mint : MAINNET_USDC,
+          inputMint: side === "buy" ? SOL_MINT : mint,
+          outputMint: side === "buy" ? mint : SOL_MINT,
           amount,
           taker: wallet,
         });
@@ -109,8 +109,8 @@ export function Swap({ side, mint, usdc, pct }: { side: "buy" | "sell"; mint: st
 
   const { order, token, warnings } = phase;
   const sym = token?.symbol ? `$${token.symbol}` : short(mint);
-  const pay = side === "buy" ? `${fmt(order.inAmount, 6)} USDC` : `${fmt(order.inAmount, token?.decimals ?? null)} ${sym}`;
-  const get = side === "buy" ? `${fmt(order.outAmount, token?.decimals ?? null)} ${sym}` : `${fmt(order.outAmount, 6)} USDC`;
+  const pay = side === "buy" ? `${fmt(order.inAmount, SOL_DECIMALS)} SOL` : `${fmt(order.inAmount, token?.decimals ?? null)} ${sym}`;
+  const get = side === "buy" ? `${fmt(order.outAmount, token?.decimals ?? null)} ${sym}` : `${fmt(order.outAmount, SOL_DECIMALS)} SOL`;
   const impact = Math.abs(Number(order.priceImpactPct ?? 0)) * 100;
   const route = (order.routePlan ?? []).map((r) => r.swapInfo?.label).filter(Boolean).join(" → ");
   const risky = warnings.length > 0;

@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
   let reply = "";
   try {
-    reply = (await callLLM(prompt, { maxTokens: 400, keyEnv: COUNCIL_KEY_ENV, role: "council" })).trim().slice(0, MAX_REPLY_CHARS);
+    reply = (await callLLM(prompt, { maxTokens: 400, keyEnv: COUNCIL_KEY_ENV, role: "council", preferFree: true })).trim().slice(0, MAX_REPLY_CHARS);
   } catch (err) {
     console.error("[api/terminal/ask] llm failed:", err);
   }

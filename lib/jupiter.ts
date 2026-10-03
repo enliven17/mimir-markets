@@ -1,12 +1,13 @@
 /**
- * Jupiter Ultra (keyless, mainnet) for the terminal's buy/sell. Called from
+ * Jupiter Ultra (keyless, mainnet) for the terminal's buy/sell, priced in SOL. Called from
  * the browser directly, so swaps put no load on our servers. Jupiter builds,
  * the user's wallet signs, Jupiter lands it. Always Solana mainnet: that is
  * where the tokens trade, whatever cluster the markets run on.
  */
 export const ULTRA = "https://lite-api.jup.ag/ultra/v1";
-/** Circle USDC on mainnet: what buy pays with and sell receives. */
-export const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+/** Native SOL (Jupiter wraps and unwraps it): what buy pays with and sell receives. */
+export const SOL_MINT = "So11111111111111111111111111111111111111112";
+export const SOL_DECIMALS = 9;
 /** Price impact past which the terminal asks twice. */
 export const HIGH_IMPACT_PCT = 5;
 

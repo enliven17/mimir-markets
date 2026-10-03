@@ -2,7 +2,7 @@
  * Site navigation: the single source for the header pill, the "More" sheet,
  * the mobile panel and the footer.
  *
- * - `NAV_PRIMARY` sits in the pill: Arena, Council, Portfolio. Keep it at 3.
+ * - `NAV_PRIMARY` sits in the pill: Terminal (beta), Arena, Council, Portfolio. Keep it at 4.
  * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the
  *   footer). New pages usually belong here.
  *
@@ -14,6 +14,8 @@ export interface NavItem {
   key: string;
   /** Also mark active on nested routes (e.g. /arena/42). */
   matchNested?: boolean;
+  /** A small tag after the label, e.g. "beta". */
+  badge?: string;
 }
 
 export interface NavGroup {
@@ -22,6 +24,7 @@ export interface NavGroup {
 }
 
 export const NAV_PRIMARY: readonly NavItem[] = [
+  { href: "/terminal", key: "terminal", badge: "beta" },
   { href: "/arena", key: "arena", matchNested: true },
   { href: "/council", key: "council" },
   // Portfolio is the old Dashboard: label change only, the route stays.
@@ -29,7 +32,6 @@ export const NAV_PRIMARY: readonly NavItem[] = [
 ];
 
 export const NAV_MORE_GROUPS: readonly NavGroup[] = [
-  { key: "terminal", items: [{ href: "/terminal", key: "terminal" }] },
   {
     key: "agents",
     items: [

@@ -11,6 +11,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
+import { Link, useRouter } from "@/i18n/navigation";
+import Boot, { shouldBoot } from "@/components/terminal/Boot";
+
 import TerminalMark from "@/components/terminal/TerminalMark";
 import { Limit, useTerminalSession } from "@/components/terminal/pay";
 import { Swap } from "@/components/terminal/swap";
@@ -49,6 +52,20 @@ function saveHistory(h: string[]) {
 
 export default function TerminalClient() {
   const { publicKey } = useWallet();
+  const router = useRouter();
+  // "pending" until the browser knows whether to play the boot: the first paint is black, never the terminal flashing first.
+  const [booting, setBooting] = useState<"pending" | "boot" | "off">("pending");
+
+  // Full screen: the page under it must not scroll (the output scrolls itself).
+  useEffect(() => {
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    setBooting(shouldBoot() ? "boot" : "off");
+    return () => {
+      html.style.overflow = prev;
+    };
+  }, []);
   const session = useTerminalSession();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -128,6 +145,11 @@ export default function TerminalClient() {
             </Note>,
           );
         case "leave":
+          // No agent to leave: exit means back to the site.
+          if (!agentRef.current && /^(exit|quit)$/i.test(line)) {
+            router.push("/arena");
+            return;
+          }
           setAgent(null);
           setPrice(null);
           return print(line, <Note>left the agent.</Note>);
@@ -152,7 +174,7 @@ export default function TerminalClient() {
         }
         case "buy":
           setFocus({ mint: cmd.mint, label: short(cmd.mint) });
-          return print(line, <Swap side="buy" mint={cmd.mint} usdc={cmd.usdc} run={run} />);
+          return print(line, <Swap side="buy" mint={cmd.mint} sol={cmd.sol} run={run} />);
         case "sell":
           setFocus({ mint: cmd.mint, label: short(cmd.mint) });
           return print(line, <Swap side="sell" mint={cmd.mint} pct={cmd.pct} run={run} />);
@@ -254,23 +276,38 @@ export default function TerminalClient() {
   return (
     <section
       aria-label="Mimir Terminal"
-      className="relative mx-auto flex h-[calc(100svh-180px)] min-h-[520px] max-w-[1100px] flex-col overflow-hidden rounded-[22px] border border-line bg-ink-deep/95 font-mono text-[14px] leading-relaxed text-muted shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
+      data-lenis-prevent
+      className="terminal-root fixed inset-0 z-[80] flex h-[100dvh] flex-col overflow-hidden bg-ink-deep pb-[env(safe-area-inset-bottom)] font-mono text-[14px] leading-relaxed text-muted"
       onClick={(e) => {
         // A click on empty space focuses the prompt; selecting text or clicking a command does not.
         if ((e.target as HTMLElement).closest("button,a,input") || window.getSelection()?.toString()) return;
         inputRef.current?.focus();
       }}
     >
+      {booting === "pending" ? <div aria-hidden className="absolute inset-0 z-30 bg-black" /> : null}
+      {booting === "boot" ? (
+        <Boot
+          onDone={() => {
+            setBooting("off");
+            inputRef.current?.focus();
+          }}
+        />
+      ) : null}
+
       {/* title bar */}
-      <header className="flex items-center gap-3 border-b border-line bg-panel/80 px-4 py-2.5">
+      <header className="flex items-center gap-3 border-b border-line bg-panel/80 px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+        <Link href="/arena" className="whitespace-nowrap text-[12px] text-dim underline-offset-4 hover:text-cream hover:underline" aria-label="Back to Mimir">
+          ← mimir
+        </Link>
         <TerminalMark className="h-5 w-auto" />
-        <span className="font-pixel text-[13px] uppercase tracking-[0.18em] text-cream">Mimir Terminal</span>
+        <span className="font-pixel text-[13px] uppercase tracking-[0.18em] text-cream max-sm:hidden">Mimir Terminal</span>
+        <span className="rounded-full border border-coral/40 px-2 py-px font-pixel text-[10px] uppercase tracking-wider text-coral">beta</span>
         <span className="ml-auto rounded-full bg-red/15 px-2.5 py-0.5 font-pixel text-[11px] uppercase tracking-wider text-coral">{SOLANA_CLUSTER}</span>
         <span className="text-[12px] text-dim max-sm:hidden">{publicKey ? short(publicKey.toBase58()) : "no wallet"}</span>
       </header>
 
       {/* output */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6" aria-live="polite">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-8" aria-live="polite">
         <Welcome run={run} />
         {entries.map((e) => (
           <div key={e.id} className="mt-4 animate-[fadeIn_160ms_ease-out]">
@@ -334,7 +371,8 @@ export default function TerminalClient() {
             autoCapitalize="off"
             spellCheck={false}
             placeholder={agent ? `ask ${agent} anything` : "type help, or ⌘K"}
-            className="w-full bg-transparent text-cream caret-red outline-none placeholder:text-dim/70"
+            enterKeyHint="send"
+            className="w-full bg-transparent text-[16px] text-cream caret-red outline-none placeholder:text-dim/70 sm:text-[14px]"
           />
           {hint && input && !palette ? (
             <span aria-hidden className="pointer-events-none absolute left-0 top-0 whitespace-pre text-dim/50">

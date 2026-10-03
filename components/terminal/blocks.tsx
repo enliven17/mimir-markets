@@ -142,15 +142,27 @@ export function Markets({ filter, run }: { filter: MarketFilter; run: Run }) {
   if (rows.length === 0) return <Note>no {filter === "all" ? "" : `${filter} `}markets right now. Try markets.</Note>;
   return (
     <div className="grid gap-0.5 overflow-x-auto">
-      <div className="whitespace-pre text-dim">{`${col("#", 5)}${col("market", 48)}${col("state", 9)}${col("pool", 10)}${col("creator side", 18)}left`}</div>
+      <div className="hidden whitespace-pre text-dim sm:block">{`${col("#", 5)}${col("market", 48)}${col("state", 9)}${col("pool", 10)}${col("creator side", 18)}left`}</div>
       {rows.map((c) => (
-        <Cmd key={c.id} line={`market ${c.id}`} run={run} className="whitespace-pre text-muted">
+        <Cmd key={c.id} line={`market ${c.id}`} run={run} className="hidden whitespace-pre text-muted sm:block">
           <span className="text-coral">{col(`#${c.id}`, 5)}</span>
           <span className="text-cream">{col(c.question, 48)}</span>
           {col(STATE[c.state] ?? "?", 9)}
           {col(`$${usdc(BigInt(c.creatorStake) + BigInt(c.totalChallengerStake))}`, 10)}
           {col(oddsBar(c.creatorStake, c.totalChallengerStake, 10), 18)}
           {LIVE.has(c.state) ? timeLeft(c.deadline) : ""}
+        </Cmd>
+      ))}
+      {/* phones: one card-like row per market instead of a wide table */}
+      {rows.map((c) => (
+        <Cmd key={`m${c.id}`} line={`market ${c.id}`} run={run} className="grid gap-0.5 border-b border-line py-2 text-muted sm:hidden">
+          <span className="text-cream">
+            <span className="text-coral">#{c.id}</span> {c.question}
+          </span>
+          <span className="text-[12px]">
+            {STATE[c.state] ?? "?"} · ${usdc(BigInt(c.creatorStake) + BigInt(c.totalChallengerStake))} · {oddsBar(c.creatorStake, c.totalChallengerStake, 8)}
+            {LIVE.has(c.state) ? ` · ${timeLeft(c.deadline)}` : ""}
+          </span>
         </Cmd>
       ))}
       <Note>

@@ -1728,7 +1728,6 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "groups": {
-      "terminal": "Terminal",
       "agents": "Agents",
       "strategies": "Strategies",
       "token": "Token",

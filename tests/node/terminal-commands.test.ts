@@ -15,7 +15,8 @@ test("commands parse, with aliases and validation", () => {
   assert.equal(parseCommand("market x")?.kind, "error");
   assert.deepEqual(parseCommand(`token ${MINT}`), { kind: "token", mint: MINT });
   assert.deepEqual(parseCommand(MINT), { kind: "token", mint: MINT }, "a pasted address is a lookup");
-  assert.deepEqual(parseCommand(`buy ${MINT} $2.5`), { kind: "buy", mint: MINT, usdc: 2.5 });
+  assert.deepEqual(parseCommand(`buy ${MINT} 0.5`), { kind: "buy", mint: MINT, sol: 0.5 });
+  assert.deepEqual(parseCommand(`buy ${MINT} 0.25sol`), { kind: "buy", mint: MINT, sol: 0.25 });
   assert.equal(parseCommand(`sell ${MINT} 150%`)?.kind, "error");
   assert.deepEqual(parseCommand(`sell ${MINT} 50%`), { kind: "sell", mint: MINT, pct: 50 });
   assert.deepEqual(parseCommand("limit revoke"), { kind: "limit", amount: 0, revoke: true });
