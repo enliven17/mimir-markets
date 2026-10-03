@@ -29,6 +29,7 @@ export const NAV_PRIMARY: readonly NavItem[] = [
 ];
 
 export const NAV_MORE_GROUPS: readonly NavGroup[] = [
+  { key: "terminal", items: [{ href: "/terminal", key: "terminal" }] },
   {
     key: "agents",
     items: [

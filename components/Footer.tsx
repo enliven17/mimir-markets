@@ -63,6 +63,8 @@ function useLiveSlot(target: React.RefObject<HTMLElement | null>): number | null
     if (!visible) return;
     let cancelled = false;
     const read = () =>
+      // A background tab needs no live slot.
+      !document.hidden &&
       connection
         .getSlot("confirmed")
         .then((s) => !cancelled && setSlot(s))

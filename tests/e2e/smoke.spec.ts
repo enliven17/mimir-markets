@@ -55,6 +55,7 @@ const PAGES: { path: string; name: string }[] = [
   { path: "/en/dashboard", name: "dashboard" },
   { path: "/en/token", name: "token" },
   { path: "/en/docs", name: "docs" },
+  { path: "/en/terminal", name: "terminal" },
 ];
 
 for (const { path, name } of PAGES) {
