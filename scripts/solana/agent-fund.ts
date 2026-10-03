@@ -53,6 +53,15 @@ async function main() {
     process.exit(1);
   }
 
+  // A top-up: the balance already lives in the ER, and the base layer only
+  // takes deposits into a balance it owns. Bring it back first.
+  if (await client.isBalanceDelegated()) {
+    console.log("Balance is in the ER: undelegating it to top up...");
+    await client.undelegateBalance();
+    for (let i = 0; (await client.isBalanceDelegated()) && i < 30; i++) await new Promise((r) => setTimeout(r, 2000));
+    if (await client.isBalanceDelegated()) throw new Error("the balance did not come back from the ER in 60s: run again");
+  }
+
   console.log(`Sweeping ${fromUsdcUnits(amount)} USDC into the Mimir vault...`);
   const dep = await client.deposit(amount);
   console.log("✓ deposited:", dep);
