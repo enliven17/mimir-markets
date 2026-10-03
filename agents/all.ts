@@ -12,7 +12,10 @@
  * A fatal error in any agent still calls process.exit(1) from inside that
  * module, which takes the whole fleet down and lets the platform restart it.
  * That is deliberate: a half-alive fleet is harder to reason about than a
- * restarted one.
+ * restarted one. Startup validation is never swallowed either: a module that
+ * throws while loading (e.g. an invalid HEDGE_MODE) fails this import graph
+ * and the process exits non-zero; each agent's main() exits on its own fatal
+ * error; on mainnet the keys below must load or the fleet stops.
  */
 import "./oracle/solana";
 import "./market-creator/solana";
@@ -21,6 +24,26 @@ import "./indexer/solana";
 import { pruneRateLimits } from "../lib/server/rate-limit";
 import { pruneAgentTables } from "../lib/agents/store";
 import { isDbEnabled } from "../lib/server/db";
+import { IS_MAINNET, MIMIR_PROGRAM_ID, SOLANA_CLUSTER } from "../lib/solana/config";
+import { loadAgentKeypair, loadCreatorPublicKey } from "../lib/solana/keypair";
+
+/** Which cluster, program and keys this fleet runs with; on mainnet a key that can't load (or is shared) stops it. */
+function announceCluster(): void {
+  console.log(`[workers] cluster ${SOLANA_CLUSTER} · program ${MIMIR_PROGRAM_ID.toBase58()}`);
+  if (!IS_MAINNET) return;
+  try {
+    const oracle = loadAgentKeypair().publicKey.toBase58();
+    const creator = loadCreatorPublicKey().toBase58();
+    console.log(`[workers] oracle  ${oracle}`);
+    console.log(`[workers] creator ${creator}`);
+    if (creator === oracle) throw new Error("the creator key must differ from the oracle key on mainnet");
+  } catch (err) {
+    console.error("[workers] Fatal: mainnet key setup:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+}
+
+announceCluster();
 
 // Old rate-limit windows and agent API nonces, replay answers and audit rows
 // are dead weight; nothing else deletes them.

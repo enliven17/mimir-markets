@@ -18,9 +18,10 @@ import {
   Keypair,
   PublicKey,
   Transaction,
+  type TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import {
   SOLANA_RPC,
   MAGICBLOCK_ER_RPC,
@@ -173,12 +174,25 @@ const rpcTimeoutMiddleware: FetchMiddleware = (info, init, next) => {
 
 const bn = (v: bigint | number) => new BN(v.toString());
 
+/** AGENT_FEE_ALLOWLIST: comma-separated agent owners whose fee account a cranker may pay rent for. */
+export function agentFeeAllowlistFromEnv(raw = process.env.AGENT_FEE_ALLOWLIST): Set<string> {
+  return new Set((raw ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+}
+
 export class MimirSolanaClient {
   readonly base: Program;
   readonly er: Program;
   readonly baseConnection: Connection;
   readonly erConnection: Connection;
   readonly wallet: KeypairWallet;
+  /**
+   * Agent owners whose fee account (FeeBalance PDA) this client opens, paying
+   * the rent, when a payout owes them a fee. Anyone can name any pubkey as a
+   * position's agent, so opening one for every unknown key is a rent drain;
+   * for the rest the payout waits until the owner opens it (open_fee_account
+   * is permissionless). Defaults to AGENT_FEE_ALLOWLIST.
+   */
+  agentFeeAllowlist: ReadonlySet<string> = agentFeeAllowlistFromEnv();
 
   constructor(signer: Keypair) {
     this.wallet = new KeypairWallet(signer);
@@ -409,18 +423,33 @@ export class MimirSolanaClient {
     return this.base.methods
       .refundBond()
       .accounts({ claim: claimPda(claimId), disputerToken: this.usdcAta(disputer) })
+      .preInstructions([this.ensureAtaIx(disputer)])
       .rpc();
   }
 
   // ── Payouts (permissionless cranks) ───────────────────────────────────
 
-  /** FeeBalance to pass for an agent fee leg, opening it first if needed; null when no agent fee is due. */
+  /**
+   * FeeBalance to pass for an agent fee leg, opening it first if needed (for
+   * allowlisted agents only); null when no agent fee is due.
+   */
   private async agentFeeAccount(agent: PublicKey, agentFeeBps: number, profit: boolean): Promise<PublicKey | null> {
     if (!isSet(agent) || agentFeeBps === 0 || !profit) return null;
     const pda = feeBalancePda(agent);
     const info = await this.baseConnection.getAccountInfo(pda);
-    if (!info) await this.openFeeAccount(agent);
+    if (!info) {
+      if (!this.agentFeeAllowlist.has(agent.toBase58())) {
+        console.warn(`[payout] agent ${agent.toBase58()} is not on AGENT_FEE_ALLOWLIST: not paying rent for its fee account`);
+        throw new Error(`fee account for agent ${agent.toBase58()} is not open; its owner must open it (open_fee_account)`);
+      }
+      await this.openFeeAccount(agent);
+    }
     return pda;
+  }
+
+  /** Creates `owner`'s USDC ATA when missing: a closed account would fail the payout leg forever. */
+  ensureAtaIx(owner: PublicKey): TransactionInstruction {
+    return createAssociatedTokenAccountIdempotentInstruction(this.publicKey, this.usdcAta(owner), owner, USDC_MINT);
   }
 
   async payoutCreator(claimId: bigint, creator?: PublicKey): Promise<string> {
@@ -432,9 +461,11 @@ export class MimirSolanaClient {
       c.agentFeeBps,
       Boolean(leg && leg.gross > leg.principal)
     );
+    const owner = creator ?? c.creator;
     return this.base.methods
       .payoutCreator()
-      .accounts({ claim: claimPda(claimId), creatorToken: this.usdcAta(creator ?? c.creator), agentFees } as any)
+      .accounts({ claim: claimPda(claimId), creatorToken: this.usdcAta(owner), agentFees } as any)
+      .preInstructions([this.ensureAtaIx(owner)])
       .rpc();
   }
 
@@ -449,9 +480,11 @@ export class MimirSolanaClient {
       c.agentFeeBps,
       Boolean(leg && leg.gross > leg.principal)
     );
+    const owner = challenger ?? ch.addr;
     return this.base.methods
       .payoutChallenger(index)
-      .accounts({ claim: claimPda(claimId), challengerToken: this.usdcAta(challenger ?? ch.addr), agentFees } as any)
+      .accounts({ claim: claimPda(claimId), challengerToken: this.usdcAta(owner), agentFees } as any)
+      .preInstructions([this.ensureAtaIx(owner)])
       .rpc();
   }
 

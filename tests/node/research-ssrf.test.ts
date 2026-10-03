@@ -131,3 +131,13 @@ test("the socket-level lookup refuses private answers", async () => {
   );
   assert.ok(err instanceof Error && /non-public/.test(err.message));
 });
+
+test("benchmarking and 6to4 relay ranges are private (audit P3)", () => {
+  assert.equal(isPrivateIpv4("198.18.0.1"), true);
+  assert.equal(isPrivateIpv4("198.19.255.254"), true);
+  assert.equal(isPrivateIpv4("198.17.255.255"), false);
+  assert.equal(isPrivateIpv4("198.20.0.1"), false);
+  assert.equal(isPrivateIpv4("192.88.99.1"), true);
+  assert.equal(isPrivateIpv4("192.88.98.1"), false);
+  assert.equal(isPrivateIpv4("192.88.100.1"), false);
+});

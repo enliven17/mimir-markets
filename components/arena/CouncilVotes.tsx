@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import Disclosure from "@/components/ui/Disclosure";
+import { explorerUrl } from "@/lib/solana/config";
 
 interface PersonaVote {
   slug: string;
@@ -42,7 +43,7 @@ function outcomeTag(v: PersonaVote, winnerSide: number): { key: OutcomeKey; cls:
 }
 
 function explorerAddr(addr: string): string {
-  return `https://explorer.solana.com/address/${addr}?cluster=devnet`;
+  return explorerUrl("address", addr);
 }
 
 interface Props {

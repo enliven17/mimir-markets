@@ -3,12 +3,13 @@
  *
  *   - Contrarian and Whale-Watcher evaluators (they react to pool state only)
  *   - exact category matching for specialists
- *   - Kelly stake sizing against the persona's ER bankroll
+ *   - Kelly stake sizing at real pool odds against the persona's ER bankroll
+ *   - the rule-persona gate: house markets only, off on mainnet by default
  *
  * Personas can only join the challenger pool, so every rule returns either
  * "stake on the challengers" or an abstention.
  */
-import { kellyFraction } from "../../../lib/kelly";
+import { challengerKellyStake } from "../../../lib/kelly";
 import { MIN_STAKE_UNITS, fromUsdcUnits, toUsdcUnits } from "../../../lib/solana/config";
 import type { PersonaSpec } from "../personas";
 import type { CouncilClaim, PersonaDecision } from "./types";
@@ -19,6 +20,11 @@ export const DEFAULT_STAKE_USDC = 2;
 export const PERSONA_KELLY_CAP = 0.15;
 /** No single stake above this share of the bankroll, whatever Kelly says. */
 export const MAX_BANKROLL_SHARE = 0.1;
+/**
+ * A stake never exceeds this multiple of the creator's stake: past it the
+ * persona mostly dilutes its own share of the creator's money.
+ */
+export const PERSONA_MAX_CREATOR_MULTIPLE = Number(process.env.COUNCIL_MAX_CREATOR_MULTIPLE ?? "1");
 
 const usdc = (units: bigint) => fromUsdcUnits(units).toFixed(2);
 
@@ -114,25 +120,67 @@ export function ruleDecision(persona: PersonaSpec, claim: CouncilClaim): Persona
 }
 
 /**
- * Stake size in USDC base units, or null when the bankroll can't cover it.
+ * Rule personas (contrarian, whale-watcher) read nothing but the pool, so a
+ * sock-puppet challenger can steer them into any market (audit P2-4). They
+ * only act on markets the house creator opened, and stay off on mainnet
+ * unless COUNCIL_RULE_PERSONAS_MAINNET=1. Null: no gate applies.
+ */
+export function rulePersonaGate(
+  persona: Pick<PersonaSpec, "archetype" | "displayName">,
+  claim: Pick<CouncilClaim, "creator">,
+  opts: { houseCreator: string | null; mainnet: boolean; mainnetOverride: boolean },
+): PersonaDecision | null {
+  if (persona.archetype !== "rule-based") return null;
+  const off = (why: string): PersonaDecision => ({
+    shouldStake: false,
+    stakeUsdc: 0,
+    rationale: `${persona.displayName} sits out: ${why}`,
+    skipReason: "rule-persona-gated",
+  });
+  if (opts.mainnet && !opts.mainnetOverride) return off("rule personas are off on mainnet.");
+  if (!opts.houseCreator || claim.creator.toBase58() !== opts.houseCreator) {
+    return off("rule personas only trade markets the house opened.");
+  }
+  return null;
+}
+
+/**
+ * Stake size in USDC base units. null: the bankroll can't cover the base
+ * stake. 0n: no stake at this pool's odds is worth making.
  *
  *   base  = max(spec stake, program MIN_STAKE)
  *   need  = 2 × base in the bankroll, so a persona never drains to zero
- *   LLM personas (with a confidence): Kelly at even odds, capped at 15%,
- *   then at 10% of the bankroll, never below base. Rule personas stake base.
+ *   LLM personas (with a confidence): Kelly at the real pool odds a
+ *   challenger gets, b = creatorStake / (challengerPool + stake)
+ *   (lib/kelly.ts challengerKellyStake), capped at 15% Kelly, at
+ *   PERSONA_MAX_CREATOR_MULTIPLE × the creator's stake and at 10% of the
+ *   bankroll; base when Kelly wants less but base is still +EV, else 0n.
+ *   Rule personas stake base.
  */
 export function sizeStakeUnits(args: {
   baseUsdc: number | undefined;
   confidence?: number;
   bankrollUnits: bigint;
+  creatorStakeUnits?: bigint;
+  totalChallengerStakeUnits?: bigint;
+  maxCreatorMultiple?: number;
 }): bigint | null {
   const floor = toUsdcUnits(Math.max(args.baseUsdc ?? DEFAULT_STAKE_USDC, 0));
   const base = floor > MIN_STAKE_UNITS ? floor : MIN_STAKE_UNITS;
   if (args.bankrollUnits < base * 2n) return null;
   if (args.confidence === undefined) return base;
   const bankroll = fromUsdcUnits(args.bankrollUnits);
-  const kelly = kellyFraction(args.confidence, PERSONA_KELLY_CAP);
-  const sized = Math.min(bankroll * kelly, bankroll * MAX_BANKROLL_SHARE);
+  const stake = challengerKellyStake({
+    confidencePct: args.confidence,
+    cap: PERSONA_KELLY_CAP,
+    bankroll,
+    creatorStake: fromUsdcUnits(args.creatorStakeUnits ?? 0n),
+    totalChallengerStake: fromUsdcUnits(args.totalChallengerStakeUnits ?? 0n),
+    maxCreatorMultiple: args.maxCreatorMultiple ?? PERSONA_MAX_CREATOR_MULTIPLE,
+    minStake: fromUsdcUnits(base),
+  });
+  if (!(stake > 0)) return 0n;
+  const sized = Math.min(stake, bankroll * MAX_BANKROLL_SHARE);
   const units = toUsdcUnits(Math.floor(sized * 100) / 100);
   return units > base ? units : base;
 }

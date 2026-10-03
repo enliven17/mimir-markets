@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { txErrorMessage } from "@/lib/tx-errors";
+import { explorerUrl } from "@/lib/solana/config";
 
 /** Unix seconds, re-read every `intervalMs` so countdowns tick. */
 export function useNowSec(intervalMs = 1000): number {
@@ -43,5 +44,5 @@ export function shortKey(addr: string): string {
 }
 
 export function explorerTx(sig: string): string {
-  return `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+  return explorerUrl("tx", sig);
 }

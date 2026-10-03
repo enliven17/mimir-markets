@@ -8,6 +8,8 @@
  * carry the condition.
  */
 import { computeClaimQuality, type ClaimQualityResult } from "../../lib/claimQuality";
+import { resolverSpecFor } from "../../lib/resolver-spec";
+import { isMimirSymbol, mentionsMimirToken } from "../../lib/token-config";
 
 export type DraftSource = "flash" | "espn" | "stocks" | "polymarket" | "ansem";
 
@@ -42,9 +44,20 @@ export function toDeadline(ms: number): number {
   return Math.floor(ms / 1000);
 }
 
+/**
+ * A claim on the Mimir token itself: the operator would be making a market,
+ * and settling it, on its own token (audit P0-4). Never created, any cluster.
+ */
+export function isMimirTokenDraft(d: Pick<DraftClaim, "question" | "creatorPosition" | "counterPosition" | "resolutionUrl">): boolean {
+  if ([d.question, d.creatorPosition, d.counterPosition, d.resolutionUrl].some(mentionsMimirToken)) return true;
+  const spec = resolverSpecFor({ resolutionUrl: d.resolutionUrl });
+  return spec?.kind === "price" && isMimirSymbol(spec.symbol);
+}
+
 /** Why a draft cannot go on chain as-is, or null. */
 export function draftProblem(d: DraftClaim, nowSec = Math.floor(Date.now() / 1000)): string | null {
   if (!d.question.trim() || !d.creatorPosition.trim() || !d.counterPosition.trim()) return "empty field";
+  if (isMimirTokenDraft(d)) return "a $MIMIR claim (the house never makes markets on its own token)";
   if (bytes(d.question) > MAX_QUESTION_BYTES) return `question over ${MAX_QUESTION_BYTES} bytes`;
   if (bytes(d.creatorPosition) > MAX_POSITION_BYTES || bytes(d.counterPosition) > MAX_POSITION_BYTES) {
     return `position over ${MAX_POSITION_BYTES} bytes`;

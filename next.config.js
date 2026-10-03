@@ -11,10 +11,24 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const hasBrandAsset = (file) => fs.existsSync(path.join(__dirname, "public", "brand", file));
 
 /**
- * Baseline security headers. No full CSP: the Solana wallet adapters inject
- * from browser extensions and the RPC/ER endpoints are configurable, and a
- * CSP that breaks connecting is worse than none. `frame-ancestors` alone
- * blocks clickjacking of the stake and sign prompts.
+ * The browser bundle only sees NEXT_PUBLIC_ values, inlined at build time. A
+ * mainnet build without them would ship a bundle that throws on load
+ * (lib/solana/config.ts refuses devnet fallbacks on mainnet): fail the build.
+ */
+if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() === "mainnet-beta") {
+  const missing = ["NEXT_PUBLIC_MIMIR_PROGRAM_ID", "NEXT_PUBLIC_SOLANA_RPC", "NEXT_PUBLIC_MAGICBLOCK_ER_RPC"].filter(
+    (name) => !process.env[name]?.trim(),
+  );
+  if (missing.length) throw new Error(`Mainnet build is missing ${missing.join(", ")}`);
+}
+
+/**
+ * Baseline security headers. The only enforced CSP directive is
+ * `frame-ancestors`, which blocks clickjacking of the stake and sign prompts.
+ * The full policy (nonce-based script-src, object-src 'none', ...) is sent
+ * report-only by proxy.ts (lib/server/csp.ts) until its reports are clean:
+ * the wallet adapters and configurable RPC/ER endpoints make a wrong enforced
+ * policy break connecting.
  */
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },

@@ -1,9 +1,14 @@
 /**
- * Server-side council roster: derives each persona's public address from the
- * admin secret (same derivation the worker uses) so the UI can map on-chain
- * challenger addresses back to a persona without ever exposing a secret key.
+ * Server-side council roster: maps on-chain challenger addresses back to a
+ * persona without ever exposing a secret key.
+ *
+ * The web process should hold no private key (audit P0-1): deploys pass the
+ * persona public addresses in COUNCIL_ADDRESSES. Only off mainnet, as a dev
+ * convenience, are they derived from the admin secret when that env is unset.
  */
+import { Keypair } from "@solana/web3.js";
 import { loadAgentKeypair, derivePersonaKeypair } from "@/lib/solana/keypair";
+import { IS_MAINNET } from "@/lib/solana/config";
 import { COUNCIL_PERSONAS, trackOf, type CouncilTrack } from "@/agents/council/personas";
 
 export interface RosterEntry {
@@ -24,61 +29,72 @@ let cached: RosterEntry[] | null = null;
  * addresses instead: COUNCIL_ADDRESSES = {"optimist":"<base58>", ...}
  * (print them with `npm run system:status`).
  */
-function publicAddresses(): Record<string, string> | null {
-  const raw = process.env.COUNCIL_ADDRESSES?.trim();
-  if (!raw) return null;
+export function parseCouncilAddresses(raw: string | undefined): Record<string, string> | null {
+  const v = raw?.trim();
+  if (!v) return null;
   try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    const parsed = JSON.parse(v);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-export function councilRoster(): RosterEntry[] {
-  if (cached) return cached;
-  const known = publicAddresses();
-  if (known) {
-    cached = COUNCIL_PERSONAS.map((p) => ({
-      slug: p.slug,
-      displayName: p.displayName,
-      emoji: p.emoji,
-      bio: p.bio,
-      archetype: p.archetype,
-      track: trackOf(p),
-      address: typeof known[p.slug] === "string" ? known[p.slug] : "",
-      categoryFilter: p.categoryFilter,
-    }));
-    return cached;
-  }
-  let admin;
-  try {
-    admin = loadAgentKeypair();
-  } catch {
-    // No keypair available (e.g. web service without the secret): roster
-    // addresses are unknown, but the page can still render personas.
-    return COUNCIL_PERSONAS.map((p) => ({
-      slug: p.slug,
-      displayName: p.displayName,
-      emoji: p.emoji,
-      bio: p.bio,
-      archetype: p.archetype,
-      track: trackOf(p),
-      address: "",
-      categoryFilter: p.categoryFilter,
-    }));
-  }
-  cached = COUNCIL_PERSONAS.map((p) => ({
+/**
+ * Pure roster builder. `loadAdmin` is only consulted off mainnet and only when
+ * no public address map is configured. Returns `cacheable: false` when the
+ * addresses are unknown, so a later env fix is picked up.
+ */
+export function buildRoster(opts: {
+  addresses: Record<string, string> | null;
+  mainnet: boolean;
+  loadAdmin: () => Keypair;
+}): { roster: RosterEntry[]; cacheable: boolean } {
+  const entry = (p: (typeof COUNCIL_PERSONAS)[number], address: string): RosterEntry => ({
     slug: p.slug,
     displayName: p.displayName,
     emoji: p.emoji,
     bio: p.bio,
     archetype: p.archetype,
     track: trackOf(p),
-    address: derivePersonaKeypair(admin, p.slug).publicKey.toBase58(),
+    address,
     categoryFilter: p.categoryFilter,
-  }));
-  return cached;
+  });
+  const known = opts.addresses;
+  if (known) {
+    return {
+      roster: COUNCIL_PERSONAS.map((p) => entry(p, typeof known[p.slug] === "string" ? known[p.slug] : "")),
+      cacheable: true,
+    };
+  }
+  // Mainnet: never touch the admin secret from the web process. Personas
+  // render without addresses until COUNCIL_ADDRESSES is set.
+  if (opts.mainnet) return { roster: COUNCIL_PERSONAS.map((p) => entry(p, "")), cacheable: false };
+  let admin: Keypair;
+  try {
+    admin = opts.loadAdmin();
+  } catch {
+    // No keypair available: addresses unknown, the page still renders personas.
+    return { roster: COUNCIL_PERSONAS.map((p) => entry(p, "")), cacheable: false };
+  }
+  return {
+    roster: COUNCIL_PERSONAS.map((p) => entry(p, derivePersonaKeypair(admin, p.slug).publicKey.toBase58())),
+    cacheable: true,
+  };
+}
+
+let warned = false;
+
+export function councilRoster(): RosterEntry[] {
+  if (cached) return cached;
+  const addresses = parseCouncilAddresses(process.env.COUNCIL_ADDRESSES);
+  if (IS_MAINNET && !addresses && !warned) {
+    warned = true;
+    console.error("[council-roster] COUNCIL_ADDRESSES is not set on mainnet: persona addresses unknown");
+  }
+  const { roster, cacheable } = buildRoster({ addresses, mainnet: IS_MAINNET, loadAdmin: loadAgentKeypair });
+  if (cacheable) cached = roster;
+  return roster;
 }
 
 /** address (base58) → persona, for labelling on-chain challengers. */

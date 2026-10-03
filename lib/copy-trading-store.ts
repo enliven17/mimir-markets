@@ -10,7 +10,7 @@
  * No "server-only" guard, matching lib/baskets-store.ts. Without DATABASE_URL
  * every call throws; routes catch and degrade.
  */
-import { query } from "@/lib/server/db";
+import { getDb, query } from "@/lib/server/db";
 import { MIMIR_PROGRAM_ID, SIDE_CREATOR, ST_CANCELLED, ST_RESOLVED } from "@/lib/solana/config";
 import type { CopyPermission, CopySkipReason, CopyUsage } from "@/lib/copy-trading";
 
@@ -132,6 +132,78 @@ export async function revokePermission(id: string, follower: string, at: number)
   return rows.length;
 }
 
+/**
+ * How long a prepared copy counts against the follower's limits without a
+ * report: the whole weekly limit window, so an executor that never reports
+ * cannot get the spend back by waiting (a report releases it at once).
+ */
+export const COPY_RESERVATION_TTL_MS = 7 * 86_400_000;
+
+/** Spend counted against a permission since `$since`: executed copies plus live, unreported reservations. */
+const SPENT_SINCE = (since: string) => `(
+  (SELECT COALESCE(SUM(e.stake_usdc), 0) FROM copy_executions e
+    WHERE e.permission_id = $1 AND e.executed AND e.at > ${since})
+  + (SELECT COALESCE(SUM(r.stake_usdc), 0) FROM copy_reservations r
+    WHERE r.permission_id = $1 AND r.expires_at > $4 AND r.at > ${since}
+      AND NOT EXISTS (SELECT 1 FROM copy_executions e2
+                       WHERE e2.permission_id = r.permission_id AND e2.claim_id = r.claim_id AND e2.executed))
+)`;
+
+/**
+ * Provisional spend written when a copy transaction is prepared (audit
+ * P2-11): until the executor reports, the follower's caps count it. The cap
+ * check and the insert run under a per-permission lock, so two concurrent
+ * prepares (even for different claims) cannot both fit under the same room.
+ * "duplicate": a live reservation for this claim already exists.
+ */
+export async function reserveCopy(
+  permissionId: string,
+  claimId: number,
+  stakeUsdc: number,
+  caps: Pick<CopyPermission, "maxDailyUsdc" | "maxWeeklyUsdc">,
+  now = Date.now(),
+): Promise<"ok" | "duplicate" | "over_cap"> {
+  const pool = await getDb();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`copy-permission:${permissionId}`]);
+    const live = await client.query(
+      "SELECT 1 FROM copy_reservations WHERE permission_id = $1 AND claim_id = $2 AND expires_at > $3",
+      [permissionId, claimId, now],
+    );
+    if (live.rows.length > 0) {
+      await client.query("COMMIT");
+      return "duplicate";
+    }
+    const res = await client.query(
+      `INSERT INTO copy_reservations(permission_id, claim_id, stake_usdc, at, expires_at)
+       SELECT $1, $2, $3, $4, $5
+        WHERE ${SPENT_SINCE("$6")} + $3 <= $7
+          AND ${SPENT_SINCE("$8")} + $3 <= $9
+       ON CONFLICT (permission_id, claim_id) DO UPDATE SET
+         stake_usdc = EXCLUDED.stake_usdc, at = EXCLUDED.at, expires_at = EXCLUDED.expires_at
+       RETURNING permission_id`,
+      [
+        permissionId, claimId, stakeUsdc, now, now + COPY_RESERVATION_TTL_MS,
+        now - 86_400_000, caps.maxDailyUsdc, now - 7 * 86_400_000, caps.maxWeeklyUsdc,
+      ],
+    );
+    await client.query("COMMIT");
+    return res.rows.length > 0 ? "ok" : "over_cap";
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Drop a reservation once its copy is reported (either way) or never handed out. */
+export async function releaseCopy(permissionId: string, claimId: number): Promise<void> {
+  await query("DELETE FROM copy_reservations WHERE permission_id = $1 AND claim_id = $2", [permissionId, claimId]);
+}
+
 /** Records one copy outcome. Returns false when an executed copy was already on file. */
 export async function recordExecution(args: {
   permissionId: string;
@@ -230,12 +302,20 @@ export function usageFromPositions(positions: CopiedPosition[], now = Date.now()
  * the rows silently raises somebody's ceiling.
  */
 export async function loadUsage(permissionId: string, now = Date.now()): Promise<CopyUsage> {
+  // Executed copies plus prepared ones not yet reported (and not expired).
   const rows = await query(
-    `SELECT e.claim_id, e.stake_usdc, e.at, c.state, c.winner_side
-       FROM copy_executions e
-       LEFT JOIN solana_claims c ON c.program = $2 AND c.id = e.claim_id
-      WHERE e.permission_id = $1 AND e.executed`,
-    [permissionId, MIMIR_PROGRAM_ID.toBase58()],
+    `SELECT x.claim_id, x.stake_usdc, x.at, c.state, c.winner_side
+       FROM (
+         SELECT e.claim_id, e.stake_usdc, e.at FROM copy_executions e
+          WHERE e.permission_id = $1 AND e.executed
+         UNION ALL
+         SELECT r.claim_id, r.stake_usdc, r.at FROM copy_reservations r
+          WHERE r.permission_id = $1 AND r.expires_at > $3
+            AND NOT EXISTS (SELECT 1 FROM copy_executions e2
+                             WHERE e2.permission_id = r.permission_id AND e2.claim_id = r.claim_id AND e2.executed)
+       ) x
+       LEFT JOIN solana_claims c ON c.program = $2 AND c.id = x.claim_id`,
+    [permissionId, MIMIR_PROGRAM_ID.toBase58(), now],
   );
   return usageFromPositions(
     rows.map((r) => ({

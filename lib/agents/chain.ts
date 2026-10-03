@@ -28,6 +28,7 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { MimirSolanaClient, type OnchainClaim } from "@/lib/solana/client";
 import {
   ER_VALIDATOR,
+  IS_MAINNET,
   ST_ACTIVE,
   ST_OPEN,
   ST_PROPOSED,
@@ -38,6 +39,7 @@ import {
 import idl from "@/lib/solana/idl/mimir.json";
 
 import { AgentEnvelopeError } from "./api";
+import { publicRpcFor } from "./public-rpc";
 import type { WriteParams } from "./params";
 
 export type Layer = "base" | "er";
@@ -45,7 +47,10 @@ export type Layer = "base" | "er";
 export interface PreparedTransaction {
   /** Where to submit it: the Solana base layer, or the MagicBlock ER. */
   layer: Layer;
-  /** A public RPC for that layer. Any RPC for the same cluster works. */
+  /**
+   * A public RPC for that layer ("" when none is configured). Advisory only:
+   * any RPC for the same cluster works, and the SDK uses its own.
+   */
   rpcUrl: string;
   /** Base64 of a legacy `Transaction`, unsigned, fee payer = operator wallet. */
   transaction: string;
@@ -60,10 +65,11 @@ export interface PreparedWrite {
   claimId?: string;
 }
 
-// Public endpoints only: a server-side SOLANA_RPC may carry a provider key.
+// Public endpoints only: never a URL with a provider key or query string
+// (lib/agents/public-rpc.ts). "" when no public endpoint is configured.
 const PUBLIC_RPC: Record<Layer, string> = {
-  base: process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com",
-  er: process.env.NEXT_PUBLIC_MAGICBLOCK_ER_RPC || "https://devnet-as.magicblock.app/",
+  base: publicRpcFor("base", process.env, IS_MAINNET),
+  er: publicRpcFor("er", process.env, IS_MAINNET),
 };
 
 let reader: MimirSolanaClient | null = null;

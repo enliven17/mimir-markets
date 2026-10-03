@@ -21,6 +21,7 @@ import { claimPhase } from "@/lib/claim-status";
 import { challengerGross, splitFees } from "@/lib/solana/fees";
 import { MIN_STAKE } from "@/lib/constants";
 import { formatUsdcUnits } from "@/lib/money";
+import { IS_MAINNET } from "@/lib/solana/config";
 
 export interface ChallengeState {
   stake: string;
@@ -225,7 +226,7 @@ function ChallengeForm({
       ) : null}
       {challenge.lastSig ? (
         <a
-          href={`https://explorer.magicblock.app/tx/${challenge.lastSig}?cluster=devnet`}
+          href={`https://explorer.magicblock.app/tx/${challenge.lastSig}${IS_MAINNET ? "" : "?cluster=devnet"}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-between gap-3 rounded-xl bg-cream/[0.035] px-3 py-2.5 text-[12px] text-muted transition-colors hover:text-cream"

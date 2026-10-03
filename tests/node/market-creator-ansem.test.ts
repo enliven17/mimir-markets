@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { agreedSpot, ansemDraft, ansemThreshold, draftAnsemClaims, formatTokenPrice } from "../../agents/market-creator/ansem";
+import { agreedSpot, ansemDraft, ansemThreshold, defaultAnsemPerRun, draftAnsemClaims, formatTokenPrice } from "../../agents/market-creator/ansem";
 import { draftProblem, scoreDraft } from "../../agents/market-creator/draft";
 import { resolverFromUrl } from "../../lib/resolver-spec";
 import { ANSEM_MINT_VERIFIED } from "../../lib/token-config";
@@ -10,6 +10,11 @@ import type { PriceReading } from "../../lib/price-consensus";
 const NOW = Date.parse("2026-09-29T15:00:00.000Z");
 const NOW_SEC = Math.floor(NOW / 1000);
 const reading = (source: PriceReading["source"], priceUsd: number): PriceReading => ({ source, priceUsd, at: NOW });
+
+test("$ANSEM drafting is off by default on mainnet (DEX-priced, no structured settlement)", () => {
+  assert.equal(defaultAnsemPerRun(true), "0");
+  assert.equal(defaultAnsemPerRun(false), "1");
+});
 
 test("agreedSpot needs two readings inside the consensus spread", () => {
   assert.equal(agreedSpot([]), null);

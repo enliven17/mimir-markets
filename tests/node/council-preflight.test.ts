@@ -26,11 +26,22 @@ test("candidates need a question, both sides and a source", () => {
   assert.equal(cleanCandidate(null), null);
   assert.equal(cleanCandidate({ ...draft, counterPosition: " " }), null);
   assert.equal(cleanCandidate({ ...draft, question: "short" }), null);
-  const c = cleanCandidate({ ...draft, deadlineHours: "-4", question: "x".repeat(900) })!;
-  assert.equal(c.question.length, 500);
+  const c = cleanCandidate({ ...draft, deadlineHours: "-4" })!;
   assert.equal(c.category, "crypto");
   assert.equal(c.deadlineHours, 0);
   assert.equal(c.settlementRule, "");
+});
+
+test("candidates over the program's byte limits are rejected, not vetted (P1-10)", () => {
+  // Limits are bytes (constants.rs): 200 question, 100 position, 200 url, 32 category.
+  assert.ok(cleanCandidate({ ...draft, question: "q".repeat(200) }));
+  assert.equal(cleanCandidate({ ...draft, question: "q".repeat(201) }), null);
+  assert.equal(cleanCandidate({ ...draft, question: "é".repeat(101) }), null, "202 bytes of 101 chars");
+  assert.ok(cleanCandidate({ ...draft, creatorPosition: "y".repeat(100) }));
+  assert.equal(cleanCandidate({ ...draft, creatorPosition: "y".repeat(101) }), null);
+  assert.equal(cleanCandidate({ ...draft, counterPosition: "n".repeat(101) }), null);
+  assert.equal(cleanCandidate({ ...draft, resolutionUrl: `https://x.test/${"a".repeat(190)}` }), null);
+  assert.equal(cleanCandidate({ ...draft, category: "c".repeat(33) }), null);
 });
 
 test("persona selection keeps known slugs, caps the panel and falls back to the defaults", () => {

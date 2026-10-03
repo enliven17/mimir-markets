@@ -17,6 +17,7 @@ import { SURFACE } from "@/components/arena/surface";
 import Button from "@/components/ui/Button";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { shortenAddress } from "@/lib/constants";
+import { explorerUrl } from "@/lib/solana/config";
 
 export interface CopyLeader {
   slug: string;
@@ -68,7 +69,7 @@ export default function CopyLeaders({
             <div className="flex items-center justify-between gap-3">
               {l.address ? (
                 <a
-                  href={`https://explorer.solana.com/address/${l.address}?cluster=devnet`}
+                  href={explorerUrl("address", l.address)}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={t("explorerAria", { name: l.displayName })}

@@ -12,6 +12,7 @@ import {
   fetchEvidence,
   type EvidenceSnapshot,
 } from "@/lib/server/evidence-fetcher";
+import { webGeminiKey } from "@/lib/llm";
 
 const DEFAULT_GEMINI_MODEL = process.env.CLAIM_DRAFT_MODEL || "gemini-3.5-flash";
 const MAX_SOURCE_CHARS = 14000;
@@ -363,9 +364,9 @@ function getGeminiDraftSchema() {
 }
 
 async function callGeminiDraftModel(prompt: string) {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = webGeminiKey();
   if (!apiKey) {
-    throw new Error("Generator is not configured. Add GEMINI_API_KEY on the server.");
+    throw new Error("Generator is not configured. Add GEMINI_API_KEY (not the oracle's key) on the server.");
   }
 
   const response = await fetch(

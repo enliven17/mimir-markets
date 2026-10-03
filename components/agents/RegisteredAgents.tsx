@@ -16,6 +16,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
+import { explorerUrl } from "@/lib/solana/config";
 
 interface RegisteredAgent {
   agentId: string;
@@ -135,7 +136,7 @@ const AgentCard = memo(function AgentCard({ agent: a, index }: { agent: Register
         </p>
       ) : null}
       <a
-        href={`https://explorer.solana.com/address/${a.operatorWallet}?cluster=devnet`}
+        href={explorerUrl("address", a.operatorWallet)}
         target="_blank"
         rel="noreferrer"
         className="font-mono text-[12px] text-muted hover:text-coral"

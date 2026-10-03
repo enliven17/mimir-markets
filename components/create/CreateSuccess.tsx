@@ -8,16 +8,17 @@ import { buttonClass } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Card";
 import { Pending } from "@/components/ui/StatusPill";
 import type { Published } from "./useCreateDraft";
+import { explorerUrl, IS_MAINNET } from "@/lib/solana/config";
 
 export default function CreateSuccess({ published, onAnother }: { published: Published; onAnother: () => void }) {
   const t = useTranslations("arena.create");
   const tc = useTranslations("create");
   const rows = [
     published.createSig
-      ? { label: t("proofCreate"), sig: published.createSig, href: `https://explorer.solana.com/tx/${published.createSig}?cluster=devnet`, where: "Solana" }
+      ? { label: t("proofCreate"), sig: published.createSig, href: explorerUrl("tx", published.createSig), where: "Solana" }
       : null,
     published.delegateSig
-      ? { label: t("proofDelegate"), sig: published.delegateSig, href: `https://explorer.magicblock.app/tx/${published.delegateSig}?cluster=devnet`, where: "ER" }
+      ? { label: t("proofDelegate"), sig: published.delegateSig, href: `https://explorer.magicblock.app/tx/${published.delegateSig}${IS_MAINNET ? "" : "?cluster=devnet"}`, where: "ER" }
       : null,
   ].filter(Boolean) as { label: string; sig: string; href: string; where: string }[];
 

@@ -15,6 +15,14 @@
  *
  * Both are best-effort. A source being down degrades the settlement to a single
  * reading, which is what the oracle did before this existed; it never blocks it.
+ *
+ * Settlement reads the price AT the deadline: every reading carries the
+ * source's own timestamp (never "now" filled in) and how far from the deadline
+ * that source may sit (maxSkewMs): half the sampling interval for CoinGecko /
+ * CMC history, the feed heartbeat for a Chainlink round that was current at the
+ * deadline, PRICE_MAX_DEADLINE_SKEW_MS (60 s) for live quotes. Anything further
+ * is dropped. (Pyth Benchmarks would give the exact second, but its history API
+ * now needs a key: add it as a source once one is configured.)
  */
 
 import type { PriceReading } from "../price-consensus";
@@ -26,6 +34,31 @@ import { fetchDexReadings } from "./dex-prices";
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CMC_BASE = "https://pro-api.coinmarketcap.com/v1";
 const TIMEOUT_MS = 10_000;
+
+/** A reading further than this from the deadline, either side, is not the deadline price. */
+export const MAX_DEADLINE_SKEW_MS = (() => {
+  const v = Number(process.env.PRICE_MAX_DEADLINE_SKEW_MS ?? "60000");
+  return Number.isFinite(v) && v > 0 ? v : 60_000;
+})();
+
+/** The readings taken within their own maxSkewMs (default `maxSkewMs`) of `atMs`. Pure. */
+export function readingsAt(readings: PriceReading[], atMs: number, maxSkewMs = MAX_DEADLINE_SKEW_MS): PriceReading[] {
+  return readings.filter((r) => {
+    const skew = Number.isFinite(r.maxSkewMs) && (r.maxSkewMs as number) > 0 ? (r.maxSkewMs as number) : maxSkewMs;
+    return Number.isFinite(r.at) && Math.abs(r.at - atMs) <= skew;
+  });
+}
+
+/**
+ * CoinGecko market_chart/range samples every 5 minutes for the last day and
+ * hourly before that: the nearest sample may sit half an interval away.
+ */
+export function coingeckoHistorySkewMs(atMs: number, nowMs = Date.now()): number {
+  return nowMs - atMs <= 24 * 3600 * 1000 ? 150_000 : 1_800_000;
+}
+
+/** CMC historical quotes at interval=5m. */
+const CMC_HISTORY_SKEW_MS = 150_000;
 
 /** CoinGecko is keyed by its own ids, not by ticker. */
 const COINGECKO_IDS: Record<string, string> = {
@@ -59,13 +92,9 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<PriceReading | null>
     const body = (await res.json()) as Record<string, { usd?: number; last_updated_at?: number }>;
     const entry = body[id];
     const price = Number(entry?.usd);
-    if (!Number.isFinite(price) || price <= 0) return null;
-    return {
-      source: "coingecko",
-      priceUsd: price,
-      // Seconds in this endpoint; fall back to now when the field is absent.
-      at: entry?.last_updated_at ? entry.last_updated_at * 1000 : Date.now(),
-    };
+    // Seconds in this endpoint. No timestamp, no reading: "now" is not when the quote was made.
+    if (!Number.isFinite(price) || price <= 0 || !entry?.last_updated_at) return null;
+    return { source: "coingecko", priceUsd: price, at: entry.last_updated_at * 1000 };
   } catch {
     return null;
   }
@@ -91,12 +120,8 @@ async function fetchCmcPrice(symbol: string): Promise<PriceReading | null> {
     const quote = body.data?.[symbol.toUpperCase()]?.quote?.USD;
     const price = Number(quote?.price);
     if (!Number.isFinite(price) || price <= 0) return null;
-    const at = quote?.last_updated ? Date.parse(quote.last_updated) : Date.now();
-    return {
-      source: "coinmarketcap",
-      priceUsd: price,
-      at: Number.isFinite(at) ? at : Date.now(),
-    };
+    const at = Date.parse(quote?.last_updated ?? "");
+    return Number.isFinite(at) ? { source: "coinmarketcap", priceUsd: price, at } : null;
   } catch {
     return null;
   }
@@ -107,8 +132,8 @@ async function fetchFlashPrice(symbol: string): Promise<PriceReading | null> {
   try {
     const px = await getFlashPrice(symbol);
     if (!Number.isFinite(px.priceUi) || px.priceUi <= 0) return null;
-    const at = px.timestampUs ? Math.floor(px.timestampUs / 1000) : Date.now();
-    return { source: "flashtrade", priceUsd: px.priceUi, at };
+    if (!px.timestampUs) return null;
+    return { source: "flashtrade", priceUsd: px.priceUi, at: Math.floor(px.timestampUs / 1000) };
   } catch {
     return null;
   }
@@ -140,7 +165,7 @@ async function fetchCoinGeckoPriceAt(symbol: string, atMs: number): Promise<Pric
     if (!res.ok) return null;
     const body = (await res.json()) as { prices?: Array<[number, number]> };
     const best = closestSample(body.prices ?? [], atMs);
-    return best ? { source: "coingecko", priceUsd: best[1], at: best[0] } : null;
+    return best ? { source: "coingecko", priceUsd: best[1], at: best[0], maxSkewMs: coingeckoHistorySkewMs(atMs) } : null;
   } catch {
     return null;
   }
@@ -184,7 +209,7 @@ async function fetchCmcPriceAt(symbol: string, atMs: number): Promise<PriceReadi
       Number(q.quote?.USD?.price),
     ]);
     const best = closestSample(samples, atMs);
-    return best ? { source: "coinmarketcap", priceUsd: best[1], at: best[0] } : null;
+    return best ? { source: "coinmarketcap", priceUsd: best[1], at: best[0], maxSkewMs: CMC_HISTORY_SKEW_MS } : null;
   } catch {
     return null;
   }
@@ -193,15 +218,21 @@ async function fetchCmcPriceAt(symbol: string, atMs: number): Promise<PriceReadi
 /**
  * Read the price from every configured source, in parallel.
  *
- * With `atMs` (a claim's deadline) far enough in the past, the sources are
- * asked for the price at that moment instead of now: a claim settled late must
- * be judged on the price at its deadline.
+ * With `atMs` (a claim's deadline) more than MAX_DEADLINE_SKEW_MS in the past,
+ * the sources are asked for the price at that moment instead of now: a claim
+ * settled late must be judged on the price at its deadline. Either way, only
+ * readings within their source's skew of `atMs` come back.
  *
- * Returns whatever came back. The caller decides what to do with one reading,
- * two that agree, or two that do not.
+ * The caller decides what to do with one reading, two that agree, or two that
+ * do not.
  */
 export async function fetchPriceReadings(symbol: string, atMs?: number): Promise<PriceReading[]> {
-  const historical = atMs !== undefined && Date.now() - atMs > 5 * 60 * 1000;
+  const all = await fetchAllReadings(symbol, atMs);
+  return atMs === undefined ? all : readingsAt(all, atMs);
+}
+
+async function fetchAllReadings(symbol: string, atMs?: number): Promise<PriceReading[]> {
+  const historical = atMs !== undefined && Date.now() - atMs > MAX_DEADLINE_SKEW_MS;
   // $ANSEM / the Mimir token: mainnet DEX prices (live only), plus CoinGecko where listed.
   const mint = dexMintFor(symbol);
   if (mint) {

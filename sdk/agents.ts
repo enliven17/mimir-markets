@@ -23,7 +23,7 @@
  * const { signatures } = await client.challenge({ claimId: 42, stakeUsdc: 2 });
  * ```
  */
-import { Connection, Transaction, type Keypair } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, type Keypair } from "@solana/web3.js";
 
 import {
   agentRequestMessage,
@@ -36,6 +36,8 @@ import { signAgentMessage } from "../lib/agents/signature";
 import { followMessage, type MirrorSignal } from "../lib/baskets";
 import { copyPermissionMessage, followerProofMessage } from "../lib/copy-trading";
 import type { CopyDraft } from "../lib/copy-form";
+import { MAGICBLOCK_ER_RPC, MIMIR_PROGRAM_ID, SOLANA_RPC, USDC_MINT } from "../lib/solana/config";
+import { verifyPreparedTransaction, type TxExpectation } from "./verify-tx";
 
 /** Returns a base58 ed25519 signature over the UTF-8 message. */
 export type SignMessage = (message: string) => Promise<string> | string;
@@ -54,8 +56,23 @@ export interface MimirAgentClientOptions {
   operator?: Keypair;
   /** Signs owner-gated actions (issueKey, rotateOperator, revoke...). Keep it cold. */
   signWithOwner?: SignMessage;
-  /** Override the RPC per layer; defaults to what the API returns. */
+  /**
+   * RPC per layer. Defaults to this process's config (NEXT_PUBLIC_SOLANA_RPC,
+   * NEXT_PUBLIC_MAGICBLOCK_ER_RPC); the rpcUrl the API returns is never used.
+   */
   rpc?: { base?: string; er?: string };
+  /** The Mimir program transactions may call. Defaults to NEXT_PUBLIC_MIMIR_PROGRAM_ID, never the server's word. */
+  programId?: PublicKey | string;
+  /** USDC mint for the withdraw destination check. Defaults to the configured mint. */
+  usdcMint?: PublicKey | string;
+  /** Highest priority fee a prepared transaction may set (micro-lamports per CU). */
+  maxPriorityMicroLamports?: number;
+  /**
+   * The agent's registered payout wallet, when it earns the agent fee
+   * (fee_earner). Prepared transactions may name only it (or the operator,
+   * or nobody) as the position's agent.
+   */
+  agentPayout?: PublicKey | string;
   fetchImpl?: typeof fetch;
 }
 
@@ -153,6 +170,10 @@ export class MimirAgentClient {
   private readonly operator?: Keypair;
   private readonly signWithOwner?: SignMessage;
   private readonly rpc: { base?: string; er?: string };
+  private readonly programId: PublicKey;
+  private readonly usdcMint: PublicKey;
+  private readonly maxPriorityMicroLamports?: number;
+  private readonly agentPayout?: PublicKey;
   private readonly fetchImpl: typeof fetch;
   private readonly connections = new Map<string, Connection>();
 
@@ -163,6 +184,10 @@ export class MimirAgentClient {
     this.operator = options.operator;
     this.signWithOwner = options.signWithOwner;
     this.rpc = options.rpc ?? {};
+    this.programId = new PublicKey(options.programId ?? MIMIR_PROGRAM_ID);
+    this.usdcMint = new PublicKey(options.usdcMint ?? USDC_MINT);
+    this.maxPriorityMicroLamports = options.maxPriorityMicroLamports;
+    this.agentPayout = options.agentPayout ? new PublicKey(options.agentPayout) : undefined;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -241,22 +266,33 @@ export class MimirAgentClient {
   ): Promise<{ response: WriteResponse; signatures: string[] }> {
     if (!this.operator) throw new Error(`${action} returns transactions to sign, but no operator was set`);
     const response = await this.prepare(action, body);
+    const expect = expectationFor(action, body);
     const signatures: string[] = [];
     for (const prepared of response.transactions) {
-      signatures.push(await this.submit(prepared));
+      signatures.push(await this.submit(prepared, expect));
     }
     return { response, signatures };
   }
 
-  /** Sign one prepared transaction with the operator key and confirm it on its layer. */
-  async submit(prepared: PreparedTransaction): Promise<string> {
+  /**
+   * Verify one prepared transaction (sdk/verify-tx.ts), sign it with the
+   * operator key and confirm it on its layer over this client's own RPC.
+   * `expect` names the requested action (and amount / claim), so a
+   * server-substituted instruction is refused before anything is signed.
+   */
+  async submit(prepared: PreparedTransaction, expect?: TxExpectation): Promise<string> {
     if (!this.operator) throw new Error("no operator keypair to sign with");
+    if (prepared.layer !== "base" && prepared.layer !== "er") throw new Error("refusing to sign: unknown layer");
     const tx = Transaction.from(Buffer.from(prepared.transaction, "base64"));
-    if (!tx.feePayer?.equals(this.operator.publicKey)) {
-      throw new Error("refusing to sign: the transaction's fee payer is not this operator");
-    }
+    verifyPreparedTransaction(tx, {
+      programId: this.programId,
+      operator: this.operator.publicKey,
+      usdcMint: this.usdcMint,
+      maxPriorityMicroLamports: this.maxPriorityMicroLamports,
+      expect: { ...expect, agentPayout: this.agentPayout },
+    });
     tx.partialSign(this.operator);
-    const connection = this.connection(prepared.layer, prepared.rpcUrl);
+    const connection = this.connection(prepared.layer);
     // The ER does not run preflight; the base layer does.
     const signature = await connection.sendRawTransaction(tx.serialize(), {
       skipPreflight: prepared.layer === "er",
@@ -434,8 +470,9 @@ export class MimirAgentClient {
     for (const c of copy) {
       try {
         const prepared = await this.prepareCopy(c.permissionId, c.claimId);
+        const expect: TxExpectation = { action: "challenge", claimId: BigInt(c.claimId) };
         const signatures: string[] = [];
-        for (const tx of prepared.transactions) signatures.push(await this.submit(tx));
+        for (const tx of prepared.transactions) signatures.push(await this.submit(tx, expect));
         await this.reportCopy({
           permissionId: c.permissionId,
           claimId: c.claimId,
@@ -504,8 +541,8 @@ export class MimirAgentClient {
     return parsed;
   }
 
-  private connection(layer: "base" | "er", fallback: string): Connection {
-    const url = this.rpc[layer] ?? fallback;
+  private connection(layer: "base" | "er"): Connection {
+    const url = this.rpc[layer] ?? (layer === "er" ? MAGICBLOCK_ER_RPC : SOLANA_RPC);
     let c = this.connections.get(url);
     if (!c) {
       c = new Connection(url, "confirmed");
@@ -513,6 +550,28 @@ export class MimirAgentClient {
     }
     return c;
   }
+}
+
+/** USDC (number) to base units the way the API parses it; undefined when not a plain amount. */
+function unitsOf(value: unknown): bigint | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? BigInt(Math.round(value * 1e6)) : undefined;
+}
+
+function claimIdOf(value: unknown): bigint | undefined {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return BigInt(value);
+  if (typeof value === "string" && /^[1-9][0-9]{0,18}$/.test(value)) return BigInt(value);
+  return undefined;
+}
+
+/** What the transactions for `action` with this request body must contain. */
+export function expectationFor(action: AgentWriteAction, body: Record<string, unknown>): TxExpectation {
+  const amount =
+    action === "challenge" || action === "createClaim"
+      ? unitsOf(body.stakeUsdc)
+      : action === "deposit" || action === "withdraw"
+        ? unitsOf(body.amountUsdc)
+        : undefined;
+  return { action, claimId: claimIdOf(body.claimId), amountUnits: amount };
 }
 
 /** The message a new operator wallet signs to prove it controls itself. */

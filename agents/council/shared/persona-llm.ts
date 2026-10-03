@@ -39,7 +39,8 @@ export type PersonaLLM = (prompt: string, opts: CallLLMOptions) => Promise<strin
 /** The council worker's own Gemini key (falls back to GEMINI_API_KEY). */
 export const COUNCIL_KEY_ENV = "COUNCIL_GEMINI_API_KEY";
 
-const defaultLLM: PersonaLLM = (prompt, opts) => callLLM(prompt, { ...opts, keyEnv: COUNCIL_KEY_ENV });
+/** Council traffic never spends an oracle key (lib/llm.ts role). */
+const defaultLLM: PersonaLLM = (prompt, opts) => callLLM(prompt, { ...opts, keyEnv: COUNCIL_KEY_ENV, role: "council" });
 
 const PERSONA_VERDICT_SCHEMA = {
   type: "object",

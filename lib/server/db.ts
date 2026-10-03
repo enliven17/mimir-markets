@@ -217,6 +217,16 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   // One executed copy per claim per permission: a repeated report cannot double-count spend.
   `CREATE UNIQUE INDEX IF NOT EXISTS copy_executions_executed_uniq
      ON copy_executions (permission_id, claim_id) WHERE executed`,
+  // A prepared, not yet reported copy (audit P2-11): counts toward the
+  // follower's limits until the executor reports or it expires.
+  `CREATE TABLE IF NOT EXISTS copy_reservations (
+    permission_id TEXT NOT NULL,
+    claim_id      BIGINT NOT NULL,
+    stake_usdc    NUMERIC NOT NULL DEFAULT 0,
+    at            BIGINT NOT NULL DEFAULT 0,
+    expires_at    BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (permission_id, claim_id)
+  )`,
   // ── Notifications (lib/server/notifications.ts) ────────────────────────────
   // Derived by the indexer from read-index changes; the unique key makes a
   // re-read of the same change a no-op. Recipients are base58, never lowercased.

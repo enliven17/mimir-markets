@@ -4,10 +4,14 @@
  *  - cancel the creator's own claims that expired without a challenger (no
  *    winning side exists, so they would sit dead with the stake locked;
  *    cancelling refunds it; undelegate first since the PDA lives in the ER);
- *  - count JOINABLE claims (OPEN/ACTIVE with the deadline ahead) from every
- *    creator, which drives MAX_ACTIVE_CLAIMS. A raw "unresolved" count would
+ *  - count the house's own JOINABLE claims (OPEN/ACTIVE with the deadline
+ *    ahead), which drives MAX_ACTIVE_CLAIMS. A raw "unresolved" count would
  *    lump in cancelled and abandoned expired claims and pin the cap forever;
  *  - collect their signatures for the duplicate guard.
+ *
+ * Only claims the creator key opened count, for both: counting everyone's
+ * let anyone pin the cap with cheap claims, or pre-empt a house market by
+ * opening a look-alike first (audit P2-3).
  */
 import type { MimirSolanaClient, OnchainClaim } from "../../lib/solana/client";
 import { ST_ACTIVE, ST_OPEN } from "../../lib/solana/config";
@@ -30,7 +34,7 @@ export function summarizeInventory(
   const inv: Inventory = { joinable: 0, signatures: [], expiredEmpty: [] };
   for (const c of claims) {
     const live = c.state === ST_OPEN || c.state === ST_ACTIVE;
-    if (live && c.deadline > nowSec) {
+    if (live && c.deadline > nowSec && isOwn(c)) {
       inv.joinable++;
       inv.signatures.push(signatureOf(c, `#${c.id}`));
     }

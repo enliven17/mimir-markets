@@ -14,8 +14,15 @@
 import type { PriceReading } from "../price-consensus";
 
 const TIMEOUT_MS = 8_000;
-/** Pools thinner than this are ignored: a dust pool's price means nothing. */
-export const MIN_LIQUIDITY_USD = 1_000;
+/**
+ * Pools thinner than this are ignored. A thin pool's price is whatever the
+ * last swap made it, and a claim pays out on it: the floor is set so moving
+ * the price costs more than a pot is likely to hold (DEX_MIN_LIQUIDITY_USD).
+ */
+export const MIN_LIQUIDITY_USD = (() => {
+  const v = Number(process.env.DEX_MIN_LIQUIDITY_USD ?? "250000");
+  return Number.isFinite(v) && v > 0 ? v : 250_000;
+})();
 
 interface DexPair {
   chainId?: string;
@@ -42,12 +49,12 @@ export function parseDexScreenerPrice(body: unknown, mint: string): number | nul
   return best?.price ?? null;
 }
 
-/** Jupiter price v3: `{ [mint]: { usdPrice, liquidity? } }`. */
+/** Jupiter price v3: `{ [mint]: { usdPrice, liquidity } }`. No liquidity figure, no price. */
 export function parseJupiterPrice(body: unknown, mint: string): number | null {
   const entry = (body as Record<string, { usdPrice?: number; liquidity?: number } | undefined> | null)?.[mint];
   const price = Number(entry?.usdPrice);
   if (!Number.isFinite(price) || price <= 0) return null;
-  if (entry?.liquidity !== undefined && !(Number(entry.liquidity) >= MIN_LIQUIDITY_USD)) return null;
+  if (!(Number(entry?.liquidity) >= MIN_LIQUIDITY_USD)) return null;
   return price;
 }
 

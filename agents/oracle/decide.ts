@@ -1,16 +1,21 @@
 /**
  * How the oracle decides a claim, in order:
  *   1. fetch the resolution URL's evidence;
- *   2. sports / Polymarket claims wait for a final result (bounded by a grace);
+ *   2. sports claims wait for a final result (bounded by a grace); Polymarket
+ *      claims wait for Gamma to say closed + UMA-resolved, settle from the
+ *      resolved outcome, and refund when the grace runs out without one;
  *   3. price claims read the price AT THE DEADLINE from independent sources;
  *   4. a structured resolver spec (in the resolution URL fragment) settles it
- *      from data alone when the data is determinate, and no model is asked;
+ *      from data alone when the data is determinate, and no model is asked.
+ *      Honoured only when trustworthy (lib/resolver-spec.ts
+ *      effectiveResolverSpec): json specs on allowlisted API hosts, price
+ *      specs that match the question, never DEX-priced tokens;
  *   5. no evidence at all: wait up to 6h, then refund (UNRESOLVABLE);
  *   6. the council jury (COUNCIL_SETTLEMENT=1) or the oracle's own LLM verdict;
  *   7. the price cross-check: disagreeing sources, or a model contradicting
  *      agreeing sources, refund; agreement boosts only the side the data backs;
- *   8. fetcher trust caps, confidence tiers, and the "oracle holds a position
- *      → FIRM verdicts only" rule.
+ *   8. fetcher trust caps, confidence tiers, and the "house (oracle, market
+ *      creator, council) holds a position → FIRM verdicts only" rule.
  * Everything it rested on is sealed into a verdict audit bundle whose sha256
  * becomes the on-chain evidence_hash. Returns null when settlement should
  * wait for a later poll.
@@ -19,19 +24,33 @@ import type { PublicKey } from "@solana/web3.js";
 import type { OnchainClaim } from "../../lib/solana/client";
 import { MIMIR_PROGRAM_ID } from "../../lib/solana/config";
 import {
+  BROWSER_USER_AGENT,
   fetchEvidence as fetchEvidenceShared,
   EvidenceFetchError,
   type EvidenceFetcherKind,
 } from "../../lib/server/evidence-fetcher";
 import { gatewayFetch } from "../../lib/research/gateway";
 import {
+  effectiveResolverSpec,
   evaluateJsonSpec,
   evaluatePriceSpec,
   resolverSpecFor,
   stripResolverFragment,
   winnerFor,
   type ResolverOutcome,
+  type ResolverSpec,
 } from "../../lib/resolver-spec";
+import { dexMintFor } from "../../lib/token-config";
+import { stripLinks } from "../../lib/verdict";
+import {
+  gammaQueryUrl,
+  marketFromGamma,
+  polymarketBinding,
+  polymarketRefFor,
+  polymarketStatusOf,
+  type PolymarketRef,
+  type PolymarketStatus,
+} from "./polymarket";
 import {
   consensusWinner,
   crossCheckThreshold,
@@ -51,18 +70,42 @@ import {
   type SelfResolvingConfig,
 } from "./council-vote";
 
+/** A positive number of hours from env, in seconds. */
+function envHours(name: string, fallback: number): number {
+  const v = Number(process.env[name]?.trim() || "");
+  return (Number.isFinite(v) && v > 0 ? v : fallback) * 3600;
+}
+
 const MAX_CONTENT_CHARS = 8_000;
 const SPORTS_SETTLE_GRACE_SECS = Math.max(1, Number(process.env.SPORTS_SETTLE_GRACE_HOURS ?? 12)) * 3600;
 // UMA's liveness plus a dispute round fits comfortably inside three days.
 const POLYMARKET_SETTLE_GRACE_SECS = 72 * 3600;
+/** Past the grace, an unreadable Gamma is retried this much longer before refunding (POLYMARKET_READ_RETRY_HOURS, default 24). */
+export const POLYMARKET_READ_RETRY_SECS = envHours("POLYMARKET_READ_RETRY_HOURS", 24);
 /** How long past the deadline an unreadable source is retried before refunding. */
 export const NO_EVIDENCE_GRACE_SECS = 6 * 3600;
+/** A price claim with fewer than two deadline readings waits this long (PRICE_DEFER_HOURS, default 6), then refunds. */
+export const PRICE_DEFER_SECS = envHours("PRICE_DEFER_HOURS", 6);
+
+/**
+ * A price claim settles on deadline prices, never on a model reading a web
+ * page: with fewer than two readings at the deadline it waits (a source may
+ * be briefly down) and then refunds. "ok" = enough data, carry on.
+ */
+export function priceDataGate(readingCount: number, deadline: number, nowSec: number): "ok" | "defer" | "refund" {
+  if (readingCount >= 2) return "ok";
+  return nowSec <= deadline + PRICE_DEFER_SECS ? "defer" : "refund";
+}
 
 export const CONFIDENCE_HIGH_MIN = 80; // ≥ : settle as-is
 export const CONFIDENCE_MED_MIN = 60; // 60–79: settle, marked [CONTESTED]; < 60: refund
 /** Scraped HTML can drift or be partially blocked: no FIRM settlement off it. */
 const MAX_CONFIDENCE_NON_API = 75;
-const API_FETCHERS: ReadonlySet<string> = new Set(["coingecko-api", "flashtrade-api", "espn-api"]);
+/** Structured API sources: the only evidence any house wallet stakes or settles FIRM on. */
+export const API_FETCHERS: ReadonlySet<string> = new Set(["coingecko-api", "flashtrade-api", "espn-api"]);
+
+/** An ordinary browser's User-Agent for every oracle fetch (defined next to the shared fetcher). */
+export { BROWSER_USER_AGENT };
 
 export interface JuryConfig {
   quorum: number;
@@ -75,6 +118,12 @@ export interface JuryConfig {
 
 export interface DecideContext {
   oracle: PublicKey;
+  /**
+   * Every address the operator controls (oracle, market creator, council
+   * personas), base58. A claim any of them holds a position in settles on
+   * FIRM verdicts only.
+   */
+  house?: ReadonlySet<string>;
   /** Council-as-jury settlement, when enabled. */
   jury: JuryConfig | null;
   now?: () => number;
@@ -106,7 +155,7 @@ async function fetchEvidence(url: string): Promise<Evidence> {
   const target = stripResolverFragment(url ?? "");
   if (!target.startsWith("http")) return { text: "(No resolution URL provided)", fetcher: "none" };
   try {
-    const snap = await fetchEvidenceShared(target, { maxChars: MAX_CONTENT_CHARS, userAgent: "Mimir-Oracle/1.0" });
+    const snap = await fetchEvidenceShared(target, { maxChars: MAX_CONTENT_CHARS, userAgent: BROWSER_USER_AGENT });
     return { text: snap.text, fetcher: snap.fetcher };
   } catch (err: any) {
     const msg = err instanceof EvidenceFetchError ? err.message : err?.message ?? "unknown";
@@ -181,7 +230,8 @@ export function applyPriceConsensus(
       note: `${adj.note} Model verdict ${verdict.verdict} contradicts it.`,
     };
   }
-  if (adj.confidenceDelta > 0 && dataWinner && verdict.verdict === dataWinner) {
+  // DEX readers quote the same thin pools: their agreement is not independent confirmation.
+  if (adj.confidenceDelta > 0 && dataWinner && verdict.verdict === dataWinner && !dexMintFor(prices.symbol)) {
     return { verdict: { ...verdict, confidence: Math.min(100, verdict.confidence + adj.confidenceDelta) }, note: adj.note };
   }
   return { verdict, note: adj.note };
@@ -213,6 +263,8 @@ export function decisionFor(
   bonusVotes: CouncilVote[] | null = null,
   decidedAt = Date.now(),
 ): SettlementDecision {
+  // The explanation becomes the on-chain summary: no links in it, whatever the evidence said.
+  verdict = { ...verdict, explanation: stripLinks(verdict.explanation) };
   const bundle: VerdictBundle = {
     version: VERDICT_BUNDLE_VERSION,
     program: MIMIR_PROGRAM_ID.toBase58(),
@@ -232,29 +284,49 @@ export function decisionFor(
   return { verdict, evidenceHash: sealBundle(bundle).bytes, bundle, bonusVotes };
 }
 
-async function deadlinePrices(claim: OnchainClaim, symbolHint?: string, thresholdHint?: number): Promise<DeadlinePrices | null> {
-  const target = priceCheckTarget(claim.question) ?? (symbolHint && thresholdHint ? { symbol: symbolHint, threshold: thresholdHint } : null);
+/**
+ * The price the claim is about, read at its deadline: from the honoured price
+ * spec, else from the question when it is clearly a price claim (one asset,
+ * one threshold, not a market cap or volume; lib/price-consensus.ts).
+ */
+async function deadlinePrices(claim: OnchainClaim, spec: ResolverSpec | null): Promise<DeadlinePrices | null> {
+  const target = spec?.kind === "price" ? { symbol: spec.symbol, threshold: spec.threshold } : priceCheckTarget(claim.question);
   if (!target) return null;
   const readings = await fetchPriceReadings(target.symbol, claim.deadline * 1000).catch(() => []);
   return { ...target, readings };
 }
 
-/** Settle from the resolver spec when the data is determinate on Yes/No positions; null otherwise. */
-async function tryStructuredResolver(claim: OnchainClaim, prices: DeadlinePrices | null): Promise<SettlementDecision | null> {
-  const spec = resolverSpecFor({ resolutionUrl: claim.resolutionUrl });
+const resolverDecision = (claim: OnchainClaim, side: "CREATOR_WINS" | "CHALLENGERS_WIN", spec: unknown, detail: string, prices: DeadlinePrices | null) =>
+  decisionFor(
+    claim,
+    { verdict: side, confidence: 95, explanation: `[RESOLVER] ${detail}`.slice(0, 500), model: "structured-resolver" },
+    {
+      resolver: { spec, detail },
+      prices: prices && prices.readings.length ? bundlePrices(prices) : undefined,
+      model: "structured-resolver",
+      adjustments: [],
+    },
+  );
+
+/** Settle from the (honoured) resolver spec when the data is determinate on Yes/No positions; null otherwise. */
+async function tryStructuredResolver(claim: OnchainClaim, spec: ResolverSpec | null, prices: DeadlinePrices | null): Promise<SettlementDecision | null> {
   if (!spec) return null;
   let outcome: ResolverOutcome;
   if (spec.kind === "price") {
     const readings = prices && prices.symbol === spec.symbol
       ? prices.readings
       : await fetchPriceReadings(spec.symbol, claim.deadline * 1000).catch(() => []);
-    outcome = evaluatePriceSpec(spec, readings);
+    outcome = evaluatePriceSpec(spec, readings, claim.deadline * 1000);
   } else {
     try {
       // Read at settlement time: right for final results, wrong for live values.
-      const res = await gatewayFetch(spec.url, { headers: { accept: "application/json", "user-agent": "Mimir-Oracle/1.0" } });
+      // No redirects: the allowlisted host must answer itself.
+      const res = await gatewayFetch(spec.url, {
+        headers: { accept: "application/json", "user-agent": BROWSER_USER_AGENT },
+        maxRedirects: 0,
+      });
       outcome = res.status === 200
-        ? evaluateJsonSpec(spec, JSON.parse(res.body))
+        ? evaluateJsonSpec(spec, JSON.parse(res.body), { claimCreatedAtMs: claim.createdAt * 1000 })
         : { determined: false, detail: `resolver source answered ${res.status}` };
     } catch (err) {
       outcome = { determined: false, detail: `resolver source unreadable: ${err instanceof Error ? err.message : String(err)}` };
@@ -263,18 +335,61 @@ async function tryStructuredResolver(claim: OnchainClaim, prices: DeadlinePrices
   const side = outcome.determined ? winnerFor(outcome.conditionMet, claim.creatorPosition, claim.counterPosition) : null;
   console.log(`[settle] Structured resolver (${spec.kind}): ${outcome.detail}${side ? ` → ${side}` : " → not determined, falling back"}`);
   if (!outcome.determined || !side) return null;
-  const verdict: OracleVerdict = {
-    verdict: side,
-    confidence: 95,
-    explanation: `[RESOLVER] ${outcome.detail}`.slice(0, 500),
-    model: "structured-resolver",
+  return resolverDecision(claim, side, spec, outcome.detail, prices);
+}
+
+/** What one Gamma read said: unreadable, or the market it names (null when not exactly one). */
+export type PolymarketRead = { ok: false } | { ok: true; market: Record<string, unknown> | null };
+
+async function fetchPolymarketMarket(ref: PolymarketRef): Promise<PolymarketRead> {
+  try {
+    const res = await gatewayFetch(gammaQueryUrl(ref), {
+      headers: { accept: "application/json", "user-agent": BROWSER_USER_AGENT },
+      maxRedirects: 0,
+    });
+    return res.status === 200 ? { ok: true, market: marketFromGamma(JSON.parse(res.body), ref.kind) } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Polymarket claims: final only when Gamma says closed + UMA-resolved, read
+ * from the JSON (no model), and only for a market bound to the claim
+ * (polymarketBinding). A clean resolution settles here; an unclear one
+ * (50/50, free-form positions), an ambiguous or unbound market goes on to
+ * the normal path. Past the grace with Gamma READ and the market still
+ * unresolved, everyone is refunded; while Gamma cannot be read the claim is
+ * retried for POLYMARKET_READ_RETRY_SECS more before refunding.
+ * "defer" = poll again later.
+ */
+export function polymarketOutcome(
+  claim: Pick<OnchainClaim, "deadline" | "creatorPosition" | "counterPosition" | "question" | "createdAt">,
+  read: PolymarketRead,
+  nowSec: number,
+): { kind: "defer" } | { kind: "refund"; detail: string } | { kind: "settle"; side: "CREATOR_WINS" | "CHALLENGERS_WIN"; detail: string } | { kind: "continue"; detail?: string } {
+  if (!read.ok) {
+    if (nowSec <= claim.deadline + POLYMARKET_SETTLE_GRACE_SECS + POLYMARKET_READ_RETRY_SECS) return { kind: "defer" };
+    return {
+      kind: "refund",
+      detail:
+        `[POLYMARKET UNREADABLE, refunded] Gamma could not be read for ` +
+        `${(POLYMARKET_SETTLE_GRACE_SECS + POLYMARKET_READ_RETRY_SECS) / 3600}h after the deadline.`,
+    };
+  }
+  if (!read.market) return { kind: "continue", detail: "Gamma did not return exactly one market" };
+  const unbound = polymarketBinding(read.market, claim);
+  if (unbound) return { kind: "continue", detail: unbound };
+  const status: PolymarketStatus = polymarketStatusOf(read.market);
+  if (status.resolved) {
+    const side = status.yesWon === null ? null : winnerFor(status.yesWon, claim.creatorPosition, claim.counterPosition);
+    return side ? { kind: "settle", side, detail: `Polymarket resolved ${status.yesWon ? "YES" : "NO"} (UMA)` } : { kind: "continue" };
+  }
+  if (nowSec <= claim.deadline + POLYMARKET_SETTLE_GRACE_SECS) return { kind: "defer" };
+  return {
+    kind: "refund",
+    detail: `[POLYMARKET NOT RESOLVED, refunded] UMA had not resolved the market ${POLYMARKET_SETTLE_GRACE_SECS / 3600}h after the deadline.`,
   };
-  return decisionFor(claim, verdict, {
-    resolver: { spec, detail: outcome.detail },
-    prices: prices && prices.readings.length ? bundlePrices(prices) : undefined,
-    model: "structured-resolver",
-    adjustments: [],
-  });
 }
 
 /** Personas holding a position in the claim (never jurors on it). */
@@ -287,30 +402,72 @@ function stakedSlugs(claim: OnchainClaim, jury: JuryConfig): Set<string> {
   return out;
 }
 
+/** Does any operator-controlled address (oracle, creator wallet, personas) hold a position in the claim? */
+export function houseHoldsPosition(
+  claim: Pick<OnchainClaim, "creator" | "challengers">,
+  ctx: Pick<DecideContext, "oracle" | "house">,
+): boolean {
+  return [claim.creator, ...claim.challengers.map((c) => c.addr)].some(
+    (addr) => addr.equals(ctx.oracle) || Boolean(ctx.house?.has(addr.toBase58())),
+  );
+}
+
 export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<SettlementDecision | null> {
   const nowSec = Math.floor((ctx.now?.() ?? Date.now()) / 1000);
+
+  // A Polymarket end date is when trading stops, not when UMA resolves.
+  const pmRef = isPolymarketUrl(claim.resolutionUrl) ? polymarketRefFor(claim.resolutionUrl) : null;
+  if (pmRef) {
+    const pm = polymarketOutcome(claim, await fetchPolymarketMarket(pmRef), nowSec);
+    if (pm.kind === "defer") {
+      console.log(`[settle] Claim #${claim.id}: Polymarket not resolved by UMA yet (or Gamma unreadable), deferring.`);
+      return null;
+    }
+    if (pm.kind === "settle") {
+      console.log(`[settle] Claim #${claim.id}: ${pm.detail} → ${pm.side}`);
+      return resolverDecision(claim, pm.side, { kind: "polymarket", url: gammaQueryUrl(pmRef) }, pm.detail, null);
+    }
+    if (pm.kind === "refund") {
+      return decisionFor(claim, { verdict: "UNRESOLVABLE", confidence: 0, explanation: pm.detail }, { adjustments: [pm.detail] });
+    }
+    if (pm.detail) console.warn(`[settle] Claim #${claim.id}: no deterministic Polymarket settlement (${pm.detail}), normal path.`);
+  }
+
   const evidence = await fetchEvidence(claim.resolutionUrl);
   console.log(`[settle] Evidence fetcher: ${evidence.fetcher}`);
 
-  // Sports close betting at kickoff; a Polymarket end date is when trading
-  // stops, not when UMA resolves. Both wait for a final result, bounded.
-  const graceSecs =
-    claim.category.toLowerCase() === "sports" ? SPORTS_SETTLE_GRACE_SECS
-    : isPolymarketUrl(claim.resolutionUrl) ? POLYMARKET_SETTLE_GRACE_SECS
-    : 0;
-  if (graceSecs > 0 && nowSec <= claim.deadline + graceSecs && evidence.fetcher !== "none") {
+  // Sports close betting at kickoff: wait for a final result, bounded.
+  if (claim.category.toLowerCase() === "sports" && nowSec <= claim.deadline + SPORTS_SETTLE_GRACE_SECS && evidence.fetcher !== "none") {
     if (!(await isEventFinal(claim, evidence.text))) {
       console.log(`[settle] Claim #${claim.id}: outcome not final yet, deferring.`);
       return null;
     }
   }
 
-  const spec = resolverSpecFor({ resolutionUrl: claim.resolutionUrl });
-  const prices = await deadlinePrices(claim, spec?.kind === "price" ? spec.symbol : undefined, spec?.kind === "price" ? spec.threshold : undefined);
+  const rawSpec = resolverSpecFor({ resolutionUrl: claim.resolutionUrl });
+  const spec = effectiveResolverSpec({ question: claim.question, resolutionUrl: claim.resolutionUrl });
+  if (rawSpec && !spec) {
+    console.warn(
+      `[settle] Claim #${claim.id}: ignoring its ${rawSpec.kind} resolver spec ` +
+        (rawSpec.kind === "json" ? "(host not on the JSON resolver allowlist)" : "(does not match the question's symbol/threshold/direction)"),
+    );
+  }
+  const prices = await deadlinePrices(claim, spec);
+  if (prices) {
+    const gate = priceDataGate(prices.readings.length, claim.deadline, nowSec);
+    if (gate === "defer") {
+      console.log(`[settle] Claim #${claim.id}: ${prices.readings.length} deadline price reading(s) for ${prices.symbol}, deferring.`);
+      return null;
+    }
+    if (gate === "refund") {
+      const detail = `[NO DEADLINE PRICE, refunded] Fewer than two sources priced ${prices.symbol} at the deadline within ${PRICE_DEFER_SECS / 3600}h.`;
+      return decisionFor(claim, { verdict: "UNRESOLVABLE", confidence: 0, explanation: detail }, { adjustments: [detail] });
+    }
+  }
   const hasPrices = (prices?.readings.length ?? 0) > 0;
   const evidenceText = prices && hasPrices ? `${evidence.text}\n\n${renderPrices(claim, prices)}` : evidence.text;
 
-  const structured = await tryStructuredResolver(claim, prices);
+  const structured = await tryStructuredResolver(claim, spec, prices);
   if (structured) return structured;
 
   // No evidence: a model answering from memory is not a settlement. Wait out
@@ -393,16 +550,16 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
   let verdict = tierVerdict(trusted);
   if (verdict.verdict !== trusted.verdict) adjustments.push(`confidence ${trusted.confidence} below ${CONFIDENCE_MED_MIN}: refunded`);
 
-  // The oracle judging a market it holds a position in settles FIRM verdicts only.
-  const oracleHasStake = claim.creator.equals(ctx.oracle) || claim.challengers.some((c) => c.addr.equals(ctx.oracle));
-  if (oracleHasStake && verdict.confidence < CONFIDENCE_HIGH_MIN && verdict.verdict !== "UNRESOLVABLE") {
+  // The house judging a market it holds a position in (oracle, market creator
+  // or a council persona) settles FIRM verdicts only.
+  if (houseHoldsPosition(claim, ctx) && verdict.confidence < CONFIDENCE_HIGH_MIN && verdict.verdict !== "UNRESOLVABLE") {
     verdict = {
       verdict: "UNRESOLVABLE",
       confidence: verdict.confidence,
-      explanation: `[ORACLE HOLDS A POSITION, refunded below ${CONFIDENCE_HIGH_MIN}%] ${verdict.explanation}`.slice(0, 500),
+      explanation: `[HOUSE HOLDS A POSITION, refunded below ${CONFIDENCE_HIGH_MIN}%] ${verdict.explanation}`.slice(0, 500),
       model: verdict.model,
     };
-    adjustments.push(`oracle holds a position and confidence is below ${CONFIDENCE_HIGH_MIN}: refunded`);
+    adjustments.push(`house holds a position and confidence is below ${CONFIDENCE_HIGH_MIN}: refunded`);
   }
 
   console.log(`[settle] Decided by: ${rawVerdict.model ?? "unknown"} → ${verdict.verdict} (${verdict.confidence}%)`);

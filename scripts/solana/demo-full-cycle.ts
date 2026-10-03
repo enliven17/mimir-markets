@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { MimirSolanaClient } from "../../lib/solana/client";
 import { derivePersonaKeypair, loadAgentKeypair } from "../../lib/solana/keypair";
 import { SIDE_CHALLENGERS, STATE_LABELS, fromUsdcUnits, toUsdcUnits } from "../../lib/solana/config";
+import { requireDevnetOrFlag } from "./guards";
 import { ensureSol, explorer, nowSec, sendUsdc, sleep, usdcBalance, waitUntil, withShortWindows } from "./shared";
 
 const DEMO_DISPUTE_WINDOW = 30;
@@ -28,8 +29,9 @@ function log(step: string, msg: string) {
 }
 
 async function main() {
+  requireDevnetOrFlag("demo-full-cycle");
   const adminKp = loadAgentKeypair(); // admin = oracle = creator (demo)
-  const challengerKp = derivePersonaKeypair(adminKp, "demo-challenger");
+  const challengerKp = derivePersonaKeypair(adminKp, "demo-challenger", { seed: null, mainnet: false });
   const oracle = new MimirSolanaClient(adminKp);
   const challenger = new MimirSolanaClient(challengerKp);
   const conn = oracle.baseConnection;

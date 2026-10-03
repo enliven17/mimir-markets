@@ -12,6 +12,7 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { formatUsdc } from "@/lib/money";
 import type { CopyPermissionView } from "@/lib/copy-client";
 import { COPY_CATEGORIES } from "@/lib/copy-form";
+import { explorerUrl } from "@/lib/solana/config";
 
 type PermissionStatus = "active" | "expired" | "revoked";
 
@@ -26,7 +27,7 @@ const STATUS_TONE: Record<PermissionStatus, "live" | "neutral" | "danger"> = {
   revoked: "danger",
 };
 
-const txUrl = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+const txUrl = (sig: string) => explorerUrl("tx", sig);
 
 interface CopyPermissionCardProps {
   permission: CopyPermissionView;

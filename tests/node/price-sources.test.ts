@@ -37,3 +37,36 @@ test("chainlink return values decode without an EVM library", async () => {
   assert.equal(toSigned((1n << 256n) - 5n), -5n);
   assert.equal(toSigned(42n), 42n);
 });
+
+test("settlement readings must sit within the deadline skew", async () => {
+  const { readingsAt, MAX_DEADLINE_SKEW_MS } = await import("../../lib/server/price-sources");
+  assert.equal(MAX_DEADLINE_SKEW_MS, 60_000);
+  const at = 1_800_000_000_000;
+  const r = (dt: number) => ({ source: "coingecko" as const, priceUsd: 1, at: at + dt });
+  assert.deepEqual(readingsAt([r(0), r(59_000), r(-60_000), r(61_000), r(-5 * 60_000), { ...r(0), at: NaN }], at).map((x) => x.at - at), [0, 59_000, -60_000]);
+});
+
+test("each source keeps its own deadline skew: interval history and Chainlink rounds survive, stale live quotes do not", async () => {
+  const { readingsAt, coingeckoHistorySkewMs } = await import("../../lib/server/price-sources");
+  const at = 10_000_000_000;
+  assert.equal(coingeckoHistorySkewMs(at, at + 3600_000), 150_000);
+  assert.equal(coingeckoHistorySkewMs(at, at + 3 * 86_400_000), 1_800_000);
+  const kept = readingsAt(
+    [
+      { source: "coingecko", priceUsd: 1, at: at - 140_000, maxSkewMs: 150_000 },
+      { source: "coinmarketcap", priceUsd: 1, at: at + 160_000, maxSkewMs: 150_000 },
+      { source: "chainlink", priceUsd: 1, at: at - 3_000_000, maxSkewMs: 3_600_000 },
+      { source: "flashtrade", priceUsd: 1, at: at - 90_000 },
+    ],
+    at,
+  );
+  assert.deepEqual(kept.map((r) => r.source), ["coingecko", "chainlink"]);
+});
+
+test("a keyed NEXT_PUBLIC RPC is refused on mainnet unless declared origin-locked", async () => {
+  const { assertPublicRpcUrl } = await import("../../lib/solana/config");
+  assert.throws(() => assertPublicRpcUrl("X", "https://mainnet.helius-rpc.com/?api-key=abc", true, false), /key or query/);
+  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://mainnet.helius-rpc.com/?api-key=abc", true, true));
+  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://api.mainnet-beta.solana.com", true, false));
+  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://x/?api-key=abc", false, false), "devnet untouched");
+});
