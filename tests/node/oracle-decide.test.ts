@@ -185,3 +185,18 @@ test("a price claim with fewer than two deadline readings defers, then refunds; 
   assert.equal(priceDataGate(0, deadline, deadline + PRICE_DEFER_SECS), "defer");
   assert.equal(priceDataGate(1, deadline, deadline + PRICE_DEFER_SECS + 1), "refund");
 });
+
+test("an asset only CoinGecko prices historically settles on one deadline reading; majors and DEX tokens need two", async () => {
+  const { priceDataGate } = await import("../../agents/oracle/decide");
+  const { deadlineReadingsRequired } = await import("../../lib/server/price-sources");
+  const prev = process.env.CMC_API_KEY;
+  delete process.env.CMC_API_KEY;
+  try {
+    assert.equal(deadlineReadingsRequired("XRP"), 1, "CoinGecko only");
+    assert.equal(deadlineReadingsRequired("BTC"), 2, "CoinGecko + Chainlink");
+    assert.equal(deadlineReadingsRequired("ANSEM"), 2, "DEX token: never one number");
+    assert.equal(priceDataGate(1, 1000, 1010, 1), "ok");
+  } finally {
+    if (prev !== undefined) process.env.CMC_API_KEY = prev;
+  }
+});

@@ -70,7 +70,8 @@ export interface MimirAgentClientOptions {
   /**
    * The agent's registered payout wallet, when it earns the agent fee
    * (fee_earner). Prepared transactions may name only it (or the operator,
-   * or nobody) as the position's agent.
+   * or nobody) as the position's agent. Unset: read once from the API
+   * (listEarnings); pin it here so a compromised server cannot redirect fees.
    */
   agentPayout?: PublicKey | string;
   fetchImpl?: typeof fetch;
@@ -173,7 +174,7 @@ export class MimirAgentClient {
   private readonly programId: PublicKey;
   private readonly usdcMint: PublicKey;
   private readonly maxPriorityMicroLamports?: number;
-  private readonly agentPayout?: PublicKey;
+  private agentPayout?: PublicKey;
   private readonly fetchImpl: typeof fetch;
   private readonly connections = new Map<string, Connection>();
 
@@ -284,6 +285,10 @@ export class MimirAgentClient {
     if (!this.operator) throw new Error("no operator keypair to sign with");
     if (prepared.layer !== "base" && prepared.layer !== "er") throw new Error("refusing to sign: unknown layer");
     const tx = Transaction.from(Buffer.from(prepared.transaction, "base64"));
+    if (!this.agentPayout) {
+      const earnings = (await this.listEarnings().catch(() => null)) as { payoutWallet?: string } | null;
+      if (earnings?.payoutWallet) this.agentPayout = new PublicKey(earnings.payoutWallet);
+    }
     verifyPreparedTransaction(tx, {
       programId: this.programId,
       operator: this.operator.publicKey,
