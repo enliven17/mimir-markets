@@ -205,7 +205,7 @@ export function verifyHedgeTx(
     if (flash.has(id)) flashCount++;
     if (id === COMPUTE_BUDGET_ID) {
       if (data[0] === 3) {
-        if (data.length < 9 || data.readBigUInt64LE(1) > BigInt(maxPriorityMicroLamports)) {
+        if (data.length < 9 || new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(1, true) > BigInt(maxPriorityMicroLamports)) {
           return { ok: false, reason: "priority fee above the configured maximum" };
         }
       } else if (data[0] !== 2) {

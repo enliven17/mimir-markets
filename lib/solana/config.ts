@@ -131,8 +131,10 @@ export function balancePda(user: PublicKey): PublicKey {
 }
 
 export function claimPda(claimId: bigint | number): PublicKey {
-  const idBuf = Buffer.alloc(8);
-  idBuf.writeBigUInt64LE(BigInt(claimId));
+  // DataView, not Buffer#writeBigUInt64LE: wallet in-app browsers can swap
+  // window.Buffer for an old polyfill without the BigInt methods.
+  const idBuf = new Uint8Array(8);
+  new DataView(idBuf.buffer).setBigUint64(0, BigInt(claimId), true);
   return PublicKey.findProgramAddressSync(
     [Buffer.from("claim"), idBuf],
     MIMIR_PROGRAM_ID
