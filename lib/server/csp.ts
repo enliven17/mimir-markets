@@ -28,5 +28,7 @@ export function buildReportOnlyCsp(nonce: string, isDev: boolean): string {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
+    // Without a report-uri a report-only policy reports nothing (WebKit warns).
+    "report-uri /api/csp-report",
   ].join("; ");
 }
