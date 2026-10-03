@@ -18,7 +18,7 @@ import { getPersonaBySlug } from "@/agents/council/personas";
 import { agentChatTarget } from "@/lib/agents/store";
 import { isDbEnabled } from "@/lib/server/db";
 import { relayToAgent } from "@/lib/server/terminal-relay";
-import { allowanceOf, confirmCharge, releaseCharge, reserveCharge, sessionWallet, terminalDelegate } from "@/lib/server/terminal-pay";
+import { confirmCharge, readAllowance, releaseCharge, reserveCharge, sessionWallet, terminalDelegate } from "@/lib/server/terminal-pay";
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
 import { callLLM } from "@/lib/llm";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -88,11 +88,20 @@ const PAY_REASONS: Record<string, string> = {
   no_limit: "no spending limit yet: run limit 5 (one signature, the USDC stays in your wallet)",
   limit_too_low: "your spending limit is used up: run limit <usdc> to raise it",
   balance_too_low: "not enough USDC in your wallet for this message",
+  settling: "your earlier messages are still settling: try again in a minute",
 };
 
 async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>, wallet: string | null): Promise<Response> {
   const target = isDbEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
   if (!target) return fail(404, `no agent called ${ask.agent} takes questions. Type agents for the list.`);
+
+  // The price must be the one the user saw: an owner raising it (or turning a free agent paid) asks again.
+  if (target.priceUnits > ask.maxPriceUnits) {
+    return NextResponse.json(
+      { success: false, error: `${ask.agent} charges ${target.priceUnits / 1e6} USDC per message`, code: "price", priceUsdc: target.priceUnits / 1e6 },
+      { status: 409 },
+    );
+  }
 
   // A paid agent: reserve the charge before relaying, release it if no answer comes.
   let chargeId: number | null = null;
@@ -100,7 +109,7 @@ async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>
     const delegate = terminalDelegate();
     if (!delegate) return fail(503, "paid agents are not switched on yet");
     if (!wallet) return NextResponse.json({ success: false, error: "sign in to the terminal to message paid agents", code: "session" }, { status: 401 });
-    const allowance = await allowanceOf(wallet).catch(() => null);
+    const allowance = await readAllowance(wallet).catch(() => null);
     if (!allowance) return fail(503, "could not read your spending limit right now");
     const reserved = await reserveCharge({
       wallet, agentId: ask.agent, payoutWallet: target.payoutWallet, priceUnits: BigInt(target.priceUnits), allowance, delegate,

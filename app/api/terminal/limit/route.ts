@@ -21,7 +21,12 @@ export async function GET(req: Request) {
   if (!wallet) return NextResponse.json({ success: false, error: "wallet must be a Solana address" }, { status: 400 });
   const delegate = terminalDelegate();
   if (!delegate) return NextResponse.json({ success: false, error: "paid agents are not switched on yet" }, { status: 503 });
-  const [allowance, owed] = await Promise.all([allowanceOf(wallet), isDbEnabled() ? owedUnits(wallet) : Promise.resolve(0n)]);
+  let allowance, owed;
+  try {
+    [allowance, owed] = await Promise.all([allowanceOf(wallet), isDbEnabled() ? owedUnits(wallet) : Promise.resolve(0n)]);
+  } catch {
+    return NextResponse.json({ success: false, error: "could not read the limit right now" }, { status: 503 });
+  }
   const approved = allowance.delegate === delegate;
   const delegated = approved ? allowance.delegatedUnits : 0n;
   const room = delegated < allowance.balanceUnits ? delegated : allowance.balanceUnits;

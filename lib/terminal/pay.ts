@@ -17,6 +17,12 @@ export const TERMINAL_WALLET_HEADER = "x-terminal-wallet";
 export const TERMINAL_SESSION_HEADER = "x-terminal-session";
 /** The spending limit a user is offered by default (USDC). */
 export const DEFAULT_LIMIT_USDC = 5;
+/**
+ * Most a wallet may owe before it settles (1 USDC). Charges move after the
+ * answer, so a user who burns a limit and revokes it before settlement leaves
+ * agents unpaid: this caps how much.
+ */
+export const MAX_UNPAID_UNITS = 1_000_000n;
 
 /** Split a charge: Mimir's fee rounds down, so the agent never gets less than its share. */
 export function splitCharge(totalUnits: bigint, feeBps = TERMINAL_FEE_BPS): { agentUnits: bigint; feeUnits: bigint } {
@@ -55,9 +61,11 @@ export function canAfford(args: {
   balanceUnits: bigint;
   owedUnits: bigint;
   priceUnits: bigint;
-}): "ok" | "no_limit" | "limit_too_low" | "balance_too_low" {
+  maxUnpaidUnits?: bigint;
+}): "ok" | "no_limit" | "limit_too_low" | "balance_too_low" | "settling" {
   const need = args.owedUnits + args.priceUnits;
   if (args.delegate !== args.expectedDelegate || args.delegatedUnits <= 0n) return "no_limit";
+  if (args.owedUnits > 0n && need > (args.maxUnpaidUnits ?? MAX_UNPAID_UNITS)) return "settling";
   if (args.delegatedUnits < need) return "limit_too_low";
   if (args.balanceUnits < need) return "balance_too_low";
   return "ok";

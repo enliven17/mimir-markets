@@ -301,6 +301,8 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS terminal_charges_wallet_idx ON terminal_charges (wallet, status)`,
   `CREATE INDEX IF NOT EXISTS terminal_charges_status_idx ON terminal_charges (status, updated_at)`,
+  // The block height after which a settling transaction can no longer land: only then is it re-queued.
+  `ALTER TABLE terminal_charges ADD COLUMN IF NOT EXISTS valid_until_height BIGINT`,
   // Per-chat alert switches (/alerts). new_markets above is the first of them.
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_results  BOOLEAN NOT NULL DEFAULT TRUE`,
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_verdicts BOOLEAN NOT NULL DEFAULT TRUE`,

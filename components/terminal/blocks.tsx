@@ -363,7 +363,7 @@ function useTyped(text: string | null, cps = 110): [string, () => void] {
 /** How a paid request proves its wallet (components/terminal/pay.tsx useTerminalSession). */
 export interface SessionAuth {
   headers: () => Record<string, string>;
-  ensure: () => Promise<Record<string, string>>;
+  ensure: (fresh?: boolean) => Promise<Record<string, string>>;
 }
 
 export function AgentReply({
@@ -373,12 +373,15 @@ export function AgentReply({
   focus,
   auth,
   run,
+  maxPriceUsdc,
   onReply,
 }: {
   agent: string;
   message: string;
   history: { role: "user" | "agent"; text: string }[];
   focus: Focus | null;
+  /** The price shown to the user for this agent (0 = free); the server refuses to charge more. */
+  maxPriceUsdc: number;
   auth: SessionAuth;
   run: Run;
   onReply: (reply: string) => void;
@@ -395,16 +398,18 @@ export function AgentReply({
       fetch("/api/terminal/ask", {
         method: "POST",
         headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({ agent, message, history, context: { claimId: focus?.claimId, mint: focus?.mint } }),
+        body: JSON.stringify({ agent, message, history, maxPriceUsdc, context: { claimId: focus?.claimId, mint: focus?.mint } }),
       });
     (async () => {
       try {
-        let res = await send(auth.headers());
+        const stored = auth.headers();
+        let res = await send(stored);
         let body = (await res.json().catch(() => ({}))) as { data?: { reply?: string; chargedUsdc?: number }; error?: string; code?: string };
         // A paid agent and no session yet: one signature (no transaction), then the same message again.
         if (res.status === 401 && body.code === "session") {
           setSigning(true);
-          const headers = await auth.ensure();
+          // A stored session the server refused is replaced, not resent.
+          const headers = await auth.ensure(Object.keys(stored).length > 0);
           if (!alive) return;
           setSigning(false);
           res = await send(headers);
@@ -412,7 +417,13 @@ export function AgentReply({
         }
         if (!alive) return;
         if (!res.ok || !body.data?.reply) {
-          const fix = res.status === 402 && (body.code === "no_limit" || body.code === "limit_too_low") ? "limit 5" : undefined;
+          // A price the user has not seen: show it and let them accept it with use <agent>.
+          const fix =
+            res.status === 409 && body.code === "price"
+              ? `use ${agent}`
+              : res.status === 402 && (body.code === "no_limit" || body.code === "limit_too_low")
+                ? "limit 5"
+                : undefined;
           setError({ text: res.status === 429 ? "slow down a little: too many questions this minute" : (body.error ?? "no answer"), fix });
           return;
         }

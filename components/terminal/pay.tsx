@@ -38,7 +38,7 @@ function readSession(wallet: string): string | null {
 export function useTerminalSession(): {
   wallet: string | null;
   headers: () => Record<string, string>;
-  ensure: () => Promise<Record<string, string>>;
+  ensure: (fresh?: boolean) => Promise<Record<string, string>>;
 } {
   const { publicKey } = useMimirWallet();
   const sign = useSignText();
@@ -50,9 +50,10 @@ export function useTerminalSession(): {
     return header ? { [TERMINAL_WALLET_HEADER]: wallet, [TERMINAL_SESSION_HEADER]: header } : {};
   }, [wallet]);
 
-  const ensure = useCallback(async () => {
+  /** `fresh`: the server refused the stored session (clock skew, expiry): sign a new one. */
+  const ensure = useCallback(async (fresh = false) => {
     if (!wallet) throw new Error("connect a wallet first");
-    const existing = headers();
+    const existing = fresh ? {} : headers();
     if (existing[TERMINAL_SESSION_HEADER]) return existing;
     if (!sign) throw new Error("this wallet cannot sign messages");
     const signedAt = Date.now();

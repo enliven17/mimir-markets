@@ -4,7 +4,7 @@
  * The settlement worker (agents/terminal/settle.ts) moves the money.
  */
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAccount, getAssociatedTokenAddressSync, TokenAccountNotFoundError } from "@solana/spl-token";
 
 import { normalizeAddress, verifyAgentSignature } from "../agents/signature";
 import { SOLANA_RPC, USDC_MINT } from "../solana/config";
@@ -40,20 +40,28 @@ export interface Allowance {
 
 let connection: Connection | null = null;
 
-/** The wallet's USDC account as the chain sees it: who may spend from it, how much, and the balance. */
-async function readAllowance(wallet: string): Promise<Allowance> {
+/**
+ * The wallet's USDC account as the chain sees it right now: who may spend
+ * from it, how much, and the balance. No account yet = nothing approved; an
+ * RPC failure throws (it must not read as "no limit").
+ */
+export async function readAllowance(wallet: string): Promise<Allowance> {
   connection ??= new Connection(SOLANA_RPC, "confirmed");
   const ata = getAssociatedTokenAddressSync(USDC_MINT, new PublicKey(wallet), true);
   try {
     const acc = await getAccount(connection, ata, "confirmed");
     return { delegate: acc.delegate?.toBase58() ?? null, delegatedUnits: acc.delegatedAmount, balanceUnits: acc.amount };
-  } catch {
-    // No USDC account yet: nothing approved, nothing to spend.
-    return { delegate: null, delegatedUnits: 0n, balanceUnits: 0n };
+  } catch (err) {
+    if (err instanceof TokenAccountNotFoundError) return { delegate: null, delegatedUnits: 0n, balanceUnits: 0n };
+    throw err;
   }
 }
 
-/** A few seconds of caching: a burst of messages costs one RPC read, the next limit change shows up fast. */
+/**
+ * Cached for display only (GET /api/terminal/limit). Reserving a charge reads
+ * the chain fresh: a settlement just spent part of the limit, and a stale
+ * read would let charges past what is left.
+ */
 export const allowanceOf = cachedFor(readAllowance, 8_000, 2_000);
 
 /** What a wallet already owes: every charge not yet paid (reserved, pending, settling, failed). */

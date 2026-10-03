@@ -54,6 +54,8 @@ export default function TerminalClient() {
   sessionRef.current = session;
   /** Price per message of the agent in use (USDC), when it charges. */
   const [price, setPrice] = useState<number | null>(null);
+  const priceRef = useRef<number | null>(null);
+  priceRef.current = price;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [agent, setAgent] = useState<string | null>(null);
@@ -139,7 +141,8 @@ export default function TerminalClient() {
               message={cmd.text}
               history={history}
               focus={focusRef.current}
-              auth={{ headers: () => sessionRef.current.headers(), ensure: () => sessionRef.current.ensure() }}
+              auth={{ headers: () => sessionRef.current.headers(), ensure: (fresh) => sessionRef.current.ensure(fresh) }}
+              maxPriceUsdc={cmd.agent === agentRef.current ? (priceRef.current ?? 0) : 0}
               run={run}
               onReply={(reply) =>
                 threads.current.set(cmd.agent, [...thread, { role: "user" as const, text: cmd.text }, { role: "agent" as const, text: reply }].slice(-12))

@@ -24,6 +24,8 @@ export interface AskRequest {
   message: string;
   history: ChatTurn[];
   context: ChatContext;
+  /** The most the user agreed to pay for this message (USDC base units): the price they were shown. */
+  maxPriceUnits: number;
 }
 
 const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -46,7 +48,9 @@ export function parseAskRequest(body: unknown): AskRequest | string {
   const context: ChatContext = {};
   if (Number.isSafeInteger(ctx.claimId) && (ctx.claimId as number) > 0) context.claimId = ctx.claimId as number;
   if (typeof ctx.mint === "string" && MINT.test(ctx.mint)) context.mint = ctx.mint;
-  return { agent, message, history, context };
+  const max = Number(b.maxPriceUsdc ?? 0);
+  const maxPriceUnits = Number.isFinite(max) && max > 0 ? Math.min(Math.round(max * 1e6), 1_000_000) : 0;
+  return { agent, message, history, context, maxPriceUnits };
 }
 
 /** The prompt for a house persona answering in the terminal. Everything the user or a market supplied is fenced. */

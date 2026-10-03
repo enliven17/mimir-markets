@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Keypair } from "@solana/web3.js";
 
 import { canAfford, parseSessionHeader, splitCharge, terminalSessionMessage, TERMINAL_SESSION_TTL_MS } from "../../lib/terminal/pay";
-import { groupCharges } from "../../agents/terminal/settle";
+import { fitToRoom, groupCharges, MAX_WAIT_MS, MIN_SETTLE_UNITS, readyToSettle } from "../../agents/terminal/settle";
 import { signAgentMessage } from "../../lib/agents/signature";
 
 test("a charge splits 99.5% / 0.5%, the fee rounding down so the agent never loses a unit", () => {
@@ -22,8 +22,8 @@ test("a wallet can pay only within a limit approved to the terminal and its bala
   assert.equal(canAfford(base), "ok");
   assert.equal(canAfford({ ...base, delegate: "OTHER" }), "no_limit", "a limit approved to someone else is not ours");
   assert.equal(canAfford({ ...base, delegate: null, delegatedUnits: 0n }), "no_limit");
-  assert.equal(canAfford({ ...base, owedUnits: 990_000n }), "limit_too_low", "unpaid charges eat the limit");
-  assert.equal(canAfford({ ...base, owedUnits: 980_000n }), "ok", "exactly at the limit is fine");
+  assert.equal(canAfford({ ...base, delegatedUnits: 100_000n, owedUnits: 90_000n }), "limit_too_low", "unpaid charges eat the limit");
+  assert.equal(canAfford({ ...base, delegatedUnits: 100_000n, owedUnits: 80_000n }), "ok", "exactly at the limit is fine");
   assert.equal(canAfford({ ...base, balanceUnits: 10_000n }), "balance_too_low");
 });
 
@@ -40,21 +40,36 @@ test("a terminal session is the wallet's signature over a dated message, and it 
 });
 
 test("the worker batches charges per payer and payee, largest batch first", () => {
-  const groups = groupCharges([
-    { id: 1, wallet: "U1", payout_wallet: "A", amount_units: "20000" },
-    { id: 2, wallet: "U1", payout_wallet: "A", amount_units: "20000" },
-    { id: 3, wallet: "U1", payout_wallet: "B", amount_units: "100000" },
-    { id: 4, wallet: "U2", payout_wallet: "A", amount_units: "1000" },
-  ]);
+  const row = (id: number, wallet: string, payout: string, units: string, status = "pending", at = 1000) =>
+    ({ id, wallet, payout_wallet: payout, amount_units: units, status, created_at: String(at) });
+  const groups = groupCharges([row(1, "U1", "A", "20000"), row(2, "U1", "A", "20000", "failed", 500), row(3, "U1", "B", "100000"), row(4, "U2", "A", "1000")]);
   assert.deepEqual(
-    groups.map((g) => [g.wallet, g.payoutWallet, g.ids, g.totalUnits]),
+    groups.map((g) => [g.wallet, g.payoutWallet, g.rows.map((r) => r.id), g.totalUnits, g.oldestMs]),
     [
-      ["U1", "B", [3], 100_000n],
-      ["U1", "A", [1, 2], 40_000n],
-      ["U2", "A", [4], 1_000n],
+      ["U1", "B", [3], 100_000n, 1000],
+      ["U1", "A", [1, 2], 40_000n, 500],
+      ["U2", "A", [4], 1_000n, 1000],
     ],
   );
-  assert.equal(groupCharges([{ id: 1, wallet: "U", payout_wallet: "A", amount_units: "1" }], 0).length, 0);
+  assert.equal(groupCharges([row(1, "U", "A", "1")], 0).length, 0);
+});
+
+test("a batch settles only what the limit covers now, and small batches wait until they are worth a fee", () => {
+  const rows = [{ id: 1, units: 20_000n }, { id: 2, units: 20_000n }, { id: 3, units: 20_000n }];
+  assert.deepEqual(fitToRoom(rows, 45_000n).map((r) => r.id), [1, 2], "the oldest that fit, in order");
+  assert.deepEqual(fitToRoom(rows, 10_000n), []);
+  assert.deepEqual(fitToRoom(rows, 1_000_000n).map((r) => r.id), [1, 2, 3]);
+  const now = 10_000_000;
+  assert.equal(readyToSettle({ totalUnits: MIN_SETTLE_UNITS, oldestMs: now }, now), true);
+  assert.equal(readyToSettle({ totalUnits: 1_000n, oldestMs: now - 60_000 }, now), false, "a 0.001 USDC charge waits");
+  assert.equal(readyToSettle({ totalUnits: 1_000n, oldestMs: now - MAX_WAIT_MS }, now), true, "but not forever");
+});
+
+test("a wallet cannot owe more than the unpaid cap before it settles", () => {
+  const base = { delegate: "D", expectedDelegate: "D", delegatedUnits: 50_000_000n, balanceUnits: 50_000_000n, priceUnits: 20_000n };
+  assert.equal(canAfford({ ...base, owedUnits: 990_000n }), "settling");
+  assert.equal(canAfford({ ...base, owedUnits: 900_000n }), "ok");
+  assert.equal(canAfford({ ...base, owedUnits: 0n, priceUnits: 1_000_000n }), "ok", "one message at the max price always fits");
 });
 
 test("a charge is reserved under a per-wallet lock and refused when the limit is used up", async () => {
