@@ -17,6 +17,9 @@ import { MimirSolanaClient } from "../../lib/solana/client";
 import { isIndexEnabled, upsertClaim, type SolanaClaimRow } from "../../lib/server/solana-index";
 import { claimEvents, type NotificationEvent } from "../../lib/notifications";
 import { loadClaimSnapshots, recordNotifications } from "../../lib/server/notifications";
+import { broadcastNewMarkets } from "../../lib/server/telegram";
+import { telegramToken } from "../../lib/telegram";
+import { isLiveState } from "../../lib/solana/config";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 
 /** PublicKey.default (all zeros) means "none" on-chain; store it as ''. */
@@ -47,6 +50,7 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
     return null;
   });
   const events: NotificationEvent[] = [];
+  const newMarkets: Array<{ id: number; question: string; creatorStake: string; deadline: number }> = [];
 
   for (const id of allIds) {
     const delegated = delegatedMap.get(id) ?? false;
@@ -100,6 +104,11 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
     };
     await upsertClaim(row);
     if (previous) events.push(...claimEvents(previous.get(row.id) ?? null, row));
+    // A claim the index has never seen, on an index that already had claims
+    // (a fresh index must not announce the whole history), still open.
+    if (previous && previous.size > 0 && !previous.has(row.id) && isLiveState(row.state)) {
+      newMarkets.push({ id: row.id, question: row.question, creatorStake: row.creator_stake, deadline: row.deadline });
+    }
     written++;
     if (CLAIM_FETCH_DELAY_MS > 0) await new Promise((r) => setTimeout(r, CLAIM_FETCH_DELAY_MS));
   }
@@ -108,6 +117,9 @@ async function cycle(client: MimirSolanaClient): Promise<void> {
     console.warn("[indexer] notifications failed:", String(err).slice(0, 120));
     return 0;
   });
+  if (telegramToken()) {
+    await broadcastNewMarkets(newMarkets).catch((err) => console.warn("[indexer] telegram broadcast failed:", String(err).slice(0, 120)));
+  }
   console.log(`[indexer] ${new Date().toISOString()}: synced ${written}/${cfg.claimCount} claims, ${fresh} new notifications`);
 }
 
