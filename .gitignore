@@ -95,3 +95,8 @@ onchain/target/
 # Playwright
 /test-results/
 /playwright-report/
+
+# Rendered brand videos stay local (sources live in brand/*-video/). launch.mp4 stays
+# tracked: the Telegram bot uploads it on /start from the deployed tree.
+brand/*.mp4
+!brand/launch.mp4
