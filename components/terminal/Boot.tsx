@@ -6,7 +6,7 @@
  *   field      the site's ASCII wave floods out from the centre, a scan bar sweeps down
  *   mark       the chevron steps in, the M rises, the cursor lands with an RGB glitch and a jolt
  *   title      MIMIR TERMINAL decodes out of noise, a boot log types out
- *   power-off  the screen collapses back into a line and the terminal is there
+ *   dissolve   the screen fades, softens and drifts forward; the terminal shows through
  * About 2.8 s. Any key or tap skips it; once per tab session; never with
  * reduced motion. One <pre> and requestAnimationFrame, no canvas.
  */
@@ -25,8 +25,8 @@ const MARK = 420; // chevron starts stepping in
 const M_UP = [620, 920] as const; // the M rises
 const LAND = 940; // the cursor lands: glitch
 const TITLE_AT = 980;
-const OFF = 2550; // power-off starts
-const END = 2800;
+const OFF = 2400; // the dissolve starts
+const END = 2950;
 
 const LOG: [number, string][] = [
   [1180, "mimir terminal · v1 beta"],
@@ -151,16 +151,18 @@ export default function Boot({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // CRT: on is a flicker up out of black at full size; off collapses into a line.
+  // On: a flicker up out of black at full size. Off: the whole boot dissolves
+  // (fade, a little blur, a slow push forward) so the terminal shows through.
   const on = easeOut(prog(t, 0, ON));
-  const off = prog(t, OFF, END - 40);
-  const sy = Math.max(0.004, 1 - off * off);
-  const sx = off > 0.6 ? 1 - (off - 0.6) * 2.4 : 1;
+  const off = prog(t, OFF, END);
+  const fade = off * off * (3 - 2 * off); // smoothstep
   const screen: CSSProperties = {
-    transform: off > 0 ? `scale(${sx}, ${sy})` : undefined,
-    filter: `brightness(${1 + off * 2.4})`,
     opacity: t < ON ? on * (0.7 + hash(Math.floor(t / 30)) * 0.3) : 1,
   };
+  const root: CSSProperties | undefined =
+    off > 0
+      ? { opacity: 1 - fade, filter: `blur(${fade * 8}px) brightness(${1 + fade * 0.5})`, transform: `scale(${1 + fade * 0.06})` }
+      : undefined;
 
   // The landing jolt: a short shake and an RGB split.
   const glitch = t >= LAND && t < LAND + 180;
@@ -169,7 +171,7 @@ export default function Boot({ onDone }: { onDone: () => void }) {
   const scanY = ((t - ON) / 1100) % 1;
 
   return (
-    <div aria-hidden className="absolute inset-0 z-30 overflow-hidden bg-black">
+    <div aria-hidden className="absolute inset-0 z-30 overflow-hidden bg-black will-change-[opacity,filter,transform]" style={root}>
       <div className="absolute inset-0 origin-center bg-ink-deep" style={screen}>
         <pre ref={preRef} className="pointer-events-none absolute inset-0 m-0 select-none font-mono text-[12px] leading-[16px] text-coral/25" />
         {/* the scan bar */}
