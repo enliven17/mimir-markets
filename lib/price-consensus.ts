@@ -13,13 +13,20 @@
  * everyone rather than picking a winner by coin flip.
  */
 
-export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "flashtrade" | "dexscreener" | "jupiter";
+export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "flashtrade" | "dexscreener" | "jupiter" | "pyth";
 
 export interface PriceReading {
   source: PriceSourceId;
   priceUsd: number;
   /** ms epoch of the quote, as the source reports it. */
   at: number;
+  /**
+   * How far from the deadline this source's reading may sit and still be the
+   * deadline price (lib/server/price-sources.ts): half the sampling interval
+   * for interval data, the feed heartbeat for Chainlink, seconds for Pyth.
+   * Unset: MAX_READING_AGE_MS.
+   */
+  maxSkewMs?: number;
 }
 
 export type ConsensusVerdict =
@@ -55,12 +62,19 @@ export const MAX_READING_AGE_MS = 15 * 60 * 1000;
 export const AGREEMENT_CONFIDENCE_BONUS = 8;
 
 function usable(reading: PriceReading, at: number): boolean {
+  const skew = Number.isFinite(reading.maxSkewMs) && (reading.maxSkewMs as number) > 0 ? (reading.maxSkewMs as number) : MAX_READING_AGE_MS;
   return (
     Number.isFinite(reading.priceUsd) &&
     reading.priceUsd > 0 &&
     Number.isFinite(reading.at) &&
-    Math.abs(at - reading.at) <= MAX_READING_AGE_MS
+    Number.isFinite(at) &&
+    Math.abs(at - reading.at) <= skew
   );
+}
+
+/** The readings that count as the price at `at`: positive, finite, within their source's skew. */
+export function freshReadings(readings: PriceReading[], at: number): PriceReading[] {
+  return readings.filter((r) => usable(r, at));
 }
 
 /**
@@ -73,7 +87,7 @@ export function crossCheckThreshold(
   threshold: number,
   at = Date.now(),
 ): ConsensusResult {
-  const fresh = readings.filter((r) => usable(r, at));
+  const fresh = freshReadings(readings, at);
 
   // One source can still settle a market; it just does not earn the bonus.
   if (fresh.length < 2 || !Number.isFinite(threshold) || threshold <= 0) {
@@ -209,7 +223,17 @@ const SYMBOL_PATTERNS: Array<{ symbol: string; pattern: RegExp }> = [
   { symbol: "LINK", pattern: /\b(link|chainlink)\b/i },
   { symbol: "MATIC", pattern: /\b(matic|polygon)\b/i },
   { symbol: "DOT", pattern: /\b(dot|polkadot)\b/i },
+  // DEX-priced (lib/server/dex-prices.ts): cross-checked, never settled by the structured resolver.
+  { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i },
 ];
+
+/**
+ * Numbers about an asset that are not its price. "Solana market cap above
+ * $100B" compared against the SOL price always reads "below": a free option
+ * for whoever took that side.
+ */
+const NOT_A_PRICE =
+  /(?:^|[^a-z0-9])(market\s*-?\s*cap(?:s|itali[sz]ations?)?|mkt\.?\s*-?\s*caps?|m\s*-?\s*caps?|fdvs?|f\.d\.v|fully[\s-]*diluted|valuations?|volumes?|vol\.|tvl|total value locked|supply|dominance|open interest|inflows?|outflows?|holdings?|treasury|revenues?|fees)(?=$|[^a-z0-9])/i;
 
 export function detectAssetSymbol(text: string): string | null {
   const matches = SYMBOL_PATTERNS.filter((s) => s.pattern.test(text));
@@ -220,13 +244,15 @@ export function detectAssetSymbol(text: string): string | null {
 /**
  * Is this a claim a price cross-check can speak to at all?
  *
- * One asset and exactly one threshold. Anything else (a range, a spread between
- * two coins, a non-price question) falls back to the normal single-source path.
+ * One asset and exactly one threshold, and the number is its price (not its
+ * market cap, volume, TVL...). Anything else (a range, a spread between two
+ * coins, a non-price question) falls back to the normal single-source path.
  */
 export function priceCheckTarget(
   question: string,
   settlementRule = "",
 ): { symbol: string; threshold: number } | null {
+  if (NOT_A_PRICE.test(question)) return null;
   const text = `${question} ${settlementRule}`;
   const symbol = detectAssetSymbol(text);
   if (!symbol) return null;

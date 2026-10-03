@@ -27,10 +27,11 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
-import { loadAgentKeypair, loadCreatorKeypair, derivePersonaKeypair } from "../../lib/solana/keypair";
+import { loadAgentKeypair, loadCreatorKeypair, loadPersonaKeypair } from "../../lib/solana/keypair";
 import { COUNCIL_PERSONAS } from "../../agents/council/personas";
 import { MimirSolanaClient } from "../../lib/solana/client";
 import { SOLANA_RPC, USDC_MINT, toUsdcUnits, fromUsdcUnits } from "../../lib/solana/config";
+import { requireDevnetOrFlag } from "./guards";
 
 const FUND = process.argv.includes("--fund");
 
@@ -79,6 +80,7 @@ async function ataBalance(c: Connection, owner: PublicKey): Promise<number> {
 }
 
 async function main() {
+  if (FUND) requireDevnetOrFlag("system-status --fund");
   const connection = new Connection(SOLANA_RPC, "confirmed");
   const admin = loadAgentKeypair();
   const creator = loadCreatorKeypair();
@@ -87,7 +89,8 @@ async function main() {
     { role: "creator (market-creator)", keypair: creator, targetSol: CREATOR_SOL, targetUsdc: CREATOR_USDC, erBettor: false },
     ...COUNCIL_PERSONAS.map((p) => ({
       role: `council ${p.emoji} ${p.slug}`,
-      keypair: derivePersonaKeypair(admin, p.slug),
+      // The same key the council worker signs with (COUNCIL_KEY_SEED, .keys files).
+      keypair: loadPersonaKeypair(admin, p.slug),
       targetSol: PERSONA_SOL,
       targetUsdc: PERSONA_USDC,
       erBettor: true,

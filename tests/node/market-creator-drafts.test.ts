@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { clampBytes, draftProblem, scoreDraft, toDeadline, type DraftClaim } from "../../agents/market-creator/draft";
+import { clampBytes, draftProblem, isMimirTokenDraft, scoreDraft, toDeadline, type DraftClaim } from "../../agents/market-creator/draft";
 import { cryptoDraft, skewedThreshold, thresholdProblem } from "../../agents/market-creator/crypto";
 import { parseScoreboard, sportsDraft, SPORTS_LEAGUES } from "../../agents/market-creator/sports";
 import { draftStockClaims, nextSessionClose } from "../../agents/market-creator/stocks";
@@ -137,6 +137,29 @@ test("draftProblem enforces the program's byte limits", () => {
   assert.match(draftProblem({ ...base, deadline: NOW_SEC }, NOW_SEC) ?? "", /too close/);
 });
 
+test("the house never drafts a claim on the $MIMIR token, on any cluster", () => {
+  const base: DraftClaim = {
+    question: "Will $SOL trade above $200 at the deadline?",
+    creatorPosition: "Yes",
+    counterPosition: "No",
+    category: "crypto",
+    resolutionUrl: "https://example.com/a",
+    settlementRule: "",
+    deadline: NOW_SEC + 3600,
+    source: "flash",
+    label: "x",
+  };
+  assert.equal(draftProblem(base, NOW_SEC), null);
+  assert.equal(isMimirTokenDraft({ ...base, question: "Will Mimir Markets ship v4 by Friday?" }), false, "the product name is fine");
+  assert.match(draftProblem({ ...base, question: "Will $MIMIR trade above $0.01 at the deadline?" }, NOW_SEC) ?? "", /MIMIR/);
+  assert.match(draftProblem({ ...base, creatorPosition: "Yes: $mimir pumps" }, NOW_SEC) ?? "", /MIMIR/);
+  assert.match(
+    draftProblem({ ...base, resolutionUrl: "https://api.dexscreener.com/x#mimir=price:MIMIR:gt:0.01" }, NOW_SEC) ?? "",
+    /MIMIR/,
+    "a price spec on the token, whatever the question says",
+  );
+});
+
 test("the source key keeps the query and drops the resolver fragment", () => {
   assert.equal(
     normalizeSourceKey("https://flashapi.trade/prices/BTC#mimir=price:BTC:gt:100"),
@@ -172,7 +195,7 @@ test("duplicates of joinable claims and within a run are dropped", () => {
   assert.match(drops[1], /same source as #7/);
 });
 
-test("inventory counts joinable claims from everyone and cancels only own empty expired ones", () => {
+test("inventory and dedupe count only the house's own joinable claims and cancel only own empty expired ones", () => {
   const me = "Me111111111111111111111111111111";
   const other = "Other1111111111111111111111111111";
   const claim = (id: number, over: Record<string, unknown>) =>
@@ -199,7 +222,8 @@ test("inventory counts joinable claims from everyone and cancels only own empty 
     me,
     NOW_SEC,
   );
-  assert.equal(inv.joinable, 2);
-  assert.deepEqual(inv.signatures.map((s) => s.label), ["#1", "#2"]);
+  // #2 is someone else's: it neither fills the cap nor blocks a house draft as a duplicate (audit P2-3).
+  assert.equal(inv.joinable, 1);
+  assert.deepEqual(inv.signatures.map((s) => s.label), ["#1"]);
   assert.deepEqual(inv.expiredEmpty, [3n]);
 });

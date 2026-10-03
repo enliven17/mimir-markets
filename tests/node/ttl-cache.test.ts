@@ -35,3 +35,19 @@ test("cachedFor re-runs after the TTL and keys by arguments", async () => {
   await fn(1);
   assert.equal(calls, 3, "an expired entry is fetched again");
 });
+
+test("cachedFor is bounded: the oldest live entry is evicted past maxEntries", async () => {
+  let calls = 0;
+  const fn = cachedFor(async (x: number) => {
+    calls++;
+    return x;
+  }, 60_000, 3);
+
+  for (const x of [1, 2, 3, 4]) await fn(x);
+  assert.equal(calls, 4);
+  await fn(4);
+  await fn(2);
+  assert.equal(calls, 4, "recent entries are still cached");
+  await fn(1);
+  assert.equal(calls, 5, "the oldest entry was evicted");
+});

@@ -301,6 +301,61 @@ authority in one key. USDC funding is external: top wallets up at
 https://faucet.circle.com (Solana Devnet), then `npm run system:fund`
 sweeps bettor balances into the ER.
 
+## Deploy (mainnet)
+
+The single-service layout above is devnet only. On mainnet the internet-facing
+web process must never hold a private key (audit P0-1), so `start:all` refuses
+to co-host web + workers when `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta`
+(override: `START_ALL_MAINNET=1`, don't).
+
+**Two Railway services from the same repo.** `railway.json` starts
+`npm run start:all` for both; `MIMIR_SERVICE` picks the half each one runs:
+
+| Service | `MIMIR_SERVICE` | Equivalent script | Gets |
+|---|---|---|---|
+| web | `web` | `npm run start:web` | public config, DB, web LLM keys. **No keypair env at all.** |
+| workers | `workers` | `npm run start:workers` | keypairs, oracle LLM key, DB |
+
+- **Both:** `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta`, `NEXT_PUBLIC_MIMIR_PROGRAM_ID`,
+  `NEXT_PUBLIC_SOLANA_USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`,
+  `NEXT_PUBLIC_MAGICBLOCK_ER_RPC`, `MAGICBLOCK_ER_WS`, `MAGICBLOCK_ER_VALIDATOR`,
+  `DATABASE_URL`. A missing value fails loudly on mainnet (no devnet fallback).
+- **Web only:** `COUNCIL_ADDRESSES` (persona *public* keys as JSON, print with
+  `npm run system:status`; without it personas render with no address),
+  `NEXT_PUBLIC_SOLANA_RPC` (a public / referrer-restricted RPC, never a URL with
+  `?api-key=`), `AGENT_PUBLIC_RPC`, `COUNCIL_GEMINI_API_KEY`,
+  `TRUSTED_PROXY_HOPS`, the `*_GLOBAL_PER_MIN` caps and `AGENT_REGISTER_MIN_*`
+  gates (see `.env.example`). The oracle pubkey is read from the on-chain
+  config, so the web needs no oracle key either.
+  **Never** set `SOLANA_KEYPAIR_JSON`, `SOLANA_KEYPAIR`, `CREATOR_KEYPAIR_JSON`
+  or `CREATOR_KEYPAIR` here.
+- **Workers only:** the oracle secret (`SOLANA_KEYPAIR_JSON`, oracle key, not
+  the admin), `CREATOR_KEYPAIR_JSON` (required, must differ from the oracle
+  key), `COUNCIL_KEY_SEED` (required: persona keys derive from it, never from
+  the admin key), a keyed `SOLANA_RPC`,
+  `ORACLE_GEMINI_API_KEY` (separate from the web key so web abuse cannot drain
+  the settlement quota), `HEDGE_MODE=off`, `AUTO_CHALLENGE` off.
+
+**Key separation.**
+1. Initialize with a separate oracle key and a cold fee recipient:
+   `MIMIR_ORACLE=<oracle pubkey> MIMIR_FEE_RECIPIENT=<cold address> npm run init:solana`.
+   Neither may equal the admin: `initialize.ts` refuses on mainnet otherwise,
+   and needs `--yes` there.
+2. Move admin to a Squads multisig: `npx tsx scripts/solana/admin.ts
+   propose-admin <vault> --yes` signs `propose_admin` and prints the
+   `accept_admin` instruction (program, accounts, data) the vault must sign;
+   add it as a Squads vault transaction, approve and execute
+   (`admin.ts accept-admin-ix <vault>` reprints it). Verify with
+   `npx tsx scripts/solana/admin.ts status` (admin = vault, pending = `-`).
+3. Oracle rotation and fee-policy changes go through the 2-day timelock:
+   `admin.ts queue-oracle <pubkey>` / `queue-fee-policy <platformBps>
+   <agentBps> <recipient>` (`cancel-*` to drop), then the permissionless
+   `execute-oracle` / `execute-fee-policy`. Every admin.ts write needs
+   `--yes` on mainnet; the devnet tooling (smoke, demo, migration,
+   agent-fund, `system:status --fund`) refuses mainnet unless `--mainnet`.
+4. After the transfer, `settle_dispute`, `set_windows`, pause and fee
+   withdrawal need multisig approval; the worker key can only propose verdicts.
+
 ## Windows build notes (hard-won)
 
 The Solana toolchain fights Windows in four specific ways; the working

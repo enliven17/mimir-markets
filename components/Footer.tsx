@@ -16,7 +16,7 @@ import { useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { useMimirConnection } from "@/hooks/useMimirWallet";
-import { MIMIR_PROGRAM_ID } from "@/lib/solana/config";
+import { MIMIR_PROGRAM_ID, explorerUrl } from "@/lib/solana/config";
 import { gsap, useGSAP } from "@/lib/motion";
 import dynamic from "next/dynamic";
 import Magnetic from "@/components/motion/Magnetic";
@@ -33,7 +33,7 @@ const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;
 const MAGICBLOCK_URL = "https://www.magicblock.xyz";
 const PROGRAM_ID = MIMIR_PROGRAM_ID.toBase58();
 const PROGRAM_SHORT = `${PROGRAM_ID.slice(0, 4)}…${PROGRAM_ID.slice(-4)}`;
-const PROGRAM_EXPLORER_URL = `https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet`;
+const PROGRAM_EXPLORER_URL = explorerUrl("address", PROGRAM_ID);
 const MARK = "Mimir";
 const SLOT_POLL_MS = 8_000;
 

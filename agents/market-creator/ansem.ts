@@ -17,6 +17,16 @@ import { fetchDexReadings } from "../../lib/server/dex-prices";
 import { ansemMint, dexSourceUrl } from "../../lib/token-config";
 import { toDeadline, type DraftClaim } from "./draft";
 
+/**
+ * CREATOR_ANSEM_PER_RUN when unset: 0 on mainnet. $ANSEM is DEX-priced, so
+ * the oracle no longer settles it from the structured resolver (one swap near
+ * the deadline moves a thin pool, audit P0-4) and its claims would fall to
+ * the LLM over a page anyone can move. Opt back in only with a TWAP feed.
+ */
+export function defaultAnsemPerRun(mainnet: boolean): string {
+  return mainnet ? "0" : "1";
+}
+
 /** Memecoin moves are larger than majors': ±2% around spot by default. */
 export const ANSEM_SKEW = Number(process.env.CREATOR_ANSEM_SKEW ?? "0.02");
 

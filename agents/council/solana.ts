@@ -5,14 +5,16 @@
  * philosophers) sweep every open market. Every bet is an Ephemeral Rollup
  * transaction: zero fee, ~30ms.
  *
- * Each persona signs with a keypair derived from the admin secret + slug
- * (.keys/council/<slug>.json wins locally). Each cycle the worker rebalances
+ * Each persona signs with a keypair derived from COUNCIL_KEY_SEED + slug
+ * (required on mainnet; off mainnet the admin secret stands in when it is
+ * unset; .keys/council/<slug>.json wins locally). Each cycle the worker rebalances
  * persona funds (winnings land in the token account; they are swept back into
  * the vault and re-delegated to the ER), then runs the shared pipeline in
  * agents/council/shared/persona-runner.ts for every (claim, persona) pair:
- * exact-category specialists, rule personas on pool state, LLM personas with
- * a fenced bias prompt over one cached evidence fetch per claim, Kelly-sized
- * stakes against the ER bankroll.
+ * exact-category specialists, rule personas on pool state (house markets
+ * only, off on mainnet by default), LLM personas with a fenced bias prompt
+ * over one cached evidence fetch per claim, staking only on structured-API
+ * evidence, Kelly-sized at real pool odds against the ER bankroll.
  *
  * Personas can only challenge; settlement stays with the oracle, market
  * creation with the market-creator. Agreeing with the creator means abstaining.
@@ -21,7 +23,11 @@
  *   --dry-run (or COUNCIL_DRY_RUN=1): decide and log, never fund, stake or
  *             write forecasts
  *   --once:   run one cycle and exit
- * Env: SOLANA_KEYPAIR[_JSON]     admin (persona keys derive from it; pays SOL fees)
+ * Env: SOLANA_KEYPAIR[_JSON]     admin (pays persona SOL fees)
+ *      COUNCIL_KEY_SEED          persona key seed (hex/base64, ≥32 bytes; required on mainnet)
+ *      CREATOR_PUBKEY            the house creator (else from CREATOR_KEYPAIR[_JSON]); rule personas trade only its markets
+ *      COUNCIL_RULE_PERSONAS_MAINNET=1  let rule personas run on mainnet (house markets only)
+ *      COUNCIL_MAX_CREATOR_MULTIPLE (default 1) stake ≤ this × the creator's stake
  *      COUNCIL_POLL_INTERVAL_MS  (default 60000)
  *      COUNCIL_LLM_THROTTLE_MS   (default 4500) serial gap between LLM calls
  *      COUNCIL_MAX_CLAIMS        (default 12) claims per cycle, closest deadline first
@@ -41,7 +47,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
-import { loadAgentKeypair, loadPersonaKeypair } from "../../lib/solana/keypair";
+import { loadAgentKeypair, loadCreatorPublicKey, loadPersonaKeypair } from "../../lib/solana/keypair";
 import { isPaused } from "../../lib/ops/flags";
 import { reportingPoll } from "../../lib/ops/heartbeat";
 import { activePersonas, trackOf, type PersonaSpec } from "./personas";
@@ -171,7 +177,7 @@ async function joinableClaims(reader: MimirSolanaClient, claimCount: bigint): Pr
   return open.sort((a, b) => a.deadline - b.deadline).slice(0, MAX_CLAIMS > 0 ? MAX_CLAIMS : undefined);
 }
 
-async function cycle(members: CouncilMember[], reader: MimirSolanaClient): Promise<void> {
+async function cycle(members: CouncilMember[], reader: MimirSolanaClient, houseCreator: string | null): Promise<void> {
   if (isPaused("stake")) {
     console.log("[council] Staking paused (MIMIR_PAUSE_STAKE), skipping the sweep.");
     return;
@@ -196,6 +202,7 @@ async function cycle(members: CouncilMember[], reader: MimirSolanaClient): Promi
     peerReads: PEER_READS,
     recordForecasts: !DRY_RUN,
     dryRun: DRY_RUN,
+    houseCreator,
   };
 
   let stakes = 0;
@@ -240,6 +247,13 @@ async function main() {
     return { spec, keypair, client: new MimirSolanaClient(keypair), funded: false, reportedEmpty: false };
   });
   const tracks = [...new Set(members.map((m) => trackOf(m.spec)))].join(" + ");
+  // Rule personas only trade house markets: without the creator's address they sit out.
+  let houseCreator: string | null = null;
+  try {
+    houseCreator = loadCreatorPublicKey().toBase58();
+  } catch (err) {
+    console.warn("[council] house creator unknown (set CREATOR_PUBKEY), rule personas sit out:", err instanceof Error ? err.message : err);
+  }
 
   console.log("═══════════════════════════════════════════════");
   console.log("  Mimir Council · Solana × MagicBlock ER");
@@ -256,7 +270,7 @@ async function main() {
     // paused council (MIMIR_PAUSE_COUNCIL_WORKER) moves no money at all:
     // reportingPoll skips the whole cycle.
     if (!DRY_RUN) await fundAll(connection, admin, members);
-    await cycle(members, reader);
+    await cycle(members, reader, houseCreator);
   };
 
   if (ONCE) {

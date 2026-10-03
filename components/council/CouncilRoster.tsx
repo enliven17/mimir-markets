@@ -16,6 +16,7 @@ import Segmented from "@/components/ui/Segmented";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";
+import { explorerUrl } from "@/lib/solana/config";
 
 export type Track = "classic" | "philosopher";
 
@@ -209,7 +210,7 @@ function PersonaCard({
           )}
           {p.address ? (
             <a
-              href={`https://explorer.solana.com/address/${p.address}?cluster=devnet`}
+              href={explorerUrl("address", p.address)}
               target="_blank"
               rel="noreferrer"
               className="font-mono text-[12px] text-muted hover:text-coral"

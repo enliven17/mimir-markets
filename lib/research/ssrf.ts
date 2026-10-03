@@ -28,7 +28,7 @@ export interface UrlRejection {
 export function isPrivateIpv4(ip: string): boolean {
   const parts = ip.split(".");
   if (parts.length !== 4) return false;
-  const [a, b] = parts.map((p) => Number(p));
+  const [a, b, c] = parts.map((p) => Number(p));
   if (parts.some((p) => !/^\d{1,3}$/.test(p)) || [a, b].some((n) => !Number.isFinite(n))) return false;
   if (a === 10) return true; // private
   if (a === 127) return true; // loopback
@@ -38,6 +38,8 @@ export function isPrivateIpv4(ip: string): boolean {
   if (a === 192 && b === 168) return true; // private
   if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
   if (a === 192 && b === 0) return true; // IETF protocol assignments
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking 198.18.0.0/15
+  if (a === 192 && b === 88 && c === 99) return true; // deprecated 6to4 relay anycast
   if (a >= 224) return true; // multicast and reserved
   return false;
 }

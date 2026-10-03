@@ -3,12 +3,13 @@
  * forecast before it) and the "is the event final yet" check for sports and
  * Polymarket-sourced claims.
  *
- * Settlement verdicts never use the OpenRouter free router and record which
- * provider/model answered (it goes into the verdict audit bundle). A reply
+ * Every call runs on the oracle's own keys and a SETTLEMENT_MODELS model
+ * (lib/llm.ts), and a verdict records which provider/model actually answered
+ * (it goes into the verdict audit bundle). A reply
  * that is not JSON is retried once with a hardened nudge and then THROWS: the
  * poll loop retries later instead of proposing a refund on a parse failure.
  */
-import { callLLM, extractJson, lastLLMCall, pickGeminiModel, type CallLLMOptions } from "../../lib/llm";
+import { callLLMWithMeta, extractJson, pickGeminiModel, type CallLLMOptions, type LLMResult } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { isVerdict, type Verdict } from "../../lib/verdict";
 import { fromUsdcUnits } from "../../lib/solana/config";
@@ -29,19 +30,25 @@ export type PromptClaim = Pick<
   "question" | "creatorPosition" | "counterPosition" | "category" | "resolutionUrl" | "deadline" | "creatorStake" | "totalChallengerStake"
 >;
 
-// This worker's own Gemini key (falls back to GEMINI_API_KEY), passed per call
-// so it survives sharing a process with the council (agents/all.ts).
+// This worker's own Gemini key, passed per call so it survives sharing a
+// process with the council (agents/all.ts). Role "oracle": on mainnet only the
+// dedicated oracle keys, never one a web route can spend (lib/llm.ts).
 export const ORACLE_KEY_ENV = "ORACLE_GEMINI_API_KEY";
-const LLM_THROTTLE_MS = Number(process.env.ORACLE_LLM_THROTTLE_MS ?? "0");
+const LLM_THROTTLE_MS = Number(process.env.ORACLE_LLM_THROTTLE_MS ?? "1500");
 
 let lastLlmCallAt = 0;
-export async function throttledLLM(prompt: string, opts: CallLLMOptions = {}): Promise<string> {
+/** Every oracle LLM call: own keys, settlement-grade models only (SETTLEMENT_MODELS), throttled. */
+export async function throttledLLMWithMeta(prompt: string, opts: CallLLMOptions = {}): Promise<LLMResult> {
   if (LLM_THROTTLE_MS > 0) {
     const wait = LLM_THROTTLE_MS - (Date.now() - lastLlmCallAt);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   }
   lastLlmCallAt = Date.now();
-  return callLLM(prompt, { ...opts, keyEnv: ORACLE_KEY_ENV });
+  return callLLMWithMeta(prompt, { ...opts, keyEnv: ORACLE_KEY_ENV, role: "oracle", settlement: true, noFreeRouter: true });
+}
+
+export async function throttledLLM(prompt: string, opts: CallLLMOptions = {}): Promise<string> {
+  return (await throttledLLMWithMeta(prompt, opts)).text;
 }
 
 // Gemini responseSchema: responseMimeType alone still let the model answer in
@@ -108,7 +115,11 @@ ${claimBlock(claim)}
 ${fenceUntrusted("web-evidence", evidence)}
 
 Evaluate whether Side A (creator) or Side B (challengers) is correct based on the evidence above.
-Do NOT refuse because of date / deadline concerns; those are handled by the program.
+${mode === "settle"
+  ? `Only what happened ON OR BEFORE the claim deadline counts. Events, prices or results after the deadline do not decide the claim.
+If the evidence only shows the state after the deadline, or you cannot tell whether something happened before it, return UNRESOLVABLE.
+Settling after the deadline is normal: do not refuse merely because the current time is past it.`
+  : "Judge from the current state of the evidence."}
 
 Return JSON only:
 {
@@ -126,19 +137,16 @@ Return JSON only:
       ? prompt
       : `${prompt}\n\nCRITICAL: Output ONLY the raw JSON object above. No markdown, no bullet lists, no text outside the "explanation" field. Start with { and end with }.`;
     // 1024 tokens: 512 truncated JSON mid-string on chatty fallback models.
-    lastText = await throttledLLM(attemptPrompt, {
+    const res = await throttledLLMWithMeta(attemptPrompt, {
       maxTokens: 1024,
       jsonOnly: true,
       jsonSchema: VERDICT_SCHEMA,
       model: pickGeminiModel("oracle"),
       temperature: 0,
-      noFreeRouter: true,
     });
+    lastText = res.text;
     const parsed = parseVerdict(lastText);
-    if (parsed) {
-      const by = lastLLMCall();
-      return { ...parsed, model: by ? `${by.provider}/${by.model}` : undefined };
-    }
+    if (parsed) return { ...parsed, model: `${res.provider}/${res.model}` };
   }
   throw new Error(`Oracle verdict unparseable after retry: ${lastText.slice(0, 160)}`);
 }
@@ -164,9 +172,9 @@ Reply JSON only: { "final": true | false }
     const text = await throttledLLM(prompt, {
       maxTokens: 64,
       jsonOnly: true,
+      temperature: 0,
       model: pickGeminiModel("oracle"),
       jsonSchema: { type: "object", properties: { final: { type: "boolean" } }, required: ["final"] },
-      noFreeRouter: true,
     });
     return JSON.parse(extractJson(text) ?? "{}").final === true;
   } catch {

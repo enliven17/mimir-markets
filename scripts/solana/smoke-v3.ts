@@ -15,6 +15,7 @@
  * whose USDC is swept back to the admin at the end.
  *
  * Run: npx tsx --env-file-if-exists=.env.local scripts/solana/smoke-v3.ts
+ * Refuses on mainnet unless --mainnet (it pauses the program and withdraws fees).
  */
 import { Keypair } from "@solana/web3.js";
 import { createHash } from "node:crypto";
@@ -31,6 +32,7 @@ import {
   fromUsdcUnits,
   toUsdcUnits,
 } from "../../lib/solana/config";
+import { requireDevnetOrFlag } from "./guards";
 import { ensureSol, explorer, nowSec, sendUsdc, sleep, usdcBalance, waitUntil, withRetry, withShortWindows } from "./shared";
 
 const DISPUTE_WINDOW = 20;
@@ -67,8 +69,10 @@ function claimInput(label: string, deadline: number) {
 }
 
 async function main() {
+  requireDevnetOrFlag("smoke-v3");
   const adminKp = loadAgentKeypair();
-  const testerKp: Keypair = derivePersonaKeypair(adminKp, "smoke-tester");
+  // A throwaway tester wallet, kept on the admin derivation so its address never moves.
+  const testerKp: Keypair = derivePersonaKeypair(adminKp, "smoke-tester", { seed: null, mainnet: false });
   const admin = new MimirSolanaClient(adminKp);
   const tester = new MimirSolanaClient(testerKp);
   const conn = admin.baseConnection;

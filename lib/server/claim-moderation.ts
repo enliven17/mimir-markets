@@ -13,6 +13,7 @@ import {
   type ClaimModerationViolationCode,
   type GeminiModerationPayload,
 } from "@/lib/moderation/sanitize-moderation-result";
+import { webGeminiKey } from "@/lib/llm";
 
 export type {
   ClaimModerationDecision,
@@ -140,10 +141,10 @@ function buildPrompt(args: {
 }
 
 async function callGemini(prompt: string) {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = webGeminiKey();
   if (!apiKey) {
     throw new Error(
-      "Moderation is not configured. Add GEMINI_API_KEY on the server."
+      "Moderation is not configured. Add GEMINI_API_KEY (not the oracle's key) on the server."
     );
   }
 

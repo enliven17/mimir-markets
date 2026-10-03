@@ -29,7 +29,8 @@ test("DexScreener: deepest solana pair where the mint is the base token", () => 
 
 test("Jupiter price v3 by mint, skipping thin liquidity", () => {
   assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: 0.1402, liquidity: 1_857_950 } }, MINT), 0.1402);
-  assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: 0.1402 } }, MINT), 0.1402);
+  assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: 0.1402 } }, MINT), null, "no liquidity figure, no price");
+  assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: 0.1, liquidity: 50_000 } }, MINT), null, "below the 250k floor");
   assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: 0.1, liquidity: 12 } }, MINT), null);
   assert.equal(parseJupiterPrice({}, MINT), null);
   assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: -1 } }, MINT), null);
@@ -82,4 +83,11 @@ test("the Mimir ticker is only DEX-priced once its mint is set", () => {
     if (prev === undefined) delete process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT;
     else process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT = prev;
   }
+});
+
+test("the DEX liquidity floor defaults far above dust pools", async () => {
+  const { MIN_LIQUIDITY_USD, parseDexScreenerPrice } = await import("../../lib/server/dex-prices");
+  assert.equal(MIN_LIQUIDITY_USD, 250_000);
+  const thin = [{ chainId: "solana", baseToken: { address: MINT }, priceUsd: "0.2", liquidity: { usd: 200_000 } }];
+  assert.equal(parseDexScreenerPrice(thin, MINT), null);
 });

@@ -25,6 +25,14 @@ const DEFAULT_MAX_CHARS = 14_000;
 const COINGECKO_API_BASE = "https://api.coingecko.com/api/v3";
 const JINA_READER_BASE = "https://r.jina.ai/";
 
+/**
+ * An ordinary browser's User-Agent for every evidence fetch (oracle, council,
+ * drafts). A bot UA lets a source the claim creator controls serve Mimir's
+ * workers a different page than the one people read (audit P0-2).
+ */
+export const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+
 // Markers that strongly suggest we got an anti-bot interstitial instead of
 // actual content. Keep this list conservative: false positives mean we
 // uselessly burn a Jina fallback call.
@@ -114,7 +122,7 @@ async function fetchGenericSnapshot(
 ): Promise<EvidenceSnapshot> {
   const maxChars = opts.maxChars ?? DEFAULT_MAX_CHARS;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const userAgent = opts.userAgent ?? "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)";
+  const userAgent = opts.userAgent ?? BROWSER_USER_AGENT;
 
   const direct = await tryDirectFetch(url, { timeoutMs, userAgent });
 
@@ -130,6 +138,13 @@ async function fetchGenericSnapshot(
       };
     }
     // Body parsed but is too short to be useful, so fall through to Jina.
+  }
+
+  // A URL our gateway refused for SSRF reasons (private address, port,
+  // redirect into the network...) must not be handed to a third party to
+  // fetch for us: Jina is only for plain fetch failures (audit P3).
+  if (direct.refused) {
+    throw new EvidenceFetchError(`Source URL refused by the fetch policy (${direct.refused})`);
   }
 
   if (opts.disableJinaFallback) {
@@ -150,6 +165,8 @@ interface DirectFetchResult {
   body: string;
   finalUrl: string;
   statusCode?: number;
+  /** The SSRF gateway refused the URL (or a redirect hop): never retry it elsewhere. */
+  refused?: string;
 }
 
 async function tryDirectFetch(
@@ -184,6 +201,8 @@ async function tryDirectFetch(
       // A refused hop is a property of the source, not a transient blip, so it
       // is worth surfacing rather than silently retrying through Jina.
       console.warn(`[evidence] gateway refused ${finalUrl}: ${err.reason} - ${err.message}`);
+      // Too large is a fetch failure; anything else is the SSRF policy.
+      if (err.reason !== "response_too_large") return { ok: false, body: "", finalUrl, refused: err.reason };
     }
     return { ok: false, body: "", finalUrl };
   }
@@ -263,7 +282,7 @@ async function fetchCoinGeckoSnapshot(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
-    "User-Agent": "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)",
+    "User-Agent": BROWSER_USER_AGENT,
   };
   if (apiKey) headers["x-cg-demo-api-key"] = apiKey;
 
@@ -353,7 +372,7 @@ async function fetchFlashTradeSnapshot(
   let response: Response;
   try {
     response = await fetch(url.toString(), {
-      headers: { Accept: "application/json", "User-Agent": "Mimir-Bot/1.0 (+https://mimirmarkets.xyz)" },
+      headers: { Accept: "application/json", "User-Agent": BROWSER_USER_AGENT },
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -421,7 +440,7 @@ async function fetchEspnSnapshot(
     response = await fetch(url.toString(), {
       // ESPN answers 403 to a "*-Bot" user agent, which silently sent every
       // sports claim down the generic Jina path.
-      headers: { Accept: "application/json", "User-Agent": "Mimir-Oracle/1.0" },
+      headers: { Accept: "application/json", "User-Agent": BROWSER_USER_AGENT },
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });

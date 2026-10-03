@@ -32,3 +32,15 @@ test("canonical form ignores key order but not content", () => {
   const tampered = { ...bundle, finalVerdict: { ...bundle.finalVerdict, confidence: 91 } };
   assert.notEqual(bundleHash(tampered), bundleHash(bundle));
 });
+
+test("a bundle that cannot be stored blocks the proposal when storage is required", async () => {
+  const { saveVerdictBundle } = await import("../../lib/server/verdict-bundles");
+  const prev = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    await assert.rejects(saveVerdictBundle(bundle, { required: true }), /not configured/);
+    assert.equal(await saveVerdictBundle(bundle, { required: false }), bundleHash(bundle));
+  } finally {
+    if (prev !== undefined) process.env.DATABASE_URL = prev;
+  }
+});

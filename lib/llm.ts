@@ -6,23 +6,39 @@
  * when it fails or sits in a quota cooldown the call falls back through the
  * others that have a key.
  *
- * Per-worker Gemini keys: a worker passes `keyEnv` (e.g. ORACLE_GEMINI_API_KEY)
+ * Per-worker Gemini keys: a worker passes `keyEnv` (e.g. COUNCIL_GEMINI_API_KEY)
  * and its calls use that key first, then GEMINI_API_KEY and GEMINI_API_KEYS.
  * Nothing mutates process.env, so several workers in one process
  * (agents/all.ts) each keep their own key and cooldowns.
  *
- * Money decisions pass `noFreeRouter`: the OpenRouter "free" router hands the
- * prompt to whatever free model is up, so a settlement could be decided by an
- * unknown model. `lastLLMCall()` reports which provider/model answered, so the
- * oracle can record it in the verdict audit bundle.
+ * Roles keep the oracle's quota apart from anything the web can trigger:
+ *   - role "oracle" reads ORACLE_GEMINI_API_KEY / ORACLE_ANTHROPIC_API_KEY; on
+ *     mainnet ONLY those (no shared-key fallback, so a flood of web calls can
+ *     never stall settlement); off mainnet it may fall back to the shared keys.
+ *   - every other role ("council", "web", the default) never reads an oracle
+ *     key, even when the same key is also set as a shared one.
+ *
+ * Settlement calls pass `settlement`: only models on the SETTLEMENT_MODELS
+ * allowlist (Gemini / Claude; never Groq, OpenRouter, ":free" or Gemma). With
+ * none available the call throws and the oracle retries later.
+ * `callLLMWithMeta` returns the provider/model that actually answered, for the
+ * verdict audit bundle. Logs never carry key material, only a hash prefix.
  *
  *   import { callLLM } from "@/lib/llm";
  *   const text = await callLLM(prompt, { maxTokens: 512, jsonOnly: true });
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "node:crypto";
+import { IS_MAINNET } from "./solana/config";
 
 export type LLMProvider = "gemini" | "anthropic" | "groq" | "openrouter";
+
+/** Who is calling: decides which keys a call may spend. */
+export type LLMRole = "oracle" | "council" | "web";
+
+export const ORACLE_GEMINI_KEY_ENV = "ORACLE_GEMINI_API_KEY";
+export const ORACLE_ANTHROPIC_KEY_ENV = "ORACLE_ANTHROPIC_API_KEY";
 
 export interface CallLLMOptions {
   /** Max output tokens. Defaults to 1024. */
@@ -39,6 +55,12 @@ export interface CallLLMOptions {
   keyEnv?: string;
   /** Skip the OpenRouter free router (settlement verdicts must know their model). */
   noFreeRouter?: boolean;
+  /** Which keys this call may spend. Default "web": never an oracle key. */
+  role?: LLMRole;
+  /** Settlement-grade models only (SETTLEMENT_MODELS); throws when none is available. */
+  settlement?: boolean;
+  /** Cluster override for tests; defaults to IS_MAINNET. */
+  mainnet?: boolean;
 }
 
 export interface LLMCallRecord {
@@ -46,9 +68,17 @@ export interface LLMCallRecord {
   model: string;
 }
 
+export interface LLMResult extends LLMCallRecord {
+  text: string;
+}
+
 let lastCall: LLMCallRecord | null = null;
 
-/** Which provider and model answered the most recent successful callLLM. */
+/**
+ * Which provider and model answered the most recent successful call,
+ * process-wide. Not for audit records (concurrent callers race on it): use
+ * callLLMWithMeta.
+ */
 export function lastLLMCall(): LLMCallRecord | null {
   return lastCall;
 }
@@ -63,19 +93,22 @@ const DEFAULT_GEMINI_MODEL = overrideFor(["gemini", "gemma"]) || "gemini-3.5-fla
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || overrideFor(["claude"]) || "claude-sonnet-4-6";
 const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
 const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "openrouter/free";
+/** The models settlement verdicts may come from, unless SETTLEMENT_MODELS says otherwise. */
+const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.5-pro,claude-sonnet-4-6";
 
 const GEMINI_QUOTA_COOLDOWN_MS = Number(process.env.LLM_QUOTA_COOLDOWN_MS ?? "300000"); // 5 min
 const GROQ_QUOTA_COOLDOWN_MS = Number(process.env.GROQ_QUOTA_COOLDOWN_MS ?? "2700000"); // 45 min
 const OPENROUTER_QUOTA_COOLDOWN_MS = Number(process.env.OPENROUTER_QUOTA_COOLDOWN_MS ?? "2700000");
 
-let anthropicClient: Anthropic | null = null;
+const anthropicClients = new Map<string, Anthropic>();
 let openrouterCooldownUntil = 0;
 const groqCooldownByKey = new Map<string, number>();
-/** `${keyFingerprint}|${model}` → until: Gemini limits are per key per model. */
+/** `${keyId}|${model}` → until: Gemini limits are per key per model. */
 const geminiCooldownByCombo = new Map<string, number>();
 
 const remaining = (until: number): number => Math.max(0, until - Date.now());
-const fingerprint = (key: string): string => key.slice(-6);
+/** A key's id for maps and logs: a hash prefix, never key material. */
+const keyId = (key: string): string => createHash("sha256").update(key).digest("hex").slice(0, 8);
 
 function splitList(...values: Array<string | undefined>): string[] {
   const out: string[] = [];
@@ -86,13 +119,64 @@ function splitList(...values: Array<string | undefined>): string[] {
   return out;
 }
 
+/**
+ * GEMINI_API_KEY for web routes that call Gemini directly (moderation, source
+ * drafts), or "" on mainnet when it is the oracle's own key: public traffic
+ * must never spend the settlement quota.
+ */
+export function webGeminiKey(): string {
+  const key = process.env.GEMINI_API_KEY?.trim() ?? "";
+  const oracle = process.env[ORACLE_GEMINI_KEY_ENV]?.trim();
+  if (IS_MAINNET && key && oracle && key === oracle) {
+    console.error("[llm] GEMINI_API_KEY equals ORACLE_GEMINI_API_KEY: web routes will not use it");
+    return "";
+  }
+  return key;
+}
+
 /** The Gemini key a caller uses first: its own `keyEnv` when set, else GEMINI_API_KEY. */
 export function geminiKeyFor(keyEnv?: string): string {
   return (keyEnv ? process.env[keyEnv]?.trim() : "") || process.env.GEMINI_API_KEY?.trim() || "";
 }
 
-function geminiKeys(keyEnv?: string): string[] {
-  return splitList(geminiKeyFor(keyEnv), process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
+interface KeyScope {
+  role: LLMRole;
+  keyEnv?: string;
+  mainnet: boolean;
+}
+
+type ScopeOpts = Pick<CallLLMOptions, "role" | "keyEnv" | "mainnet">;
+
+function scopeOf(opts: ScopeOpts = {}): KeyScope {
+  return { role: opts.role ?? "web", keyEnv: opts.keyEnv, mainnet: opts.mainnet ?? IS_MAINNET };
+}
+
+const envKey = (name: string): string => process.env[name]?.trim() ?? "";
+const isOracleEnv = (name: string | undefined): boolean => Boolean(name?.toUpperCase().startsWith("ORACLE_"));
+
+/**
+ * The Gemini keys a call may use, its own first. Oracle: the dedicated key,
+ * plus the shared ones only off mainnet. Everyone else: never the oracle key
+ * on mainnet (off mainnet one shared key may serve everything).
+ */
+export function geminiKeysFor(opts: ScopeOpts = {}): string[] {
+  const scope = scopeOf(opts);
+  if (scope.role === "oracle") {
+    const own = envKey(scope.keyEnv ?? ORACLE_GEMINI_KEY_ENV);
+    return scope.mainnet ? splitList(own) : splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
+  }
+  const oracleKey = envKey(ORACLE_GEMINI_KEY_ENV);
+  const own = scope.keyEnv && !isOracleEnv(scope.keyEnv) ? envKey(scope.keyEnv) : "";
+  return splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS).filter((k) => !scope.mainnet || k !== oracleKey);
+}
+
+/** The Anthropic key a call may use (same rules as Gemini); "" when none. */
+export function anthropicKeyFor(opts: ScopeOpts = {}): string {
+  const scope = scopeOf(opts);
+  const own = envKey(ORACLE_ANTHROPIC_KEY_ENV);
+  const shared = envKey("ANTHROPIC_API_KEY");
+  if (scope.role === "oracle") return own || (scope.mainnet ? "" : shared);
+  return shared && shared !== own ? shared : "";
 }
 
 function geminiModelPool(): string[] {
@@ -110,6 +194,37 @@ export function pickGeminiModel(seed: string): string {
 
 function groqKeys(): string[] {
   return splitList(process.env.GROQ_API_KEY, process.env.GROQ_API_KEYS);
+}
+
+/** SETTLEMENT_MODELS (comma list): Gemini and Claude ids only, never Gemma or ":free". */
+export function settlementModels(): string[] {
+  return splitList(process.env.SETTLEMENT_MODELS?.trim() || SETTLEMENT_DEFAULT_MODELS).filter((m) => {
+    const l = m.toLowerCase();
+    return (l.startsWith("gemini") || l.startsWith("claude")) && !l.includes("gemma") && !l.includes(":free");
+  });
+}
+
+/** May this model decide a settlement? */
+export function isSettlementModel(model: string): boolean {
+  return settlementModels().includes(model.trim());
+}
+
+/** Gemini models a call tries, preferred first; settlement calls only allowlisted ones. */
+function geminiModelsFor(preferred: string | undefined, settlement: boolean): string[] {
+  if (!settlement) {
+    const pool = geminiModelPool();
+    const first = preferred?.trim() || pool[0];
+    return [first, ...pool.filter((m) => m !== first)];
+  }
+  const allowed = settlementModels().filter((m) => m.toLowerCase().startsWith("gemini"));
+  const first = preferred && allowed.includes(preferred.trim()) ? preferred.trim() : allowed[0];
+  return first ? [first, ...allowed.filter((m) => m !== first)] : [];
+}
+
+/** The Claude model a call uses; null when a settlement call may not use one. */
+function anthropicModelFor(settlement: boolean): string | null {
+  if (!settlement || isSettlementModel(DEFAULT_ANTHROPIC_MODEL)) return DEFAULT_ANTHROPIC_MODEL;
+  return settlementModels().find((m) => m.toLowerCase().startsWith("claude")) ?? null;
 }
 
 /**
@@ -141,17 +256,18 @@ export function extractJson(text: string, prefer?: "{" | "["): string | null {
   return null;
 }
 
-function hasKey(provider: LLMProvider, keyEnv?: string): boolean {
-  if (provider === "gemini") return geminiKeys(keyEnv).length > 0;
-  if (provider === "groq") return groqKeys().length > 0;
-  if (provider === "openrouter") return Boolean(process.env.OPENROUTER_API_KEY?.trim());
-  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+function hasKey(provider: LLMProvider, scope: KeyScope): boolean {
+  if (provider === "gemini") return geminiKeysFor(scope).length > 0;
+  // Groq and OpenRouter keys are shared by definition: never the oracle's.
+  if (provider === "groq") return scope.role !== "oracle" && groqKeys().length > 0;
+  if (provider === "openrouter") return scope.role !== "oracle" && Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  return Boolean(anthropicKeyFor(scope));
 }
 
-function cooldown(provider: LLMProvider, keyEnv?: string): number {
+function cooldown(provider: LLMProvider, scope: KeyScope, geminiModels: string[]): number {
   if (provider === "gemini") {
-    const combos = geminiKeys(keyEnv).flatMap((k) =>
-      geminiModelPool().map((m) => remaining(geminiCooldownByCombo.get(`${fingerprint(k)}|${m}`) ?? 0))
+    const combos = geminiKeysFor(scope).flatMap((k) =>
+      geminiModels.map((m) => remaining(geminiCooldownByCombo.get(`${keyId(k)}|${m}`) ?? 0))
     );
     return combos.length === 0 || combos.some((c) => c === 0) ? 0 : Math.min(...combos);
   }
@@ -184,7 +300,7 @@ function modelFor(provider: LLMProvider, geminiModel?: string): string {
   return DEFAULT_ANTHROPIC_MODEL;
 }
 
-/** Redacted fingerprint of the active key for startup logs: `…XXXXXX (len=N)`. */
+/** Redacted id of the active key for startup logs: `sha256:XXXXXXXX`, never key material. */
 export function activeLLMKeyFingerprint(keyEnv?: string): string {
   const provider = activeLLMProvider(keyEnv);
   const key = (
@@ -193,19 +309,34 @@ export function activeLLMKeyFingerprint(keyEnv?: string): string {
     : provider === "openrouter" ? process.env.OPENROUTER_API_KEY
     : process.env.ANTHROPIC_API_KEY
   )?.trim() ?? "";
-  return key ? `…${key.slice(-6)} (len=${key.length})` : "(missing)";
+  return key ? `sha256:${keyId(key)}` : "(missing)";
 }
 
-/** The providers a call tries, primary first, each only when it has a key. */
-export function providerChain(opts: Pick<CallLLMOptions, "keyEnv" | "noFreeRouter"> = {}): LLMProvider[] {
-  const primary = activeLLMProvider(opts.keyEnv);
-  const order: LLMProvider[] = [primary, "groq", "anthropic", "gemini", "openrouter"];
-  return order.filter(
-    (p, i) =>
-      order.indexOf(p) === i &&
-      hasKey(p, opts.keyEnv) &&
-      !(opts.noFreeRouter && p === "openrouter" && DEFAULT_OPENROUTER_MODEL === "openrouter/free")
-  );
+type ChainOpts = Pick<CallLLMOptions, "keyEnv" | "noFreeRouter" | "role" | "settlement" | "mainnet">;
+
+/**
+ * The providers a call tries, primary first, each only when this caller has a
+ * key for it. Settlement calls: Gemini and Claude with an allowlisted model
+ * only. May be empty.
+ */
+export function providerChain(opts: ChainOpts = {}): LLMProvider[] {
+  const scope = scopeOf(opts);
+  const forced = process.env.LLM_PROVIDER?.toLowerCase();
+  const primary: LLMProvider | undefined =
+    forced === "gemini" || forced === "anthropic" || forced === "groq" || forced === "openrouter"
+      ? forced
+      : (["gemini", "anthropic", "groq", "openrouter"] as const).find((p) => hasKey(p, scope));
+  const order: LLMProvider[] = [...(primary ? [primary] : []), "groq", "anthropic", "gemini", "openrouter"];
+  return order.filter((p, i) => {
+    if (order.indexOf(p) !== i || !hasKey(p, scope)) return false;
+    if (opts.noFreeRouter && p === "openrouter" && DEFAULT_OPENROUTER_MODEL === "openrouter/free") return false;
+    if (opts.settlement) {
+      if (p === "gemini") return geminiModelsFor(undefined, true).length > 0;
+      if (p === "anthropic") return anthropicModelFor(true) !== null;
+      return false;
+    }
+    return true;
+  });
 }
 
 interface CallOpts {
@@ -213,25 +344,40 @@ interface CallOpts {
   temperature: number;
   jsonOnly: boolean;
   jsonSchema?: Record<string, unknown>;
-  model?: string;
-  keyEnv?: string;
+  scope: KeyScope;
+  geminiModels: string[];
+  anthropicModel: string | null;
 }
 
 export async function callLLM(prompt: string, opts: CallLLMOptions = {}): Promise<string> {
+  return (await callLLMWithMeta(prompt, opts)).text;
+}
+
+/** callLLM, plus the provider and model that actually answered. */
+export async function callLLMWithMeta(prompt: string, opts: CallLLMOptions = {}): Promise<LLMResult> {
+  const settlement = opts.settlement === true;
   const o: CallOpts = {
     maxTokens: opts.maxTokens ?? 1024,
     temperature: opts.temperature ?? 0.2,
     jsonOnly: opts.jsonOnly ?? false,
     jsonSchema: opts.jsonSchema,
-    model: opts.model,
-    keyEnv: opts.keyEnv,
+    scope: scopeOf(opts),
+    geminiModels: geminiModelsFor(opts.model, settlement),
+    anthropicModel: anthropicModelFor(settlement),
   };
   const chain = providerChain(opts);
+  if (chain.length === 0) {
+    throw new Error(
+      settlement
+        ? "No settlement-grade LLM available (a SETTLEMENT_MODELS model with this caller's own key)"
+        : "No LLM API key configured for this caller. Set GEMINI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY or OPENROUTER_API_KEY.",
+    );
+  }
   let lastError: unknown = null;
   for (let i = 0; i < chain.length; i++) {
     const p = chain[i];
-    const next = chain.slice(i + 1).find((q) => cooldown(q, o.keyEnv) === 0);
-    const wait = cooldown(p, o.keyEnv);
+    const next = chain.slice(i + 1).find((q) => cooldown(q, o.scope, o.geminiModels) === 0);
+    const wait = cooldown(p, o.scope, o.geminiModels);
     if (wait > 0) {
       lastError = new Error(`LLM quota cooldown (${p}): ${Math.ceil(wait / 1000)}s remaining`);
       continue;
@@ -241,9 +387,9 @@ export async function callLLM(prompt: string, opts: CallLLMOptions = {}): Promis
         p === "gemini" ? await callGemini(prompt, o)
         : p === "groq" ? { text: await callGroq(prompt, o), model: DEFAULT_GROQ_MODEL }
         : p === "openrouter" ? { text: await callOpenRouter(prompt, o), model: DEFAULT_OPENROUTER_MODEL }
-        : { text: await callAnthropic(prompt, o), model: DEFAULT_ANTHROPIC_MODEL };
+        : await callAnthropic(prompt, o);
       lastCall = { provider: p, model };
-      return text;
+      return { text, provider: p, model };
     } catch (err) {
       lastError = err;
       if (next) console.warn(`[llm] ${p} failed -> ${next}: ${err instanceof Error ? err.message.slice(0, 90) : err}`);
@@ -254,13 +400,10 @@ export async function callLLM(prompt: string, opts: CallLLMOptions = {}): Promis
 
 // ── Gemini ────────────────────────────────────────────────────────────────────
 async function callGemini(prompt: string, o: CallOpts): Promise<{ text: string; model: string }> {
-  const pool = geminiModelPool();
-  const preferred = o.model?.trim() || pool[0];
-  const models = [preferred, ...pool.filter((m) => m !== preferred)];
   let lastError: unknown = null;
-  for (const model of models) {
-    for (const key of geminiKeys(o.keyEnv)) {
-      if (remaining(geminiCooldownByCombo.get(`${fingerprint(key)}|${model}`) ?? 0) > 0) continue;
+  for (const model of o.geminiModels) {
+    for (const key of geminiKeysFor(o.scope)) {
+      if (remaining(geminiCooldownByCombo.get(`${keyId(key)}|${model}`) ?? 0) > 0) continue;
       try {
         return { text: await callGeminiModel(key, model, prompt, o), model };
       } catch (err) {
@@ -301,8 +444,8 @@ async function callGeminiModel(apiKey: string, model: string, prompt: string, o:
     if (res.ok) break;
     const body = (await res.text()).slice(0, 500);
     if (res.status === 429) {
-      geminiCooldownByCombo.set(`${fingerprint(apiKey)}|${model}`, Date.now() + GEMINI_QUOTA_COOLDOWN_MS);
-      console.warn(`[llm] Gemini ${model}@…${fingerprint(apiKey)} 429, ${Math.round(GEMINI_QUOTA_COOLDOWN_MS / 1000)}s cooldown`);
+      geminiCooldownByCombo.set(`${keyId(apiKey)}|${model}`, Date.now() + GEMINI_QUOTA_COOLDOWN_MS);
+      console.warn(`[llm] Gemini ${model}@key:${keyId(apiKey)} 429, ${Math.round(GEMINI_QUOTA_COOLDOWN_MS / 1000)}s cooldown`);
       throw new Error(`Gemini ${model} 429: ${body}`);
     }
     if (!TRANSIENT.has(res.status) || attempt === MAX_ATTEMPTS) throw new Error(`Gemini ${model} ${res.status}: ${body}`);
@@ -341,7 +484,7 @@ async function callGroq(prompt: string, o: CallOpts): Promise<string> {
       const badKey = res.status === 401 || res.status === 403 || (res.status === 400 && /restricted|invalid.?api.?key/i.test(text));
       if (res.status === 429 || badKey) {
         groqCooldownByKey.set(apiKey, Date.now() + GROQ_QUOTA_COOLDOWN_MS);
-        lastError = new Error(`Groq key …${fingerprint(apiKey)} ${res.status}: ${text}`);
+        lastError = new Error(`Groq key:${keyId(apiKey)} ${res.status}: ${text}`);
         continue;
       }
       throw new Error(`Groq ${res.status}: ${text}`);
@@ -386,13 +529,20 @@ async function callOpenRouter(prompt: string, o: CallOpts): Promise<string> {
 }
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
-async function callAnthropic(prompt: string, o: CallOpts): Promise<string> {
-  anthropicClient ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY!.trim(), timeout: 60_000 });
-  const message = await anthropicClient.messages.create({
-    model: DEFAULT_ANTHROPIC_MODEL,
+async function callAnthropic(prompt: string, o: CallOpts): Promise<{ text: string; model: string }> {
+  const apiKey = anthropicKeyFor(o.scope);
+  const model = o.anthropicModel;
+  if (!apiKey || !model) throw new Error("Anthropic: no key or allowed model for this caller");
+  let client = anthropicClients.get(apiKey);
+  if (!client) {
+    client = new Anthropic({ apiKey, timeout: 60_000 });
+    anthropicClients.set(apiKey, client);
+  }
+  const message = await client.messages.create({
+    model,
     max_tokens: o.maxTokens,
     temperature: o.temperature,
     messages: [{ role: "user", content: prompt }],
   });
-  return (message.content[0] as { text?: string }).text ?? "";
+  return { text: (message.content[0] as { text?: string }).text ?? "", model };
 }

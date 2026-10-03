@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { MAX_POSITION_BYTES, MAX_QUESTION_BYTES, MAX_URL_BYTES } from "@/lib/agents/params";
 import { createApiError } from "@/lib/server/api-validation";
+import { readLimitedJson } from "@/lib/server/body-limit";
 import {
   getGlobalCooldownMs,
   hashModerationInput,
@@ -29,6 +31,28 @@ type ModerationRequestBody = {
   locale?: unknown;
   input?: unknown;
 };
+
+/**
+ * Per-field byte caps: the on-chain limits (onchain constants MAX_QUESTION,
+ * MAX_POSITION, MAX_URL, MAX_CATEGORY) plus a bound on the off-chain rule
+ * text, so a claim that could never be created cannot buy an LLM call.
+ */
+export const MODERATION_FIELD_MAX_BYTES: Record<keyof ClaimModerationInput, number> = {
+  question: MAX_QUESTION_BYTES,
+  creator_position: MAX_POSITION_BYTES,
+  opponent_position: MAX_POSITION_BYTES,
+  category: 32,
+  settlement_rule: 1_000,
+  resolution_url: MAX_URL_BYTES,
+};
+
+/** The first field over its cap, or null. */
+export function oversizedModerationField(input: ClaimModerationInput): keyof ClaimModerationInput | null {
+  for (const key of Object.keys(MODERATION_FIELD_MAX_BYTES) as Array<keyof ClaimModerationInput>) {
+    if (Buffer.byteLength(input[key].trim(), "utf8") > MODERATION_FIELD_MAX_BYTES[key]) return key;
+  }
+  return null;
+}
 
 function parseInput(value: unknown): ClaimModerationInput | null {
   if (!value || typeof value !== "object") return null;
@@ -78,13 +102,28 @@ export async function handleClaimModerationPost(args: {
   }
 
   try {
-    const body = (await args.request.json()) as ModerationRequestBody;
-    const locale = typeof body.locale === "string" ? body.locale.trim() : "en";
+    const read = await readLimitedJson(args.request);
+    if (!read.ok) {
+      return NextResponse.json(
+        createApiError(read.status === 413 ? "payload_too_large" : "invalid_request",
+          read.status === 413 ? "Request body is too large" : "Request body must be valid JSON"),
+        { status: read.status }
+      );
+    }
+    const body = (read.value && typeof read.value === "object" ? read.value : {}) as ModerationRequestBody;
+    const locale = typeof body.locale === "string" ? body.locale.trim().slice(0, 16) : "en";
     const input = parseInput(body.input);
 
     if (!input) {
       return NextResponse.json(
         createApiError("invalid_request", "input is required"),
+        { status: 400 }
+      );
+    }
+    const oversized = oversizedModerationField(input);
+    if (oversized) {
+      return NextResponse.json(
+        createApiError("invalid_request", `${oversized} is over ${MODERATION_FIELD_MAX_BYTES[oversized]} bytes`),
         { status: 400 }
       );
     }

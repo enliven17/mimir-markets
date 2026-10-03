@@ -33,6 +33,7 @@ import {
   fromUsdcUnits,
 } from "../../lib/solana/config";
 import { ensureSol, sleep, withRetry } from "./shared";
+import { requireDevnetOrFlag } from "./guards";
 
 const EXECUTE = process.argv.includes("--execute");
 const SKIP_CLAIMS = process.argv.includes("--skip-claims");
@@ -189,6 +190,7 @@ async function migrateWallet(row: WalletRow, admin: Keypair): Promise<bigint> {
 }
 
 async function main() {
+  if (EXECUTE) requireDevnetOrFlag("migrate-v2-funds --execute");
   const admin = loadAgentKeypair();
   const creatorKp = loadCreatorKeypair();
   console.log(`Mimir V2 → V3 fund migration (${EXECUTE ? "EXECUTE" : "dry run, pass --execute"})`);
@@ -205,7 +207,7 @@ async function main() {
   if (!creatorKp.publicKey.equals(admin.publicKey)) rows.push({ role: "market-creator", kp: creatorKp, erBettor: false });
   else console.log("  (market-creator key not available locally; set CREATOR_KEYPAIR[_JSON] to migrate it)");
   // Only the classic ten existed under the old program.
-  for (const p of CLASSIC_PERSONAS) rows.push({ role: `council ${p.slug}`, kp: derivePersonaKeypair(admin, p.slug), erBettor: true });
+  for (const p of CLASSIC_PERSONAS) rows.push({ role: `council ${p.slug}`, kp: derivePersonaKeypair(admin, p.slug, { seed: null, mainnet: false }), erBettor: true });
   let total = 0n;
   for (const row of rows) {
     try {

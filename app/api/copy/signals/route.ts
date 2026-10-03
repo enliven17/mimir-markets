@@ -28,17 +28,25 @@ import {
 } from "@/lib/agents/api";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readClaim } from "@/lib/agents/chain";
-import { unitsToUsdc } from "@/lib/agents/params";
+import { unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
 import { authorizeAction, type AgentRecord } from "@/lib/agents/registry";
-import { consumeNonce, recordRequest, requestsLastHour, stakedLastDayUnits } from "@/lib/agents/store";
+import {
+  consumeNonce,
+  recordRequest,
+  releaseStake,
+  requestsLastHour,
+  reserveDailyStake,
+  stakedLastDayUnits,
+} from "@/lib/agents/store";
 import { copyStakeUnits, isCopySkipReason, type CopyPermission } from "@/lib/copy-trading";
 import type { CopyInstruction } from "@/lib/copy-signals";
-import { permissionsForExecutor, recordExecution } from "@/lib/copy-trading-store";
+import { permissionsForExecutor, recordExecution, releaseCopy, reserveCopy } from "@/lib/copy-trading-store";
 import { buildCopyInstructions } from "@/lib/server/copy-signals";
 import { isFeatureEnabled } from "@/lib/ops/flags";
 import { isDbEnabled } from "@/lib/server/db";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail as fail, basketJson as json } from "@/lib/server/basket-http";
+import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -81,12 +89,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!(await allowRequest("copy-signals-ip", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   if (!isDbEnabled()) return fail(503, "registry_unavailable", "copy trading needs a database on this deploy");
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return fail(400, "malformed_json", "body is not valid JSON");
+  const read = await readLimitedJson(req);
+  if (!read.ok) {
+    return read.status === 413
+      ? fail(413, "payload_too_large", `body is over ${MAX_BODY_BYTES} bytes`)
+      : fail(400, "malformed_json", "body is not valid JSON");
   }
+  const raw = read.value;
 
   let env: AgentEnvelope;
   let agent: AgentRecord;
@@ -178,11 +187,44 @@ async function handlePrepare(agent: AgentRecord, permissions: CopyPermission[], 
     return fail(decision.reason === "rate_limit" ? 429 : 403, decision.reason ?? "denied", decision.message ?? "");
   }
 
-  const prepared = await prepareWrite(
-    { action: "challenge", params: { claimId: BigInt(t.claimId), stakeUnits } },
-    { operator: new PublicKey(agent.operatorWallet), agentOwner: agentOwnerFor(agent) },
-  );
-  await recordRequest(agent.agentId, "challenge", true, null, stakeUnits).catch(() => undefined);
+  // The follower's reservation first: it counts toward their caps until this
+  // copy is reported or expires, and a live one blocks a duplicate prepare.
+  const reserved = await reserveCopy(permission.id, t.claimId, instruction.decision.stakeUsdc, permission);
+  if (reserved === "duplicate") {
+    return fail(409, "already_prepared", "this copy was already prepared: report it before preparing again");
+  }
+  if (reserved === "over_cap") {
+    return fail(409, "follower_cap", "the follower's daily or weekly copy limit is reached");
+  }
+  // Then the agent's own daily cap, checked and recorded in one locked step.
+  const reservation = await reserveDailyStake(
+    agent.agentId,
+    "challenge",
+    stakeUnits,
+    usdcLimitUnits(agent.limits.maxDailyUsdc),
+  ).catch(async (err) => {
+    await releaseCopy(permission.id, t.claimId).catch(() => undefined);
+    throw err;
+  });
+  if (reservation === null) {
+    await releaseCopy(permission.id, t.claimId).catch(() => undefined);
+    await recordRequest(agent.agentId, "challenge", false, "daily_cap").catch(() => undefined);
+    return fail(403, "daily_cap", `over ${agent.limits.maxDailyUsdc} USDC at risk today`);
+  }
+
+  let prepared;
+  try {
+    prepared = await prepareWrite(
+      { action: "challenge", params: { claimId: BigInt(t.claimId), stakeUnits } },
+      { operator: new PublicKey(agent.operatorWallet), agentOwner: agentOwnerFor(agent) },
+    );
+  } catch (err) {
+    await Promise.all([
+      releaseStake(reservation, "prepare_failed").catch(() => undefined),
+      releaseCopy(permission.id, t.claimId).catch(() => undefined),
+    ]);
+    throw err;
+  }
   return json({
     ok: true,
     permissionId: permission.id,
@@ -205,6 +247,7 @@ async function handleReport(agent: AgentRecord, permissions: CopyPermission[], r
   }
 
   if (r.executed !== true) {
+    await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
     await recordExecution({
       permissionId: t.permissionId,
       claimId: t.claimId,
@@ -233,5 +276,7 @@ async function handleReport(agent: AgentRecord, permissions: CopyPermission[], r
     stakeUsdc,
     txSignature: signature || null,
   });
+  // The executed row now carries the spend; the provisional one goes.
+  await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
   return json({ ok: true, recorded: { ...t, executed: true, stakeUsdc }, duplicate: !recorded });
 }

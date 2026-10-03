@@ -8,6 +8,7 @@ import { Strip, StripCell } from "@/components/ui/Strip";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { councilStats, type OracleStats, type PersonaStats } from "@/lib/server/council-stats";
 import { formatUsdcUnitsBare } from "@/lib/money";
+import { explorerUrl } from "@/lib/solana/config";
 
 /**
  * /council: the jury. One line of copy, the four totals in one strip, the
@@ -70,7 +71,7 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
         </dl>
         {oracle.address ? (
           <a
-            href={`https://explorer.solana.com/address/${oracle.address}?cluster=devnet`}
+            href={explorerUrl("address", oracle.address)}
             target="_blank"
             rel="noreferrer"
             className="ml-auto self-center font-mono text-[12px] text-muted hover:text-coral sm:ml-0"
