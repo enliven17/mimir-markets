@@ -19,7 +19,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const CONFIG_DIR = join(homedir(), ".mimir");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const DEFAULTS = {
@@ -244,33 +244,72 @@ async function askAgent(cfg, state, name, message) {
 
 // ── commands ──────────────────────────────────────────────────────────────
 
+/** The help screen, in groups. [usage, what it does, an example that runs as is]. */
 const HELP = [
-  ["markets [live|closing|crypto|sports|settled]", "list markets with odds", "markets live"],
-  ["market <id>", "one market in full; agents then answer about it", "market 29"],
-  ["token <contract address>", "a Solana token: price, liquidity, red flags", ""],
-  ["price", "the $MIMIR token", ""],
-  ["agents", "your agents and the house council (all run on your AI)", ""],
-  ["use <agent>", "talk to an agent: plain text goes to it", "use optimist"],
-  ["ask <agent> <question>", "one question, no switching", "ask doomer is #29 a trap?"],
-  ["leave", "stop talking to the agent", ""],
-  ["agent add <name> prompt <persona…>", "an agent on your AI, from a persona prompt", 'agent add bull prompt You are a crypto bull who loves memecoins'],
-  ["agent add <name> http <url>", "your own agent server (same contract as Mimir's setChat)", "agent add mine http http://localhost:8787/chat"],
-  ["agent add <name> exec <command>", "a local program: request JSON on stdin, reply on stdout", "agent add py exec python my_agent.py"],
-  ["agent rm <name>", "remove one of your agents", ""],
-  ["ai [<baseUrl> <model> [API_KEY_ENV]]", "show or set the AI your agents think with", "ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY"],
-  ["clear · exit", "", ""],
+  ["Markets", [
+    ["markets", "every market, live ones first", "markets"],
+    ["markets live|closing|crypto|sports|settled", "only some of them", "markets closing"],
+    ["market <id>", "one market in full; agents then answer about it", "market 29"],
+  ]],
+  ["Tokens", [
+    ["token <contract address>", "a Solana token: price, liquidity, red flags", ""],
+    ["price", "the $MIMIR token", "price"],
+  ]],
+  ["Agents", [
+    ["agents", "who you can talk to", "agents"],
+    ["use <agent>", "start a chat: everything you type goes to that agent", "use optimist"],
+    ["ask <agent> <question>", "one question without starting a chat", "ask doomer is #29 a trap?"],
+    ["leave", "end the chat (exit also works)", "leave"],
+  ]],
+  ["Your own agents", [
+    ["agent add <name> prompt <persona>", "a persona that thinks with your AI", "agent add bull prompt You are a crypto bull"],
+    ["agent add <name> http <url>", "your own agent server", "agent add mine http http://localhost:8787/chat"],
+    ["agent add <name> exec <command>", "a local program (JSON in on stdin, reply on stdout)", "agent add py exec python my_agent.py"],
+    ["agent rm <name>", "remove one", ""],
+  ]],
+  ["Setup", [
+    ["ai", "which AI your agents think with", "ai"],
+    ["ai <url> <model> [KEY_ENV]", "switch it (the last word is an env var NAME, never the key)", "ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY"],
+    ["clear", "clear the screen", ""],
+    ["quit", "leave the terminal (or ctrl+c)", ""],
+  ]],
 ];
+const COMMAND_NAMES = ["markets", "market", "token", "price", "agents", "use", "ask", "leave", "agent", "ai", "help", "clear", "quit"];
+
+function printHelp() {
+  for (const [group, rows] of HELP) {
+    out("", `  ${red("■")} ${bold(cream(group))}`);
+    for (const [usage, what, eg] of rows) {
+      out(`    ${cream(col(usage, 44))}${dim(what)}`);
+      if (eg && eg !== usage) out(`    ${" ".repeat(44)}${dim("e.g. ")}${red(eg)}`);
+    }
+  }
+  out("", dim("  tab completes · ↑↓ history · paste a contract address to look it up · plain text goes to the agent you are using"), "");
+}
+
+/** The command a typo most likely meant (edit distance ≤ 2), or null. */
+function closest(word) {
+  const dist = (a, b) => {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++)
+      for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  };
+  const best = COMMAND_NAMES.map((n) => [n, dist(word, n)]).sort((x, y) => x[1] - y[1])[0];
+  return best && best[1] <= 2 ? best[0] : null;
+}
 
 async function run(cfg, state, line) {
   const [head = "", ...rest] = line.trim().split(/\s+/);
-  const cmd = head.toLowerCase();
+  // "/help" works like "help", as in Claude Code.
+  const cmd = head.toLowerCase().replace(/^\//, "");
   const arg = rest[0];
   switch (cmd) {
     case "":
       return;
-    case "help": case "?":
-      for (const [usage, what, eg] of HELP) out(`  ${cream(col(usage, 44))} ${dim(what)}${eg ? dim(` · e.g. `) + red(eg) : ""}`);
-      return;
+    case "help": case "?": case "commands":
+      return printHelp();
     case "clear":
       return process.stdout.write("\x1b[2J\x1b[H");
     case "exit": case "quit":
@@ -364,8 +403,72 @@ async function run(cfg, state, line) {
     default:
       if (state.agent) return askAgent(cfg, state, state.agent, line.trim());
       if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(head) && !rest.length) return run(cfg, state, `token ${head}`);
-      return err(`unknown command "${head}". Type help.`);
+      return err(`unknown command "${head}".${closest(cmd) ? ` Did you mean ${closest(cmd)}?` : ""} Type help for the list.`);
   }
+}
+
+// ── banner ────────────────────────────────────────────────────────────────
+
+// The site's mark, ›M., as block letters: the chevron, MIMIR, and the red full stop.
+const CHEVRON = ["█▄    ", "▀██▄  ", "  ▀██ ", "▄██▀  ", "█▀    "];
+const GLYPHS = {
+  M: ["██▄   ▄██", "███▄ ▄███", "██ ▀█▀ ██", "██     ██", "██     ██"],
+  I: ["██", "██", "██", "██", "██"],
+  R: ["██████▄ ", "██    ██", "██████▀ ", "██  ▀█▄ ", "██    ██"],
+};
+const STOP = ["   ", "   ", "   ", "   ", "██ "];
+
+/** Red at the chevron fading to cream at the end, in 24-bit colour. */
+function gradient(text, from, to) {
+  if (!tty) return text;
+  const chars = [...text];
+  return chars
+    .map((ch, i) => {
+      if (ch === " ") return ch;
+      const t = chars.length > 1 ? i / (chars.length - 1) : 0;
+      const [r, g, b] = from.map((v, k) => Math.round(v + (to[k] - v) * t));
+      return `\x1b[38;2;${r};${g};${b}m${ch}`;
+    })
+    .join("") + "\x1b[0m";
+}
+
+const RED = [255, 59, 48], CORAL = [255, 120, 96], CREAM = [243, 234, 214];
+
+async function banner(cfg) {
+  const cols = process.stdout.columns ?? 80;
+  const rows = CHEVRON.map((c, r) => {
+    const word = ["M", "I", "M", "I", "R"].map((l) => GLYPHS[l][r]).join("  ");
+    return { chevron: c, word, stop: STOP[r] };
+  });
+  const width = 2 + rows[0].chevron.length + 1 + rows[0].word.length + 1 + STOP[0].length;
+  const pause = (ms) => (tty ? new Promise((r) => setTimeout(r, ms)) : null);
+  out("");
+  if (cols >= width + 2) {
+    for (const { chevron, word, stop } of rows) {
+      out(`  ${gradient(chevron, RED, RED)} ${gradient(word, CORAL, CREAM)} ${tty ? `\x1b[38;2;255;59;48m${stop}\x1b[0m` : stop}`);
+      await pause(45);
+    }
+  } else {
+    // Narrow terminal: the one-line mark.
+    out(`  ${red("›")}${cream(bold("M."))}  ${bold(cream("MIMIR"))}`);
+  }
+  out(`  ${dim("T E R M I N A L")}  ${dim(`v${VERSION}`)}`, "");
+  // A rounded box like Claude Code's welcome.
+  const lines = [
+    `${red("✻")} ${bold(cream("Welcome to the Mimir Terminal"))}`,
+    "",
+    dim(`markets   ${cfg.site.replace(/^https?:\/\//, "")}`),
+    dim(`your ai   ${cfg.ai.model} at ${cfg.ai.baseUrl.replace(/^https?:\/\//, "")}`),
+    dim(`agents    ${Object.keys(cfg.agents).length} of yours + the house council`),
+    "",
+    `${dim("try")} ${cream("markets live")}${dim(" · ")}${cream("use optimist")}${dim(" · ")}${cream("help")}`,
+  ];
+  // ponytail: visible length strips ANSI with one regex; wide emoji would misalign the right edge.
+  const visible = (s) => s.replace(/\x1b\[[0-9;]*m/g, "").length;
+  const inner = Math.min(Math.max(...lines.map(visible)) + 2, Math.max(20, cols - 6));
+  out(`  ${dim(`╭${"─".repeat(inner)}╮`)}`);
+  for (const l of lines) out(`  ${dim("│")} ${l}${" ".repeat(Math.max(0, inner - 2 - visible(l)))} ${dim("│")}`);
+  out(`  ${dim(`╰${"─".repeat(inner)}╯`)}`, "");
 }
 
 // ── main ──────────────────────────────────────────────────────────────────
@@ -380,18 +483,12 @@ if (argv[0] === "--version" || argv[0] === "-v") {
   // One-shot: `mimir markets live`, `mimir ask optimist "is #29 worth it?"`.
   await run(cfg, state, argv.join(" ")).catch((e) => err(e.message));
 } else {
-  out(
-    "",
-    `  ${red("›")}${cream(bold("M."))}  ${bold(cream("MIMIR TERMINAL"))} ${dim(`v${VERSION} · ${cfg.site}`)}`,
-    dim(`  markets from Mimir, agents on your own AI (${cfg.ai.model} at ${cfg.ai.baseUrl})`),
-    dim("  help for commands · markets live · agents · use optimist"),
-    "",
-  );
+  await banner(cfg);
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
     completer: (line) => {
-      const names = ["markets", "market", "token", "price", "agents", "use", "ask", "leave", "agent", "ai", "help", "clear", "exit"];
+      const names = COMMAND_NAMES;
       const hits = names.filter((n) => n.startsWith(line.trim()));
       return [hits.length ? hits : names, line];
     },
@@ -409,7 +506,8 @@ if (argv[0] === "--version" || argv[0] === "-v") {
   });
   rl.on("close", () => {
     closed = true;
-    queue.then(() => process.exit(0));
+    // Let the loop drain instead of process.exit: exiting mid-close trips a libuv assert on Windows.
+    queue.then(() => process.stdin.destroy());
   });
   prompt();
 }
