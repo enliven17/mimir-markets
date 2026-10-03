@@ -74,7 +74,8 @@ test("web and council roles never spend an oracle key", async () => {
   const { geminiKeysFor, anthropicKeyFor } = await import("../../lib/llm");
   withEnv({ GEMINI_API_KEY: "same", GEMINI_API_KEYS: "other", ORACLE_GEMINI_API_KEY: "same", COUNCIL_GEMINI_API_KEY: "c", ANTHROPIC_API_KEY: "ak", ORACLE_ANTHROPIC_API_KEY: "ak" }, () => {
     assert.deepEqual(geminiKeysFor({ keyEnv: "COUNCIL_GEMINI_API_KEY", mainnet: true }), ["c", "other"]);
-    assert.deepEqual(geminiKeysFor({ role: "web", keyEnv: "ORACLE_GEMINI_API_KEY", mainnet: false }), ["other"], "naming the oracle env does not grant it");
+    assert.deepEqual(geminiKeysFor({ role: "web", keyEnv: "ORACLE_GEMINI_API_KEY", mainnet: true }), ["other"], "naming the oracle env does not grant it");
+    assert.deepEqual(geminiKeysFor({ role: "web", mainnet: false }), ["same", "other"], "off mainnet one shared key may serve everything");
     assert.equal(anthropicKeyFor({ role: "web", mainnet: false }), "");
   });
 });

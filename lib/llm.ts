@@ -121,13 +121,13 @@ function splitList(...values: Array<string | undefined>): string[] {
 
 /**
  * GEMINI_API_KEY for web routes that call Gemini directly (moderation, source
- * drafts), or "" when it is the oracle's own key: public traffic must never
- * spend the settlement quota.
+ * drafts), or "" on mainnet when it is the oracle's own key: public traffic
+ * must never spend the settlement quota.
  */
 export function webGeminiKey(): string {
   const key = process.env.GEMINI_API_KEY?.trim() ?? "";
   const oracle = process.env[ORACLE_GEMINI_KEY_ENV]?.trim();
-  if (key && oracle && key === oracle) {
+  if (IS_MAINNET && key && oracle && key === oracle) {
     console.error("[llm] GEMINI_API_KEY equals ORACLE_GEMINI_API_KEY: web routes will not use it");
     return "";
   }
@@ -156,7 +156,8 @@ const isOracleEnv = (name: string | undefined): boolean => Boolean(name?.toUpper
 
 /**
  * The Gemini keys a call may use, its own first. Oracle: the dedicated key,
- * plus the shared ones only off mainnet. Everyone else: never an oracle key.
+ * plus the shared ones only off mainnet. Everyone else: never the oracle key
+ * on mainnet (off mainnet one shared key may serve everything).
  */
 export function geminiKeysFor(opts: ScopeOpts = {}): string[] {
   const scope = scopeOf(opts);
@@ -166,7 +167,7 @@ export function geminiKeysFor(opts: ScopeOpts = {}): string[] {
   }
   const oracleKey = envKey(ORACLE_GEMINI_KEY_ENV);
   const own = scope.keyEnv && !isOracleEnv(scope.keyEnv) ? envKey(scope.keyEnv) : "";
-  return splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS).filter((k) => k !== oracleKey);
+  return splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS).filter((k) => !scope.mainnet || k !== oracleKey);
 }
 
 /** The Anthropic key a call may use (same rules as Gemini); "" when none. */
