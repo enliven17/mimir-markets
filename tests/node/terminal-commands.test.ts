@@ -68,3 +68,14 @@ test("a Jupiter token search answer is read for exactly the asked mint", () => {
   assert.equal(t.verified, null, "absent is unknown, not false");
   assert.equal(parseJupiterToken(body, "NOPE"), null);
 });
+
+test("typing previews the rest of a command: the name, then the arguments still to type", async () => {
+  const { suggest } = await import("../../lib/terminal/commands");
+  assert.equal(suggest("bu").ghost, "y <contract address> <sol>");
+  assert.equal(suggest("buy ").ghost, "<contract address> <sol>");
+  assert.equal(suggest(`buy ${MINT}`).ghost, " <sol>");
+  assert.equal(suggest(`buy ${MINT} 0.1`).ghost, "");
+  assert.deepEqual(suggest("mar").items.map((c) => c.name), ["markets", "market"]);
+  assert.equal(suggest("will SOL pump").items.length, 0, "chat to an agent previews nothing");
+  assert.equal(suggest("").items.length, 0);
+});

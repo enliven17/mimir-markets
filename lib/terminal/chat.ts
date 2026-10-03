@@ -2,6 +2,9 @@
  * Mimir Terminal chat: the request shape and the house-persona prompt. Pure,
  * shared by the route and its tests.
  */
+import type { PersonaSpec } from "../../agents/council/personas";
+import { ruleDecision } from "../../agents/council/shared/persona-rules";
+import type { CouncilClaim } from "../../agents/council/shared/types";
 import { INJECTION_GUARD, fenceUntrusted } from "../prompt-safety";
 
 export const MAX_MESSAGE_CHARS = 600;
@@ -83,4 +86,50 @@ export function personaChatPrompt(args: {
   }
   sections.push(`## The user's message (untrusted)\n${fenceUntrusted("message", message)}`);
   return sections.join("\n\n");
+}
+
+/** A market id named in the message ("#42"), which beats the terminal's focus. */
+export function claimIdIn(message: string): number | undefined {
+  const id = Number(/#(\d{1,9})\b/.exec(message)?.[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
+
+const pct = (part: bigint, total: bigint) => (total > 0n ? Number((part * 100n) / total) : 0);
+const usdcOf = (units: bigint) => (Number(units) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+/**
+ * A rule persona (Contrarian, Whale-Watcher) has no model: it answers by running
+ * its rule on whatever the user has open, the same rule it stakes with.
+ */
+export function ruleChatReply(
+  persona: PersonaSpec,
+  args: { claim?: CouncilClaim | null; token?: { symbol: string | null; change24hPct: number | null; topHoldersPct: number | null } | null },
+): string {
+  const { claim, token } = args;
+  const whale = persona.ruleEvaluator === "whale-follow";
+  if (claim) {
+    const total = claim.creatorStake + claim.totalChallengerStake;
+    const pool = `#${claim.id}: creator ${usdcOf(claim.creatorStake)} USDC (${pct(claim.creatorStake, total)}%) vs challengers ${usdcOf(claim.totalChallengerStake)} USDC (${pct(claim.totalChallengerStake, total)}%).`;
+    const d = ruleDecision(persona, claim);
+    const call = d?.shouldStake ? `My call: the challengers, "${claim.counterPosition}".` : "My call: no stake.";
+    return `${pool}\n${d?.rationale ?? ""}\n${call}`;
+  }
+  if (token) {
+    const sym = token.symbol ? `$${token.symbol}` : "this token";
+    if (whale) {
+      const top = token.topHoldersPct;
+      if (top === null) return `I can't see who holds ${sym}, so there is no whale to follow. I sit out.`;
+      return top >= 50
+        ? `The top holders own ${top.toFixed(1)}% of ${sym}. The whales run this one: I'd follow them, and they can leave before you.`
+        : `The top holders own ${top.toFixed(1)}% of ${sym}. No single whale steers it, so I have nobody to follow. I sit out.`;
+    }
+    const ch = token.change24hPct;
+    if (ch === null) return `No 24h move on ${sym} to read, so no crowd to fight. I sit out.`;
+    if (ch >= 10) return `${sym} is up ${ch.toFixed(1)}% in 24h: everyone is piling in. My rule says fade the crowd.`;
+    if (ch <= -10) return `${sym} is down ${Math.abs(ch).toFixed(1)}% in 24h: everyone is running. My rule says that is where I'd look.`;
+    return `${sym} moved ${ch.toFixed(1)}% in 24h. The crowd isn't leaning hard either way, so there is nothing to resist. I sit out.`;
+  }
+  return whale
+    ? "I don't think, I follow the biggest wallet. Open a market (market <id>) or a token, or name one like #42, and I'll tell you who the whale is and whether I'd ride with it."
+    : "I don't have opinions, I have a rule: I take the smaller side. Open a market (market <id>) or a token, or name one like #42, and I'll read the pool and tell you where I'd stand.";
 }

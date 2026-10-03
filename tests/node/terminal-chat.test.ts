@@ -49,3 +49,17 @@ test("the price the user saw rides along as a ceiling, capped at the max price",
   assert.equal(ok({ maxPriceUsdc: -1 }), 0);
   assert.equal(ok({ maxPriceUsdc: "abc" }), 0);
 });
+
+test("rule personas answer by running their rule on what is open", async () => {
+  const { ruleChatReply, claimIdIn } = await import("../../lib/terminal/chat");
+  const { getPersonaBySlug } = await import("../../agents/council/personas");
+  const contrarian = getPersonaBySlug("contrarian")!;
+  const claim = { id: 7n, creatorStake: 8_000_000n, totalChallengerStake: 2_000_000n, counterPosition: "No", challengers: [] } as never;
+  const r = ruleChatReply(contrarian, { claim });
+  assert.match(r, /creator 8 USDC \(80%\)/);
+  assert.match(r, /My call: the challengers, "No"/);
+  assert.match(ruleChatReply(contrarian, { token: { symbol: "X", change24hPct: 25, topHoldersPct: null } }), /fade the crowd/);
+  assert.match(ruleChatReply(contrarian, {}), /smaller side/);
+  assert.equal(claimIdIn("what about #42?"), 42);
+  assert.equal(claimIdIn("no id here"), undefined);
+});

@@ -8,6 +8,7 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 
+import PeepAvatar from "@/components/ui/PeepAvatar";
 import { COMMANDS, type MarketFilter } from "@/lib/terminal/commands";
 import { col, oddsBar, short, timeLeft, usd, usdc } from "@/lib/terminal/format";
 
@@ -83,13 +84,23 @@ function useData<T>(url: string): { data: T | null; error: string | null } {
 
 export function Help({ run }: { run: Run }) {
   return (
-    <div className="grid gap-1">
+    <div className="grid gap-2.5">
       {COMMANDS.map((c) => (
-        <div key={c.name} className="grid grid-cols-[minmax(0,22ch)_1fr] gap-4 max-sm:grid-cols-1 max-sm:gap-0">
-          <Cmd line={c.usage} run={() => (c.usage.includes("<") ? run(`${c.name} `, "fill") : run(c.name))} className="text-cream">
+        <div key={c.name} className="grid grid-cols-[minmax(0,34ch)_1fr] gap-4 max-sm:grid-cols-1 max-sm:gap-0">
+          <Cmd line={c.usage} run={() => (c.usage.includes("<") ? run(`${c.name} `, "fill") : run(c.name))} className="text-left text-cream">
             {c.usage}
           </Cmd>
-          <span className="text-dim">{c.summary}</span>
+          <span className="text-dim">
+            {c.summary}
+            {c.example && !c.example.includes("<") ? (
+              <>
+                {" · "}
+                <Cmd line={c.example} run={run} className="text-coral">
+                  {c.example}
+                </Cmd>
+              </>
+            ) : null}
+          </span>
         </div>
       ))}
       <Note>Tab completes · ↑↓ history · ⌘K commands · paste a contract address to look it up</Note>
@@ -242,8 +253,8 @@ export function Agents({ run }: { run: Run }) {
     <div className="grid gap-0.5">
       <div className="text-dim">house agents · free</div>
       {house.data.personas.map((p) => (
-        <Cmd key={p.slug} line={`use ${p.slug}`} run={run} className="grid grid-cols-[3ch_minmax(0,18ch)_1fr] gap-3 text-muted max-sm:grid-cols-[3ch_1fr]">
-          <span aria-hidden>{p.emoji}</span>
+        <Cmd key={p.slug} line={`use ${p.slug}`} run={run} className="grid grid-cols-[22px_minmax(0,18ch)_1fr] items-center gap-3 py-0.5 text-muted max-sm:grid-cols-[22px_1fr]">
+          <PeepAvatar seed={`council-${p.slug}`} size={22} />
           <span className="text-cream">{p.slug}</span>
           <span className="truncate max-sm:hidden">{p.bio}</span>
         </Cmd>
@@ -253,8 +264,8 @@ export function Agents({ run }: { run: Run }) {
         <Note>none yet. Run your own: register an agent, then setChat with your endpoint (docs/AGENTS.md).</Note>
       ) : (
         open.map((a) => (
-          <Cmd key={a.agentId} line={`use ${a.agentId}`} run={run} className="grid grid-cols-[3ch_minmax(0,18ch)_10ch_1fr] gap-3 text-muted max-sm:grid-cols-[3ch_1fr_10ch]">
-            <span aria-hidden className="text-coral">◆</span>
+          <Cmd key={a.agentId} line={`use ${a.agentId}`} run={run} className="grid grid-cols-[22px_minmax(0,18ch)_10ch_1fr] items-center gap-3 py-0.5 text-muted max-sm:grid-cols-[22px_1fr_10ch]">
+            <PeepAvatar seed={`agent-${a.agentId}`} size={22} tone="accent" />
             <span className="truncate text-cream">{a.agentId}</span>
             <span className={a.chat!.priceUsdc > 0 ? "text-pending" : "text-win"}>
               {a.chat!.priceUsdc > 0 ? `${a.chat!.priceUsdc} USDC` : "free"}
@@ -400,6 +411,7 @@ export function AgentReply({
 }) {
   const [reply, setReply] = useState<string | null>(null);
   const [charged, setCharged] = useState<number | null>(null);
+  const [house, setHouse] = useState(true);
   const [error, setError] = useState<{ text: string; fix?: string } | null>(null);
   const [signing, setSigning] = useState(false);
   const [shown, revealAll] = useTyped(reply);
@@ -416,7 +428,7 @@ export function AgentReply({
       try {
         const stored = auth.headers();
         let res = await send(stored);
-        let body = (await res.json().catch(() => ({}))) as { data?: { reply?: string; chargedUsdc?: number }; error?: string; code?: string };
+        let body = (await res.json().catch(() => ({}))) as { data?: { reply?: string; chargedUsdc?: number; house?: boolean }; error?: string; code?: string };
         // A paid agent and no session yet: one signature (no transaction), then the same message again.
         if (res.status === 401 && body.code === "session") {
           setSigning(true);
@@ -440,6 +452,7 @@ export function AgentReply({
           return;
         }
         setCharged(body.data.chargedUsdc ?? null);
+        setHouse(body.data.house === true);
         setReply(body.data.reply);
         onReply(body.data.reply);
       } catch (err) {
@@ -472,6 +485,10 @@ export function AgentReply({
   if (!reply) return <Wave label={`${agent} is thinking${focus ? ` about ${focus.label}` : ""}`} />;
   return (
     <div className="max-w-[80ch] whitespace-pre-wrap border-l-2 border-red/70 pl-4 text-cream" onClick={revealAll}>
+      <div className="mb-1.5 flex items-center gap-2 text-[12px] text-dim">
+        <PeepAvatar seed={`${house ? "council" : "agent"}-${agent}`} size={20} tone="accent" />
+        {agent}
+      </div>
       {shown}
       {shown.length < reply.length ? <span className="ml-0.5 inline-block h-[1.1em] w-[0.6ch] translate-y-[0.15em] animate-blink bg-red" aria-hidden /> : null}
       {charged && shown.length >= reply.length ? <div className="mt-1 text-[12px] text-dim">− {charged} USDC · 99.5% to {agent}&apos;s creator</div> : null}

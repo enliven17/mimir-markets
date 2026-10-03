@@ -26,23 +26,25 @@ export interface CommandSpec {
   name: string;
   usage: string;
   summary: string;
+  /** A line that runs as is, shown under the summary. */
+  example?: string;
 }
 
-/** The help text, the palette and Tab completion all read this list. */
+/** The help text, the palette, the typing preview and Tab completion all read this list. */
 export const COMMANDS: readonly CommandSpec[] = [
-  { name: "markets", usage: "markets [live|closing|crypto|sports|settled]", summary: "list markets" },
-  { name: "market", usage: "market <id>", summary: "one market in full" },
-  { name: "agents", usage: "agents", summary: "who you can talk to, and what they charge" },
-  { name: "use", usage: "use <agent>", summary: "talk to an agent: plain text goes to it" },
-  { name: "ask", usage: "ask <agent> <question>", summary: "one question to an agent" },
-  { name: "leave", usage: "leave", summary: "stop talking to the agent" },
-  { name: "token", usage: "token <contract address>", summary: "a Solana token's price, liquidity and safety" },
-  { name: "price", usage: "price", summary: "$MIMIR price" },
-  { name: "buy", usage: "buy <contract address> <sol>", summary: "buy a token with SOL (mainnet, you sign)" },
-  { name: "sell", usage: "sell <contract address> <percent>", summary: "sell a share of a token for SOL" },
-  { name: "limit", usage: "limit [<usdc>|revoke]", summary: "the spending limit for paid agents" },
-  { name: "clear", usage: "clear", summary: "clear the screen" },
-  { name: "help", usage: "help", summary: "this list" },
+  { name: "markets", usage: "markets [live|closing|crypto|sports|settled]", summary: "list prediction markets with their odds; filter by state or topic, click a row to open it", example: "markets crypto" },
+  { name: "market", usage: "market <id>", summary: "open one market: the question, both sides, the pools, time left and how it settles. Agents then answer about it", example: "market 42" },
+  { name: "agents", usage: "agents", summary: "every agent you can talk to: the free house council and community agents with their price per message" },
+  { name: "use", usage: "use <agent>", summary: "start a conversation: everything you type next goes to that agent until you leave", example: "use contrarian" },
+  { name: "ask", usage: "ask <agent> <question>", summary: "one question to an agent without switching to it; about the market or token you have open", example: "ask optimist will this market hit?" },
+  { name: "leave", usage: "leave", summary: "end the conversation with the current agent (esc does the same)" },
+  { name: "token", usage: "token <contract address>", summary: "look up a Solana token by contract address: price, market cap, liquidity, holders and red flags", example: "token So11111111111111111111111111111111111111112" },
+  { name: "price", usage: "price", summary: "the $MIMIR token: price, market cap, liquidity and 24h move" },
+  { name: "buy", usage: "buy <contract address> <sol>", summary: "buy a token with SOL through Jupiter on mainnet. You see the quote and warnings, then sign in your wallet", example: "buy <contract address> 0.1" },
+  { name: "sell", usage: "sell <contract address> <percent>", summary: "sell a share of a token you hold back to SOL through Jupiter, after a quote you sign", example: "sell <contract address> 50%" },
+  { name: "limit", usage: "limit [<usdc>|revoke]", summary: "the USDC spending limit paid agents draw from: one signature, the money stays in your wallet; revoke any time", example: "limit 5" },
+  { name: "clear", usage: "clear", summary: "clear the screen (ctrl+l)" },
+  { name: "help", usage: "help", summary: "every command with an example" },
 ];
 
 const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -129,4 +131,36 @@ export function complete(input: string, words: readonly string[] = []): string[]
   const last = (parts.at(-1) ?? "").toLowerCase();
   const pool = parts.length <= 1 ? COMMANDS.map((c) => c.name) : words;
   return pool.filter((w) => w.toLowerCase().startsWith(last) && w.toLowerCase() !== last);
+}
+
+export interface Suggestion {
+  /** Commands matching what is typed: the drop-up list. */
+  items: CommandSpec[];
+  /** Grey text to draw right after the input: the rest of the name, then the arguments still to type. */
+  ghost: string;
+}
+
+/** A usage's arguments: "<contract address>" is one, though it has a space. */
+const argsOf = (c: CommandSpec) => (c.usage.match(/<[^>]+>|\[[^\]]+\]|\S+/g) ?? []).slice(1);
+
+/** What to preview while the user types a command. Empty when the line is not a command (e.g. chat). */
+export function suggest(input: string): Suggestion {
+  const none: Suggestion = { items: [], ghost: "" };
+  if (!input.trim() || /^\s/.test(input)) return none;
+  const parts = input.split(/\s+/);
+  const first = parts[0].toLowerCase().replace(/^\//, "");
+  if (parts.length === 1) {
+    const items = COMMANDS.filter((c) => c.name.startsWith(first));
+    const top = items[0];
+    if (!top) return none;
+    const rest = argsOf(top);
+    return { items, ghost: top.name.slice(first.length) + (rest.length ? ` ${rest.join(" ")}` : "") };
+  }
+  const exact = COMMANDS.find((c) => c.name === first);
+  if (!exact) return none;
+  const args = argsOf(exact);
+  const typing = parts.length - 1; // arguments started, the last maybe empty
+  const last = parts[parts.length - 1];
+  const left = last === "" ? args.slice(typing - 1) : args.slice(typing);
+  return { items: [exact], ghost: left.length ? (last === "" ? "" : " ") + left.join(" ") : "" };
 }

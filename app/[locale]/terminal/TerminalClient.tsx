@@ -18,7 +18,7 @@ import TerminalMark from "@/components/terminal/TerminalMark";
 import { Limit, useTerminalSession } from "@/components/terminal/pay";
 import { Swap } from "@/components/terminal/swap";
 import { AgentReply, Agents, Cmd, Err, Help, Market, Markets, Note, Token, type Focus, type Run } from "@/components/terminal/blocks";
-import { COMMANDS, complete, parseCommand, type Command } from "@/lib/terminal/commands";
+import { COMMANDS, complete, parseCommand, suggest, type Command, type CommandSpec } from "@/lib/terminal/commands";
 import { short } from "@/lib/terminal/format";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
 import { mimirMint } from "@/lib/token-config";
@@ -79,11 +79,17 @@ export default function TerminalClient() {
   const [focus, setFocus] = useState<Focus | null>(null);
   const [palette, setPalette] = useState(false);
   const [paletteIdx, setPaletteIdx] = useState(0);
+  /** The typing preview: which row of the drop-up is picked, and whether esc closed it for this line. */
+  const [sugIdx, setSugIdx] = useState(0);
+  const [sugClosed, setSugClosed] = useState(false);
   const history = useRef<string[]>([]);
   const cursor = useRef(-1);
   const nextId = useRef(1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  /** Follow the output down unless the user scrolled up to read. */
+  const stick = useRef(true);
   const agentRef = useRef<string | null>(null);
   agentRef.current = agent;
   const focusRef = useRef<Focus | null>(null);
@@ -201,10 +207,29 @@ export default function TerminalClient() {
     exec(cmd, line);
   };
 
-  // Keep the newest output in view.
+  // Keep the newest output in view: blocks keep growing after they print (data lands,
+  // replies type out), so follow the content's size, not just new entries.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    stick.current = true;
   }, [entries]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    const content = contentRef.current;
+    if (!el || !content) return;
+    const follow = () => {
+      if (stick.current) el.scrollTop = el.scrollHeight;
+    };
+    const onScroll = () => {
+      stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    };
+    const ro = new ResizeObserver(follow);
+    ro.observe(content);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   // ⌘K / Ctrl+K anywhere on the page.
   useEffect(() => {
@@ -247,6 +272,27 @@ export default function TerminalClient() {
         return;
       }
     }
+    if (sug.items.length > 0) {
+      const picking = !input.includes(" ");
+      const pick = sug.items[Math.min(sugIdx, sug.items.length - 1)];
+      if (picking && sug.items.length > 1 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        e.preventDefault();
+        const n = sug.items.length;
+        setSugIdx((i) => (i + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+        return;
+      }
+      // Tab, or Enter on a half-typed name, takes the picked command.
+      if (picking && pick && (e.key === "Tab" || (e.key === "Enter" && pick.name !== input.trim().toLowerCase()))) {
+        e.preventDefault();
+        accept(pick);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSugClosed(true);
+        return;
+      }
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       const line = input.trim();
@@ -271,7 +317,17 @@ export default function TerminalClient() {
     }
   };
 
-  const hint = complete(input)[0];
+  const typed = suggest(input);
+  const sug = sugClosed || palette ? { items: [] as CommandSpec[], ghost: "" } : typed;
+  // A name with arguments goes into the prompt to finish; one without runs.
+  const accept = (c: CommandSpec) => {
+    if (c.usage.includes(" ")) setInput(`${c.name} `);
+    else {
+      setInput("");
+      run(c.name);
+    }
+    setSugIdx(0);
+  };
 
   return (
     <section
@@ -307,7 +363,8 @@ export default function TerminalClient() {
       </header>
 
       {/* output */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-8" aria-live="polite">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-8" aria-live="polite">
+        <div ref={contentRef}>
         <Welcome run={run} />
         {entries.map((e) => (
           <div key={e.id} className="mt-4 animate-[fadeIn_160ms_ease-out]">
@@ -319,7 +376,7 @@ export default function TerminalClient() {
             <div>{e.node}</div>
           </div>
         ))}
-        <div ref={endRef} />
+        </div>
       </div>
 
       {/* palette */}
@@ -345,6 +402,33 @@ export default function TerminalClient() {
         </div>
       ) : null}
 
+      {/* typing preview: the matching commands, one quiet line each */}
+      {sug.items.length > 0 ? (
+        <div role="listbox" aria-label="Matching commands" className="absolute left-4 right-4 bottom-[100px] z-10 overflow-hidden rounded-lg border border-line bg-panel/95 py-1 text-[13px] shadow-xl backdrop-blur sm:left-[5.5rem] sm:right-auto sm:w-[min(560px,calc(100%-7rem))]">
+          {sug.items.slice(0, 6).map((c, i) => {
+            const on = i === Math.min(sugIdx, sug.items.length - 1);
+            return (
+              <button
+                key={c.name}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onMouseEnter={() => setSugIdx(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  accept(c);
+                  inputRef.current?.focus();
+                }}
+                className={"flex w-full items-baseline gap-3 px-3 py-1 text-left " + (on ? "bg-red/10" : "")}
+              >
+                <span className={"shrink-0 " + (on ? "text-cream" : "text-muted")}>{c.name}</span>
+                <span className="truncate text-dim">{c.summary}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {/* quick commands (touch) */}
       <div className="flex gap-2 overflow-x-auto border-t border-line px-4 py-2 sm:hidden">
         {QUICK.map((q) => (
@@ -364,7 +448,11 @@ export default function TerminalClient() {
             id="terminal-input"
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setSugIdx(0);
+              setSugClosed(false);
+            }}
             onKeyDown={onKeyDown}
             autoFocus
             autoComplete="off"
@@ -374,10 +462,10 @@ export default function TerminalClient() {
             enterKeyHint="send"
             className="w-full bg-transparent text-[16px] text-cream caret-red outline-none placeholder:text-dim/70 sm:text-[14px]"
           />
-          {hint && input && !palette ? (
-            <span aria-hidden className="pointer-events-none absolute left-0 top-0 whitespace-pre text-dim/50">
-              <span className="invisible">{input.replace(/\S*$/, "")}</span>
-              {hint}
+          {sug.ghost ? (
+            <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre text-[16px] text-dim/60 sm:text-[14px]">
+              <span className="invisible">{input}</span>
+              {sug.ghost}
             </span>
           ) : null}
         </div>

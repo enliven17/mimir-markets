@@ -27,7 +27,7 @@ import { rateIdentity } from "@/lib/server/holder";
 import { allowLlmRequest } from "@/lib/server/llm-route-guard";
 import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
 import { tokenInfo } from "@/lib/server/token-info";
-import { MAX_REPLY_CHARS, parseAskRequest, personaChatPrompt } from "@/lib/terminal/chat";
+import { MAX_REPLY_CHARS, claimIdIn, parseAskRequest, personaChatPrompt, ruleChatReply } from "@/lib/terminal/chat";
 import { rateLimitFor } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
@@ -44,14 +44,18 @@ export async function POST(req: Request) {
 
   const persona = getPersonaBySlug(ask.agent);
   if (!persona) return askCommunityAgent(ask, sessionWallet(req));
+  // A market named in the message ("#42") beats the one in focus.
+  const claimId = claimIdIn(ask.message) ?? ask.context.claimId;
+  const loadContext = () =>
+    Promise.all([
+      claimId ? loadCouncilClaim(claimId).catch(() => null) : null,
+      ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,
+    ]);
+
+  // Rule personas have no model: they run their staking rule on what is open. No LLM, no LLM budget.
   if (persona.archetype === "rule-based") {
-    return NextResponse.json({
-      success: true,
-      data: {
-        agent: persona.slug,
-        reply: `${persona.displayName} runs on rules, not a model: ${persona.longBio} Ask one of the thinking personas for a take.`,
-      },
-    });
+    const [claim, token] = await loadContext();
+    return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply: ruleChatReply(persona, { claim, token }) } });
   }
 
   if (
@@ -67,10 +71,7 @@ export async function POST(req: Request) {
     return tooManyRequests(60);
   }
 
-  const [claim, token] = await Promise.all([
-    ask.context.claimId ? loadCouncilClaim(ask.context.claimId).catch(() => null) : null,
-    ask.context.mint ? tokenInfo(ask.context.mint).catch(() => null) : null,
-  ]);
+  const [claim, token] = await loadContext();
   const prompt = personaChatPrompt({ persona, message: ask.message, history: ask.history, claim, token: token as Record<string, unknown> | null });
 
   let reply = "";
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     console.error("[api/terminal/ask] llm failed:", err);
   }
   if (!reply) return fail(503, `${persona.displayName} cannot answer right now. Try again in a minute.`);
-  return NextResponse.json({ success: true, data: { agent: persona.slug, reply } });
+  return NextResponse.json({ success: true, data: { agent: persona.slug, house: true, reply } });
 }
 
 /** A registered agent with a chat endpoint: relay the message, return its reply. */
