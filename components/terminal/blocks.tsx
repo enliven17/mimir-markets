@@ -11,6 +11,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { COMMANDS, type MarketFilter } from "@/lib/terminal/commands";
 import { col, oddsBar, short, timeLeft, usd, usdc } from "@/lib/terminal/format";
+import { HOUSE_CHAT_PRICE_UNITS } from "@/lib/terminal/pay";
 
 /** Run a command line, or ("fill") put it in the prompt for the user to finish. */
 export type Run = (line: string, mode?: "run" | "fill") => void;
@@ -251,7 +252,10 @@ export function Agents({ run }: { run: Run }) {
   const open = (community.data?.agents ?? []).filter((a) => a.status === "active" && a.chat?.enabled);
   return (
     <div className="grid gap-0.5">
-      <div className="text-dim">house agents · free</div>
+      <div className="text-dim">
+        house agents ·{" "}
+        {process.env.NEXT_PUBLIC_TERMINAL_DELEGATE ? `thinking agents ${HOUSE_CHAT_PRICE_UNITS / 1e6} USDC a message to their own wallet, rule agents free` : "free"}
+      </div>
       {house.data.personas.map((p) => (
         <Cmd key={p.slug} line={`use ${p.slug}`} run={run} className="grid grid-cols-[22px_minmax(0,18ch)_1fr] items-center gap-3 py-0.5 text-muted max-sm:grid-cols-[22px_1fr]">
           <PeepAvatar seed={`council-${p.slug}`} size={22} />
@@ -491,7 +495,7 @@ export function AgentReply({
       </div>
       {shown}
       {shown.length < reply.length ? <span className="ml-0.5 inline-block h-[1.1em] w-[0.6ch] translate-y-[0.15em] animate-blink bg-red" aria-hidden /> : null}
-      {charged && shown.length >= reply.length ? <div className="mt-1 text-[12px] text-dim">− {charged} USDC · 99.5% to {agent}&apos;s creator</div> : null}
+      {charged && shown.length >= reply.length ? <div className="mt-1 text-[12px] text-dim">− {charged} USDC · 99.5% to {house ? <>{agent}&apos;s wallet</> : <>{agent}&apos;s creator</>}</div> : null}
     </div>
   );
 }
