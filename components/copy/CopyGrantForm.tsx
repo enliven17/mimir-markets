@@ -94,10 +94,9 @@ export default function CopyGrantForm({ address, onDisabled, initialSignalAgentI
   useEffect(() => {
     let cancelled = false;
     void listSignalAgents().then((list) => !cancelled && setSignalAgents(list));
-    void listExecutionAgents().then((list) => {
+    void listExecutionAgents(address).then((list) => {
       if (cancelled) return;
-      // The follower's own agents first: only those can execute for them.
-      setExecutors([...list].sort((a, b) => Number(b.wallet === address) - Number(a.wallet === address)));
+      setExecutors(list);
     });
     return () => {
       cancelled = true;
@@ -162,6 +161,14 @@ export default function CopyGrantForm({ address, onDisabled, initialSignalAgentI
   const agentPicker = (key: "signalAgentId" | "executionAgentId", options: AgentOption[] | null) => {
     const id = fid(key);
     const common = { id, value: values[key], required: true, "aria-describedby": `${id}-hint` };
+    // No agent of your own: nothing to type in either, the server would refuse any other.
+    if (key === "executionAgentId" && options && options.length === 0) {
+      return (
+        <select {...common} className="select" disabled>
+          <option value="">{t("grant.noAgents")}</option>
+        </select>
+      );
+    }
     if (options && options.length === 0) {
       return (
         <input
@@ -180,7 +187,6 @@ export default function CopyGrantForm({ address, onDisabled, initialSignalAgentI
         {(options ?? []).map((a) => (
           <option key={a.agentId} value={a.agentId}>
             {a.label && a.label !== a.agentId ? `${a.label} (${a.agentId})` : a.agentId}
-            {key === "executionAgentId" && a.wallet === address ? ` · ${t("grant.yours")}` : ""}
           </option>
         ))}
       </select>

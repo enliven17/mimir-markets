@@ -96,12 +96,13 @@ export async function listSignalAgents(): Promise<AgentOption[]> {
 }
 
 /** Active registered agents; the server checks the follower owns or operates the one picked. */
-export async function listExecutionAgents(): Promise<AgentOption[]> {
+/** Agents that can place copies for `follower`: active and owned or operated by it (the server refuses any other). */
+export async function listExecutionAgents(follower: string): Promise<AgentOption[]> {
   const result = await request<{
-    agents?: Array<{ agentId: string; displayName: string; operatorWallet: string; status?: string }>;
+    agents?: Array<{ agentId: string; displayName: string; ownerWallet?: string; operatorWallet: string; status?: string }>;
   }>("/api/agents/registry");
   if (result.kind !== "ok") return [];
   return (result.data.agents ?? [])
-    .filter((a) => a.status === "active")
+    .filter((a) => a.status === "active" && (a.ownerWallet === follower || a.operatorWallet === follower))
     .map((a) => ({ agentId: a.agentId, label: a.displayName || a.agentId, wallet: a.operatorWallet, kind: "agent" }));
 }

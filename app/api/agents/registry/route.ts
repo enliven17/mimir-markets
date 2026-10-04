@@ -18,6 +18,7 @@ export async function GET(): Promise<Response> {
         agents: agents.map((a) => ({
           agentId: a.agentId,
           displayName: a.displayName,
+          ownerWallet: a.ownerWallet,
           operatorWallet: a.operatorWallet,
           payoutWallet: a.payoutWallet,
           authorityLevel: a.authorityLevel,
