@@ -79,6 +79,10 @@ export function txErrorMessage(err: unknown, fallback = "Transaction failed. Ple
   for (const e of chain) {
     if (typeof e.errorMessage === "string" && e.errorMessage) return `Transaction reverted: ${e.errorMessage}`;
   }
+  // web3.js builds this when Anchor hands it a failed send in the old (message, logs) form: the real cause is lost.
+  if (/^Unknown action '/.test(String(chain[0]?.message ?? ""))) {
+    return "The transaction failed before it landed. Check your USDC and SOL balance and try again.";
+  }
   const first = chain[0]?.message;
   if (typeof first === "string" && first.trim()) return first.trim().split("\n")[0].slice(0, 200);
   return fallback;
