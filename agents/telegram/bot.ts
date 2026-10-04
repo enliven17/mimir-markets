@@ -166,6 +166,7 @@ async function handle(update: Update): Promise<void> {
   const chatId = msg.chat.id;
   if (msg.chat.type !== "private") return handleGroup(chatId, msg.text);
   const [command, arg] = msg.text.trim().split(/\s+/, 2);
+  if (await onPublic(chatId, command.split("@")[0].toLowerCase())) return;
   switch (command.split("@")[0].toLowerCase()) {
     case "/start":
       return onStart(chatId);
@@ -194,9 +195,27 @@ async function handle(update: Update): Promise<void> {
   }
 }
 
+/** /ca and /website: the same public answer in private chats and groups. */
+async function onPublic(chatId: number, command: string): Promise<boolean> {
+  if (command === "/ca") {
+    await sendTo(chatId, `<b>${esc(mimirSymbol())} contract address</b> (Solana)
+<code>${MIMIR_MINT}</code>`, {
+      reply_markup: { inline_keyboard: [[{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }]] },
+    });
+    return true;
+  }
+  if (command === "/website") {
+    await sendTo(chatId, SITE_URL, { reply_markup: { inline_keyboard: [[{ text: "Open mimirmarkets.xyz", url: SITE_URL }]] } });
+    return true;
+  }
+  return false;
+}
+
 /** In a group only the public commands answer; wallet, bets and alerts stay in private chats. */
 async function handleGroup(chatId: number, text: string): Promise<void> {
-  switch (text.trim().split(/\s+/, 1)[0].split("@")[0].toLowerCase()) {
+  const command = text.trim().split(/\s+/, 1)[0].split("@")[0].toLowerCase();
+  if (await onPublic(chatId, command)) return;
+  switch (command) {
     case "/price":
       return onPrice(chatId, true);
     case "/app":
@@ -215,6 +234,8 @@ async function setup(): Promise<void> {
       { command: "bets", description: "Your open positions" },
       { command: "price", description: "$MIMIR price and stats" },
       { command: "app", description: "Open Mimir" },
+      { command: "ca", description: "$MIMIR contract address" },
+      { command: "website", description: "mimirmarkets.xyz" },
       { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },
     ],
