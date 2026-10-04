@@ -89,11 +89,14 @@ async function onAlertTap(q: NonNullable<Update["callback_query"]>): Promise<voi
 /** $MIMIR on mainnet (README); NEXT_PUBLIC_MIMIR_TOKEN_MINT overrides it. */
 const MIMIR_MINT = mimirMint() ?? "8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V";
 
-async function onPrice(chatId: number): Promise<void> {
+/** Telegram refuses web_app buttons outside private chats, so groups get the same page as a plain link. */
+const pageButton = (text: string, url: string, group: boolean) => (group ? { text, url } : { text, web_app: { url } });
+
+async function onPrice(chatId: number, group = false): Promise<void> {
   const stats = await fetchDexStats(MIMIR_MINT);
   const links = [
     [{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }, ...(stats?.pairUrl ? [{ text: "DexScreener", url: stats.pairUrl }] : [])],
-    [{ text: "Token perks", web_app: { url: `${SITE_URL}/en/token` } }],
+    [pageButton("Token perks", `${SITE_URL}/en/token`, group)],
   ];
   const text = stats ? priceText(mimirSymbol(), stats) : `${esc(mimirSymbol())} price is unavailable right now.`;
   await sendTo(chatId, `${text}
@@ -159,8 +162,9 @@ async function handle(update: Update): Promise<void> {
   if (update.callback_query) return onAlertTap(update.callback_query);
   if (update.my_chat_member) return onMembership(update.my_chat_member);
   const msg = update.message;
-  if (!msg?.text || msg.chat.type !== "private") return;
+  if (!msg?.text) return;
   const chatId = msg.chat.id;
+  if (msg.chat.type !== "private") return handleGroup(chatId, msg.text);
   const [command, arg] = msg.text.trim().split(/\s+/, 2);
   switch (command.split("@")[0].toLowerCase()) {
     case "/start":
@@ -180,11 +184,26 @@ async function handle(update: Update): Promise<void> {
       else await upsertChat(chatId);
       return sendTo(chatId, ALERTS_TEXT, { reply_markup: alertsKeyboard(await getAlertPrefs(chatId)) });
     }
+    case "/app":
+      return sendTo(chatId, "Open Mimir right here in Telegram.", { reply_markup: { inline_keyboard: [[appButton]] } });
     case "/unlink":
       await unlinkChat(chatId);
       return sendTo(chatId, "Wallet unlinked. /link to connect one again.");
     default:
       return sendTo(chatId, WELCOME_TEXT);
+  }
+}
+
+/** In a group only the public commands answer; wallet, bets and alerts stay in private chats. */
+async function handleGroup(chatId: number, text: string): Promise<void> {
+  switch (text.trim().split(/\s+/, 1)[0].split("@")[0].toLowerCase()) {
+    case "/price":
+      return onPrice(chatId, true);
+    case "/app":
+    case "/start":
+      return sendTo(chatId, "<b>Mimir</b>: AI-settled claim markets on Solana. Stake a side, AI agents and an oracle settle it.", {
+        reply_markup: { inline_keyboard: [[pageButton("Open Mimir", `${SITE_URL}/en`, true)]] },
+      });
   }
 }
 
@@ -195,6 +214,7 @@ async function setup(): Promise<void> {
       { command: "link", description: "Link your wallet" },
       { command: "bets", description: "Your open positions" },
       { command: "price", description: "$MIMIR price and stats" },
+      { command: "app", description: "Open Mimir" },
       { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },
     ],
