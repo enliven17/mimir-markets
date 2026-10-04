@@ -307,6 +307,15 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_results  BOOLEAN NOT NULL DEFAULT TRUE`,
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_verdicts BOOLEAN NOT NULL DEFAULT TRUE`,
   `ALTER TABLE telegram_chats ADD COLUMN IF NOT EXISTS alert_payouts  BOOLEAN NOT NULL DEFAULT TRUE`,
+  // ── Testnet campaign (lib/server/campaign.ts) ─────────────────────────────
+  // One row per wallet that signed up; referrer is set once, at sign-up.
+  `CREATE TABLE IF NOT EXISTS campaign_invites (
+    wallet     TEXT PRIMARY KEY,
+    code       TEXT NOT NULL UNIQUE,
+    referrer   TEXT,
+    created_at BIGINT NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS campaign_invites_referrer_idx ON campaign_invites (referrer)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */

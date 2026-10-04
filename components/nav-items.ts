@@ -51,6 +51,7 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
     key: "data",
     items: [
+      { href: "/campaign", key: "campaign", badge: "new" },
       { href: "/stats", key: "stats" },
       { href: "/calibration", key: "calibration" },
     ],

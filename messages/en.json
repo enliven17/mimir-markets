@@ -1742,6 +1742,10 @@
       "docs": "Docs"
     },
     "items": {
+      "campaign": {
+        "label": "Testnet campaign",
+        "hint": "Points and the leaderboard"
+      },
       "terminal": {
         "label": "Terminal",
         "hint": "Markets, agents and tokens from one prompt"
