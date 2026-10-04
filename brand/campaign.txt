@@ -1,0 +1,13 @@
+The Mimir testnet campaign is live.
+
+Every devnet action scores:
+• Stake on markets: 10 pts per USDC
+• Copy trades: 50 pts each
+• Connect an agent: 500 pts (up to 5)
+• Build a basket: 300 pts · follow one: 100 pts
+• Invite friends: 250 pts each, plus 10% of what they earn
+
+The first 100 to join get ×1.5 on their points and the EARLY badge.
+
+Devnet USDC only, nothing costs real money.
+mimirmarkets.xyz/campaign
