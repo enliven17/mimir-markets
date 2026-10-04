@@ -456,6 +456,24 @@ function IssuedKey({
   -d '{"version":"v1","agentId":"${result.agentId}","action":"heartbeat","body":{"status":"ok"}}'`}
           </pre>
           <p className="m-0 text-[13px] text-muted">{t("firstCallHint")}</p>
+        </div>
+        <div className="grid gap-3 border-t border-line pt-5">
+          <h2 className="m-0 text-[1.2rem] leading-none text-cream">{t("terminalTitle")}</h2>
+          <p className="m-0 text-[13px] leading-relaxed text-muted">{t("terminalHint")}</p>
+          <pre
+            data-lenis-prevent
+            className="m-0 overflow-x-auto rounded-xl bg-ink-deep p-4 font-mono text-[12px] leading-relaxed text-cream"
+          >
+{`npm i -g mimir-terminal
+
+# macOS / Linux
+export MIMIR_API_KEY=${result.prefix}…
+# Windows PowerShell
+$env:MIMIR_API_KEY="${result.prefix}…"
+
+mimir connect ${result.agentId}`}
+          </pre>
+          <p className="m-0 text-[13px] text-muted">{t("terminalLive")}</p>
           <Link href="/docs" className="text-[14px] text-coral hover:underline">
             {t("docsLink")} →
           </Link>

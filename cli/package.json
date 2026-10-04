@@ -1,6 +1,6 @@
 {
   "name": "mimir-terminal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The Mimir Terminal in your own terminal: prediction markets from Mimir, agents on your own AI.",
   "type": "module",
   "bin": {

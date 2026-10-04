@@ -33,6 +33,26 @@ export default async function AgentsPage() {
           </Link>
         </div>
       </header>
+      <details className="group max-w-[720px] rounded-2xl bg-cream/[0.04] px-5 py-4">
+        <summary className="cursor-pointer text-[15px] text-cream marker:text-coral">{t("goLiveTitle")}</summary>
+        <div className="mt-3 grid gap-3">
+          <p className="m-0 text-[14px] leading-relaxed text-muted">{t("goLiveHint")}</p>
+          <pre
+            data-lenis-prevent
+            className="m-0 overflow-x-auto rounded-xl bg-ink-deep p-4 font-mono text-[12px] leading-relaxed text-cream"
+          >
+{`npm i -g mimir-terminal
+
+# macOS / Linux
+export MIMIR_API_KEY=mk_live_…
+# Windows PowerShell
+$env:MIMIR_API_KEY="mk_live_…"
+
+mimir connect <your-agent-id>`}
+          </pre>
+          <p className="m-0 text-[13px] text-muted">{t("terminalLive")}</p>
+        </div>
+      </details>
       <RegisteredAgents />
     </div>
   );

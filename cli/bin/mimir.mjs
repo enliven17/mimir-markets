@@ -19,7 +19,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const CONFIG_DIR = join(homedir(), ".mimir");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const DEFAULTS = {
@@ -28,8 +28,13 @@ const DEFAULTS = {
   // Ollama's OpenAI-compatible API: free and local. `ai` changes it.
   ai: { baseUrl: "http://localhost:11434/v1", model: "llama3.2", apiKeyEnv: "" },
   agents: {},
+  // The agent you registered on the site; while `mimir` runs it heartbeats as that agent.
+  link: null,
 };
 const MAX_REPLY = 2000;
+// ponytail: 30 heartbeats/hour out of the 120-request hourly budget; the site shows live for 5 minutes after the last one.
+const HEARTBEAT_MS = 2 * 60_000;
+const AGENT_ID = /^[a-z0-9][a-z0-9-]{2,63}$/;
 const TIMEOUT_MS = 60_000;
 
 // ── output ────────────────────────────────────────────────────────────────
@@ -103,6 +108,31 @@ function filterMarkets(list, filter) {
     case "settled": return list.filter((c) => c.state === 2);
     default: return [...list].sort((a, b) => Number(isLive(b)) - Number(isLive(a)) || b.id - a.id);
   }
+}
+
+// ── link: your local terminal as the agent you registered on Mimir ─────────
+
+/** One heartbeat with the agent's API key. Throws with Mimir's own reason on failure. */
+async function heartbeat(cfg) {
+  const { agentId, keyEnv } = cfg.link;
+  const key = process.env[keyEnv];
+  if (!key) throw new Error(`set ${keyEnv} to the API key the site showed you when you registered ${agentId}`);
+  const res = await fetch(`${cfg.site}/api/agents/v1/heartbeat`, {
+    method: "POST",
+    signal: AbortSignal.timeout(20_000),
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}`, "user-agent": `mimir-terminal/${VERSION}` },
+    body: JSON.stringify({ version: "v1", agentId, action: "heartbeat", body: {} }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.ok === false) throw new Error(`${agentId}: ${body.message ?? `Mimir answered ${res.status}`}`);
+}
+
+let beat = null;
+function startHeartbeat(cfg) {
+  clearInterval(beat);
+  // unref: the prompt keeps the process alive, the heartbeat must not keep it from exiting.
+  beat = setInterval(() => heartbeat(cfg).catch((e) => err(`heartbeat failed, ${e.message}`)), HEARTBEAT_MS);
+  beat.unref();
 }
 
 // ── agents: your AI, your endpoint, your command ──────────────────────────
@@ -267,6 +297,11 @@ const HELP = [
     ["agent add <name> exec <command>", "a local program (JSON in on stdin, reply on stdout)", "agent add py exec python my_agent.py"],
     ["agent rm <name>", "remove one", ""],
   ]],
+  ["Link to Mimir", [
+    ["connect <agent id> [KEY_ENV]", "go live as the agent you registered on the site (key from $MIMIR_API_KEY)", "connect my-agent"],
+    ["connect", "show the link and whether Mimir sees it", "connect"],
+    ["disconnect", "stop going live (the site shows offline within 5 minutes)", ""],
+  ]],
   ["Setup", [
     ["ai", "which AI your agents think with", "ai"],
     ["ai <url> <model> [KEY_ENV]", "switch it (the last word is an env var NAME, never the key)", "ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY"],
@@ -274,7 +309,7 @@ const HELP = [
     ["quit", "leave the terminal (or ctrl+c)", ""],
   ]],
 ];
-const COMMAND_NAMES = ["markets", "market", "token", "price", "agents", "use", "ask", "leave", "agent", "ai", "help", "clear", "quit"];
+const COMMAND_NAMES = ["markets", "market", "token", "price", "agents", "use", "ask", "leave", "agent", "connect", "disconnect", "ai", "help", "clear", "quit"];
 
 function printHelp() {
   for (const [group, rows] of HELP) {
@@ -391,6 +426,34 @@ async function run(cfg, state, line) {
       saveConfig(cfg);
       return out(green(`✓ ${name} saved to ${CONFIG_PATH}`), dim(`  use ${name.toLowerCase()} to talk to it`));
     }
+    case "connect": {
+      if (!arg) {
+        if (!cfg.link) return out(dim("not linked. Register an agent at"), `  ${cream(`${cfg.site}/agents/new`)}`, dim("then set its API key and run: connect <agent id>"));
+        await heartbeat(cfg);
+        return out(green(`✓ live as ${cfg.link.agentId}`), dim(`  key from $${cfg.link.keyEnv} · heartbeat every ${HEARTBEAT_MS / 60_000} minutes while mimir is open`));
+      }
+      const agentId = arg.toLowerCase();
+      const keyEnv = rest[1] ?? "MIMIR_API_KEY";
+      if (!AGENT_ID.test(agentId)) return err("usage: connect <agent id> [KEY_ENV] (the id you picked on the site)");
+      if (!/^[A-Z_][A-Z0-9_]*$/.test(keyEnv)) return err("the second argument is the NAME of an env var holding your key, not the key");
+      if (!process.env[keyEnv]) {
+        return err(`${keyEnv} is not set. Put the API key from the site in it, then reopen mimir:
+    PowerShell  $env:${keyEnv}="mk_live_…"
+    bash/zsh    export ${keyEnv}=mk_live_…`);
+      }
+      const link = { agentId, keyEnv };
+      await heartbeat({ ...cfg, link });
+      cfg.link = link;
+      saveConfig(cfg);
+      if (process.argv.length <= 2) startHeartbeat(cfg);
+      return out(green(`✓ ${agentId} is live on ${cfg.site.replace(/^https?:\/\//, "")}/agents`), dim("  it stays live while mimir is open; close it and the badge turns offline within 5 minutes"));
+    }
+    case "disconnect":
+      if (!cfg.link) return out(dim("not linked."));
+      clearInterval(beat);
+      out(dim(`unlinked ${cfg.link.agentId}; the site shows it offline within 5 minutes.`));
+      cfg.link = null;
+      return saveConfig(cfg);
     case "ai": {
       if (!arg) return out(`  ${cream(cfg.ai.baseUrl)} ${dim("model")} ${cream(cfg.ai.model)} ${dim(cfg.ai.apiKeyEnv ? `key from $${cfg.ai.apiKeyEnv}` : "no key")}`);
       const [baseUrl, model, apiKeyEnv = ""] = rest;
@@ -460,6 +523,7 @@ async function banner(cfg) {
     dim(`markets   ${cfg.site.replace(/^https?:\/\//, "")}`),
     dim(`your ai   ${cfg.ai.model} at ${cfg.ai.baseUrl.replace(/^https?:\/\//, "")}`),
     dim(`agents    ${Object.keys(cfg.agents).length} of yours + the house council`),
+    dim(`linked    ${cfg.link ? `${cfg.link.agentId} (live while this is open)` : "no · connect <agent id>"}`),
     "",
     `${dim("try")} ${cream("markets live")}${dim(" · ")}${cream("use optimist")}${dim(" · ")}${cream("help")}`,
   ];
@@ -484,6 +548,11 @@ if (argv[0] === "--version" || argv[0] === "-v") {
   await run(cfg, state, argv.join(" ")).catch((e) => err(e.message));
 } else {
   await banner(cfg);
+  if (cfg.link) {
+    // Go live straight away, then keep beating; a failure is shown once and the prompt still works.
+    await heartbeat(cfg).catch((e) => err(`not live, ${e.message}`));
+    startHeartbeat(cfg);
+  }
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,

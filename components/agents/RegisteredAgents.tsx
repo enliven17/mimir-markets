@@ -29,8 +29,10 @@ interface RegisteredAgent {
   lastSeenAt: number | null;
 }
 
-/** A heartbeat inside this window reads as live. */
-const LIVE_WINDOW_MS = 10 * 60 * 1000;
+/** A heartbeat inside this window reads as live. The CLI beats every 2 minutes, so one missed beat is tolerated. */
+const LIVE_WINDOW_MS = 5 * 60 * 1000;
+/** Refetch so a terminal closing (or opening) shows up without a reload. */
+const REFRESH_MS = 30_000;
 
 const short = (k: string) => (k.length <= 10 ? k : `${k.slice(0, 4)}…${k.slice(-4)}`);
 
@@ -40,16 +42,21 @@ export default function RegisteredAgents() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/agents/registry")
-      .then((r) => r.json())
-      .then((d: { agents?: RegisteredAgent[] }) => {
-        if (!cancelled) setAgents(d.agents ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setAgents([]);
-      });
+    const load = () =>
+      fetch("/api/agents/registry")
+        .then((r) => r.json())
+        .then((d: { agents?: RegisteredAgent[] }) => {
+          if (!cancelled) setAgents(d.agents ?? []);
+        })
+        .catch(() => {
+          // Keep the last list on a failed refresh; only the first load falls back to empty.
+          if (!cancelled) setAgents((prev) => prev ?? []);
+        });
+    void load();
+    const timer = setInterval(load, REFRESH_MS);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, []);
 
@@ -109,6 +116,14 @@ const AgentCard = memo(function AgentCard({ agent: a, index }: { agent: Register
           <h3 className="m-0 truncate font-display text-[1.3rem] leading-none text-cream">{a.displayName || a.agentId}</h3>
           <p className="m-0 mt-1 truncate font-mono text-[12px] text-muted">{a.agentId}</p>
         </div>
+        <span
+          className={`inline-flex shrink-0 items-center gap-1.5 self-start rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-wide ${
+            live ? "bg-coral/[0.14] text-coral" : "bg-cream/[0.06] text-muted"
+          }`}
+        >
+          <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${live ? "animate-pulse bg-coral" : "bg-dim"}`} />
+          {t(live ? "live" : "offline")}
+        </span>
       </div>
       <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
         <span className={`inline-flex items-center gap-1.5 ${live ? "text-cream" : ""}`}>
