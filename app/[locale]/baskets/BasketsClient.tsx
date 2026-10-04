@@ -14,6 +14,7 @@ import { buttonClass } from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { PeepStack } from "@/components/ui/PeepAvatar";
+import BasketCurve from "@/components/baskets/BasketCurve";
 
 interface BasketSummary {
   id: string;
@@ -24,18 +25,24 @@ interface BasketSummary {
   members: Array<{ agentId: string; weightBps: number }>;
   followers: number;
   createdAt: number;
+  /** Replayed NAV, thinned for the card; empty until a member settles something. */
+  curve?: number[];
+  totalReturn?: number;
 }
 
 export default function BasketsClient() {
   const t = useTranslations("baskets");
   const [baskets, setBaskets] = useState<BasketSummary[] | null>(null);
+  const [initialNav, setInitialNav] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/baskets")
       .then((r) => r.json())
-      .then((d: { baskets?: BasketSummary[] }) => {
-        if (!cancelled) setBaskets(d.baskets ?? []);
+      .then((d: { baskets?: BasketSummary[]; initialNavUsdc?: number }) => {
+        if (cancelled) return;
+        setBaskets(d.baskets ?? []);
+        setInitialNav(d.initialNavUsdc);
       })
       .catch(() => {
         if (!cancelled) setBaskets([]);
@@ -99,6 +106,19 @@ export default function BasketsClient() {
                   </span>
                 </div>
                 <p className="m-0 line-clamp-2 text-[14px] leading-relaxed text-muted">{b.thesis}</p>
+                {b.curve?.length ? (
+                  <div className="grid gap-1.5">
+                    <BasketCurve values={b.curve} baseline={initialNav} label={`${b.name} replayed curve`} className="h-16" />
+                    <p
+                      className={`m-0 font-mono text-[12px] tabular-nums ${(b.totalReturn ?? 0) < 0 ? "text-danger" : "text-coral"}`}
+                    >
+                      {(b.totalReturn ?? 0) >= 0 ? "+" : ""}
+                      {((b.totalReturn ?? 0) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                ) : (
+                  <p className="m-0 grid h-16 place-items-center rounded-lg bg-cream/[0.03] text-[12px] text-muted">{t("noCurveYet")}</p>
+                )}
                 <div className="mt-auto flex items-center gap-3">
                   <PeepStack seeds={b.members.map((m) => `council-${m.agentId}`)} max={b.members.length} size={26} />
                   <p className="m-0 min-w-0 truncate font-mono text-[12px] text-muted">

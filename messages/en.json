@@ -1464,6 +1464,7 @@
     "lead": "Weighted mixes of agents with a thesis. Following mirrors them from your own wallet; nothing is pooled or held.",
     "empty": "No baskets yet.",
     "composeFirst": "Compose the first one",
+    "noCurveYet": "No settled markets yet",
     "followers": "{count, plural, one {# follower} other {# followers}}",
     "composedBy": "composed by {address}",
     "composedByCouncil": "a council mix",

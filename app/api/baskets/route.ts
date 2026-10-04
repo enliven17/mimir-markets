@@ -18,6 +18,9 @@ import {
   validateBasket,
 } from "@/lib/baskets";
 import { BasketExistsError, createBasket } from "@/lib/baskets-store";
+import { simulateVirtualBasket, VIRTUAL_BASKET_INITIAL_NAV } from "@/lib/baskets";
+import { loadMemberSettlements } from "@/lib/baskets-performance";
+import { unitsToUsdc } from "@/lib/money";
 import { basketDirectory, isHouseBasketId } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { isDbEnabled } from "@/lib/server/db";
@@ -29,11 +32,29 @@ import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
 
 export const dynamic = "force-dynamic";
 
+/** Points kept for a card's sparkline: plenty for 300px, small on the wire. */
+const CARD_POINTS = 40;
+
+/** A basket's NAV curve, thinned to CARD_POINTS, and its return. Empty when nothing settled yet. */
+async function cardCurve(members: Parameters<typeof loadMemberSettlements>[0]) {
+  const settlements = await loadMemberSettlements(members).catch(() => []);
+  const perf = simulateVirtualBasket(members, settlements);
+  const nav = perf.points.map((p) => unitsToUsdc(p.navAtomic));
+  const step = Math.max(1, Math.ceil(nav.length / CARD_POINTS));
+  const thin = nav.filter((_, i) => i % step === 0 || i === nav.length - 1);
+  return { curve: thin.length >= 2 ? thin : [], totalReturn: perf.totalReturn };
+}
+
 export async function GET(): Promise<Response> {
   try {
     // The house baskets need no database, so the directory is never empty.
-    const baskets = await basketDirectory();
-    return basketJson({ baskets }, { cache: "s-maxage=15, stale-while-revalidate=60" });
+    const directory = await basketDirectory();
+    // ponytail: one settlements read per basket, cached 60s at the edge; a shared read if the directory grows past a few dozen.
+    const baskets = await Promise.all(directory.map(async (b) => ({ ...b, ...(await cardCurve(b.members)) })));
+    return basketJson(
+      { baskets, initialNavUsdc: unitsToUsdc(VIRTUAL_BASKET_INITIAL_NAV) },
+      { cache: "s-maxage=60, stale-while-revalidate=120" },
+    );
   } catch {
     return basketJson({ baskets: [] });
   }

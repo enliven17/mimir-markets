@@ -318,6 +318,40 @@ html.lenis.lenis-stopped {
     opacity: 0;
   }
 }
+/* Basket curves (components/baskets/BasketCurve.tsx): the line draws in, the area fades up after it, the last point pulses. */
+.curve-clip {
+  transform-box: fill-box;
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: curve-draw 1.4s var(--ease-out) forwards;
+}
+.curve-area {
+  opacity: 0;
+  animation: curve-fade 0.9s var(--ease-out) 0.5s forwards;
+}
+.curve-dot {
+  opacity: 0;
+  animation: curve-fade 0.3s var(--ease-out) 1.2s forwards;
+}
+.curve-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: currentColor;
+  animation: live-ring 1.8s var(--ease-out) 1.4s infinite;
+}
+@keyframes curve-draw {
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes curve-fade {
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes px-blink {
   50% {
     opacity: 0.35;
@@ -886,6 +920,16 @@ html.lenis.lenis-stopped {
   .fade-rise,
   .wordmark-heat,
   .marquee-track {
+    animation: none;
+  }
+  .curve-clip,
+  .curve-area,
+  .curve-dot {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .curve-dot::after {
     animation: none;
   }
   .live-dot::after {

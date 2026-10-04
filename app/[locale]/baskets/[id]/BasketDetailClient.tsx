@@ -13,6 +13,7 @@
  * line. The caveat under it is deliberate: it is a projection of settled
  * markets, not a record of anyone's money.
  */
+import BasketCurve from "@/components/baskets/BasketCurve";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -251,20 +252,9 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
     }
   }
 
-  const sparkline = useMemo(() => {
-    const values = (data?.performance.points ?? []).map((p) => p.navUsdc);
-    if (values.length < 2) return null;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const span = max - min || 1;
-    const path = values
-      .map((v, i) => {
-        const x = (i / (values.length - 1)) * 100;
-        const y = 30 - ((v - min) / span) * 28 - 1;
-        return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(" ");
-    return { path, up: values[values.length - 1] >= values[0] };
+  const curve = useMemo(() => {
+    const points = data?.performance.points ?? [];
+    return points.length < 2 ? null : { values: points.map((p) => p.navUsdc), labels: points.map((p) => p.day) };
   }, [data]);
 
   const back = (
@@ -346,22 +336,15 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
               </div>
             ))}
           </dl>
-          {sparkline ? (
-            <svg
-              viewBox="0 0 100 30"
-              preserveAspectRatio="none"
-              className="h-32 w-full"
-              role="img"
-              aria-label={t("curve")}
-            >
-              <path
-                d={sparkline.path}
-                fill="none"
-                strokeWidth="2"
-                vectorEffect="non-scaling-stroke"
-                className={sparkline.up ? "stroke-coral" : "stroke-danger"}
-              />
-            </svg>
+          {curve ? (
+            <BasketCurve
+              values={curve.values}
+              labels={curve.labels}
+              baseline={performance.initialNavUsdc}
+              interactive
+              label={t("curve")}
+              className="h-48 touch-none sm:h-56"
+            />
           ) : (
             <p className="m-0 grid h-32 place-items-center rounded-lg bg-cream/[0.03] px-4 text-center text-[13px] text-muted">
               {t("noCurve")}
