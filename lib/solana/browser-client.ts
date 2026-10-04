@@ -77,8 +77,18 @@ export function createBrowserMimir(wallet: WalletContextState): BrowserMimir | n
   };
 }
 
-/** USDC deposit into the Mimir vault (base layer). */
+/**
+ * USDC deposit into the Mimir vault (base layer). A top-up of a balance that
+ * lives in the ER brings it back first: the base layer only credits a balance
+ * it owns, and the wallet otherwise reports the failed simulation as a vague
+ * error ("Unknown action 'undefined'" in some wallets).
+ */
 export async function depositUsdc(m: BrowserMimir, units: bigint): Promise<string> {
+  const pda = balancePda(m.owner);
+  if (await isDelegatedAccount(m, pda)) {
+    await undelegateBalance(m);
+    if (!(await waitUntilOnBase(m, pda))) throw new Error("Your balance is still in the rollup. Try again in a minute.");
+  }
   return m.base.methods
     .deposit(bn(units))
     .accounts({ user: m.owner, userToken: ata(m.owner) })
