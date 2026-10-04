@@ -57,6 +57,20 @@ interface Update {
   update_id: number;
   message?: { chat: { id: number; type: string }; text?: string };
   callback_query?: { id: string; data?: string; message?: { message_id: number; chat: { id: number; type: string } } };
+  my_chat_member?: { chat: { id: number; type: string }; new_chat_member: { status: string } };
+}
+
+/**
+ * Added to a group or channel: it gets new-market alerts, nothing else (no
+ * wallet is ever linked there, so results, verdicts and payouts never reach it).
+ * Removed: the next send hits a 403 and marks the chat blocked.
+ */
+async function onMembership(m: NonNullable<Update["my_chat_member"]>): Promise<void> {
+  if (m.chat.type === "private") return;
+  if (["member", "administrator"].includes(m.new_chat_member.status)) {
+    await upsertChat(m.chat.id);
+    await sendTo(m.chat.id, "Mimir is here. New markets will be posted in this chat as they open.");
+  }
 }
 
 /** A tap on an /alerts switch: flip it and redraw the buttons in place. */
@@ -143,6 +157,7 @@ async function onBets(chatId: number): Promise<void> {
 
 async function handle(update: Update): Promise<void> {
   if (update.callback_query) return onAlertTap(update.callback_query);
+  if (update.my_chat_member) return onMembership(update.my_chat_member);
   const msg = update.message;
   if (!msg?.text || msg.chat.type !== "private") return;
   const chatId = msg.chat.id;
@@ -198,7 +213,7 @@ async function main(): Promise<void> {
     try {
       const updates = await tg<Update[]>(
         "getUpdates",
-        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ["message", "callback_query"] },
+        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ["message", "callback_query", "my_chat_member"] },
         (POLL_TIMEOUT_S + 10) * 1000,
       );
       for (const u of updates) {
