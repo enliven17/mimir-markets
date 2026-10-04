@@ -19,7 +19,7 @@ import path from "node:path";
 import { claimsChallengedBy, claimsCreatedBy } from "../../lib/agents/store";
 import { fetchDexStats } from "../../lib/server/dex-prices";
 import { mimirMint, mimirSymbol } from "../../lib/token-config";
-import { getMeta, isDbEnabled, setMeta } from "../../lib/server/db";
+import { getMeta, isDbEnabled, query, setMeta } from "../../lib/server/db";
 import {
   chatWallet,
   getAlertPrefs,
@@ -55,7 +55,7 @@ const POLL_TIMEOUT_S = 25;
 
 interface Update {
   update_id: number;
-  message?: { chat: { id: number; type: string }; text?: string };
+  message?: { chat: { id: number; type: string }; from?: { id: number }; text?: string };
   callback_query?: { id: string; data?: string; message?: { message_id: number; chat: { id: number; type: string } } };
   my_chat_member?: { chat: { id: number; type: string }; new_chat_member: { status: string } };
 }
@@ -158,6 +158,31 @@ async function onBets(chatId: number): Promise<void> {
   await sendTo(chatId, ["<b>Your open positions</b>", ...lines].join("\n"));
 }
 
+/** Telegram user ids allowed to /announce (TELEGRAM_ADMIN_IDS, comma-separated). Empty = nobody. */
+const ADMIN_IDS = new Set((process.env.TELEGRAM_ADMIN_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+
+/**
+ * /announce <text>: an admin, in a private chat with the bot, posts <text> to
+ * every group the bot is in (a tweet link unfurls into its preview there).
+ * Anyone else gets the welcome, as for any unknown command.
+ */
+async function onAnnounce(chatId: number, fromId: number | undefined, raw: string): Promise<boolean> {
+  if (fromId === undefined || !ADMIN_IDS.has(String(fromId))) return false;
+  const body = raw.replace(/^\/announce(@\w+)?\s*/i, "").trim();
+  if (!body) {
+    await sendTo(chatId, "Usage: /announce <text or a tweet link>. It goes to every group the bot is in.");
+    return true;
+  }
+  // Groups and supergroups have negative chat ids; private chats never get announcements.
+  const groups = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE chat_id < 0 AND NOT blocked");
+  for (const g of groups) {
+    await sendTo(Number(g.chat_id), esc(body), { disable_web_page_preview: false });
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await sendTo(chatId, `Sent to ${groups.length} group${groups.length === 1 ? "" : "s"}.`);
+  return true;
+}
+
 async function handle(update: Update): Promise<void> {
   if (update.callback_query) return onAlertTap(update.callback_query);
   if (update.my_chat_member) return onMembership(update.my_chat_member);
@@ -166,6 +191,7 @@ async function handle(update: Update): Promise<void> {
   const chatId = msg.chat.id;
   if (msg.chat.type !== "private") return handleGroup(chatId, msg.text);
   const [command, arg] = msg.text.trim().split(/\s+/, 2);
+  if (command.split("@")[0].toLowerCase() === "/announce" && (await onAnnounce(chatId, msg.from?.id, msg.text))) return;
   if (await onPublic(chatId, command.split("@")[0].toLowerCase())) return;
   switch (command.split("@")[0].toLowerCase()) {
     case "/start":
