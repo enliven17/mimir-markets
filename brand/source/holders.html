@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir holders</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* 1600×900 for X (16:9). Headline left, the three tiers as cards on the right. */
+    .canvas { width: 1600px; height: 900px; }
+    .glow {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 700px 520px at 1180px 470px, rgb(255 43 43 / 0.22), rgb(143 14 23 / 0.1) 45%, rgb(17 15 14 / 0) 75%);
+    }
+    .head { position: absolute; left: 100px; top: 110px; width: 640px; }
+    .eyebrow { display: flex; align-items: center; gap: 14px; font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+    .eyebrow .sq { width: 10px; height: 10px; background: var(--red); box-shadow: 0 0 14px rgb(255 43 43 / 0.8); }
+    h1 { margin-top: 30px; font-size: 112px; }
+    h1 .red { position: relative; display: inline-block; color: var(--red); text-shadow: 0 0 34px rgb(255 43 43 / 0.35); }
+    .scribble { position: absolute; left: -4px; bottom: -18px; height: 28px; width: calc(100% + 14px); image-rendering: pixelated; }
+    .sub { margin-top: 44px; font-size: 24px; line-height: 1.5; color: var(--muted); }
+    .sub b { color: var(--cream); font-weight: 400; }
+
+    .tiers { position: absolute; right: 100px; top: 120px; width: 660px; display: grid; gap: 18px; }
+    .tier {
+      position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center;
+      padding: 26px 32px; border-radius: 22px;
+      background: rgb(28 20 21 / 0.93); box-shadow: 0 24px 60px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(243 234 214 / 0.07);
+    }
+    .tier.top { background: rgb(46 17 18 / 0.95); box-shadow: 0 24px 60px rgb(255 43 43 / 0.18), inset 0 0 0 1.5px rgb(255 81 72 / 0.45); }
+    .tier .label { font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--coral); display: flex; align-items: center; gap: 10px; }
+    .tier .label i { width: 8px; height: 8px; background: var(--red); }
+    .tier .name { margin-top: 10px; font-size: 52px; color: var(--cream); }
+    .tier .min { margin-top: 8px; font-size: 20px; color: var(--muted); }
+    .tier .mult { font-size: 120px; color: var(--coral); text-shadow: 0 0 30px rgb(255 43 43 / 0.4); }
+    .tier.top .mult { color: var(--red); }
+
+    .foot { position: absolute; left: 100px; right: 100px; bottom: 60px; display: flex; justify-content: space-between; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
+    .foot b { color: var(--cream); font-weight: 400; }
+    .note { position: absolute; right: 100px; top: 668px; width: 660px; font-size: 16px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <canvas class="field" id="field"></canvas>
+    <div class="dots"></div>
+    <div class="glow"></div>
+
+    <div class="head">
+      <div class="eyebrow mono"><span class="sq"></span>Testnet campaign · holder boost</div>
+      <h1 class="display">Hold $MIMIR.<br />Score <span class="red">more.<canvas class="scribble" id="scribble"></canvas></span></h1>
+      <p class="sub pixel">Every point you earn on the campaign is multiplied by your <b>$MIMIR tier</b>. Stacks with the <b>×1.5 early boost</b> for the first 100.</p>
+    </div>
+
+    <div class="tiers">
+      <div class="tier">
+        <div><div class="label mono"><i></i>Tier 1</div><div class="name display">Holder</div><div class="min mono">≥ 10,000 $MIMIR</div></div>
+        <div class="mult display">×1.2</div>
+      </div>
+      <div class="tier">
+        <div><div class="label mono"><i></i>Tier 2</div><div class="name display">Backer</div><div class="min mono">≥ 1,000,000 $MIMIR</div></div>
+        <div class="mult display">×1.5</div>
+      </div>
+      <div class="tier top">
+        <div><div class="label mono"><i></i>Tier 3</div><div class="name display">Oracle circle</div><div class="min mono">≥ 10,000,000 $MIMIR</div></div>
+        <div class="mult display">×2</div>
+      </div>
+    </div>
+    <p class="note mono">Read live from your wallet's Solana mainnet balance.</p>
+
+    <div class="foot mono"><span>Don't argue. <b>Settle.</b></span><span>mimirmarkets.xyz/campaign</span></div>
+  </div>
+  <script type="module">
+    import { drawField, drawScribble } from './parts.js'
+    await document.fonts.ready
+    // Wave field low on the left, under the copy, faded before the tiers and the footer.
+    drawField(document.getElementById('field'), {
+      cell: 14, frame: 40, cx: 0.18, cy: 0.9, spread: 12,
+      mask: (x, y) => Math.max(0, Math.min(1, (0.42 - x) / 0.15)) * Math.max(0, Math.min(1, (y - 0.62) / 0.12)) * Math.max(0, Math.min(1, (0.9 - y) / 0.05)),
+    })
+    drawScribble(document.getElementById('scribble'), 3)
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>
