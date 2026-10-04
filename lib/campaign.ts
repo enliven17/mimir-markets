@@ -8,6 +8,8 @@
  * people it invited.
  */
 
+import type { TokenTier } from "./token-tiers";
+
 export interface CampaignMetrics {
   /** USDC staked on devnet: as creator or challenger, by the wallet or by an agent it owns. */
   volumeUsdc: number;
@@ -34,6 +36,23 @@ export const INVITED_MULTIPLIER = 1.1;
 /** The first wallets to join get this on their own points, and the early badge. */
 export const EARLY_SLOTS = 100;
 export const EARLY_MULTIPLIER = 1.5;
+
+/**
+ * $MIMIR holders score more, by the product's own tiers (lib/token-tiers.ts:
+ * 10k / 1M / 10M MIMIR on mainnet). Read from the wallet's current balance.
+ */
+export const HOLDER_MULTIPLIER: Record<TokenTier, number> = {
+  none: 1,
+  holder: 1.2,
+  backer: 1.5,
+  "oracle-circle": 2,
+};
+export const HOLDER_TIER_LABEL: Record<TokenTier, string> = {
+  none: "",
+  holder: "Holder",
+  backer: "Backer",
+  "oracle-circle": "Oracle circle",
+};
 
 export const INVITE_CODE_PATTERN = /^[A-Z0-9]{8}$/;
 

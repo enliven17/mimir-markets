@@ -17,6 +17,8 @@ import {
   campaignJoinMessage,
   EARLY_MULTIPLIER,
   EARLY_SLOTS,
+  HOLDER_MULTIPLIER,
+  HOLDER_TIER_LABEL,
   INVITE_CODE_PATTERN,
   INVITE_POINTS,
   INVITE_SHARE,
@@ -30,6 +32,7 @@ interface Row extends CampaignMetrics {
   invites: number;
   invited: boolean;
   early: boolean;
+  tier: keyof typeof HOLDER_MULTIPLIER;
   score: number;
 }
 interface Board {
@@ -131,6 +134,7 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
               {me?.row?.invited ? ` · ×${INVITED_MULTIPLIER} invited` : ""}
             </span>
             {me?.row?.early ? <EarlyBadge /> : null}
+            {me?.row && me.row.tier !== "none" ? <HolderBadge tier={me.row.tier} /> : null}
           </div>
           {me?.row ? (
             <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-muted">
@@ -213,6 +217,17 @@ function EarlyBadge({ className = "" }: { className?: string }) {
   );
 }
 
+function HolderBadge({ tier, className = "" }: { tier: Exclude<Row["tier"], "none">; className?: string }) {
+  return (
+    <span
+      title={`$MIMIR ${HOLDER_TIER_LABEL[tier]}: ×${HOLDER_MULTIPLIER[tier]} points`}
+      className={`inline-flex items-center rounded-full bg-cream/[0.08] px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wider text-cream ${className}`}
+    >
+      {HOLDER_TIER_LABEL[tier]} ×{HOLDER_MULTIPLIER[tier]}
+    </span>
+  );
+}
+
 function Points() {
   return (
     <section className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
@@ -238,6 +253,15 @@ function Points() {
             First {EARLY_SLOTS} to join <EarlyBadge />
           </span>
           <span className="font-mono text-[12px] text-coral">×{EARLY_MULTIPLIER} on your points</span>
+        </li>
+        <li className="grid gap-1.5 text-[14px]">
+          <span className="text-cream">Hold $MIMIR</span>
+          <span className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-muted">
+            <span>10k <span className="text-coral">×{HOLDER_MULTIPLIER.holder}</span></span>
+            <span>1M <span className="text-coral">×{HOLDER_MULTIPLIER.backer}</span></span>
+            <span>10M <span className="text-coral">×{HOLDER_MULTIPLIER["oracle-circle"]}</span></span>
+            <span>on mainnet, read live</span>
+          </span>
         </li>
         <li className="flex items-baseline justify-between gap-3 text-[14px]">
           <span className="text-cream">Joined with a code</span>
@@ -282,6 +306,7 @@ function Leaderboard({ board, wallet }: { board: Board | null; wallet: string | 
                       {short(r.wallet)}
                     </a>
                     {r.early ? <EarlyBadge className="ml-2" /> : null}
+                    {r.tier !== "none" ? <HolderBadge tier={r.tier} className="ml-2" /> : null}
                     {r.wallet === wallet ? <span className="ml-2 font-mono text-[11px] text-coral">you</span> : null}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-cream">{num(r.volumeUsdc)}</td>
