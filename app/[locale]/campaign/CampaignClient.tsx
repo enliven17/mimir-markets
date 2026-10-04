@@ -15,6 +15,8 @@ import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import {
   CAMPAIGN_WEIGHTS,
   campaignJoinMessage,
+  EARLY_MULTIPLIER,
+  EARLY_SLOTS,
   INVITE_CODE_PATTERN,
   INVITE_POINTS,
   INVITE_SHARE,
@@ -27,6 +29,7 @@ interface Row extends CampaignMetrics {
   wallet: string;
   invites: number;
   invited: boolean;
+  early: boolean;
   score: number;
 }
 interface Board {
@@ -127,6 +130,7 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
               {me?.rank ? `rank #${me.rank} of ${board.total}` : "no points yet"}
               {me?.row?.invited ? ` · ×${INVITED_MULTIPLIER} invited` : ""}
             </span>
+            {me?.row?.early ? <EarlyBadge /> : null}
           </div>
           {me?.row ? (
             <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-muted">
@@ -184,7 +188,7 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
               >
                 {busy ? "Waiting for signature…" : sign ? "Join and get my invite link" : "This wallet cannot sign messages"}
               </button>
-              <p className="m-0 text-[12px] text-muted">One free signature, no transaction. Your activity counts whether you join or not; joining gives you a code.</p>
+              <p className="m-0 text-[12px] text-muted">One free signature, no transaction. Your activity counts either way; joining gives you an invite code, and the first {EARLY_SLOTS} to join get ×{EARLY_MULTIPLIER} and the early badge.</p>
             </form>
           )}
           {error ? (
@@ -195,6 +199,17 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
         </>
       )}
     </section>
+  );
+}
+
+function EarlyBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title={`One of the first ${EARLY_SLOTS} to join: ×${EARLY_MULTIPLIER} points`}
+      className={`inline-flex items-center rounded-full bg-coral/[0.14] px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wider text-coral ${className}`}
+    >
+      Early
+    </span>
   );
 }
 
@@ -217,6 +232,12 @@ function Points() {
           <span className="text-right font-mono text-[12px] text-muted">
             <span className="text-coral">{INVITE_POINTS} pts</span> per active invitee + {INVITE_SHARE * 100}% of their points
           </span>
+        </li>
+        <li className="flex items-baseline justify-between gap-3 text-[14px]">
+          <span className="flex items-center gap-2 text-cream">
+            First {EARLY_SLOTS} to join <EarlyBadge />
+          </span>
+          <span className="font-mono text-[12px] text-coral">×{EARLY_MULTIPLIER} on your points</span>
         </li>
         <li className="flex items-baseline justify-between gap-3 text-[14px]">
           <span className="text-cream">Joined with a code</span>
@@ -260,6 +281,7 @@ function Leaderboard({ board, wallet }: { board: Board | null; wallet: string | 
                     <a href={explorerUrl("address", r.wallet)} target="_blank" rel="noreferrer" className="font-mono text-cream hover:text-coral">
                       {short(r.wallet)}
                     </a>
+                    {r.early ? <EarlyBadge className="ml-2" /> : null}
                     {r.wallet === wallet ? <span className="ml-2 font-mono text-[11px] text-coral">you</span> : null}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-cream">{num(r.volumeUsdc)}</td>

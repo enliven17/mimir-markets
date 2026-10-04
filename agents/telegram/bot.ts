@@ -202,7 +202,7 @@ async function handle(update: Update): Promise<void> {
 async function onLeaderboard(chatId: number): Promise<void> {
   const page = `${SITE_URL}/en/campaign`;
   const button = { reply_markup: { inline_keyboard: [[{ text: "Full leaderboard", url: page }]] } };
-  let rows: Array<{ wallet: string; score: number }>;
+  let rows: Array<{ wallet: string; score: number; early?: boolean }>;
   try {
     const res = await fetch(`${SITE_URL}/api/campaign`, { signal: AbortSignal.timeout(15_000) });
     rows = ((await res.json()) as { rows?: typeof rows }).rows ?? [];
@@ -212,7 +212,7 @@ async function onLeaderboard(chatId: number): Promise<void> {
   }
   const medal = ["🥇", "🥈", "🥉"];
   const lines = rows.slice(0, 10).map(
-    (r, i) => `${medal[i] ?? `${i + 1}.`} <code>${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}</code>  ${r.score.toLocaleString("en-US")} pts`,
+    (r, i) => `${medal[i] ?? `${i + 1}.`} <code>${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}</code>  ${r.score.toLocaleString("en-US")} pts${r.early ? "  ⚡ early" : ""}`,
   );
   await sendTo(
     chatId,

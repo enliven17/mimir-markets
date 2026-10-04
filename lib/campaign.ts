@@ -31,6 +31,9 @@ export const INVITE_POINTS = 250;
 export const INVITE_SHARE = 0.1;
 /** An invited wallet's own points are multiplied by this. */
 export const INVITED_MULTIPLIER = 1.1;
+/** The first wallets to join get this on their own points, and the early badge. */
+export const EARLY_SLOTS = 100;
+export const EARLY_MULTIPLIER = 1.5;
 
 export const INVITE_CODE_PATTERN = /^[A-Z0-9]{8}$/;
 

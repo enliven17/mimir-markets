@@ -9,7 +9,15 @@ import "server-only";
  */
 import { randomBytes } from "node:crypto";
 
-import { baseScore, INVITE_POINTS, INVITE_SHARE, INVITED_MULTIPLIER, type CampaignMetrics } from "../campaign";
+import {
+  baseScore,
+  EARLY_MULTIPLIER,
+  EARLY_SLOTS,
+  INVITE_POINTS,
+  INVITE_SHARE,
+  INVITED_MULTIPLIER,
+  type CampaignMetrics,
+} from "../campaign";
 import { MIMIR_PROGRAM_ID } from "../solana/config";
 import { councilRoster } from "./council-roster";
 import { query } from "./db";
@@ -18,6 +26,8 @@ export interface CampaignRow extends CampaignMetrics {
   wallet: string;
   invites: number;
   invited: boolean;
+  /** Among the first EARLY_SLOTS wallets to join. */
+  early: boolean;
   score: number;
 }
 
@@ -55,7 +65,7 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
          FROM copy_executions e JOIN copy_permissions p ON p.id = e.permission_id
         WHERE e.executed GROUP BY 1`,
     ),
-    query<{ wallet: string; referrer: string | null }>(`SELECT wallet, referrer FROM campaign_invites`),
+    query<{ wallet: string; referrer: string | null }>(`SELECT wallet, referrer FROM campaign_invites ORDER BY created_at, wallet`),
   ]);
 
   const skip = excluded();
@@ -72,7 +82,14 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
   for (const r of copies) add(r.wallet, "copies", Number(r.n));
 
   const referrerOf = new Map(invites.filter((r) => r.referrer).map((r) => [r.wallet, r.referrer as string]));
-  const own = new Map([...metrics].map(([w, m]) => [w, baseScore(m) * (referrerOf.has(w) ? INVITED_MULTIPLIER : 1)]));
+  // Join order decides the early slots; house wallets never take one.
+  const early = new Set(invites.map((r) => r.wallet).filter((w) => !skip.has(w)).slice(0, EARLY_SLOTS));
+  const own = new Map(
+    [...metrics].map(([w, m]) => [
+      w,
+      baseScore(m) * (referrerOf.has(w) ? INVITED_MULTIPLIER : 1) * (early.has(w) ? EARLY_MULTIPLIER : 1),
+    ]),
+  );
 
   // An invite counts once the invited wallet has points of its own.
   const inviteCount = new Map<string, number>();
@@ -91,6 +108,7 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
       ...(metrics.get(wallet) ?? EMPTY),
       invites: inviteCount.get(wallet) ?? 0,
       invited: referrerOf.has(wallet),
+      early: early.has(wallet),
       score: Math.round((own.get(wallet) ?? 0) + (inviteBonus.get(wallet) ?? 0)),
     }))
     .filter((r) => r.score > 0)
