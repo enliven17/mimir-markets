@@ -7,6 +7,7 @@
  * score the draft and to brief the council preflight; the question itself must
  * carry the condition.
  */
+import { mentionsPastDay } from "../../lib/past-date";
 import { computeClaimQuality, type ClaimQualityResult } from "../../lib/claimQuality";
 import { resolverSpecFor } from "../../lib/resolver-spec";
 import { isMimirSymbol, mentionsMimirToken } from "../../lib/token-config";
@@ -58,6 +59,9 @@ export function isMimirTokenDraft(d: Pick<DraftClaim, "question" | "creatorPosit
 export function draftProblem(d: DraftClaim, nowSec = Math.floor(Date.now() / 1000)): string | null {
   if (!d.question.trim() || !d.creatorPosition.trim() || !d.counterPosition.trim()) return "empty field";
   if (isMimirTokenDraft(d)) return "a $MIMIR claim (the house never makes markets on its own token)";
+  if (mentionsPastDay(`${d.question} ${d.creatorPosition} ${d.counterPosition}`, nowSec * 1000)) {
+    return "about a day that is already over (its outcome is public)";
+  }
   if (bytes(d.question) > MAX_QUESTION_BYTES) return `question over ${MAX_QUESTION_BYTES} bytes`;
   if (bytes(d.creatorPosition) > MAX_POSITION_BYTES || bytes(d.counterPosition) > MAX_POSITION_BYTES) {
     return `position over ${MAX_POSITION_BYTES} bytes`;

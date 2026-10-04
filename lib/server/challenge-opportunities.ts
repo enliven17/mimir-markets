@@ -22,6 +22,7 @@ import type {
   SourceClaimDraftCandidate,
 } from "@/lib/claimDrafts";
 import { normalizeResolutionSource } from "@/lib/constants";
+import { mentionsPastDay } from "@/lib/past-date";
 import { stripResolverFragment } from "@/lib/resolver-spec";
 import { ST_ACTIVE, ST_OPEN } from "@/lib/solana/config";
 import { getDb, isDbEnabled, query } from "./db";
@@ -138,6 +139,12 @@ export function opportunityExpiresAt(candidate: SourceClaimDraftCandidate, gener
   return Math.min(deadlineAt, generatedAt + OPPORTUNITY_TTL_MS);
 }
 
+/** Still worth suggesting: not about a day that is already over (its outcome is public). */
+export function isCurrentOpportunity(o: ChallengeOpportunity, now = Date.now()): boolean {
+  const c = o.candidate;
+  return !mentionsPastDay(`${c.claimText} ${c.sideA} ${c.sideB}`, now);
+}
+
 /** Challenge links first, then the strongest, then the most confident. */
 export function sortOpportunities(items: ChallengeOpportunity[]): ChallengeOpportunity[] {
   return [...items].sort((a, b) => {
@@ -201,7 +208,7 @@ export async function buildChallengeOpportunities(existing: ExistingClaim[], now
     ];
   });
   const items = sortOpportunities(dedupeOpportunities([...generated, ...liveSeedOpportunities(existing, now)]))
-    .filter((o) => opportunityExpiresAt(o.candidate, now) > now);
+    .filter((o) => opportunityExpiresAt(o.candidate, now) > now && isCurrentOpportunity(o, now));
   return { items, generated: generated.length, failures };
 }
 
@@ -265,7 +272,10 @@ export async function getChallengeOpportunities(opts: { limit?: number; now?: nu
         [now, limit],
       );
       if (rows.length > 0) {
-        const items = rows.map((r) => (typeof r.payload === "string" ? JSON.parse(r.payload) : r.payload) as ChallengeOpportunity);
+        // Stored before the past-day check existed, or the day ended since: filtered here too.
+        const items = rows
+          .map((r) => (typeof r.payload === "string" ? JSON.parse(r.payload) : r.payload) as ChallengeOpportunity)
+          .filter((o) => isCurrentOpportunity(o, now));
         const latest = rows.reduce((m, r) => Math.max(m, Number(r.generated_at) || 0), 0);
         return { items, count: items.length, generatedAt: latest > 0 ? new Date(latest).toISOString() : "" };
       }

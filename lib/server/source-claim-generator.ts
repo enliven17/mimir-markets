@@ -6,6 +6,7 @@ import {
   type SourceClaimDraftResponse,
 } from "@/lib/claimDrafts";
 import { normalizeResolutionSource } from "@/lib/constants";
+import { mentionsPastDay } from "@/lib/past-date";
 import { INJECTION_GUARD, fenceUntrusted } from "@/lib/prompt-safety";
 import {
   EvidenceFetchError,
@@ -261,6 +262,8 @@ function createDraftPrompt(args: {
     "You are drafting challenge-ready claims for Mimir, a stake-backed claim duel product.",
     "Use only the provided source material.",
     "Generate at most 3 claim ideas and only include future, verifiable outcomes.",
+    // The model has no clock: without this it drafts yesterday's result as "future".
+    `Today is ${new Date().toISOString().slice(0, 10)} (UTC). Anything that happened before today is already decided: never draft a claim about it, even if the source reports it.`,
     "If the source is weak, subjective, already resolved, or not clearly challenge-ready, return an empty candidates array and explain why in rejectionReason.",
     "",
     "Hard rules:",
@@ -520,6 +523,7 @@ export function sanitizeGeneratedDrafts(args: {
           settlementRule.length < 20 ||
           !Number.isFinite(parsedDeadline) ||
           parsedDeadline <= Date.now() ||
+          mentionsPastDay(`${claimText} ${sideA} ${sideB}`) ||
           seenClaims.has(dedupeKey)
         ) {
           return [];

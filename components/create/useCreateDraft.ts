@@ -13,6 +13,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useBrowserMimir, createClaim, delegateClaim } from "@/lib/solana/browser-client-lazy";
 import { CATEGORY_GUIDANCE, MIN_STAKE } from "@/lib/constants";
+import { mentionsPastDay } from "@/lib/past-date";
 import { txErrorMessage } from "@/lib/tx-errors";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
 import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
@@ -169,6 +170,7 @@ export function useCreateDraft() {
   /** The reason `step` (0-based) cannot be left yet, or null. */
   const stepError = (step: number): string | null => {
     if (step >= 0 && (!question.trim() || !creatorPos.trim() || !opponentPos.trim())) return t("fillAllFields");
+    if (step >= 0 && mentionsPastDay(`${question} ${creatorPos} ${opponentPos}`)) return t("pastEvent");
     if (step >= 1 && !(stake >= MIN_STAKE)) return t("invalidStakeMin", { amount: MIN_STAKE });
     if (step >= 2) {
       if (deadlineDate && !deadlineTime) return t("completeExactDeadline");
