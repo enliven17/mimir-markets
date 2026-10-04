@@ -195,13 +195,43 @@ async function handle(update: Update): Promise<void> {
   }
 }
 
-/** /ca and /website: the same public answer in private chats and groups. */
+/**
+ * The campaign top 10, read from the site's own API so it matches the page
+ * (house wallets are filtered there, with the site's env).
+ */
+async function onLeaderboard(chatId: number): Promise<void> {
+  const page = `${SITE_URL}/en/campaign`;
+  const button = { reply_markup: { inline_keyboard: [[{ text: "Full leaderboard", url: page }]] } };
+  let rows: Array<{ wallet: string; score: number }>;
+  try {
+    const res = await fetch(`${SITE_URL}/api/campaign`, { signal: AbortSignal.timeout(15_000) });
+    rows = ((await res.json()) as { rows?: typeof rows }).rows ?? [];
+  } catch {
+    await sendTo(chatId, "The leaderboard is unavailable right now.", button);
+    return;
+  }
+  const medal = ["🥇", "🥈", "🥉"];
+  const lines = rows.slice(0, 10).map(
+    (r, i) => `${medal[i] ?? `${i + 1}.`} <code>${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}</code>  ${r.score.toLocaleString("en-US")} pts`,
+  );
+  await sendTo(
+    chatId,
+    ["<b>Testnet campaign · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on devnet to be first."])].join("\n"),
+    button,
+  );
+}
+
+/** /ca, /website and /leaderboard: the same public answer in private chats and groups. */
 async function onPublic(chatId: number, command: string): Promise<boolean> {
   if (command === "/ca") {
     await sendTo(chatId, `<b>${esc(mimirSymbol())} contract address</b> (Solana)
 <code>${MIMIR_MINT}</code>`, {
       reply_markup: { inline_keyboard: [[{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }]] },
     });
+    return true;
+  }
+  if (command === "/leaderboard") {
+    await onLeaderboard(chatId);
     return true;
   }
   if (command === "/website") {
@@ -235,6 +265,7 @@ async function setup(): Promise<void> {
       { command: "price", description: "$MIMIR price and stats" },
       { command: "app", description: "Open Mimir" },
       { command: "ca", description: "$MIMIR contract address" },
+      { command: "leaderboard", description: "Testnet campaign top 10" },
       { command: "website", description: "mimirmarkets.xyz" },
       { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },
