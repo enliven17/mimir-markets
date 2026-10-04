@@ -60,7 +60,7 @@ export function draftProblem(d: DraftClaim, nowSec = Math.floor(Date.now() / 100
   if (!d.question.trim() || !d.creatorPosition.trim() || !d.counterPosition.trim()) return "empty field";
   if (isMimirTokenDraft(d)) return "a $MIMIR claim (the house never makes markets on its own token)";
   if (mentionsPastDay(`${d.question} ${d.creatorPosition} ${d.counterPosition}`, nowSec * 1000)) {
-    return "about a day that is already over (its outcome is public)";
+    return "names today or a past day (its outcome may already be known)";
   }
   if (bytes(d.question) > MAX_QUESTION_BYTES) return `question over ${MAX_QUESTION_BYTES} bytes`;
   if (bytes(d.creatorPosition) > MAX_POSITION_BYTES || bytes(d.counterPosition) > MAX_POSITION_BYTES) {

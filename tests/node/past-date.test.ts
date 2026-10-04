@@ -12,8 +12,12 @@ test("a claim about a finished day is caught", () => {
   assert.ok(mentionsPastDay("Who won on Oct. 4th, 2026?", OCT5_NOON));
 });
 
-test("today and later pass", () => {
-  assert.ok(!mentionsPastDay("Will City beat Arsenal on October 5, 2026?", OCT5_NOON));
+test("today counts as decided: the match can finish before the deadline", () => {
+  assert.ok(mentionsPastDay("Will City beat Arsenal on October 5, 2026?", OCT5_NOON));
+});
+
+test("later days and undated claims pass", () => {
+  assert.ok(!mentionsPastDay("Will City beat Arsenal on October 6, 2026?", OCT5_NOON));
   assert.ok(!mentionsPastDay("Will BTC be above $120k on December 31, 2026?", OCT5_NOON));
   assert.ok(!mentionsPastDay("Will it rain in London tomorrow?", OCT5_NOON));
 });

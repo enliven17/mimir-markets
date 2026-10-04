@@ -638,7 +638,7 @@
     "createSuccessBadgePending": "Pending",
     "invalidFixedOdds": "Enter valid fixed odds (minimum 1.00x)",
     "invalidDeadline": "Choose a future deadline",
-    "pastEvent": "This claim is about a day that is already over, so its outcome is public. Ask about something still to come.",
+    "pastEvent": "This claim names today or a past day, so its outcome may already be known. Ask about a later day.",
     "completeExactDeadline": "Choose both an exact date and time",
     "invalidStake": "Stake must be greater than zero",
     "rematchEyebrow": "Rivalry Mode",

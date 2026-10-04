@@ -1,5 +1,5 @@
 /**
- * Does a claim name a calendar day that is already over?
+ * Does a claim name a calendar day that has already started?
  *
  * A drafted claim can carry a deadline in the future and still ask about a
  * match played yesterday ("Did City win on October 4?" with a deadline on the
@@ -8,8 +8,10 @@
  * runs on every draft and on every stored suggestion before it is shown.
  *
  * Only full dates count (day, month and year): "October 4, 2026", "4 October
- * 2026", "Oct. 4th, 2026", "2026-10-04". A day is over once the UTC day after
- * it has begun, so a claim about today's evening fixture still passes.
+ * 2026", "Oct. 4th, 2026", "2026-10-04". Today counts too: a match played
+ * this afternoon is decided long before a deadline tonight, and the UTC date
+ * lags the user's own (02:00 in Istanbul is still yesterday in UTC). A claim
+ * about today's fixture can leave the date out or name a later day.
  */
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -35,9 +37,9 @@ export function datesIn(text: string): number[] {
   return out;
 }
 
-/** True when `text` names a day before today (UTC). */
+/** True when `text` names today (UTC) or an earlier day. */
 export function mentionsPastDay(text: string, now = Date.now()): boolean {
   const today = new Date(now);
   const startOfToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return datesIn(text).some((day) => day < startOfToday);
+  return datesIn(text).some((day) => day <= startOfToday);
 }
