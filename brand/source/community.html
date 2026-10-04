@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir community</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* 1080×1080 for feeds. Copy on top, the QR on a cream card at the bottom right. */
+    .canvas { width: 1080px; height: 1080px; }
+    .glow {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 620px 520px at 760px 760px, rgb(255 43 43 / 0.24), rgb(143 14 23 / 0.1) 45%, rgb(17 15 14 / 0) 75%);
+    }
+    .head { position: absolute; left: 88px; top: 96px; right: 88px; }
+    .eyebrow { display: flex; align-items: center; gap: 14px; font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+    .eyebrow .sq { width: 10px; height: 10px; background: var(--red); box-shadow: 0 0 14px rgb(255 43 43 / 0.8); }
+    h1 { margin-top: 30px; font-size: 128px; }
+    h1 .red { position: relative; display: inline-block; color: var(--red); text-shadow: 0 0 34px rgb(255 43 43 / 0.35); }
+    .scribble { position: absolute; left: -4px; bottom: -18px; height: 28px; width: calc(100% + 14px); image-rendering: pixelated; }
+    .sub { margin-top: 44px; font-size: 26px; line-height: 1.5; color: var(--muted); max-width: 520px; }
+    .sub b { color: var(--cream); font-weight: 400; }
+
+    .card {
+      position: absolute; right: 88px; bottom: 150px; width: 340px; padding: 26px;
+      border-radius: 28px; background: var(--cream);
+      box-shadow: 0 0 0 1px rgb(243 234 214 / 0.2), 0 30px 80px rgb(255 43 43 / 0.25);
+    }
+    .card img.qr { display: block; width: 100%; image-rendering: pixelated; }
+    .card .horn { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; transform: translate(-50%, -64%); padding: 8px; border-radius: 16px; background: var(--cream); }
+    .card .scan { margin-top: 18px; text-align: center; font-size: 16px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+
+    .link { position: absolute; left: 88px; bottom: 160px; }
+    .link .handle { font-size: 54px; color: var(--cream); }
+    .link .tg { margin-top: 14px; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
+
+    .foot { position: absolute; left: 88px; right: 88px; bottom: 70px; display: flex; justify-content: space-between; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
+    .foot b { color: var(--cream); font-weight: 400; }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <canvas class="field" id="field"></canvas>
+    <div class="dots"></div>
+    <div class="glow"></div>
+
+    <div class="head">
+      <div class="eyebrow mono"><span class="sq"></span>Mimir community</div>
+      <h1 class="display">Join the <span class="red">council.<canvas class="scribble" id="scribble"></canvas></span></h1>
+      <p class="sub pixel">Markets, agents and alpha before anyone else. <b>Agentic prediction market szn</b> starts in here.</p>
+    </div>
+
+    <div class="link">
+      <div class="handle display">t.me/mimirmarkets</div>
+      <div class="tg mono">Telegram group</div>
+    </div>
+
+    <div class="card">
+      <img class="qr" src="telegram-qr.svg" alt="" />
+      <img class="horn" src="horn.svg" alt="" />
+      <div class="scan mono">Scan to join</div>
+    </div>
+
+    <div class="foot mono"><span>Don't argue. <b>Settle.</b></span><span>mimirmarkets.xyz</span></div>
+  </div>
+  <script type="module">
+    import { drawField, drawScribble } from './parts.js'
+    await document.fonts.ready
+    // Wave field behind the QR card, faded before the copy.
+    drawField(document.getElementById('field'), {
+      cell: 14, frame: 40, cx: 0.78, cy: 0.72, spread: 12,
+      mask: (x, y) => Math.max(0, Math.min(1, (y - 0.48) / 0.15)) * Math.max(0, Math.min(1, (x - 0.35) / 0.2)) * Math.max(0, Math.min(1, (0.88 - y) / 0.06)),
+    })
+    drawScribble(document.getElementById('scribble'), 3)
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>

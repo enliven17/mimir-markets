@@ -27,7 +27,10 @@ for (const [page, out, w, h] of [
   // the site's tab icon and iOS home-screen icon (a PNG: the horn SVG is ~300KB)
   ['icon.html', '../app/icon.png', 128, 128],
   ['icon.html?flat', '../app/apple-icon.png', 90, 90],
-]) {
+  ['roadmap.html', 'roadmap.png', 1920, 1080],
+  ['community.html', 'community.png', 1080, 1080],
+  // `node render.mjs roadmap` renders only the pages whose name contains the argument.
+].filter(([page]) => page.includes(process.argv[2] ?? ''))) {
   const tab = await browser.newPage()
   await tab.setViewport({ width: w, height: h, deviceScaleFactor: 2 })
   await tab.goto(`http://localhost:${port}/${page}`, { waitUntil: 'networkidle0' })
