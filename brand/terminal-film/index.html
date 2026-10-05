@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="hyperframes" content="duration:30,fps:60,width:1920,height:1080">
+  <title>Mimir Terminal launch film</title>
+  <!--
+    Mimir Terminal launch film (30 s, 120 BPM: a bar is 2 s, a beat 0.5 s). A HyperFrames composition in the
+    NullMotion format: one paused GSAP timeline on window.__timelines.root, seeked frame by frame by render.mjs.
+    The terminal is redrawn from the live /terminal page (tokens from app/globals.css, the same layout and copy).
+    Facts: the commands, the 20 house agents, 0.01 USDC a message to a thinking agent, token red flags.
+    Illustrations: the market rows, the agent's reply and the token ($RANDO is made up).
+  -->
+  <script src="vendor/gsap.min.js"></script>
+  <style>
+    @font-face { font-family: "Display"; src: url("fonts/terminal-grotesque.woff2") format("woff2"); font-display: block; }
+    @font-face { font-family: "Pixel"; src: url("fonts/GeistPixel-Square.woff2") format("woff2"); font-display: block; }
+    @font-face { font-family: "Mono"; src: url("fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+    :root {
+      --ink: #110f0e; --ink-deep: #0a0808; --panel: #1c1817; --panel-2: #272120; --cream: #f3ead6; --muted: #a89d93;
+      --dim: #928780; --red: #ff2b2b; --coral: #ff5148; --danger: #ff938c; --win: #9fd6a8; --pending: #ffb3ad;
+      --line: rgba(243, 234, 214, 0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ink-deep); }
+    body { color: var(--cream); font-family: "Mono", ui-monospace, monospace; -webkit-font-smoothing: antialiased; }
+    #root { position: absolute; inset: 0; overflow: hidden; perspective: 1800px; background: radial-gradient(ellipse 120% 90% at 50% 40%, #141110 0%, var(--ink-deep) 70%); }
+    .dots { position: absolute; inset: 0; background-image: radial-gradient(rgb(243 234 214 / 0.06) 1px, transparent 1.3px); background-size: 6px 6px; }
+    .glow { position: absolute; left: 50%; top: 52%; width: 1500px; height: 900px; margin: -450px 0 0 -750px; border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgb(255 43 43 / 0.22) 0%, rgb(143 14 23 / 0.1) 38%, transparent 70%); filter: blur(20px); }
+    .display { font-family: "Display", sans-serif; font-weight: 400; letter-spacing: -0.01em; line-height: 0.9; }
+    .pixel { font-family: "Pixel", monospace; }
+    .red { color: var(--red); }
+
+    /* ── 0 · hook */
+    #hook { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; }
+    #hook .row { font-size: 150px; white-space: nowrap; }
+    #hook .row span { display: inline-block; }
+    #hook .row.accent { position: relative; color: var(--red); text-shadow: 0 0 40px rgb(255 43 43 / 0.4); }
+    #scrib { position: absolute; left: 50%; bottom: -26px; width: 0; height: 18px; transform: translateX(-50%);
+      background: repeating-linear-gradient(90deg, var(--red) 0 10px, var(--coral) 10px 14px, var(--red) 14px 22px); clip-path: polygon(0 30%, 100% 0, 100% 70%, 0 100%); }
+    #badge { margin: 56px auto 0; display: inline-flex; align-items: center; gap: 14px; padding: 16px 30px; border-radius: 999px; position: relative; overflow: hidden;
+      background: linear-gradient(180deg, rgb(46 26 26 / 0.95), rgb(20 12 12 / 0.98)); box-shadow: inset 0 1px rgb(255 255 255 / 0.12), 0 0 0 1px rgb(255 81 72 / 0.3), 0 20px 50px rgb(0 0 0 / 0.5);
+      font-size: 26px; letter-spacing: 0.24em; }
+    #badge i { width: 12px; height: 12px; border-radius: 50%; background: var(--red); box-shadow: 0 0 16px var(--red); }
+    #badge .beta { color: var(--coral); }
+    .sheen { position: absolute; top: -30%; left: -40%; width: 22%; height: 160%; transform: skewX(-18deg);
+      background: linear-gradient(105deg, transparent, rgb(255 255 255 / 0.55), rgb(255 81 72 / 0.25), transparent); opacity: 0; }
+
+    /* ── captions above the window */
+    .cap { position: absolute; left: 0; right: 0; top: 64px; text-align: center; font-size: 72px; opacity: 0; white-space: nowrap; }
+    .cap .k { color: var(--red); }
+
+    /* ── the terminal window, in 3D */
+    #stage { position: absolute; left: 50%; top: 200px; width: 1560px; height: 820px; margin-left: -780px; transform-style: preserve-3d; }
+    #win { position: absolute; inset: 0; border-radius: 22px; overflow: hidden; background: #0b0909; transform-style: preserve-3d;
+      box-shadow: 0 0 0 1px rgb(243 234 214 / 0.1), 0 60px 140px rgb(0 0 0 / 0.75), 0 0 120px rgb(255 43 43 / 0.12); }
+    #win::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 22px;
+      background: linear-gradient(160deg, rgb(255 255 255 / 0.05), transparent 28%); }
+    .bar { height: 56px; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: #171312; border-bottom: 1px solid var(--line); font-size: 17px; }
+    .bar .back { color: var(--dim); }
+    .bar .mark { font-family: "Pixel"; font-size: 30px; }
+    .bar .mark b { color: var(--red); font-weight: 400; }
+    .bar .title { letter-spacing: 0.2em; }
+    .pillb { padding: 3px 12px; border-radius: 999px; border: 1px solid rgb(255 81 72 / 0.6); color: var(--coral); font-size: 14px; letter-spacing: 0.08em; }
+    .bar .sp { flex: 1; }
+    .devnet { padding: 5px 14px; border-radius: 999px; background: rgb(255 43 43 / 0.16); color: var(--danger); font-size: 15px; letter-spacing: 0.08em; }
+    .bar .wallet { color: var(--muted); }
+    .body { position: absolute; left: 0; right: 0; top: 56px; bottom: 112px; padding: 26px 40px; font-size: 21px; line-height: 1.75; overflow: hidden; }
+    .banner { display: flex; align-items: center; gap: 26px; margin-bottom: 14px; }
+    .banner .big { font-family: "Pixel"; font-size: 96px; line-height: 0.9; }
+    .banner .big b { color: var(--red); font-weight: 400; }
+    .banner h2 { font-family: "Display"; font-weight: 400; font-size: 44px; }
+    .banner p { color: var(--muted); font-size: 19px; }
+    .quick { display: flex; gap: 34px; font-weight: 700; margin-bottom: 18px; }
+    .quick span::before { content: "›  "; color: var(--muted); font-weight: 400; }
+    .p { color: var(--coral); }
+    .cmd { font-weight: 700; }
+    .typed { display: inline-block; overflow: hidden; vertical-align: bottom; white-space: nowrap; width: 0; }
+    .caret { display: inline-block; width: 11px; height: 24px; background: var(--coral); vertical-align: -4px; margin-left: 2px; }
+    .out { opacity: 0; }
+    table { border-collapse: collapse; margin-top: 4px; }
+    th { text-align: left; font-weight: 400; color: var(--muted); padding: 0 28px 2px 0; }
+    td { padding: 2px 28px 2px 0; white-space: nowrap; }
+    td.id { color: var(--red); }
+    td.q { font-weight: 700; max-width: 640px; overflow: hidden; text-overflow: ellipsis; }
+    .meter { display: inline-block; width: 120px; height: 18px; vertical-align: -3px; margin-right: 12px;
+      background: repeating-linear-gradient(90deg, rgb(243 234 214 / 0.22) 0 2px, transparent 2px 4px); position: relative; }
+    .meter i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #d9cfbd; }
+    tr.hot td { background: rgb(255 43 43 / 0.0); }
+    .note { color: var(--muted); }
+    .reply { margin-top: 10px; padding-left: 22px; border-left: 3px solid var(--red); }
+    .who { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .who img { width: 40px; height: 40px; border-radius: 50%; background: #3a2526; }
+    .who b { color: var(--cream); }
+    .reply .text { max-width: 1080px; font-size: 23px; line-height: 1.6; }
+    .reply .text span { opacity: 0; display: inline-block; white-space: pre; }
+    .tok { margin-top: 12px; padding-left: 22px; border-left: 3px solid var(--red); }
+    .tok .price { font-family: "Display"; font-size: 64px; line-height: 1.1; }
+    .tok .chg { color: var(--danger); font-size: 22px; margin-left: 14px; }
+    .tok .stats { display: flex; gap: 46px; color: var(--muted); }
+    .tok .stats b { color: var(--cream); font-weight: 400; }
+    .prompt { position: absolute; left: 0; right: 0; bottom: 56px; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 30px; border-top: 1px solid var(--line); background: #141110; font-size: 21px; }
+    .prompt .ph { color: var(--dim); }
+    .status { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; display: flex; align-items: center; gap: 26px; padding: 0 30px; border-top: 1px solid var(--line); color: var(--muted); font-size: 16px; letter-spacing: 0.08em; }
+    .status .dotg { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); display: inline-block; margin-right: 10px; }
+
+    /* ── floating glass cards in front of the window (translateZ) */
+    .float { position: absolute; padding: 26px 32px; border-radius: 20px; opacity: 0; white-space: nowrap;
+      background: linear-gradient(180deg, rgb(40 24 25 / 0.92), rgb(22 14 15 / 0.95)); backdrop-filter: blur(14px);
+      box-shadow: inset 0 1px rgb(255 255 255 / 0.1), 0 0 0 1px rgb(243 234 214 / 0.08), 0 40px 90px rgb(0 0 0 / 0.65); }
+    .float .lbl { font-size: 15px; letter-spacing: 0.22em; color: var(--coral); display: flex; align-items: center; gap: 10px; }
+    .float .lbl i { width: 8px; height: 8px; background: var(--red); }
+    .float .v { font-family: "Display"; font-size: 46px; margin-top: 10px; }
+    .float.bad .v { color: var(--danger); }
+    .float.good .v { color: var(--win); }
+    .roster { display: flex; margin-top: 14px; }
+    .roster img { width: 54px; height: 54px; border-radius: 50%; margin-right: -14px; background: #3a2526; box-shadow: 0 0 0 3px #1c1213; }
+
+    /* ── end card */
+    #end { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+    #horn { width: 300px; margin: 0 auto; filter: drop-shadow(0 0 40px rgb(255 43 43 / 0.45)); }
+    #endline { font-size: 128px; margin-top: 30px; white-space: nowrap; }
+    #endline .k { position: relative; color: var(--red); }
+    #scrib2 { position: absolute; left: -2%; bottom: -24px; width: 0; height: 16px;
+      background: repeating-linear-gradient(90deg, var(--red) 0 10px, var(--coral) 10px 14px, var(--red) 14px 22px); clip-path: polygon(0 30%, 100% 0, 100% 70%, 0 100%); }
+    #url { margin-top: 54px; font-size: 34px; color: var(--muted); letter-spacing: 0.06em; }
+    #live { margin: 26px auto 0; display: inline-flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgb(255 43 43 / 0.14); color: var(--pending); font-size: 20px; letter-spacing: 0.12em; }
+    #live i { width: 10px; height: 10px; border-radius: 50%; background: var(--red); box-shadow: 0 0 12px var(--red); }
+    .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.55) 100%); }
+    #flash { position: absolute; inset: 0; background: var(--red); opacity: 0; pointer-events: none; mix-blend-mode: screen; }
+  </style>
+</head>
+<body>
+<div id="root" data-composition-id="root" data-start="0" data-duration="30" data-width="1920" data-height="1080">
+  <div class="dots"></div>
+  <div class="glow" id="glow"></div>
+
+  <!-- 0 · hook -->
+  <section id="hook">
+    <div class="row display" id="h1"><span>Every</span> <span>market.</span></div>
+    <div class="row display" id="h2"><span>Every</span> <span>agent.</span></div>
+    <div class="row display accent" id="h3"><span>One</span> <span>prompt.</span><i id="scrib"></i></div>
+    <div><div id="badge" class="mono"><i></i>MIMIR TERMINAL <span class="beta">· BETA</span><span class="sheen" id="sheen"></span></div></div>
+  </section>
+
+  <!-- captions -->
+  <div class="cap display" id="cap1">Live markets, <span class="k">one command.</span></div>
+  <div class="cap display" id="cap2">Ask an agent. <span class="k">Get a side.</span></div>
+  <div class="cap display" id="cap3">Check a token <span class="k">before you touch it.</span></div>
+
+  <!-- the terminal -->
+  <div id="stage">
+    <div id="win">
+      <div class="bar">
+        <span class="back">← mimir</span><span class="mark"><b>›</b>M<b>.</b></span><span class="title">MIMIR TERMINAL</span><span class="pillb">BETA</span>
+        <span class="sp"></span><span class="devnet">DEVNET</span><span class="wallet">4hKd…9Pdq</span>
+      </div>
+      <div class="body">
+        <div class="banner" id="banner">
+          <div class="big"><b>›</b>M<b>.</b></div>
+          <div><h2>Mimir Terminal</h2><p>markets, agents and tokens from one prompt</p></div>
+        </div>
+        <div class="quick" id="quick"><span>markets live</span><span>markets closing</span><span>agents</span><span>price</span><span>help</span></div>
+
+        <!-- scene A: markets live -->
+        <div id="sceneA">
+          <div><span class="p">mimir›</span> <span class="cmd typed" id="tA" data-n="12">markets live</span></div>
+          <table class="out" id="tbl">
+            <tr><th>#</th><th>market</th><th>state</th><th>pool</th><th>creator side</th><th>left</th></tr>
+            <tr class="row" id="r51"><td class="id">#51</td><td class="q">Will New Orleans beat Atlanta on Sunday?</td><td>live</td><td>$15</td><td><span class="meter"><i data-w="20"></i></span>20%</td><td>11h 47m</td></tr>
+            <tr class="row"><td class="id">#35</td><td class="q">Will NVDA close above its previous close?</td><td>live</td><td>$7</td><td><span class="meter"><i data-w="43"></i></span>43%</td><td>7h 52m</td></tr>
+            <tr class="row"><td class="id">#58</td><td class="q">Will BTC trade above $120k on Friday?</td><td>open</td><td>$24</td><td><span class="meter"><i data-w="55"></i></span>55%</td><td>2d 4h</td></tr>
+            <tr class="row"><td class="id">#62</td><td class="q">Will it rain in London tomorrow?</td><td>open</td><td>$9</td><td><span class="meter"><i data-w="70"></i></span>70%</td><td>19h 10m</td></tr>
+          </table>
+          <div class="note out" id="noteA">4 shown · click a row, or market &lt;id&gt;</div>
+        </div>
+
+        <!-- scene B: an agent -->
+        <div id="sceneB" style="display:none">
+          <div><span class="p">mimir›</span> <span class="cmd typed" id="tB1" data-n="12">use optimist</span></div>
+          <div class="note out" id="noteB">talking to optimist about #51 · plain text goes to it</div>
+          <div><span class="p">optimist›</span> <span class="cmd typed" id="tB2" data-n="25">is #51 worth a challenge?</span></div>
+          <div class="reply out" id="reply">
+            <div class="who"><img src="avatars/optimist.svg" alt=""><b>optimist</b> · house agent · 0.01 USDC</div>
+            <div class="text" id="replyText">Only $3 sits against the creator, so the challenge side pays about 4 to 1. If Atlanta's defence holds, that is cheap. I'd take a small challenge. What changes my mind: a late injury report.</div>
+          </div>
+        </div>
+
+        <!-- scene C: a token -->
+        <div id="sceneC" style="display:none">
+          <div><span class="p">mimir›</span> <span class="cmd" id="tC" style="opacity:0">7xRaNd0mCoiN5oLaNaAddr3ssXyZ9pump</span></div>
+          <div class="tok out" id="tok">
+            <div class="note">$RANDO · <b style="color:var(--cream)">Random Coin</b> · 7xRa…pump · Solana mainnet</div>
+            <div><span class="price">$0.0004120</span><span class="chg">▲ 212% 24h</span></div>
+            <div class="stats"><span>mcap <b>$412K</b></span><span>liquidity <b>$9.8K</b></span><span>vol 24h <b>$1.2M</b></span><span>holders <b>311</b></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="prompt"><span class="p" id="ppt">mimir›</span><span class="ph">type help, or ⌘K</span></div>
+      <div class="status"><span><span class="dotg" id="agentDot"></span><span id="agentLbl">NO AGENT</span></span><span>MARKETS · AGENTS · TOKENS</span><span style="flex:1"></span><span>ESC LEAVES · CTRL+L CLEARS</span></div>
+    </div>
+
+    <!-- floating cards (in front of the window) -->
+    <div class="float" id="fRoster" style="right:-60px; top:120px">
+      <div class="lbl"><i></i>HOUSE AGENTS</div>
+      <div class="v">20 personas</div>
+      <div class="roster" id="roster"></div>
+      <div class="note" style="margin-top:14px; font-size:18px">or bring your own agent</div>
+    </div>
+    <div class="float" id="fPay" style="right:20px; top:470px">
+      <div class="lbl"><i></i>PER MESSAGE</div>
+      <div class="v">0.01 USDC</div>
+      <div class="note" style="margin-top:6px; font-size:18px">to the agent's own wallet</div>
+    </div>
+    <div class="float bad" id="fMint" style="right:-40px; top:90px"><div class="lbl"><i></i>MINT AUTHORITY</div><div class="v">✕ can mint more</div></div>
+    <div class="float bad" id="fHold" style="right:30px; top:300px"><div class="lbl"><i></i>TOP 10 HOLDERS</div><div class="v">✕ 61% of supply</div></div>
+    <div class="float good" id="fFreeze" style="right:-20px; top:510px"><div class="lbl"><i></i>FREEZE AUTHORITY</div><div class="v">✓ off</div></div>
+  </div>
+
+  <!-- end card -->
+  <section id="end" style="opacity:0">
+    <img id="horn" src="horn.svg" alt="">
+    <div id="endline" class="display">Talk to the <span class="k">market.<i id="scrib2"></i></span></div>
+    <div id="url">mimirmarkets.xyz/terminal</div>
+    <div><div id="live"><i></i>BETA · LIVE ON DEVNET</div></div>
+  </section>
+
+  <div class="vignette"></div>
+  <div id="flash"></div>
+</div>
+
+<script>
+  // Split the reply into word spans, and fill the roster, before the timeline reads them.
+  (function () {
+    const el = document.getElementById("replyText");
+    el.innerHTML = el.textContent.split(/(\s+)/).map((w) => `<span>${w}</span>`).join("");
+    const roster = document.getElementById("roster");
+    ["optimist", "pessimist", "contrarian", "statistician", "whale-watcher", "crypto-maxi", "sports-pundit", "doomer", "socrates", "kahneman", "taleb", "feynman", "munger", "lao-tzu"]
+      .forEach((a) => { const i = new Image(); i.src = `avatars/${a}.svg`; roster.appendChild(i); });
+  })();
+
+  window.__timelines = window.__timelines || {};
+  window.startRender = function startRender() {
+    if (window.__timelines.root) return window.__timelines.root;
+    const B = 0.5; // one beat at 120 BPM
+    const tl = gsap.timeline({ paused: true, defaults: { ease: "power4.out" } });
+    const typeOn = (sel, at, per = 0.045) => {
+      const n = Number(document.querySelector(sel).dataset.n);
+      tl.to(sel, { width: `${n}ch`, duration: n * per, ease: `steps(${n})` }, at);
+    };
+    const words = (sel) => gsap.utils.toArray(`${sel} span`);
+
+    // ── 0 · hook (0–4 s)
+    tl.from("#glow", { opacity: 0, scale: 0.6, duration: 1.4, ease: "power3.out" }, 0);
+    [["#h1", 0.2], ["#h2", 0.2 + 2 * B], ["#h3", 0.2 + 4 * B]].forEach(([sel, at]) => {
+      tl.from(`${sel} span`, { y: 70, opacity: 0, filter: "blur(16px)", rotationX: -50, duration: 0.8, stagger: 0.09 }, at);
+    });
+    tl.to("#scrib", { width: "108%", duration: 0.55, ease: "steps(14)" }, 0.2 + 5 * B);
+    tl.from("#badge", { y: 30, opacity: 0, scale: 0.92, filter: "blur(8px)", duration: 0.6 }, 0.2 + 6 * B);
+    tl.to("#sheen", { opacity: 0.9, left: "120%", duration: 0.8, ease: "power3.inOut" }, 0.2 + 6.6 * B);
+    tl.to("#hook", { y: -60, opacity: 0, filter: "blur(18px)", scale: 1.04, duration: 0.55, ease: "power3.in" }, 3.6);
+
+    // ── 1 · the window flies in, markets live (4–11 s)
+    gsap.set("#stage", { rotationX: 34, rotationY: -16, rotationZ: 4, z: -900, y: 260, opacity: 0 });
+    tl.to("#stage", { rotationX: 9, rotationY: -6, rotationZ: 0, z: -120, y: 30, opacity: 1, duration: 1.6, ease: "expo.out" }, 4.0);
+    tl.to("#glow", { top: "62%", opacity: 0.8, duration: 1.6, ease: "power2.out" }, 4.0);
+    tl.from("#banner, #quick", { opacity: 0, x: -30, duration: 0.5, stagger: 0.1 }, 4.4);
+    typeOn("#tA", 5.2);
+    tl.to("#tbl", { opacity: 1, duration: 0.01 }, 6.0);
+    tl.from("#tbl tr", { opacity: 0, x: -40, filter: "blur(6px)", duration: 0.45, stagger: 0.12 }, 6.0);
+    gsap.utils.toArray("#tbl .meter i").forEach((m, i) => tl.to(m, { width: `${m.dataset.w}%`, duration: 0.8, ease: "power3.out" }, 6.3 + i * 0.12));
+    tl.to("#noteA", { opacity: 1, duration: 0.4 }, 6.8);
+    tl.to("#cap1", { opacity: 1, y: 0, duration: 0.01 }, 6.4);
+    tl.from("#cap1", { y: 30, filter: "blur(12px)", duration: 0.7 }, 6.4);
+    tl.to("#stage", { rotationX: 6, rotationY: 4, z: -60, duration: 4.4, ease: "sine.inOut" }, 6.5);
+    tl.to("#r51 td", { backgroundColor: "rgba(255,43,43,0.16)", duration: 0.3 }, 8.6);
+    tl.to("#cap1", { opacity: 0, y: -30, filter: "blur(12px)", duration: 0.45, ease: "power3.in" }, 10.5);
+
+    // ── 2 · an agent (11–18 s)
+    tl.set("#sceneA", { display: "none" }, 11.0).set("#sceneB", { display: "block" }, 11.0);
+    tl.fromTo("#flash", { opacity: 0.12 }, { opacity: 0, duration: 0.4, ease: "power2.out", immediateRender: false }, 11.0);
+    typeOn("#tB1", 11.1);
+    tl.to("#noteB", { opacity: 1, duration: 0.3 }, 11.8);
+    tl.set("#ppt", { textContent: "optimist›" }, 11.8).set("#agentLbl", { textContent: "OPTIMIST" }, 11.8).set("#agentDot", { background: "#ff2b2b", boxShadow: "0 0 10px #ff2b2b" }, 11.8);
+    tl.to("#cap2", { opacity: 1, duration: 0.01 }, 11.6);
+    tl.from("#cap2", { y: 30, filter: "blur(12px)", duration: 0.7 }, 11.6);
+    typeOn("#tB2", 12.4, 0.04);
+    tl.to("#reply", { opacity: 1, duration: 0.01 }, 13.6);
+    tl.from("#reply .who", { opacity: 0, x: -20, duration: 0.4 }, 13.6);
+    tl.to(words("#replyText"), { opacity: 1, duration: 0.18, stagger: 0.045, ease: "none" }, 13.9);
+    tl.to("#stage", { rotationY: -8, rotationX: 7, x: -120, z: -140, duration: 1.2, ease: "power3.inOut" }, 12.6);
+    tl.fromTo("#fRoster", { opacity: 0, z: 0, x: 80, rotationY: -20 }, { opacity: 1, z: 220, x: 0, rotationY: -8, duration: 1.0, ease: "expo.out" }, 13.0);
+    tl.from("#roster img", { scale: 0, opacity: 0, duration: 0.35, stagger: 0.04, ease: "back.out(2)" }, 13.3);
+    tl.fromTo("#fPay", { opacity: 0, z: 0, x: 80, rotationY: -20 }, { opacity: 1, z: 300, x: 0, rotationY: -8, duration: 1.0, ease: "expo.out" }, 14.6);
+    tl.to("#cap2", { opacity: 0, y: -30, filter: "blur(12px)", duration: 0.45, ease: "power3.in" }, 17.4);
+    tl.to("#fRoster, #fPay", { opacity: 0, z: 500, filter: "blur(10px)", duration: 0.5, ease: "power3.in" }, 17.5);
+
+    // ── 3 · a token (18–24.5 s)
+    tl.set("#sceneB", { display: "none" }, 18.0).set("#sceneC", { display: "block" }, 18.0);
+    tl.set("#ppt", { textContent: "mimir›" }, 18.0).set("#agentLbl", { textContent: "FOCUS $RANDO" }, 18.0).set("#agentDot", { background: "#928780", boxShadow: "none" }, 18.0);
+    tl.to("#stage", { rotationY: 6, rotationX: 8, x: -160, z: -120, duration: 1.2, ease: "power3.inOut" }, 18.0);
+    tl.to("#cap3", { opacity: 1, duration: 0.01 }, 18.3);
+    tl.from("#cap3", { y: 30, filter: "blur(12px)", duration: 0.7 }, 18.3);
+    // a paste: the whole address lands at once, with a flash
+    tl.to("#tC", { opacity: 1, duration: 0.01 }, 18.9);
+    tl.fromTo("#tC", { color: "#ff5148" }, { color: "#f3ead6", duration: 0.6, immediateRender: false }, 18.9);
+    tl.to("#tok", { opacity: 1, duration: 0.01 }, 19.5);
+    tl.from("#tok > div", { opacity: 0, y: 16, filter: "blur(6px)", duration: 0.45, stagger: 0.12 }, 19.5);
+    [["#fMint", 20.4, 260], ["#fHold", 20.9, 320], ["#fFreeze", 21.4, 200]].forEach(([sel, at, z]) => {
+      tl.fromTo(sel, { opacity: 0, z: 0, x: 60, rotationY: 20 }, { opacity: 1, z, x: 0, rotationY: 6, duration: 0.9, ease: "expo.out" }, at);
+    });
+    tl.to("#cap3", { opacity: 0, y: -30, filter: "blur(12px)", duration: 0.45, ease: "power3.in" }, 24.0);
+
+    // ── 4 · end card (24.5–30 s)
+    tl.to("#fMint, #fHold, #fFreeze", { opacity: 0, z: 600, filter: "blur(12px)", duration: 0.5, stagger: 0.05, ease: "power3.in" }, 24.2);
+    tl.to("#stage", { rotationX: 40, z: -1400, y: 300, opacity: 0, filter: "blur(10px)", duration: 1.0, ease: "power3.in" }, 24.3);
+    tl.to("#glow", { top: "40%", opacity: 1, scale: 1.1, duration: 1.2, ease: "power2.out" }, 25.0);
+    tl.to("#end", { opacity: 1, duration: 0.01 }, 25.1);
+    tl.from("#horn", { y: 80, opacity: 0, scale: 0.85, filter: "blur(20px)", duration: 1.0, ease: "expo.out" }, 25.1);
+    tl.from("#endline", { y: 40, opacity: 0, filter: "blur(16px)", duration: 0.8 }, 25.9);
+    tl.fromTo("#flash", { opacity: 0.14 }, { opacity: 0, duration: 0.5, ease: "power2.out", immediateRender: false }, 25.9);
+    tl.to("#scrib2", { width: "106%", duration: 0.55, ease: "steps(14)" }, 26.6);
+    tl.from("#url", { opacity: 0, y: 20, duration: 0.6 }, 27.0);
+    tl.from("#live", { opacity: 0, scale: 0.9, duration: 0.5 }, 27.4);
+    tl.to("#horn", { y: -8, duration: 2.6, ease: "sine.inOut" }, 27.0);
+    tl.to({}, { duration: 30 - tl.duration() > 0 ? 30 - tl.duration() : 0 });
+    window.__timelines.root = tl;
+    return tl;
+  };
+  const timeline = window.startRender();
+  if (location.hash === "#play") timeline.play(0);
+</script>
+</body>
+</html>
