@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 import { createPublicClient, erc20Abi, http } from 'viem'
-import { burnToArc, waitForAttestation } from './cctp-solana.mjs'
+import { burnToArc, receiveOnSolana, solanaMintRecipient, solanaUsdc, waitForArcAttestation, waitForAttestation } from './cctp-solana.mjs'
 
 const amountUsdc = Number(process.argv[2] ?? 1)
 const env = await readFile(fileURLToPath(new URL('../../.env.local', import.meta.url)), 'utf8').catch(() => '')
@@ -46,8 +46,23 @@ try {
   const rec = await tab.evaluate((m, a) => window.receive(m, a), att.message, att.attestation)
   console.log('receive', JSON.stringify(rec))
   console.log('after', await balances(account), `total ${Math.round((Date.now() - t0) / 1000)}s`)
+  if (!rec.ok) throw new Error('receive on arc failed')
+
+  // the way back: half of it to the same devnet wallet's USDC account
+  const keypairPath = join(homedir(), '.config/solana/talos-deploy.json')
+  const to = solanaMintRecipient(burn.from)
+  const solBefore = await solanaUsdc(to.ata)
+  const t1 = Date.now()
+  const back = await tab.evaluate((a, r) => window.withdrawToSolana(a, r), String(Math.round((amountUsdc * 1e6) / 2)), to.bytes32)
+  console.log('arc burn', JSON.stringify(back))
+  if (!back.ok) throw new Error('burn on arc failed')
+  const att2 = await waitForArcAttestation(back.tx)
+  console.log(`attested in ${Math.round((Date.now() - t1) / 1000)}s`)
+  const solSig = await receiveOnSolana({ keypairPath, message: att2.message, attestation: att2.attestation, recipientAta: to.ata })
+  console.log('solana mint', solSig)
+  console.log('arc after', await balances(account), 'solana USDC', `${solBefore} -> ${await solanaUsdc(to.ata)}`, `back in ${Math.round((Date.now() - t1) / 1000)}s`)
   await browser.close()
-  process.exit(rec.ok ? 0 : 1)
+  process.exit(0)
 } catch (e) {
   console.error('FAILED', e?.message ?? e)
   await browser.close()

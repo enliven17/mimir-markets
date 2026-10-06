@@ -77,6 +77,31 @@
       return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
     }
   };
+  // ── the way back: approve + burn in one sponsored user operation, to a fixed Solana token account
+  const TOKEN_MESSENGER_V2 = '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA';
+  const burnAbi = [{ type: 'function', name: 'depositForBurn', stateMutability: 'nonpayable', inputs: [
+    { name: 'amount', type: 'uint256' }, { name: 'destinationDomain', type: 'uint32' }, { name: 'mintRecipient', type: 'bytes32' },
+    { name: 'burnToken', type: 'address' }, { name: 'destinationCaller', type: 'bytes32' }, { name: 'maxFee', type: 'uint256' },
+    { name: 'minFinalityThreshold', type: 'uint32' }], outputs: [] }];
+  const ZERO32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  window.withdrawToSolana = async (amount, mintRecipient) => {
+    try {
+      const value = BigInt(amount);
+      const hash = await S.bundler.sendUserOperation({
+        calls: [
+          { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [TOKEN_MESSENGER_V2, value] }) },
+          { to: TOKEN_MESSENGER_V2, data: encodeFunctionData({ abi: burnAbi, functionName: 'depositForBurn',
+            args: [value, 5, mintRecipient, USDC, ZERO32, 0n, 2000] }) },
+        ],
+        paymaster: true,
+      });
+      const { receipt } = await S.bundler.waitForUserOperationReceipt({ hash });
+      log('burn on arc', receipt.transactionHash, receipt.status);
+      return { ok: receipt.status === 'success', tx: receipt.transactionHash };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
   window.pocReady = true;
 </script>
 </body>

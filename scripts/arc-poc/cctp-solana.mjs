@@ -71,3 +71,74 @@ export async function waitForAttestation(sig, { timeoutMs = 10 * 60_000 } = {}) 
   }
   throw new Error('attestation timed out')
 }
+
+// ── the way back: Arc testnet → Solana devnet ─────────────────────────────────────────────────────────────────
+
+const ARC_USDC = '0x3600000000000000000000000000000000000000'
+
+/** The recipient's USDC token account on Solana, as the bytes32 CCTP takes for mintRecipient on the EVM side. */
+export function solanaMintRecipient(ownerBase58) {
+  const ata = getAssociatedTokenAddressSync(USDC, new PublicKey(ownerBase58))
+  return { ata: ata.toBase58(), bytes32: `0x${Buffer.from(ata.toBytes()).toString('hex')}` }
+}
+
+/** Poll Circle's attestation service for a burn on Arc (domain 26). */
+export async function waitForArcAttestation(txHash, { timeoutMs = 10 * 60_000 } = {}) {
+  const until = Date.now() + timeoutMs
+  while (Date.now() < until) {
+    const res = await fetch(`${IRIS}/v2/messages/${ARC_DOMAIN}?transactionHash=${txHash}`)
+    if (res.ok) {
+      const m = (await res.json()).messages?.[0]
+      if (m?.status === 'complete' && m.attestation && m.attestation !== 'PENDING') return { message: m.message, attestation: m.attestation }
+    }
+    await new Promise((r) => setTimeout(r, 4000))
+  }
+  throw new Error('attestation timed out')
+}
+
+/** Mint on Solana devnet: MessageTransmitterV2.receive_message with the TokenMessengerMinterV2 accounts. */
+export async function receiveOnSolana({ keypairPath, message, attestation, recipientAta }) {
+  const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(keypairPath, 'utf8'))))
+  const conn = new Connection('https://api.devnet.solana.com', 'confirmed')
+  const provider = new AnchorProvider(conn, new Wallet(payer), { commitment: 'confirmed' })
+  const load = (n) => JSON.parse(readFileSync(fileURLToPath(new URL(`./idl/${n}.json`, import.meta.url)), 'utf8'))
+  const mt = new Program(load('message_transmitter_v2'), provider)
+  const tmm = new Program(load('token_messenger_minter_v2'), provider)
+  const msg = Buffer.from(message.replace(/^0x/, ''), 'hex')
+  const nonce = msg.subarray(12, 44)
+  const remoteDomain = String(ARC_DOMAIN)
+  const remoteToken = new PublicKey(Buffer.concat([Buffer.alloc(12), Buffer.from(ARC_USDC.slice(2), 'hex')]))
+  const tokenMessenger = pda(['token_messenger'], TMM)
+  const feeRecipient = (await tmm.account.tokenMessenger.fetch(tokenMessenger)).feeRecipient
+  const meta = (pubkey, isWritable = false) => ({ pubkey, isSigner: false, isWritable })
+  return mt.methods
+    .receiveMessage({ message: msg, attestation: Buffer.from(attestation.replace(/^0x/, ''), 'hex') })
+    .accounts({
+      payer: payer.publicKey,
+      caller: payer.publicKey,
+      authorityPda: PublicKey.findProgramAddressSync([Buffer.from('message_transmitter_authority'), TMM.toBuffer()], MT)[0],
+      messageTransmitter: pda(['message_transmitter'], MT),
+      usedNonce: PublicKey.findProgramAddressSync([Buffer.from('used_nonce'), nonce], MT)[0],
+      receiver: TMM,
+    })
+    .remainingAccounts([
+      meta(tokenMessenger),
+      meta(pda(['remote_token_messenger', remoteDomain], TMM)),
+      meta(pda(['token_minter'], TMM), true),
+      meta(pda(['local_token', USDC.toBuffer()], TMM), true),
+      meta(pda(['token_pair', remoteDomain, remoteToken.toBuffer()], TMM)),
+      meta(getAssociatedTokenAddressSync(USDC, feeRecipient), true),
+      meta(new PublicKey(recipientAta), true),
+      meta(pda(['custody', USDC.toBuffer()], TMM), true),
+      meta(new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')),
+      meta(pda(['__event_authority'], TMM)),
+      meta(TMM),
+    ])
+    .rpc()
+}
+
+/** USDC balance of a Solana token account, in base units. */
+export async function solanaUsdc(ata) {
+  const conn = new Connection('https://api.devnet.solana.com', 'confirmed')
+  return BigInt((await conn.getTokenAccountBalance(new PublicKey(ata))).value.amount)
+}
