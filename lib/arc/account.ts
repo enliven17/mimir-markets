@@ -23,7 +23,7 @@ import {
   WebAuthnMode,
   type WebAuthnCredential,
 } from "@circle-fin/modular-wallets-core";
-import { bytesToHex, createPublicClient, hexToBigInt, hexToBytes, type Address, type Hex } from "viem";
+import { bytesToHex, createPublicClient, getAddress, hexToBigInt, hexToBytes, type Address, type Hex } from "viem";
 import { createBundlerClient, toWebAuthnAccount, type SmartAccount } from "viem/account-abstraction";
 import { english, generateMnemonic, mnemonicToAccount } from "viem/accounts";
 
@@ -123,9 +123,11 @@ async function sessionFor(account: SmartAccount, passkey: StoredPasskey, config:
     }
     return { userOpHash, txHash: receipt.transactionHash };
   };
+  // Circle returns the address lowercased; checksum it so signed messages match the server's normalized form.
+  const address = getAddress(account.address);
   return {
-    address: account.address,
-    passkey: { ...passkey, address: account.address },
+    address,
+    passkey: { ...passkey, address },
     async sendCalls(calls) {
       if (!calls.length) throw new Error("no calls to send");
       const hash = await bundler.sendUserOperation({
