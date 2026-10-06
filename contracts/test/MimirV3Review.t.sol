@@ -254,6 +254,64 @@ contract MimirV3ReviewTest {
         assert(mimir.totalResolved() == 1);
     }
 
+    // -- #4: timelocked ownership; an unruled dispute costs the bond -------
+
+    function test_ownershipCannotBeAcceptedBeforeTheTimelock() public {
+        mimir.transferOwnership(alice);
+        assert(mimir.pendingOwnerEta() == block.timestamp + mimir.OWNERSHIP_TIMELOCK_SECONDS());
+
+        vm.warp(block.timestamp + mimir.OWNERSHIP_TIMELOCK_SECONDS() - 1);
+        vm.prank(alice);
+        (bool early,) = address(mimir).call(abi.encodeWithSelector(MimirV3.acceptOwnership.selector));
+        assert(!early);
+        assert(mimir.owner() == address(this));
+
+        vm.warp(block.timestamp + 1);
+        vm.prank(alice);
+        mimir.acceptOwnership();
+        assert(mimir.owner() == alice);
+        assert(mimir.pendingOwnerEta() == 0);
+    }
+
+    function test_aQueuedOwnershipTransferCanBeCancelled() public {
+        mimir.transferOwnership(alice);
+
+        vm.prank(bob);
+        (bool stranger,) = address(mimir).call(abi.encodeWithSelector(MimirV3.cancelOwnershipTransfer.selector));
+        assert(!stranger);
+
+        mimir.cancelOwnershipTransfer();
+        assert(mimir.pendingOwner() == address(0));
+        vm.warp(block.timestamp + 3 days);
+        vm.prank(alice);
+        (bool ok,) = address(mimir).call(abi.encodeWithSelector(MimirV3.acceptOwnership.selector));
+        assert(!ok);
+        assert(mimir.owner() == address(this));
+    }
+
+    function test_stallingALossWithAnUnruledDisputeCostsTheBond() public {
+        uint256 id = _create(creator);
+        vm.prank(alice);
+        mimir.challengeClaim{value: STAKE}(id, STAKE, "", address(0));
+        vm.warp(block.timestamp + GAP + 1);
+        uint8 creatorSide = mimir.SIDE_CREATOR();
+        vm.prank(oracle);
+        mimir.resolveClaim(id, creatorSide, "creator wins", 90, bytes32(uint256(7)));
+
+        // Alice lost. She disputes and the arbiter never rules.
+        uint256 bond = mimir.MIN_STAKE();
+        uint256 aliceBefore = alice.balance;
+        vm.prank(alice);
+        mimir.disputeResolution{value: bond}(id);
+        vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
+        mimir.refundExpired(id);
+
+        // Stake back, bond gone to the platform: stalling is not free.
+        assert(alice.balance == aliceBefore - bond + STAKE);
+        assert(mimir.accruedFees(platform) == bond);
+        assert(address(mimir).balance == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed());
+    }
+
     function test_multicallStillWorksUnderTheLock() public {
         HookToken token = new HookToken();
         MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);

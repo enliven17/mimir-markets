@@ -164,6 +164,7 @@ contract MimirV3SafetyTest {
         (bool stranger,) = address(mimir).call(abi.encodeWithSelector(MimirV3.acceptOwnership.selector));
         assert(!stranger);
 
+        vm.warp(block.timestamp + mimir.OWNERSHIP_TIMELOCK_SECONDS());
         vm.prank(alice);
         mimir.acceptOwnership();
         assert(mimir.owner() == alice);

@@ -82,6 +82,9 @@ contract MimirV3 {
     uint256 public constant FEE_TIMELOCK_SECONDS = 2 days;
     /// An oracle change waits this long, so participants can react to a new settler.
     uint256 public constant ORACLE_TIMELOCK_SECONDS = 2 days;
+    /// An ownership transfer waits this long, so a stolen owner key cannot
+    /// install a new arbiter before anyone can react.
+    uint256 public constant OWNERSHIP_TIMELOCK_SECONDS = 2 days;
     /// After deadline + this, an unresolved ACTIVE claim can be refunded by anyone.
     uint256 public constant RESOLUTION_GRACE_SECONDS = 7 days;
     /// Gas forwarded with each settlement push: enough for a plain receive or a
@@ -160,6 +163,8 @@ contract MimirV3 {
 
     address public owner;
     address public pendingOwner;
+    /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
+    uint256 public pendingOwnerEta;
     address public oracle; // off-chain AI oracle agent
     address public pendingOracle;
     /// Timestamp from which pendingOracle may be installed. 0 = nothing queued.
@@ -208,6 +213,7 @@ contract MimirV3 {
     event ClaimExpiredRefund(uint256 indexed id, address indexed caller);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferCancelled(address indexed pendingOwner);
     event OracleChangeQueued(address indexed next, uint256 eta);
     event OracleChangeCancelled(address indexed next);
     event Paused(bool paused);
@@ -302,18 +308,29 @@ contract MimirV3 {
         pendingOracleEta = 0;
     }
 
-    /// Step one of two: the new owner must accept, so a typo cannot brick admin.
+    /// Step one of two: the new owner must accept, so a typo cannot brick admin,
+    /// and cannot accept before OWNERSHIP_TIMELOCK_SECONDS. Queuing again restarts the clock.
     function transferOwnership(address _owner) external onlyOwner {
         require(_owner != address(0), "Mimir: zero owner");
         pendingOwner = _owner;
+        pendingOwnerEta = block.timestamp + OWNERSHIP_TIMELOCK_SECONDS;
         emit OwnershipTransferStarted(owner, _owner);
+    }
+
+    function cancelOwnershipTransfer() external onlyOwner {
+        require(pendingOwnerEta != 0, "Mimir: nothing queued");
+        emit OwnershipTransferCancelled(pendingOwner);
+        pendingOwner = address(0);
+        pendingOwnerEta = 0;
     }
 
     function acceptOwnership() external {
         require(msg.sender == pendingOwner, "Mimir: not pending owner");
+        require(block.timestamp >= pendingOwnerEta, "Mimir: timelocked");
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
+        pendingOwnerEta = 0;
     }
 
     function setPaused(bool _paused) external onlyOwner {
@@ -836,7 +853,8 @@ contract MimirV3 {
         _settleBond(claimId, p, disputerRight);
     }
 
-    /// Bond back to a disputer who was right (or when nobody ruled); to the platform otherwise.
+    /// Bond back to a disputer who was right; to the platform otherwise, including
+    /// when nobody ruled. With no platform recipient it goes back to the disputer.
     function _settleBond(uint256 claimId, Proposal storage p, bool returnIt) internal {
         uint256 bond = p.bond;
         if (bond == 0) return;
@@ -863,13 +881,14 @@ contract MimirV3 {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         // A disputed claim the arbiter never rules on gets the same escape hatch,
-        // counted from the dispute, and the disputer's bond comes back.
+        // counted from the dispute. The bond is kept (platform fees), so a cheap
+        // dispute cannot stall a losing verdict into a free refund.
         bool disputed = claim.state == ST_DISPUTED;
         require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
         emit ClaimExpiredRefund(claimId, msg.sender);
         _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));
-        if (disputed) _settleBond(claimId, proposals[claimId], true);
+        if (disputed) _settleBond(claimId, proposals[claimId], false);
     }
 
     /// When refundExpired opens for a claim: grace counted from the deadline,
