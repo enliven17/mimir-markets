@@ -761,6 +761,7 @@ contract MimirV3 {
         require(claim.creator != address(0), "Mimir: claim not found");
         require(claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= claim.deadline, "Mimir: not yet expired");
+        require(block.timestamp < _refundAt(claimId), "Mimir: grace over");
         require(
             winnerSide == SIDE_CREATOR ||
             winnerSide == SIDE_CHALLENGERS ||
@@ -826,6 +827,7 @@ contract MimirV3 {
     ) external onlyOwner nonReentrant {
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_DISPUTED, "Mimir: not disputed");
+        require(block.timestamp < _refundAt(claimId), "Mimir: grace over");
         require(winnerSide >= SIDE_CREATOR && winnerSide <= SIDE_UNRESOLVABLE, "Mimir: invalid verdict");
         bool disputerRight = winnerSide != p.winnerSide;
         emit DisputeResolved(claimId, winnerSide, disputerRight);
@@ -864,12 +866,21 @@ contract MimirV3 {
         // counted from the dispute, and the disputer's bond comes back.
         bool disputed = claim.state == ST_DISPUTED;
         require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
-        uint256 start = claim.deadline;
-        if (disputed && proposals[claimId].disputedAt > start) start = proposals[claimId].disputedAt;
-        require(block.timestamp >= start + RESOLUTION_GRACE_SECONDS, "Mimir: oracle grace not over");
+        require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
         emit ClaimExpiredRefund(claimId, msg.sender);
         _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));
         if (disputed) _settleBond(claimId, proposals[claimId], true);
+    }
+
+    /// When refundExpired opens for a claim: grace counted from the deadline,
+    /// or from the dispute if there was one. From then on verdicts are refused,
+    /// so the outcome depends on the clock, not on transaction order.
+    function _refundAt(uint256 claimId) internal view returns (uint256 start) {
+        start = claims[claimId].deadline;
+        // disputedAt is only ever set on a disputed claim.
+        uint256 disputedAt = proposals[claimId].disputedAt;
+        if (disputedAt > start) start = disputedAt;
+        start += RESOLUTION_GRACE_SECONDS;
     }
 
     function _settle(

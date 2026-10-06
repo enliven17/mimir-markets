@@ -156,7 +156,8 @@ contract MimirV3ReviewTest {
 
         // Late in the dispute, the arbiter rules for the disputer: it is paid
         // its winnings and its bond, and tries to re-enter refundExpired.
-        vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
+        // (After the grace the ruling itself is refused: finding #2.)
+        vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS() - 1);
         mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)));
 
         (, bool called, uint8 seenState, bool reentered, bool stoppedByLock) = d.seen();
@@ -193,6 +194,64 @@ contract MimirV3ReviewTest {
         );
         assert(!token.reentered());
         assert(keccak256(token.reentryRet()) == keccak256(_lockError()));
+    }
+
+    // ── #2: no verdict once the refund is open ──────────────────────────────
+
+    function test_aLateVerdictIsRefusedOnceTheRefundIsOpen() public {
+        uint256 id = _create(creator);
+        vm.prank(alice);
+        mimir.challengeClaim{value: STAKE}(id, STAKE, "", address(0));
+
+        vm.warp(block.timestamp + GAP + mimir.RESOLUTION_GRACE_SECONDS());
+        bytes memory verdict = abi.encodeWithSelector(
+            MimirV3.resolveClaim.selector, id, mimir.SIDE_CREATOR(), "late", uint8(90), bytes32(uint256(1))
+        );
+        vm.prank(oracle);
+        (bool ok, bytes memory ret) = address(mimir).call(verdict);
+        assert(!ok);
+        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: grace over")));
+
+        // Whoever comes first, the refund is the only outcome.
+        mimir.refundExpired(id);
+        (,,,,,,,,,, uint8 side,,,,,,,) = mimir.getClaim(id);
+        assert(side == mimir.SIDE_UNRESOLVABLE());
+    }
+
+    function test_aVerdictJustBeforeTheGraceStillLands() public {
+        uint256 id = _create(creator);
+        vm.prank(alice);
+        mimir.challengeClaim{value: STAKE}(id, STAKE, "", address(0));
+
+        vm.warp(block.timestamp + GAP + mimir.RESOLUTION_GRACE_SECONDS() - 1);
+        uint8 side = mimir.SIDE_CREATOR();
+        vm.prank(oracle);
+        mimir.resolveClaim(id, side, "on time", 90, bytes32(uint256(1)));
+        assert(_state(id) == mimir.ST_PROPOSED());
+    }
+
+    function test_aLateArbiterRulingIsRefusedOnceTheRefundIsOpen() public {
+        uint256 id = _create(creator);
+        vm.prank(alice);
+        mimir.challengeClaim{value: STAKE}(id, STAKE, "", address(0));
+        vm.warp(block.timestamp + GAP + 1);
+        uint8 creatorSide = mimir.SIDE_CREATOR();
+        vm.prank(oracle);
+        mimir.resolveClaim(id, creatorSide, "proposed", 90, bytes32(uint256(7)));
+        uint256 bond = mimir.MIN_STAKE();
+        vm.prank(alice);
+        mimir.disputeResolution{value: bond}(id);
+
+        vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
+        (bool ok, bytes memory ret) = address(mimir).call(abi.encodeWithSelector(
+            MimirV3.resolveDispute.selector, id, mimir.SIDE_CHALLENGERS(), "late", uint8(100), bytes32(0)
+        ));
+        assert(!ok);
+        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: grace over")));
+
+        mimir.refundExpired(id);
+        assert(_state(id) == mimir.ST_RESOLVED());
+        assert(mimir.totalResolved() == 1);
     }
 
     function test_multicallStillWorksUnderTheLock() public {
