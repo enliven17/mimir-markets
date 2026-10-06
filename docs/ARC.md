@@ -80,6 +80,8 @@ USDC on Arc is one balance with two views: native (18 decimals, what `msg.value`
 | Arc → Solana, approve + burn in one sponsored op | `run-cctp.mjs` | 0.5 USDC, attested in 24 s, minted on devnet (8.53 → 9.03 USDC), tx `0xfa787e5c…197833` |
 | `MimirV3` played by two passkey accounts | `run-mimir.mjs` | deployed `0xa2bf…10de7` (5.25M gas, 0.13 USDC); create + challenge gasless with the stake as `msg.value`; oracle proposes, 60 s window, finalize: the winner's account was **pushed 3.90 USDC** (2 stake + 2 profit − 5% of profit), nothing parked |
 
+| This branch's contracts (after the review fixes) | `run-contracts.mjs` | MimirV3 `0x18c9…5155` and MimirPool `0x1032…a220` deployed (0.14 + 0.07 USDC). VS: challenger account pushed **3.90 USDC**. Pool: Y on B, X on A, A wins, the app pushes X's **3.90 USDC** with `claimFor`; `claimFor` for the loser reverts. 0.10 USDC fee on each (5% of profit) |
+
 Not tested by the POC: the real-device prompt (the virtual authenticator approves silently), passkey recovery, and
 a session-key module (none documented; batch what can be batched).
 
