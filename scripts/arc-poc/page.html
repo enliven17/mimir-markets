@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Arc modular wallet POC</title></head>
+<body>
+<pre id="log"></pre>
+<script type="module">
+  // Proof of concept for docs/ARC.md: a passkey smart account on Arc testnet that sends a gas-sponsored user
+  // operation. Driven by run.mjs (a headless browser with a virtual WebAuthn authenticator); the client key arrives
+  // in the URL hash so it never lands in a file served from here.
+  import { createPublicClient, encodeFunctionData, erc20Abi } from 'https://esm.sh/viem@2';
+  import { createBundlerClient, toWebAuthnAccount } from 'https://esm.sh/viem@2/account-abstraction';
+  import {
+    toCircleSmartAccount, toModularTransport, toPasskeyTransport, toWebAuthnCredential, WebAuthnMode,
+  } from 'https://esm.sh/@circle-fin/modular-wallets-core';
+
+  const log = (...a) => { document.getElementById('log').textContent += a.join(' ') + '\n'; console.log(...a); };
+  const params = new URLSearchParams(location.hash.slice(1));
+  const clientKey = params.get('key'), clientUrl = 'https://modular-sdk.circle.com/v1/rpc/w3s/buidl';
+  const arcTestnet = {
+    id: 5042002, name: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://rpc.testnet.arc.network'] } },
+  };
+  const USDC = '0x3600000000000000000000000000000000000000';
+
+  window.poc = async () => {
+    try {
+      // 1. a passkey (the virtual authenticator answers the WebAuthn prompt)
+      const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
+      const credential = await toWebAuthnCredential({ transport: passkeyTransport, mode: WebAuthnMode.Register, username: `mimir-poc-${Date.now()}` });
+      log('passkey', credential.id);
+
+      // 2. the smart account it controls on Arc testnet
+      const modularTransport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+      const client = createPublicClient({ chain: arcTestnet, transport: modularTransport });
+      const account = await toCircleSmartAccount({ client, owner: toWebAuthnAccount({ credential }) });
+      log('account', account.address);
+
+      // 3. a sponsored user operation: a 0 USDC transfer to itself, so it needs no balance
+      const bundler = createBundlerClient({ account, chain: arcTestnet, transport: modularTransport });
+      const hash = await bundler.sendUserOperation({
+        calls: [{ to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [account.address, 0n] }) }],
+        paymaster: true,
+      });
+      log('userOp', hash);
+      const { receipt } = await bundler.waitForUserOperationReceipt({ hash });
+      log('tx', receipt.transactionHash, 'status', receipt.status);
+      return { ok: true, account: account.address, tx: receipt.transactionHash, status: receipt.status };
+    } catch (e) {
+      log('ERROR', e?.shortMessage ?? e?.message ?? String(e));
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
+  window.pocReady = true;
+</script>
+</body>
+</html>
