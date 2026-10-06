@@ -100,3 +100,7 @@ onchain/target/
 # tracked: the Telegram bot uploads it on /start from the deployed tree.
 brand/*.mp4
 !brand/launch.mp4
+
+# Foundry
+forge-out/
+forge-cache/
