@@ -114,6 +114,14 @@ what ran on Arc before. Confirm the CCTP mint credits the same balance the accou
 | this repo | `onchain/` (Anchor), MagicBlock ER code, `lib/solana/*` program clients, Solana indexer | removed |
 | this repo | Solana wallet adapter | stays (connect, sign intents, CCTP deposit, $MIMIR proof) |
 
+## Campaign (decided 2026-10-06)
+
+The testnet campaign restarts on Arc; today's devnet points are few and are not carried over. One leaderboard,
+keyed by the user's **Solana address** (their identity everywhere): activity is read from the MimirAccount bound to
+that address on Arc (volume, copies) and from the off-chain tables as now (agents, baskets, follows, invites). The
+only Solana chain read left is the **$MIMIR holder tier** for the boost (`lib/server/holder.ts`, unchanged).
+`lib/server/campaign.ts` swaps its `solana_claims` volume query for the Arc index.
+
 ## Copy that must change
 
 The relayer holds the power to move funds within the limits above. These say otherwise today and must be rewritten
@@ -124,12 +132,11 @@ move your USDC between your account, Mimir's market contract and your own Solana
 
 ## Open questions (decide before building)
 
-1. **Campaign:** points today come from Solana devnet volume. Freeze and carry them over, or restart on Arc?
-2. **Audit:** `MimirV3` + `MimirAccount` + relayer before real USDC. Which auditor, and when?
-3. **Limits:** per-position and per-day caps on the account, and who can raise them.
-4. **Escape path:** if the relayer is down for good, how does a user get funds out? (e.g. a timelocked
+1. **Audit:** `MimirV3` + `MimirAccount` + relayer before real USDC. Which auditor, and when?
+2. **Limits:** per-position and per-day caps on the account, and who can raise them.
+3. **Escape path:** if the relayer is down for good, how does a user get funds out? (e.g. a timelocked
    `ownerWithdrawToSolana` the owner can trigger for an account, still only to the bound address.)
-5. **Gas sponsorship cost:** relayer gas on Arc for every bet + SOL for every withdrawal mint. Who pays at scale?
+4. **Gas sponsorship cost:** relayer gas on Arc for every bet + SOL for every withdrawal mint. Who pays at scale?
 
 ## Environments
 
