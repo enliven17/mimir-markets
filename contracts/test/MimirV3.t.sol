@@ -300,7 +300,8 @@ contract MimirV3Test {
         uint16 rawAgentBps
     ) public {
         uint256 creatorStake = 2 * ONE + (uint256(rawCreatorStake) % (500 * ONE));
-        uint256 challengerStake = 2 * ONE + (uint256(rawChallengerStake) % (500 * ONE));
+        // Pool mode caps the challenger side at MAX_POOL_MULTIPLE x the creator's stake.
+        uint256 challengerStake = 2 * ONE + (uint256(rawChallengerStake) % (creatorStake * 5 - 2 * ONE + 1));
         uint16 platformBps = uint16(rawPlatformBps % 501); // 0-500
         uint16 agentBps = uint16(rawAgentBps % 501); // together at most 1000
 

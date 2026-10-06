@@ -517,6 +517,63 @@ contract MimirV3ReviewTest {
         assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: token has no code")));
     }
 
+    // -- Pool cap: challengers at most MAX_POOL_MULTIPLE x the creator ------
+
+    function _stakeAs(address who, uint256 id, uint256 stake) internal returns (bool ok, bytes memory ret) {
+        vm.deal(who, stake);
+        vm.prank(who);
+        (ok, ret) = address(mimir).call{value: stake}(
+            abi.encodeWithSelector(MimirV3.challengeClaim.selector, id, stake, "", address(0))
+        );
+    }
+
+    function _isPoolFull(bytes memory ret) internal pure returns (bool) {
+        return keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.PoolFull.selector));
+    }
+
+    function test_thePoolTakesExactlyFiveTimesTheCreator() public {
+        uint256 id = _create(creator); // 10
+        (bool a,) = _stakeAs(alice, id, 30 * ONE);
+        (bool b,) = _stakeAs(bob, id, 20 * ONE); // 50 = 5x
+        assert(a && b);
+        (,,,,,, uint256 total,,,,,,,,,,,) = mimir.getClaim(id);
+        assert(total == 5 * STAKE);
+
+        // One more minimum stake would push it past 5x.
+        (bool c, bytes memory ret) = _stakeAs(address(0xCA201), id, mimir.MIN_STAKE());
+        assert(!c);
+        assert(_isPoolFull(ret));
+    }
+
+    function test_aSingleChallengePastFiveTimesIsRefused() public {
+        uint256 id = _create(creator);
+        (bool ok, bytes memory ret) = _stakeAs(alice, id, 5 * STAKE + 1);
+        assert(!ok);
+        assert(_isPoolFull(ret));
+        (bool exact,) = _stakeAs(alice, id, 5 * STAKE);
+        assert(exact);
+    }
+
+    function test_aRematchInheritsThePoolCap() public {
+        uint256 parent = _create(creator);
+        vm.prank(creator);
+        uint256 id = mimir.createRematch{value: STAKE}(parent, block.timestamp + GAP, STAKE, "");
+        (bool ok, bytes memory ret) = _stakeAs(alice, id, 5 * STAKE + 1);
+        assert(!ok);
+        assert(_isPoolFull(ret));
+    }
+
+    function test_fixedOddsIsNotPoolCapped() public {
+        // 1x fixed odds: no profit to reserve, so only the cap could refuse a big stake.
+        vm.prank(creator);
+        uint256 id = mimir.createClaim{value: STAKE}(
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, STAKE,
+            "custom", 0, "binary", "fixed", 10_000, "", "rule", 0, false, "", address(0)
+        );
+        (bool ok,) = _stakeAs(alice, id, 10 * STAKE);
+        assert(ok);
+    }
+
     function test_multicallStillWorksUnderTheLock() public {
         HookToken token = new HookToken();
         MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);

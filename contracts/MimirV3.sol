@@ -65,6 +65,9 @@ contract MimirV3 {
 
     // ── Limits ────────────────────────────────────────────────────────────────
     uint256 public constant MAX_CHALLENGERS        = 100;
+    /// Pool odds: the challengers' total stake may not exceed this multiple of
+    /// the creator's stake, so each challenger's upside stays meaningful.
+    uint256 public constant MAX_POOL_MULTIPLE      = 5;
     /// 2 USDC in the stake asset's units: 2e18 native on Arc, 2e6 for ERC-20 USDC.
     uint256 public immutable MIN_STAKE;
     /// Stake asset. address(0) means the chain's native currency (Arc USDC).
@@ -236,6 +239,8 @@ contract MimirV3 {
     error AgentNotAllowed();
     /// The permit failed and the allowance it would have set is not in place.
     error PermitFailed();
+    /// A pool-odds challenge would take the challenger side past MAX_POOL_MULTIPLE x the creator's stake.
+    error PoolFull();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -808,6 +813,8 @@ contract MimirV3 {
             uint256 avail   = claim.creatorStake - claim.reservedCreatorLiability;
             require(avail >= profit, "Mimir: creator has insufficient liquidity");
             claim.reservedCreatorLiability += profit;
+        } else if (claim.totalChallengerStake + stakeAmount > claim.creatorStake * MAX_POOL_MULTIPLE) {
+            revert PoolFull();
         }
 
         uint256 key = _chKey(claimId, claim.challengerCount);
