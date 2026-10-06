@@ -191,6 +191,22 @@ Remove every MagicBlock / Ephemeral Rollup mention.
    from the user path (finding 1).
 4. **Real-device UX:** the passkey prompt per bet on phones and desktops; whether to batch more.
 
+## Backend: leaning to Convex (decide before phase 3)
+
+Railway is expensive for what it runs. The plan is to move the backend to **Convex** as part of phase 3, since the
+oracle, council and indexer are being rewritten for Arc anyway:
+- **Workers → Convex cron jobs + actions**: oracle, council, indexer, market creator and settlement jobs become
+  scheduled, idempotent steps (each run finishes; a failed step is retried on the next tick) instead of endless
+  loops on Railway. Arc signing goes through Circle's API (developer-controlled wallets), which fits actions well.
+- **Telegram bot → webhook** to a Convex HTTP action instead of long polling.
+- **Database → Convex**, only together with the workers (Convex as a worker host while the data stays in Neon makes
+  no sense). The new Arc index is written to Convex from day one; the other tables (agents, campaign, baskets,
+  Telegram, copy trading) move in the same phase. Bonus: live leaderboard, pools and odds without polling.
+- At the Arc mainnet switch, Railway and Neon are shut down. Hosting stays on Vercel (Cloudflare only if traffic
+  ever makes it cheaper). PostHog (analytics) and R2 (files) are independent and can be added any time.
+- To check first: Convex action time and memory limits against the longest worker step (evidence fetch + LLM call),
+  scheduler granularity, pricing at expected volume.
+
 ## Environments
 
 Arc testnet + Solana devnet (CCTP testnet domains 26 ↔ 5) until everything passes. Then Arc mainnet + Solana
