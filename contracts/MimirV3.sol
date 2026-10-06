@@ -221,20 +221,37 @@ contract MimirV3 {
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
 
+    // Custom errors for reverts added after the 2026-10-06 review (EIP-170 budget).
+    error Reentrant();
+    error GraceOver();
+
     // ── Modifiers ─────────────────────────────────────────────────────────────
+    // Modifiers call private checks so the code exists once, not per function (EIP-170).
     modifier onlyOwner() {
-        require(msg.sender == owner, "Mimir: not owner");
+        _checkOwner();
         _;
     }
 
     modifier onlyOracle() {
-        require(msg.sender == oracle, "Mimir: not oracle");
+        _checkOracle();
         _;
     }
 
     modifier whenNotPaused() {
-        require(!paused, "Mimir: paused");
+        _checkNotPaused();
         _;
+    }
+
+    function _checkOwner() private view {
+        require(msg.sender == owner, "Mimir: not owner");
+    }
+
+    function _checkOracle() private view {
+        require(msg.sender == oracle, "Mimir: not oracle");
+    }
+
+    function _checkNotPaused() private view {
+        require(!paused, "Mimir: paused");
     }
 
     /// Every entry point that can move value takes the lock, so a recipient
@@ -247,7 +264,7 @@ contract MimirV3 {
     }
 
     function _enter() private {
-        require(_lock == 1, "Mimir: reentrant");
+        if (_lock != 1) revert Reentrant();
         _lock = 2;
     }
 
@@ -778,7 +795,7 @@ contract MimirV3 {
         require(claim.creator != address(0), "Mimir: claim not found");
         require(claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= claim.deadline, "Mimir: not yet expired");
-        require(block.timestamp < _refundAt(claimId), "Mimir: grace over");
+        if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
         require(
             winnerSide == SIDE_CREATOR ||
             winnerSide == SIDE_CHALLENGERS ||
@@ -844,7 +861,7 @@ contract MimirV3 {
     ) external onlyOwner nonReentrant {
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_DISPUTED, "Mimir: not disputed");
-        require(block.timestamp < _refundAt(claimId), "Mimir: grace over");
+        if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
         require(winnerSide >= SIDE_CREATOR && winnerSide <= SIDE_UNRESOLVABLE, "Mimir: invalid verdict");
         bool disputerRight = winnerSide != p.winnerSide;
         emit DisputeResolved(claimId, winnerSide, disputerRight);

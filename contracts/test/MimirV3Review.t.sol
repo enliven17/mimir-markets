@@ -52,7 +52,7 @@ contract ReentrantDisputer {
         (,,,,,,,,, s.state,,,,,,,,) = m.getClaim(id);
         (bool ok, bytes memory ret) = address(m).call(abi.encodeWithSelector(MimirV3.refundExpired.selector, id));
         s.reentered = ok;
-        s.stoppedByLock = keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: reentrant"));
+        s.stoppedByLock = keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.Reentrant.selector));
         seen = s;
     }
 }
@@ -136,7 +136,7 @@ contract MimirV3ReviewTest {
     }
 
     function _lockError() internal pure returns (bytes memory) {
-        return abi.encodeWithSignature("Error(string)", "Mimir: reentrant");
+        return abi.encodeWithSelector(MimirV3.Reentrant.selector);
     }
 
     // ── #3 + #6: settle before paying the bond; reentrancy lock ────────────
@@ -210,7 +210,7 @@ contract MimirV3ReviewTest {
         vm.prank(oracle);
         (bool ok, bytes memory ret) = address(mimir).call(verdict);
         assert(!ok);
-        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: grace over")));
+        assert(keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.GraceOver.selector)));
 
         // Whoever comes first, the refund is the only outcome.
         mimir.refundExpired(id);
@@ -247,7 +247,7 @@ contract MimirV3ReviewTest {
             MimirV3.resolveDispute.selector, id, mimir.SIDE_CHALLENGERS(), "late", uint8(100), bytes32(0)
         ));
         assert(!ok);
-        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: grace over")));
+        assert(keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.GraceOver.selector)));
 
         mimir.refundExpired(id);
         assert(_state(id) == mimir.ST_RESOLVED());
