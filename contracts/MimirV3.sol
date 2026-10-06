@@ -291,6 +291,9 @@ contract MimirV3 {
     ) {
         require(_oracle != address(0), "Mimir: zero oracle");
         require(_disputeWindow <= MAX_DISPUTE_WINDOW, "Mimir: dispute window too long");
+        // _trySend counts an empty return as success, which a code-less address
+        // always gives: refuse such a token outright.
+        require(_usdc == address(0) || _usdc.code.length > 0, "Mimir: token has no code");
         disputeWindow = _disputeWindow;
         owner  = msg.sender;
         oracle = _oracle;

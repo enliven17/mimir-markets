@@ -504,6 +504,19 @@ contract MimirV3ReviewTest {
         assert(!c.m.hasChallenged(c.id, c.owner));
     }
 
+    // -- #8: an ERC-20 deployment needs a token with code -----------------
+
+    function deployWithToken(address token) external returns (MimirV3) {
+        return new MimirV3(oracle, 50, 0, platform, token, 0);
+    }
+
+    function test_aTokenWithoutCodeIsRefusedAtDeploy() public {
+        (bool ok, bytes memory ret) =
+            address(this).call(abi.encodeWithSelector(this.deployWithToken.selector, address(0xDEAD)));
+        assert(!ok);
+        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: token has no code")));
+    }
+
     function test_multicallStillWorksUnderTheLock() public {
         HookToken token = new HookToken();
         MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);
