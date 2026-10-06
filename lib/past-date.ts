@@ -37,9 +37,13 @@ export function datesIn(text: string): number[] {
   return out;
 }
 
-/** True when `text` names today (UTC) or an earlier day. */
-export function mentionsPastDay(text: string, now = Date.now()): boolean {
+/**
+ * True when `text` names today (UTC) or an earlier day. `includeToday: false` only flags earlier days: for drafts
+ * built by code from forward-looking schedules (a stock's close tonight, a fixture later today), where naming today
+ * is the point and the outcome is not known yet. LLM drafts and user claims keep the strict default.
+ */
+export function mentionsPastDay(text: string, now = Date.now(), { includeToday = true } = {}): boolean {
   const today = new Date(now);
   const startOfToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return datesIn(text).some((day) => day <= startOfToday);
+  return datesIn(text).some((day) => (includeToday ? day <= startOfToday : day < startOfToday));
 }
