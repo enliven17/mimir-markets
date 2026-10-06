@@ -98,6 +98,52 @@ contract HookToken {
     }
 }
 
+/// 6-decimal token with a real EIP-2612 permit (nonces, so a replay fails).
+contract PermitToken {
+    uint8 public constant decimals = 6;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public nonces;
+    bytes32 public immutable DOMAIN_SEPARATOR;
+    bytes32 constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+    constructor() {
+        DOMAIN_SEPARATOR = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256("USDC"), keccak256("2"), block.chainid, address(this)
+        ));
+    }
+
+    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
+        require(block.timestamp <= deadline, "expired");
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR,
+            keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))));
+        require(ecrecover(digest, v, r, s) == owner, "bad sig");
+        allowance[owner][spender] = value;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
 contract MimirV3ReviewTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -391,6 +437,71 @@ contract MimirV3ReviewTest {
         assert(!again);
         (bool zero,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, address(0), true));
         assert(!zero);
+    }
+
+    // -- #7: a front-run permit does not block the stake ------------------
+
+    struct PermitCase {
+        PermitToken usdc;
+        MimirV3 m;
+        address owner;
+        uint256 id;
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
+    function _permitCase(uint256 value) internal returns (PermitCase memory c) {
+        c.usdc = new PermitToken();
+        c.m = new MimirV3(oracle, 50, 0, platform, address(c.usdc), 0);
+        uint256 key = 0xA11CE5;
+        c.owner = vm.addr(key);
+        c.usdc.mint(c.owner, 100e6);
+        c.usdc.mint(creator, 100e6);
+        vm.prank(creator);
+        c.usdc.approve(address(c.m), 10e6);
+        vm.prank(creator);
+        c.id = c.m.createClaim(
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, 10e6,
+            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
+        );
+        c.deadline = block.timestamp + 1 hours;
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", c.usdc.DOMAIN_SEPARATOR(), keccak256(abi.encode(
+            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+            c.owner, address(c.m), value, uint256(0), c.deadline
+        ))));
+        (c.v, c.r, c.s) = vm.sign(key, digest);
+    }
+
+    function _permitAndStake(PermitCase memory c, uint256 value) internal returns (bool ok, bytes memory ret) {
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeWithSelector(MimirV3.usdcPermit.selector, value, c.deadline, c.v, c.r, c.s);
+        calls[1] = abi.encodeWithSelector(MimirV3.challengeClaim.selector, c.id, value, "", address(0));
+        vm.prank(c.owner);
+        (ok, ret) = address(c.m).call(abi.encodeWithSelector(MimirV3.multicall.selector, calls));
+    }
+
+    function test_aFrontRunPermitDoesNotBlockTheStake() public {
+        PermitCase memory c = _permitCase(5e6);
+        // Someone copies the signed permit from the mempool and submits it first.
+        vm.prank(bob);
+        c.usdc.permit(c.owner, address(c.m), 5e6, c.deadline, c.v, c.r, c.s);
+
+        (bool ok,) = _permitAndStake(c, 5e6);
+        assert(ok);
+        assert(c.m.hasChallenged(c.id, c.owner));
+        assert(c.usdc.balanceOf(c.owner) == 95e6);
+    }
+
+    function test_aFailedPermitWithoutAllowanceStillReverts() public {
+        PermitCase memory c = _permitCase(5e6);
+        c.s = bytes32(uint256(c.s) ^ 1); // corrupt the signature
+
+        (bool ok, bytes memory ret) = _permitAndStake(c, 5e6);
+        assert(!ok);
+        assert(keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.PermitFailed.selector)));
+        assert(!c.m.hasChallenged(c.id, c.owner));
     }
 
     function test_multicallStillWorksUnderTheLock() public {

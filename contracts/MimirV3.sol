@@ -5,6 +5,7 @@ interface IERC20Like {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
     function decimals() external view returns (uint8);
 }
 
@@ -233,6 +234,8 @@ contract MimirV3 {
     error GraceOver();
     /// An agentOwnerRecipient that is not a listed agent payout wallet.
     error AgentNotAllowed();
+    /// The permit failed and the allowance it would have set is not in place.
+    error PermitFailed();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -569,10 +572,15 @@ contract MimirV3 {
     // ── One-signature staking (ERC-20 mode) ──────────────────────────────────
     /// Approve this escrow through the token's EIP-2612 permit. Meant to be the
     /// first call of a multicall whose second call stakes, so a position opens
-    /// in one transaction without a separate approve.
+    /// in one transaction without a separate approve. Anyone can submit a
+    /// signed permit first (front-running burns its nonce); that is tolerated
+    /// as long as the allowance is in place, so the stake still goes through.
     function usdcPermit(uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
         require(usdc != address(0), "Mimir: native mode");
-        IERC20Permit(usdc).permit(msg.sender, address(this), value, deadline, v, r, s);
+        (bool ok,) = usdc.call(
+            abi.encodeCall(IERC20Permit.permit, (msg.sender, address(this), value, deadline, v, r, s))
+        );
+        if (!ok && IERC20Like(usdc).allowance(msg.sender, address(this)) < value) revert PermitFailed();
     }
 
     /**
