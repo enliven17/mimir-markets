@@ -316,6 +316,14 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     created_at BIGINT NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS campaign_invites_referrer_idx ON campaign_invites (referrer)`,
+  // ── Arc accounts (lib/server/arc-accounts.ts) ──────────────────────────────
+  // One passkey smart account per Solana wallet, bound by signatures from both.
+  `CREATE TABLE IF NOT EXISTS arc_accounts (
+    solana        TEXT PRIMARY KEY,
+    arc           TEXT NOT NULL UNIQUE,
+    credential_id TEXT,
+    bound_at      BIGINT
+  )`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
