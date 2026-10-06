@@ -131,10 +131,31 @@ move your USDC between your account, Mimir's market contract and your own Solana
    `ownerWithdrawToSolana` the owner can trigger for an account, still only to the bound address.)
 5. **Gas sponsorship cost:** relayer gas on Arc for every bet + SOL for every withdrawal mint. Who pays at scale?
 
+## Environments
+
+Build and test on **Arc testnet + Solana devnet** (CCTP testnet: Solana devnet domain 5 ↔ Arc testnet domain 26)
+until everything below passes. Only then: Arc mainnet + Solana mainnet, together. `main` (Solana devnet, the live
+site) is untouched until the switch.
+
+## Contract security, before anything holds real USDC
+
+- **Review `MimirV3` first** against standard patterns (reentrancy and checks-effects-interactions, access control
+  and timelocks, `msg.value` in `multicall`, fee and payout rounding so payouts never exceed the pot, the claim state
+  machine, unbounded loops and griefing recipients, front-running around resolve/dispute, pause never blocking
+  withdrawals, contract-balance-covers-liabilities). Fix what it finds, with a test per fix.
+- **`MimirAccount`** gets the same treatment plus its own rules: relayer-only, no arbitrary call or transfer, one
+  fixed CCTP recipient, on-chain caps, CREATE2 address bound to the Solana key, safe when `MimirV3` pays it.
+- **Tests:** Foundry unit tests for every path, invariant/fuzz tests for the money (sum of balances and liabilities
+  vs the contract's USDC), and a fork test against Arc testnet with real CCTP messages.
+- **Static analysis:** Slither (and Aderyn if available) clean or every finding explained.
+- **External audit** of both contracts and the relayer before mainnet.
+
 ## Phases
 
-1. `MimirAccount.sol` + tests on Arc testnet (with `MimirV3`); confirm the native-USDC/CCTP balance question.
-2. Relayer + intent API; deposit and withdraw end to end on testnet.
-3. Port the oracle, council and indexer to Arc; point the UI at Arc.
-4. Rewrite the copy; audit.
-5. Arc mainnet; then the showcase swap (`docs/TODO-arc-showcase.md`).
+1. Security review of `MimirV3` and fixes; write `MimirAccount.sol` + tests; deploy both on **Arc testnet**; confirm
+   the native-USDC/CCTP balance question.
+2. Relayer + intent API; deposit and withdraw end to end, **Solana devnet ↔ Arc testnet**.
+3. Port the oracle, council and indexer to Arc; point the UI at Arc (this branch's preview deploy, not the live site).
+4. Rewrite the copy; external audit.
+5. **Arc mainnet + Solana mainnet** together; switch the live site; then the showcase swap
+   (`docs/TODO-arc-showcase.md`).
