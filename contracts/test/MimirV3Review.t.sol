@@ -312,6 +312,87 @@ contract MimirV3ReviewTest {
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed());
     }
 
+    // -- #1: agent payout wallets come from an owner-managed, timelocked list
+
+    function _createWithAgent(address who, address agent) internal returns (bool ok) {
+        vm.prank(who);
+        (ok,) = address(mimir).call{value: STAKE}(abi.encodeWithSelector(
+            MimirV3.createClaim.selector,
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, STAKE,
+            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", agent
+        ));
+    }
+
+    function _challengeWithAgent(address who, uint256 id, address agent) internal returns (bool ok) {
+        vm.prank(who);
+        (ok,) = address(mimir).call{value: STAKE}(
+            abi.encodeWithSelector(MimirV3.challengeClaim.selector, id, STAKE, "", agent)
+        );
+    }
+
+    function test_aCallerCannotNameAnUnlistedAgentPayout() public {
+        address thief = address(0x7E1F);
+        assert(!_createWithAgent(creator, thief));
+
+        uint256 id = _create(creator);
+        assert(!_challengeWithAgent(alice, id, thief));
+        // No attribution is always fine.
+        assert(_challengeWithAgent(alice, id, address(0)));
+    }
+
+    function test_aListedAgentPayoutIsAcceptedOnlyAfterTheTimelock() public {
+        address agent = address(0xA6E7);
+        vm.prank(bob);
+        (bool stranger,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, agent, true));
+        assert(!stranger);
+
+        mimir.setAgentPayout(agent, true);
+        assert(mimir.agentPayoutSince(agent) == block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
+        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS() - 1);
+        assert(!_createWithAgent(creator, agent));
+
+        vm.warp(block.timestamp + 1);
+        assert(_createWithAgent(creator, agent));
+        uint256 id = mimir.claimCount();
+        assert(_challengeWithAgent(alice, id, agent));
+        (,,, address credited) = mimir.getClaimFees(id);
+        assert(credited == agent);
+    }
+
+    function test_aDelistedAgentPayoutIsRefusedAtOnceButKeepsOpenPositions() public {
+        address agent = address(0xA6E7);
+        mimir.setAgentPayout(agent, true);
+        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
+        assert(_createWithAgent(creator, agent));
+        uint256 id = mimir.claimCount();
+
+        mimir.setAgentPayout(agent, false);
+        assert(mimir.agentPayoutSince(agent) == 0);
+        assert(!_createWithAgent(creator, agent));
+        assert(!_challengeWithAgent(alice, id, agent));
+
+        // The creator's own rematch would inherit a delisted agent: refused.
+        vm.prank(creator);
+        (bool rematch,) = address(mimir).call{value: STAKE}(abi.encodeWithSelector(
+            MimirV3.createRematch.selector, id, block.timestamp + GAP, STAKE, ""
+        ));
+        assert(!rematch);
+
+        // The open market keeps the agent it was created with.
+        assert(_challengeWithAgent(alice, id, address(0)));
+        (,,, address credited) = mimir.getClaimFees(id);
+        assert(credited == agent);
+    }
+
+    function test_listingTwiceCannotResetTheTimelock() public {
+        address agent = address(0xA6E7);
+        mimir.setAgentPayout(agent, true);
+        (bool again,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, agent, true));
+        assert(!again);
+        (bool zero,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, address(0), true));
+        assert(!zero);
+    }
+
     function test_multicallStillWorksUnderTheLock() public {
         HookToken token = new HookToken();
         MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);

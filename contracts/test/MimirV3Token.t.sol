@@ -171,6 +171,8 @@ contract MimirV3TokenTest {
 
     function test_aStrangersRematchDoesNotInheritTheAgentOwner() public {
         address agent = address(0xA6E7);
+        mimir.setAgentPayout(agent, true);
+        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
         vm.prank(creator);
         uint256 parent = mimir.createClaim(
             "Will it?", "yes", "no", "https://example.com",

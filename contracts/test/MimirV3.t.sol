@@ -52,6 +52,10 @@ contract MimirV3Test {
     function setUp() public {
         vm.warp(1_000_000);
         mimir = new MimirV3(oracle, 50, 50, platform, address(0), 0);
+        // Agent payout wallets must be listed (review finding #1).
+        mimir.setAgentPayout(agentOwner, true);
+        mimir.setAgentPayout(creator, true);
+        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
         vm.deal(creator, 1_000 * ONE);
         vm.deal(challenger, 1_000 * ONE);
         vm.deal(address(this), 1_000 * ONE);
@@ -301,6 +305,8 @@ contract MimirV3Test {
         uint16 agentBps = uint16(rawAgentBps % 501); // together at most 1000
 
         MimirV3 m = new MimirV3(oracle, platformBps, agentBps, platform, address(0), 0);
+        m.setAgentPayout(agentOwner, true);
+        vm.warp(block.timestamp + m.FEE_TIMELOCK_SECONDS());
         vm.deal(creator, creatorStake);
         vm.deal(challenger, challengerStake);
 

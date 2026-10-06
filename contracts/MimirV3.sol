@@ -156,6 +156,11 @@ contract MimirV3 {
     /// Fees owed to a recipient, claimed with claimFees(). Never pushed.
     mapping(address => uint256) public accruedFees;
 
+    /// Agent payout wallets a position may name as agentOwnerRecipient: the
+    /// time from which each is accepted (0 = not listed). Adding one waits
+    /// FEE_TIMELOCK_SECONDS; removing is immediate.
+    mapping(address => uint256) public agentPayoutSince;
+
     uint256 public claimCount;
     uint256 public totalResolved;
     uint256 public lifetimeFeesAccrued;
@@ -220,10 +225,14 @@ contract MimirV3 {
     event ResolutionProposed(uint256 indexed id, uint8 winnerSide, uint8 confidence, bytes32 evidenceHash, uint256 disputableUntil);
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
+    /// eta 0 = delisted (or a queued listing cancelled).
+    event AgentPayoutSet(address indexed wallet, uint256 eta);
 
     // Custom errors for reverts added after the 2026-10-06 review (EIP-170 budget).
     error Reentrant();
     error GraceOver();
+    /// An agentOwnerRecipient that is not a listed agent payout wallet.
+    error AgentNotAllowed();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -353,6 +362,28 @@ contract MimirV3 {
     function setPaused(bool _paused) external onlyOwner {
         paused = _paused;
         emit Paused(_paused);
+    }
+
+    /// List an agent payout wallet (accepted from FEE_TIMELOCK_SECONDS from now)
+    /// or delist it at once (which also cancels a queued listing). Positions
+    /// already opened keep the attribution they were opened with.
+    function setAgentPayout(address wallet, bool listed) external onlyOwner {
+        if (listed) {
+            if (wallet == address(0) || agentPayoutSince[wallet] != 0) revert AgentNotAllowed();
+            uint256 eta = block.timestamp + FEE_TIMELOCK_SECONDS;
+            agentPayoutSince[wallet] = eta;
+            emit AgentPayoutSet(wallet, eta);
+        } else {
+            agentPayoutSince[wallet] = 0;
+            emit AgentPayoutSet(wallet, 0);
+        }
+    }
+
+    /// address(0) (no attribution) or a listed wallet whose timelock has passed.
+    /// Off chain: agentPayoutSince(wallet) != 0 && agentPayoutSince(wallet) <= now.
+    function _isAgentPayout(address wallet) internal view returns (bool) {
+        uint256 since = agentPayoutSince[wallet];
+        return wallet == address(0) || (since != 0 && block.timestamp >= since);
     }
 
     // ── Fee governance ────────────────────────────────────────────────────────
@@ -635,6 +666,7 @@ contract MimirV3 {
         // A private claim with no key would silently be public (a rematch of a
         // private parent included).
         require(!a.isPrivate || bytes(a.inviteKey).length > 0, "Mimir: private claim needs invite key");
+        if (!_isAgentPayout(a.agentOwnerRecipient)) revert AgentNotAllowed();
         _pullStake(a.stakeAmount);
 
         // Normalise odds params
@@ -747,6 +779,7 @@ contract MimirV3 {
             block.timestamp + CHALLENGE_LOCK_SECONDS <= claim.deadline,
             "Mimir: challenge window closed"
         );
+        if (!_isAgentPayout(agentOwnerRecipient)) revert AgentNotAllowed();
         _pullStake(stakeAmount);
 
         // Private claim: verify invite key
