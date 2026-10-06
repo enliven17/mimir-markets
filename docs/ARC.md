@@ -47,9 +47,15 @@ contract on Arc, and the account is what calls `MimirV3`:
   3. nothing: there is no generic `call(target, data)` and no transfer to an arbitrary address.
 - Carries limits enforced on chain: max per position, max per day.
 
-What this buys: if the relayer key leaks, the attacker can place bad bets inside the limits but **cannot move money
-to their own address**. Funds only ever flow user's Solana address → account → MimirV3 → account → the same
-Solana address.
+What this buys: if the relayer key leaks, the attacker **cannot transfer money out of the account** directly.
+Funds only leave the account into MimirV3 or back to the user's own Solana address.
+
+What it does **not** buy on its own (security review, 2026-10-06): a leaked relayer can still route value to itself
+**through MimirV3**: by naming itself `agentOwnerRecipient` (the agent fee, up to 10% of profit), or by creating a
+market with a known answer from its own address and having victims' accounts take the losing side. So the account
+must also: hard-code `agentOwnerRecipient = address(0)` (or an allowlist), only call a typed list of MimirV3
+functions with capped values, and keep the per-position and per-day caps. Caps bound the loss; they do not
+remove it. Treat the relayer key as the most sensitive secret in the system.
 
 What it does not buy: the account cannot verify the user's ed25519 signature on chain (no cheap ed25519 on EVM), so
 "the user really asked for this bet" is checked by the relayer, off chain. That is the trust users give Mimir, and
@@ -156,6 +162,40 @@ site) is untouched until the switch.
   vs the contract's USDC), and a fork test against Arc testnet with real CCTP messages.
 - **Static analysis:** Slither (and Aderyn if available) clean or every finding explained.
 - **External audit** of both contracts and the relayer before mainnet.
+
+## Security review of MimirV3 (2026-10-06)
+
+`forge test`: 55/55 pass in the old repo; none covers a contract caller or the cases below. No critical findings.
+
+| # | Severity | Where | Issue | Fix |
+|---|---|---|---|---|
+| 1 | High | `challengeClaim`, `createClaim`, `_payWinner` | Caller picks `agentOwnerRecipient`; a leaked relayer can collect agent fees or rig markets against accounts | MimirAccount pins it to `0`/allowlist; typed calls only (see above) |
+| 2 | Medium | `refundExpired` vs `resolveClaim` / `resolveDispute` | After the grace period both are valid; a loser can front-run a late verdict with a refund | Verdicts revert after the grace period |
+| 3 | Medium | `resolveDispute` | Pays the bond (`_settleBond`) while the claim is still `ST_DISPUTED`, so the payee can re-enter `refundExpired` and settle twice; only the 50k gas stipend stops it today | Set state before any transfer; `nonReentrant` on every state-changing function |
+| 4 | Medium | `resolveDispute`, `transferOwnership` | The owner is the arbiter with no timelock on ownership; a compromised owner can dispute and rule for itself; a loser can stall via cheap disputes | Multisig arbiter, timelocked ownership, keep the bond if a dispute is never ruled on |
+| 5 | Low | `_transfer` | Anyone can starve a recipient's 50k-gas payout so it is parked (no loss) | MimirAccount calls `withdraw()` to recover |
+| 6 | Low | whole contract | No reentrancy guard; safety rests on ordering + the gas stipend | Add one |
+| 7 | Low | `usdcPermit` | Permit front-running makes a multicall revert (ERC-20 mode only, not Arc) | try/catch + allowance check |
+| 8 | Low | send helper | ERC-20 send to a code-less address counts as success | Only matters on a misconfigured deploy |
+
+Sound: payouts never exceed the pot, fees never cut into a winner's stake, pause never blocks settlement or
+withdrawals, `multicall` is non-payable and off in native mode. To check on Arc: whether Circle's blocklist applies to
+native value transfers. Never deploy with `disputeWindow = 0` on mainnet.
+
+### MimirAccount rules (from the review)
+
+1. `receive()` accepts native USDC in well under 50k gas: no storage writes, no external calls.
+2. Recovers parked funds only via MimirV3 `withdraw()` / `claimFees()` to itself; never exposes `withdrawTo` / `claimFeesTo`.
+3. Every recipient field is fixed (`agentOwnerRecipient = 0` or allowlisted), never relayer input.
+4. A typed allowlist of MimirV3 calls (`createClaim`, `createRematch`, `challengeClaim`, `disputeResolution`,
+   `finalizeResolution`, `refundExpired`, `cancelClaim`, `withdraw`, `claimFees`); no raw call, no `multicall`, no
+   `usdcPermit`; the MimirV3 address is immutable.
+5. `msg.value` equals the stake (or exactly `MIN_STAKE` for a dispute bond), checked against the caps.
+6. On-chain per-position and per-day caps, including dispute bonds.
+7. Each action carries the user's intent hash and an on-chain nonce, so the relayer cannot replay or swap it.
+8. `withdrawToSolana` burns only to the recipient set at creation, domain 5 hard-coded.
+9. An escape path that does not need the relayer (timelocked, still only to the bound Solana address).
+10. `nonReentrant` on every state-changing function.
 
 ## Phases
 
