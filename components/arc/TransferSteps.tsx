@@ -29,7 +29,7 @@ const LABELS: Record<TransferKind, Record<TransferStep, string>> = {
 export default function TransferSteps({ kind, progress }: { kind: TransferKind; progress: TransferProgress }) {
   const current = ORDER.indexOf(progress.step);
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3" data-transfer-kind={kind} data-transfer-step={progress.step}>
       <p aria-live="polite" className="sr-only">
         {LABELS[kind][progress.step]}
       </p>
