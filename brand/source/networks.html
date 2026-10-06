@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir networks</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* 1600×900 for X (16:9). Headline left, the two networks as cards on the right, joined by the horn. */
+    .canvas { width: 1600px; height: 900px; }
+    .glow {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 720px 540px at 1170px 450px, rgb(255 43 43 / 0.22), rgb(143 14 23 / 0.1) 45%, rgb(17 15 14 / 0) 75%);
+    }
+    .head { position: absolute; left: 100px; top: 170px; width: 760px; }
+    .eyebrow { display: flex; align-items: center; gap: 14px; font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+    .eyebrow .sq { width: 10px; height: 10px; background: var(--red); box-shadow: 0 0 14px rgb(255 43 43 / 0.8); }
+    h1 { margin-top: 30px; font-size: 104px; white-space: nowrap; }
+    h1 .red { position: relative; display: inline-block; color: var(--red); text-shadow: 0 0 34px rgb(255 43 43 / 0.35); }
+    .scribble { position: absolute; left: -4px; bottom: -18px; height: 28px; width: calc(100% + 14px); image-rendering: pixelated; }
+    .sub { margin-top: 46px; font-size: 24px; line-height: 1.5; color: var(--muted); max-width: 560px; }
+    .sub b { color: var(--cream); font-weight: 400; }
+
+    .nets { position: absolute; right: 100px; top: 150px; width: 640px; display: grid; gap: 22px; }
+    .net {
+      position: relative; padding: 34px 38px 32px; border-radius: 24px;
+      background: rgb(28 20 21 / 0.93); box-shadow: 0 24px 60px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(243 234 214 / 0.08);
+    }
+    .net .top { display: flex; align-items: center; justify-content: space-between; }
+    .net .label { font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--coral); display: flex; align-items: center; gap: 10px; }
+    .net .label i { width: 8px; height: 8px; background: var(--red); }
+    .net .pill { padding: 7px 14px; border-radius: 999px; font-size: 14px; letter-spacing: 0.1em; background: rgb(255 43 43 / 0.14); color: var(--pending, #ffb3ad); display: flex; align-items: center; gap: 8px; }
+    .net .pill b { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px var(--red); }
+    .net .name { margin-top: 16px; font-size: 96px; color: var(--cream); line-height: 0.9; }
+    .net .what { margin-top: 18px; font-size: 21px; color: var(--muted); line-height: 1.5; }
+    .net .what b { color: var(--cream); font-weight: 400; }
+    .plus { position: absolute; right: 100px; top: 418px; width: 640px; display: flex; justify-content: center; pointer-events: none; }
+
+    .foot { position: absolute; left: 100px; right: 100px; bottom: 60px; display: flex; justify-content: space-between; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
+    .foot b { color: var(--cream); font-weight: 400; }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <canvas class="field" id="field"></canvas>
+    <div class="dots"></div>
+    <div class="glow"></div>
+
+    <div class="head">
+      <div class="eyebrow mono"><span class="sq"></span>Live in the coming weeks</div>
+      <h1 class="display">Two networks.<br />One <span class="red">Mimir.<canvas class="scribble" id="scribble"></canvas></span></h1>
+      <p class="sub pixel">In the coming weeks Mimir goes live on <b>Solana mainnet</b> and <b>Arc</b>. Same markets, same AI agents and oracle, settled in <b>USDC</b> on both.</p>
+    </div>
+
+    <div class="nets">
+      <div class="net">
+        <div class="top"><div class="label mono"><i></i>Network 1</div><div class="pill mono"><b></b>MAINNET</div></div>
+        <div class="name display">Solana</div>
+        <div class="what pixel">Zero-fee, real-time challenges on a <b>MagicBlock Ephemeral Rollup</b>.</div>
+      </div>
+      <div class="net">
+        <div class="top"><div class="label mono"><i></i>Network 2</div><div class="pill mono"><b></b>BY CIRCLE</div></div>
+        <div class="name display">Arc</div>
+        <div class="what pixel">Circle's stablecoin-native chain, where <b>USDC is the gas</b>.</div>
+      </div>
+    </div>
+
+    <div class="foot mono"><span>Don't argue. <b>Settle.</b></span><span>mimirmarkets.xyz</span></div>
+  </div>
+  <script type="module">
+    import { drawField, drawScribble } from './parts.js'
+    await document.fonts.ready
+    // Wave field low on the left, under the copy, faded before the cards and the footer.
+    drawField(document.getElementById('field'), {
+      cell: 14, frame: 40, cx: 0.18, cy: 0.9, spread: 12,
+      mask: (x, y) => Math.max(0, Math.min(1, (0.42 - x) / 0.15)) * Math.max(0, Math.min(1, (y - 0.8) / 0.06)) * Math.max(0, Math.min(1, (0.9 - y) / 0.05)),
+    })
+    drawScribble(document.getElementById('scribble'), 3)
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>
