@@ -3,6 +3,29 @@
 Branch: `feat/arc-base-layer`. Status: **design, not built.** `main` stays as it is and keeps serving
 mimirmarkets.xyz (Solana devnet) until this branch is complete.
 
+## Proof of concept results (2026-10-06, `scripts/arc-poc/`)
+
+Tested the **Circle Modular Wallets** alternative to the relayer (passkey-owned smart accounts, ERC-4337, Circle
+Gas Station). Both steps passed on Arc testnet + Solana devnet:
+
+1. `run.mjs`: a passkey smart account on Arc testnet sent a gas-sponsored user operation with a **zero balance**
+   (account `0xf221…c36f`, tx `0x3cdd00a0…f3b178`, success; sent by Circle's bundler through EntryPoint v0.7).
+2. `run-cctp.mjs`: 1 USDC burned on Solana devnet with CCTP V2 fast transfer to a fresh passkey account
+   (Solana tx `3Kvc9N39…aMNLF`), attested in **6 s**, received on Arc by the account itself with a sponsored user
+   operation calling `MessageTransmitterV2.receiveMessage` (tx `0xcf9f7deb…5979cd`). **13 s end to end**, no gas paid
+   by the user on either side except the Solana burn fee.
+3. Balance after: `1000000000000000000` native (18 decimals) and `1000000` via the USDC ERC-20 interface (6 decimals):
+   **one balance, two views.** So `MimirV3` native mode (`msg.value`) can spend what CCTP mints. Open question closed.
+
+What it means for the design: with Modular Wallets the user's own passkey signs every Arc action, so there is **no
+relayer key, no `MimirAccount`, and `MimirV3`'s `msg.sender` is the user's own account** (finding 1 of the review
+goes away). The "Mimir never holds your keys" copy stays true. Costs to check: Circle Wallets / Gas Station pricing,
+passkey recovery, and the extra prompt (passkey) next to the Solana wallet.
+
+Console setup that works: Client Key **Allowed Domain** and Modular Wallets → Passkey **Domain Name** both exactly
+`mimirmarkets.xyz` (Circle matches the host exactly; subdomains and `localhost:port` are refused). The SDK sends the
+host in an `X-AppInfo` header; that is what Circle checks.
+
 ## The decision
 
 - Markets, stakes, settlement and payouts all live on **Arc mainnet**. No Solana program, no 5 SOL of program rent,

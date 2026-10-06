@@ -50,6 +50,33 @@
       return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
     }
   };
+  // ── step 2 (run-cctp.mjs): one account kept for the session, a gasless CCTP receive, balances
+  const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275';
+  const receiveAbi = [{ type: 'function', name: 'receiveMessage', stateMutability: 'nonpayable',
+    inputs: [{ name: 'message', type: 'bytes' }, { name: 'attestation', type: 'bytes' }], outputs: [{ type: 'bool' }] }];
+  let S;
+  window.createAccount = async () => {
+    const credential = await toWebAuthnCredential({ transport: toPasskeyTransport(clientUrl, clientKey), mode: WebAuthnMode.Register, username: `mimir-cctp-${Date.now()}` });
+    const transport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+    const client = createPublicClient({ chain: arcTestnet, transport });
+    const account = await toCircleSmartAccount({ client, owner: toWebAuthnAccount({ credential }) });
+    S = { account, bundler: createBundlerClient({ account, chain: arcTestnet, transport }) };
+    log('account', account.address);
+    return account.address;
+  };
+  window.receive = async (message, attestation) => {
+    try {
+      const hash = await S.bundler.sendUserOperation({
+        calls: [{ to: MESSAGE_TRANSMITTER_V2, data: encodeFunctionData({ abi: receiveAbi, functionName: 'receiveMessage', args: [message, attestation] }) }],
+        paymaster: true,
+      });
+      const { receipt } = await S.bundler.waitForUserOperationReceipt({ hash });
+      log('receive tx', receipt.transactionHash, receipt.status);
+      return { ok: receipt.status === 'success', tx: receipt.transactionHash };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
   window.pocReady = true;
 </script>
 </body>

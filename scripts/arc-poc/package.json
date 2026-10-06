@@ -2,5 +2,11 @@
   "name": "arc-poc",
   "private": true,
   "type": "module",
-  "dependencies": { "puppeteer-core": "^24.0.0" }
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "puppeteer-core": "^24.0.0",
+    "viem": "^2.57.3"
+  }
 }
