@@ -135,6 +135,39 @@ a fork test on Arc testnet with smart-account callers, Slither clean or every fi
 | this repo | `onchain/` (Anchor), MagicBlock ER code, `lib/solana/*` program clients, Solana indexer | removed |
 | this repo | Solana wallet adapter | stays (connect, bind, CCTP deposit, $MIMIR proof) |
 
+## Market contracts (built on this branch, `contracts/`)
+
+- **`MimirV3`: the VS (duel) market**, the default. A creator stakes a claim, challengers take the other side.
+  Pool odds: challengers split the creator's stake pro rata. **New: in pool mode the challengers' total is capped at
+  5× the creator's stake** (`MAX_POOL_MULTIPLE`, a constant: changing it means a redeploy), so a 2 USDC claim takes at
+  most 10 USDC of challenges and every challenger's upside stays meaningful. Fixed odds is unchanged (already capped
+  by the creator's liability). All review fixes are in (table below).
+- **`MimirPool`: two-sided pool markets**, a separate contract. Anyone stakes on either side; the creator only seeds
+  the first stake. Winners take their stake back plus a pro-rata share of the losing side; fee on profit only; if a
+  side is empty, or the outcome is a draw or unresolvable, everyone is refunded in full with no fee. Payouts are
+  per-user (`claim` / `claimFor`, so a crowded market never runs out of gas settling); a hedger is paid only the
+  winning leg. Same oracle proposal, dispute window, refund escape hatch and timelocks as MimirV3.
+- **UI rule for both:** every stake button shows "risk X, win at most Y" from the live totals.
+- Tests: 107 pass (`forge test`), including smart-account callers, reentrancy attempts and invariant suites (escrow
+  solvency, payouts ≤ pot, no winner below their stake, fee only on profit). Runtime sizes: MimirV3 24,453 B
+  (123 under EIP-170, built with `optimizer_runs = 1`), MimirPool 11,678 B. Slither not run yet (not installed).
+
+What the app and workers must handle: verdicts revert with `GraceOver()` once `refundExpired` is open; agent fee
+recipients must be listed first (`setAgentPayout`, 2-day timelock), otherwise create/challenge revert with
+`AgentNotAllowed()`; ownership transfer is timelocked 2 days; in MimirPool the app pushes winners with `claimFor`
+after checking `claimable`.
+
+## Council: two wallets per persona
+
+The council plays on Arc and shows on both networks:
+- **Arc wallet (where it bets):** a Circle **developer-controlled** wallet per persona. The council is a server-side
+  bot, so it signs through Circle's API (no passkey, and the key stays with Circle, not on our servers). The old repo
+  already created these for the 10 classic personas (`CIRCLE_COUNCIL_*`, `scripts/circle-create-council-wallets.ts`);
+  the 10 philosopher personas still need theirs.
+- **Solana wallet (identity):** the existing keys derived from the admin key (`derivePersonaKeypair`), kept as they
+  are. The council page shows both addresses per persona, the visible proof that Mimir runs on both networks.
+  Funding can go Solana → Arc over CCTP like any user.
+
 ## Campaign (decided 2026-10-06)
 
 Restarts on Arc; today's devnet points are not carried over. One leaderboard keyed by the user's **Solana address**:
