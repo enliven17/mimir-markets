@@ -102,6 +102,29 @@
       return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
     }
   };
+  // ── step 3 (run-mimir.mjs): several named accounts, each sending any batch of calls gasless
+  const named = {};
+  window.createNamed = async (name) => {
+    const credential = await toWebAuthnCredential({ transport: toPasskeyTransport(clientUrl, clientKey), mode: WebAuthnMode.Register, username: `mimir-${name}-${Date.now()}` });
+    const transport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+    const account = await toCircleSmartAccount({ client: createPublicClient({ chain: arcTestnet, transport }), owner: toWebAuthnAccount({ credential }) });
+    named[name] = createBundlerClient({ account, chain: arcTestnet, transport });
+    log(name, account.address);
+    return account.address;
+  };
+  /** calls: [{ to, data, value? (decimal string, wei) }] */
+  window.sendCalls = async (name, calls) => {
+    try {
+      const hash = await named[name].sendUserOperation({
+        calls: calls.map((c) => ({ to: c.to, data: c.data, value: c.value ? BigInt(c.value) : 0n })),
+        paymaster: true,
+      });
+      const { receipt, success, reason } = await named[name].waitForUserOperationReceipt({ hash });
+      return { ok: success && receipt.status === 'success', tx: receipt.transactionHash, reason: reason ?? null };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
   window.pocReady = true;
 </script>
 </body>

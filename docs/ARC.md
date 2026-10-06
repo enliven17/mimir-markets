@@ -17,6 +17,28 @@ Gas Station). Both steps passed on Arc testnet + Solana devnet:
 3. Balance after: `1000000000000000000` native (18 decimals) and `1000000` via the USDC ERC-20 interface (6 decimals):
    **one balance, two views.** So `MimirV3` native mode (`msg.value`) can spend what CCTP mints. Open question closed.
 
+4. `run-cctp.mjs` (way back): the account approved TokenMessengerV2 and burned 0.5 USDC to a Solana token account
+   **in one sponsored user operation** (`0xfa787e5c…197833`), attested in 24 s, minted on Solana devnet
+   (`4owbatEL…7kidV`): the wallet's USDC went 8.53 → 9.03. **Full round trip works.**
+5. `run-mimir.mjs`: current `MimirV3` deployed on Arc testnet (`0xa2bf…10de7`, native USDC, 60 s dispute window,
+   5% platform fee; 5.25M gas = 0.13 USDC). Three accounts funded from Solana in one sponsored op. A passkey
+   **creator** account opened a claim and a passkey **challenger** account challenged it, both gasless with the stake
+   as `msg.value`. The oracle proposed, the window passed, `finalizeResolution` ran: the challenger account was
+   **pushed 3.90 USDC directly** (2 stake + 2 profit − 5% of profit), nothing parked. So a Circle smart account
+   accepts MimirV3's 50k-gas payout push; the review's concern about contract callers does not bite here.
+
+Costs and limits found (2026-10-06):
+- **Pricing** ([circle.com/wallets](https://www.circle.com/wallets)): the first 1,000 monthly active wallets are
+  free, then $0.05 down to $0.02 per wallet a month. Gas Station bills the sponsored gas + 5%. Arc gas is cheap:
+  25 gwei, so a user operation is roughly a cent or less.
+- **Passkey recovery**: optional, set up while the user still has the passkey: a recovery mnemonic derives an EOA
+  that is added as a second signer. Lose both and the account is gone. The product must offer this at sign-up.
+- **Prompts**: one passkey prompt per user operation (Face ID / Touch ID / device PIN). The POC's virtual
+  authenticator approves silently, so real-device UX is untested. No documented session-key module yet: batch what
+  can be batched (approve + burn already goes in one op).
+- **Contract size**: `MimirV3` runtime is 23,653 bytes (via-IR, 200 runs); the EIP-170 limit is 24,576. About 900
+  bytes of headroom for the review fixes; `optimizer_runs = 1` gives 23,476 if needed, beyond that split the contract.
+
 What it means for the design: with Modular Wallets the user's own passkey signs every Arc action, so there is **no
 relayer key, no `MimirAccount`, and `MimirV3`'s `msg.sender` is the user's own account** (finding 1 of the review
 goes away). The "Mimir never holds your keys" copy stays true. Costs to check: Circle Wallets / Gas Station pricing,
