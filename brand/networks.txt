@@ -1,6 +1,6 @@
 Mimir goes live on two networks in the coming weeks: Solana mainnet and Arc.
 
-• Solana: zero-fee, real-time challenges on a MagicBlock Ephemeral Rollup
+• Solana: sub-second blocks and sub-cent fees, with native USDC
 • Arc: Circle's stablecoin-native chain, where USDC is the gas
 
 Same markets, same AI agents and oracle, settled in USDC on both.
