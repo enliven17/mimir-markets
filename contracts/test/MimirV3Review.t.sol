@@ -1,0 +1,217 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {MimirV3} from "../MimirV3.sol";
+
+/**
+ * One test (or more) per finding of the 2026-10-06 review (docs/ARC.md).
+ * Dependency-free like the rest of the suite.
+ */
+interface Vm {
+    function warp(uint256) external;
+    function deal(address, uint256) external;
+    function prank(address) external;
+    function addr(uint256) external returns (address);
+    function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
+}
+
+/// A challenger that disputes, then tries to settle the claim a second time
+/// from its receive() while the arbiter's ruling is paying it.
+contract ReentrantDisputer {
+    MimirV3 immutable m;
+    uint256 public id;
+
+    struct Seen {
+        bool armed;
+        bool called;
+        uint8 state;
+        bool reentered;
+        bool stoppedByLock;
+    }
+    Seen public seen;
+
+    constructor(MimirV3 _m) {
+        m = _m;
+        seen.armed = true;
+    }
+
+    function challenge(uint256 _id, uint256 stake) external payable {
+        id = _id;
+        m.challengeClaim{value: stake}(_id, stake, "", address(0));
+    }
+
+    function dispute(uint256 bond) external payable {
+        m.disputeResolution{value: bond}(id);
+    }
+
+    receive() external payable {
+        Seen memory s = seen;
+        if (!s.armed) return;
+        s.armed = false;
+        s.called = true;
+        (,,,,,,,,, s.state,,,,,,,,) = m.getClaim(id);
+        (bool ok, bytes memory ret) = address(m).call(abi.encodeWithSelector(MimirV3.refundExpired.selector, id));
+        s.reentered = ok;
+        s.stoppedByLock = keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: reentrant"));
+        seen = s;
+    }
+}
+
+/// ERC-20 whose transferFrom calls back into the escrow with all the gas it
+/// has: no PUSH_GAS stipend on this path, so only the lock can stop it.
+contract HookToken {
+    uint8 public constant decimals = 6;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    MimirV3 public target;
+    bytes public reentryCall;
+    bool public reentered;
+    bytes public reentryRet;
+
+    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+
+    function arm(MimirV3 m, bytes calldata data) external {
+        target = m;
+        reentryCall = data;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        if (address(target) != address(0)) {
+            (reentered, reentryRet) = address(target).call(reentryCall);
+            target = MimirV3(payable(address(0)));
+        }
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
+contract MimirV3ReviewTest {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    MimirV3 mimir;
+    address oracle = address(0x0417ac1e);
+    address platform = address(0xFEE);
+    address creator = address(0xC7ea704);
+    address alice = address(0xA11CE);
+    address bob = address(0xB0B);
+
+    uint256 constant ONE = 1e18;
+    uint256 constant STAKE = 10 * ONE;
+    uint256 constant GAP = 1 days;
+    uint256 constant WINDOW = 1 days;
+
+    function setUp() public {
+        vm.warp(1_000_000);
+        mimir = new MimirV3(oracle, 50, 0, platform, address(0), WINDOW);
+        vm.deal(creator, 1_000 * ONE);
+        vm.deal(alice, 1_000 * ONE);
+        vm.deal(bob, 1_000 * ONE);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    function _create(address who) internal returns (uint256 id) {
+        vm.prank(who);
+        id = mimir.createClaim{value: STAKE}(
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, STAKE,
+            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
+        );
+    }
+
+    function _state(uint256 id) internal view returns (uint8 state) {
+        (,,,,,,,,, state,,,,,,,,) = mimir.getClaim(id);
+    }
+
+    function _lockError() internal pure returns (bytes memory) {
+        return abi.encodeWithSignature("Error(string)", "Mimir: reentrant");
+    }
+
+    // ── #3 + #6: settle before paying the bond; reentrancy lock ────────────
+
+    function test_aDisputerCannotSettleTwiceFromItsReceive() public {
+        ReentrantDisputer d = new ReentrantDisputer(mimir);
+        vm.deal(address(d), 100 * ONE);
+        uint256 id = _create(creator);
+        d.challenge{value: STAKE}(id, STAKE);
+
+        vm.warp(block.timestamp + GAP + 1);
+        uint8 creatorSide = mimir.SIDE_CREATOR();
+        vm.prank(oracle);
+        mimir.resolveClaim(id, creatorSide, "proposed", 90, bytes32(uint256(7)));
+        uint256 bond = mimir.MIN_STAKE();
+        d.dispute{value: bond}(bond);
+
+        // Late in the dispute, the arbiter rules for the disputer: it is paid
+        // its winnings and its bond, and tries to re-enter refundExpired.
+        vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
+        mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)));
+
+        (, bool called, uint8 seenState, bool reentered, bool stoppedByLock) = d.seen();
+        assert(called);
+        // Every transfer happens after the claim is settled...
+        assert(seenState == mimir.ST_RESOLVED());
+        // ...and the second settlement is refused by the lock itself.
+        assert(!reentered);
+        assert(stoppedByLock);
+
+        assert(mimir.totalResolved() == 1);
+        assert(_state(id) == mimir.ST_RESOLVED());
+        // Nothing left in the escrow but what it still owes.
+        assert(
+            address(mimir).balance
+                == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed() + mimir.pendingWithdrawals(address(d))
+        );
+    }
+
+    function test_theLockStopsAFullGasReentry() public {
+        HookToken token = new HookToken();
+        MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);
+        token.mint(creator, 100e6);
+        vm.prank(creator);
+        token.approve(address(m), type(uint256).max);
+
+        // During the stake pull (all gas forwarded), the token re-enters
+        // refundExpired. Without the lock this would fail for another reason.
+        token.arm(m, abi.encodeWithSelector(MimirV3.refundExpired.selector, uint256(1)));
+        vm.prank(creator);
+        m.createClaim(
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, 10e6,
+            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
+        );
+        assert(!token.reentered());
+        assert(keccak256(token.reentryRet()) == keccak256(_lockError()));
+    }
+
+    function test_multicallStillWorksUnderTheLock() public {
+        HookToken token = new HookToken();
+        MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);
+        token.mint(creator, 100e6);
+        vm.prank(creator);
+        token.approve(address(m), type(uint256).max);
+
+        bytes memory create = abi.encodeWithSelector(
+            MimirV3.createClaim.selector,
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, uint256(10e6),
+            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", address(0)
+        );
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = create;
+        calls[1] = create;
+        vm.prank(creator);
+        m.multicall(calls);
+        assert(m.claimCount() == 2);
+    }
+}

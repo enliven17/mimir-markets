@@ -187,6 +187,9 @@ contract MimirV3 {
     /// Timestamp from which the pending policy may be executed. 0 = nothing queued.
     uint256 public pendingFeePolicyEta;
 
+    /// Reentrancy lock: 1 = free, 2 = entered.
+    uint256 private _lock = 1;
+
     // ── Events ────────────────────────────────────────────────────────────────
     event ClaimCreated(uint256 indexed id, address indexed creator, string category);
     event ClaimChallenged(uint256 indexed id, address indexed challenger, uint256 stake);
@@ -226,6 +229,20 @@ contract MimirV3 {
     modifier whenNotPaused() {
         require(!paused, "Mimir: paused");
         _;
+    }
+
+    /// Every entry point that can move value takes the lock, so a recipient
+    /// cannot re-enter settlement even with more gas than PUSH_GAS.
+    /// `multicall` does not: its delegatecalls take it one at a time.
+    modifier nonReentrant() {
+        _enter();
+        _;
+        _lock = 1;
+    }
+
+    function _enter() private {
+        require(_lock == 1, "Mimir: reentrant");
+        _lock = 2;
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -456,7 +473,7 @@ contract MimirV3 {
         _withdrawTo(to);
     }
 
-    function _withdrawTo(address to) internal {
+    function _withdrawTo(address to) internal nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];
         require(amount > 0, "Mimir: nothing to withdraw");
         pendingWithdrawals[msg.sender] = 0; // effects before interaction (reentrancy-safe)
@@ -475,7 +492,7 @@ contract MimirV3 {
         _claimFeesTo(to);
     }
 
-    function _claimFeesTo(address to) internal {
+    function _claimFeesTo(address to) internal nonReentrant {
         uint256 amount = accruedFees[msg.sender];
         require(amount > 0, "Mimir: no fees");
         accruedFees[msg.sender] = 0;
@@ -555,7 +572,7 @@ contract MimirV3 {
         bool             isPrivate,
         string  calldata inviteKey,
         address          agentOwnerRecipient
-    ) external payable whenNotPaused returns (uint256 id) {
+    ) external payable whenNotPaused nonReentrant returns (uint256 id) {
         return _createClaim(CreateArgs({
             question:            question,
             creatorPosition:     creatorPosition,
@@ -649,7 +666,7 @@ contract MimirV3 {
         uint256 deadline,
         uint256 stakeAmount,
         string  calldata inviteKey
-    ) external payable whenNotPaused returns (uint256 id) {
+    ) external payable whenNotPaused nonReentrant returns (uint256 id) {
         Claim storage parent = claims[parentId];
         require(parent.creator != address(0), "Mimir: parent not found");
 
@@ -682,7 +699,7 @@ contract MimirV3 {
         uint256 stakeAmount,
         string  calldata inviteKey,
         address agentOwnerRecipient
-    ) external payable whenNotPaused {
+    ) external payable whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         require(claim.state == ST_OPEN || claim.state == ST_ACTIVE, "Mimir: not open");
@@ -739,7 +756,7 @@ contract MimirV3 {
         string  calldata summary,
         uint8   confidence,
         bytes32 evidenceHash  // keccak256 of evidence text — verifiable on-chain
-    ) external onlyOracle {
+    ) external onlyOracle nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         require(claim.state == ST_ACTIVE, "Mimir: not active");
@@ -777,7 +794,7 @@ contract MimirV3 {
      * forfeited to the platform if it does not, so disputes cost something to
      * spam and nothing to raise when right.
      */
-    function disputeResolution(uint256 claimId) external payable {
+    function disputeResolution(uint256 claimId) external payable nonReentrant {
         Claim storage claim = claims[claimId];
         Proposal storage p = proposals[claimId];
         require(claim.state == ST_PROPOSED, "Mimir: nothing to dispute");
@@ -792,7 +809,7 @@ contract MimirV3 {
     }
 
     /// Anyone can settle an undisputed proposal once its window has closed.
-    function finalizeResolution(uint256 claimId) external {
+    function finalizeResolution(uint256 claimId) external nonReentrant {
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_PROPOSED, "Mimir: not proposed");
         require(block.timestamp >= p.proposedAt + disputeWindow, "Mimir: dispute window open");
@@ -806,14 +823,15 @@ contract MimirV3 {
         string  calldata summary,
         uint8   confidence,
         bytes32 evidenceHash
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_DISPUTED, "Mimir: not disputed");
         require(winnerSide >= SIDE_CREATOR && winnerSide <= SIDE_UNRESOLVABLE, "Mimir: invalid verdict");
         bool disputerRight = winnerSide != p.winnerSide;
-        _settleBond(claimId, p, disputerRight);
         emit DisputeResolved(claimId, winnerSide, disputerRight);
+        // Settle first: the claim is RESOLVED before any value leaves, bond included.
         _settle(claimId, winnerSide, summary, confidence, evidenceHash);
+        _settleBond(claimId, p, disputerRight);
     }
 
     /// Bond back to a disputer who was right (or when nobody ruled); to the platform otherwise.
@@ -839,7 +857,7 @@ contract MimirV3 {
      * would pay, and no fee is taken. Without this, the oracle going away
      * would lock every open stake forever.
      */
-    function refundExpired(uint256 claimId) external {
+    function refundExpired(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         // A disputed claim the arbiter never rules on gets the same escape hatch,
@@ -849,9 +867,9 @@ contract MimirV3 {
         uint256 start = claim.deadline;
         if (disputed && proposals[claimId].disputedAt > start) start = proposals[claimId].disputedAt;
         require(block.timestamp >= start + RESOLUTION_GRACE_SECONDS, "Mimir: oracle grace not over");
-        if (disputed) _settleBond(claimId, proposals[claimId], true);
         emit ClaimExpiredRefund(claimId, msg.sender);
         _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));
+        if (disputed) _settleBond(claimId, proposals[claimId], true);
     }
 
     function _settle(
@@ -940,7 +958,7 @@ contract MimirV3 {
     }
 
     // ── Write: cancel ─────────────────────────────────────────────────────────
-    function cancelClaim(uint256 claimId) external {
+    function cancelClaim(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         require(msg.sender == claim.creator, "Mimir: not creator");
