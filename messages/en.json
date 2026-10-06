@@ -1739,6 +1739,7 @@
     "groups": {
       "agents": "Agents",
       "strategies": "Strategies",
+      "wallet": "Wallet",
       "token": "Token",
       "data": "Data",
       "docs": "Docs"
@@ -1783,6 +1784,10 @@
       "copy": {
         "label": "Copy",
         "hint": "Mirror another wallet"
+      },
+      "wallet": {
+        "label": "Arc wallet",
+        "hint": "Passkey account, deposits and withdrawals"
       },
       "token": {
         "label": "Token",

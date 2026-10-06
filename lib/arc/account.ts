@@ -23,21 +23,12 @@ import {
   WebAuthnMode,
   type WebAuthnCredential,
 } from "@circle-fin/modular-wallets-core";
-import {
-  bytesToHex,
-  createPublicClient,
-  defineChain,
-  hexToBigInt,
-  hexToBytes,
-  http,
-  type Address,
-  type Hex,
-  type PublicClient,
-} from "viem";
+import { bytesToHex, createPublicClient, hexToBigInt, hexToBytes, type Address, type Hex } from "viem";
 import { createBundlerClient, toWebAuthnAccount, type SmartAccount } from "viem/account-abstraction";
 import { english, generateMnemonic, mnemonicToAccount } from "viem/accounts";
 
 import type { ArcCall } from "./cctp-arc";
+import { arcChain } from "./chain";
 import { ARC, type ArcConfig } from "./config";
 
 export interface StoredPasskey {
@@ -62,21 +53,6 @@ export interface ArcSession {
   signMessage(message: string): Promise<Hex>;
   /** Add a recovery key as a second owner (sponsored). */
   registerRecoveryAddress(recoveryAddress: Address): Promise<CallsReceipt>;
-}
-
-export function arcChain(config: ArcConfig = ARC) {
-  return defineChain({
-    id: config.chain.id,
-    name: config.chain.name,
-    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-    rpcUrls: { default: { http: [config.chain.rpcUrl] } },
-    blockExplorers: { default: { name: "ArcScan", url: config.chain.explorer } },
-  });
-}
-
-/** A plain JSON-RPC client for reads (balances, receipts): Arc's public RPC, no Circle key needed. */
-export function arcPublicClient(config: ArcConfig = ARC): PublicClient {
-  return createPublicClient({ chain: arcChain(config), transport: http(config.chain.rpcUrl) }) as PublicClient;
 }
 
 function requireClientKey(config: ArcConfig): string {

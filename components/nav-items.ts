@@ -47,6 +47,7 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
       { href: "/copy", key: "copy" },
     ],
   },
+  { key: "wallet", items: [{ href: "/wallet", key: "wallet", badge: "beta" }] },
   { key: "token", items: [{ href: "/token", key: "token" }] },
   {
     key: "data",
