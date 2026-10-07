@@ -6,6 +6,7 @@
  * just means it shows again, never an error. Waits a beat after load so it
  * does not fight the landing's own entrance.
  */
+import { TERMS_ACCEPTED_EVENT, termsAccepted } from "@/components/legal/ConsentNotice";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -24,9 +25,17 @@ export default function ArcLaunchModal() {
     try {
       seen = localStorage.getItem(KEY) === "1";
     } catch {}
-    if (seen) return;
-    const id = setTimeout(() => setOpen(true), 1200);
-    return () => clearTimeout(id);
+    // The app is past the announcement; on the website it waits for the terms card to be accepted, so the two
+    // never stack (components/legal/ConsentNotice.tsx fires TERMS_ACCEPTED_EVENT).
+    if (seen || document.documentElement.hasAttribute("data-app")) return;
+    let id: ReturnType<typeof setTimeout> | undefined;
+    const show = () => (id = setTimeout(() => setOpen(true), 1200));
+    if (termsAccepted()) show();
+    else window.addEventListener(TERMS_ACCEPTED_EVENT, show, { once: true });
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener(TERMS_ACCEPTED_EVENT, show);
+    };
   }, []);
 
   const close = () => {

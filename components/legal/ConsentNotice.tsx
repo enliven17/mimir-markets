@@ -11,6 +11,16 @@ import { Link } from "@/i18n/navigation";
 import { TERMS_SUMMARY, TERMS_VERSION } from "@/lib/terms";
 
 const KEY = "mimir-terms-accepted";
+/** Fired on accept, so announcements wait their turn instead of stacking on the card. */
+export const TERMS_ACCEPTED_EVENT = "mimir:terms-accepted";
+
+export function termsAccepted(): boolean {
+  try {
+    return localStorage.getItem(KEY) === TERMS_VERSION;
+  } catch {
+    return false;
+  }
+}
 
 export default function ConsentNotice() {
   const [open, setOpen] = useState(false);
@@ -31,6 +41,7 @@ export default function ConsentNotice() {
       // Storage blocked: it closes for this visit and asks again next time.
     }
     setOpen(false);
+    window.dispatchEvent(new Event(TERMS_ACCEPTED_EVENT));
   };
 
   return (
