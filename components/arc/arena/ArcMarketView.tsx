@@ -19,6 +19,8 @@ import type { ArcMarketKind } from "@/lib/arc/markets";
 import RollingNumber from "@/components/motion/RollingNumber";
 import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
+import ArcCouncilTakes from "./ArcCouncilTakes";
+import ArcMarketActions from "./ArcMarketActions";
 import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
 import ArcStakePanel from "./ArcStakePanel";
 import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
@@ -159,6 +161,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             ) : null}
           </p>
         </section>
+        <ArcCouncilTakes kind={kind} marketId={m.marketId} />
         <section aria-label="Every transaction" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Every transaction</h2>
           <ArcActivity m={m} events={m.events} verdict={m.verdict ?? null} />
@@ -178,6 +181,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             </p>
           </div>
         )}
+        <ArcMarketActions m={m} mine={mine} account={account} now={now} />
       </aside>
     </div>
   );

@@ -16,6 +16,7 @@ import Segmented from "@/components/ui/Segmented";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";
+import { arcExplorerUrl } from "@/lib/arc/config";
 import { explorerUrl } from "@/lib/solana/config";
 
 export type Track = "classic" | "philosopher";
@@ -26,7 +27,10 @@ export interface RosterPersona {
   bio: string;
   archetype: string;
   track: Track;
+  /** The Solana identity (derived key). */
   address: string;
+  /** The Arc wallet it bets from (Circle developer-controlled), when the council runs on Arc. */
+  arcAddress?: string;
   categoryFilter?: string[];
   /** USDC base units, as strings (the page is server-rendered). */
   bankroll: string;
@@ -34,7 +38,8 @@ export interface RosterPersona {
   stakes: number;
   won: number;
   lost: number;
-  recentBets: { claimId: number; stake: string }[];
+  /** `href` / `label` for Arc markets; the default is the Solana claim page. */
+  recentBets: { claimId: number; stake: string; href?: string; label?: string }[];
 }
 
 const TRACKS: Track[] = ["classic", "philosopher"];
@@ -195,9 +200,9 @@ function PersonaCard({
           {p.recentBets.length > 0 ? (
             <ul className="m-0 grid list-none gap-1.5 p-0 text-[13px]">
               {p.recentBets.map((b) => (
-                <li key={b.claimId} className="flex items-baseline justify-between gap-2">
-                  <Link href={`/arena/${b.claimId}`} className="text-coral hover:underline">
-                    {t("claim", { id: b.claimId })}
+                <li key={b.href ?? b.claimId} className="flex items-baseline justify-between gap-2">
+                  <Link href={b.href ?? `/arena/${b.claimId}`} className="min-w-0 truncate text-coral hover:underline">
+                    {b.label ?? t("claim", { id: b.claimId })}
                   </Link>
                   <span className="font-mono tabular-nums text-cream">{formatUsdcUnitsBare(b.stake)} USDC</span>
                 </li>
@@ -205,19 +210,28 @@ function PersonaCard({
             </ul>
           ) : (
             <p className="m-0 text-[13px] text-muted">
-              {p.bankroll === "0" && p.address ? t("unfunded") : t("noBets")}
+              {p.bankroll === "0" && (p.arcAddress || p.address) ? t("unfunded") : t("noBets")}
             </p>
           )}
-          {p.address ? (
-            <a
-              href={explorerUrl("address", p.address)}
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-[12px] text-muted hover:text-coral"
-            >
-              {short(p.address)} ↗
-            </a>
-          ) : null}
+          <div className="grid gap-1">
+            {p.arcAddress ? (
+              <a href={arcExplorerUrl("address", p.arcAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+                <span className="mr-2 text-dim">Arc</span>
+                {short(p.arcAddress)} ↗
+              </a>
+            ) : null}
+            {p.address ? (
+              <a
+                href={explorerUrl("address", p.address)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-[12px] text-muted hover:text-coral"
+              >
+                {p.arcAddress ? <span className="mr-2 text-dim">Solana</span> : null}
+                {short(p.address)} ↗
+              </a>
+            ) : null}
+          </div>
         </div>
       </div>
     </article>

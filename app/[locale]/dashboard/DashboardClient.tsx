@@ -13,6 +13,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { SURFACE } from "@/components/arena/surface";
+import ArcDashboard from "@/components/arc/dashboard/ArcDashboard";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import ClaimablePayouts from "@/components/dashboard/ClaimablePayouts";
 import DashboardFilterBar from "@/components/dashboard/DashboardFilterBar";
 import DashboardWalletGate from "@/components/dashboard/DashboardWalletGate";
@@ -31,7 +33,12 @@ import { formatUsdcUnits, formatUsdcUnitsBare } from "@/lib/money";
 const sol = (lamports: bigint | null) =>
   lamports === null ? "…" : (Number(lamports) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
+/** Arc once its contracts and Convex are configured; the Solana portfolio until then. */
 export default function DashboardClient() {
+  return arcArenaEnabled ? <ArcDashboard /> : <SolanaDashboard />;
+}
+
+function SolanaDashboard() {
   const t = useTranslations("dashboard");
   const { publicKey, connected } = useWallet();
   const address = connected && publicKey ? publicKey.toBase58() : null;

@@ -15,6 +15,7 @@ import { FeedCard } from "@/components/ui/Card";
 import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { ARC } from "@/lib/arc/config";
+import ArcOnboarding from "../ArcOnboarding";
 import { BetChip, jolt } from "./BetFx";
 import { arcPhase, BTN_PRIMARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, Split, type ArcMarket, type ArcPhase } from "./shared";
 
@@ -69,6 +70,8 @@ export default function ArcArena() {
           Open a market
         </Link>
       </header>
+
+      <ArcOnboarding />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div role="tablist" aria-label="Markets" className="flex gap-1 rounded-full bg-panel p-1">
@@ -171,8 +174,8 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket; now: number; index: nu
         <div className="mt-auto grid gap-2">
           <Split m={m} />
           <div className="flex justify-between gap-3 text-[12px]">
-            <span className="truncate text-cream">{m.labelA}</span>
-            <span className="truncate text-coral">{m.labelB}</span>
+            <span className="min-w-0 max-w-[48%] truncate text-cream">{m.labelA}</span>
+            <span className="min-w-0 max-w-[48%] truncate text-right text-coral">{m.labelB}</span>
           </div>
         </div>
 

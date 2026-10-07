@@ -9,6 +9,9 @@ import PeepAvatar from "@/components/ui/PeepAvatar";
 import { councilStats, type OracleStats, type PersonaStats } from "@/lib/server/council-stats";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { explorerUrl } from "@/lib/solana/config";
+import ArcCouncil from "@/components/arc/council/ArcCouncil";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
+import { councilRoster } from "@/lib/server/council-roster";
 
 /**
  * /council: the jury. One line of copy, the four totals in one strip, the
@@ -86,6 +89,7 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
 
 export default async function CouncilPage() {
   const t = await getTranslations("council");
+  if (arcArenaEnabled) return <ArcCouncilPage />;
   const stats = await councilStats().catch(() => null);
   const personas = stats?.personas ?? [];
   const sum = (f: (s: PersonaStats) => bigint) => personas.reduce((a, s) => a + f(s), 0n);
@@ -116,6 +120,34 @@ export default async function CouncilPage() {
         </>
       )}
 
+      <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[14px]">
+        <Link href="/agents" className="text-muted transition-colors hover:text-cream">
+          {t("navAgents")} →
+        </Link>
+        <Link href="/calibration" className="text-muted transition-colors hover:text-cream">
+          {t("navCalibration")} →
+        </Link>
+      </nav>
+    </div>
+  );
+}
+
+/** Arc: the roster and records come live from Convex; the Solana identities are derived here, on the server. */
+async function ArcCouncilPage() {
+  const t = await getTranslations("council");
+  let solana: Record<string, string> = {};
+  try {
+    solana = Object.fromEntries(councilRoster().map((r) => [r.slug, r.address]));
+  } catch {
+    // No admin key and no COUNCIL_ADDRESSES on this deploy: the cards show the Arc wallet only.
+  }
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <header className="grid gap-2">
+        <h1 className="m-0 font-display text-app-h1 text-cream">{t("title")}</h1>
+        <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">{t("lead")}</p>
+      </header>
+      <ArcCouncil solana={solana} />
       <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[14px]">
         <Link href="/agents" className="text-muted transition-colors hover:text-cream">
           {t("navAgents")} →
