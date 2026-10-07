@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import schema, { status } from "./schema";
 
 const kind = v.union(v.literal("vs"), v.literal("pool"));
@@ -84,5 +85,17 @@ export const positionsOf = query({
         market: await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", p.kind).eq("marketId", p.marketId)).unique(),
       })),
     );
+  },
+});
+
+/**
+ * Run the indexer now instead of waiting for the next cron tick: the app calls
+ * this right after a create or stake lands, so the page catches up in seconds.
+ */
+// ponytail: unauthenticated and unthrottled (each call is one indexer run, idempotent); add a per-minute cap if it is abused.
+export const poke = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, internal.arcSync.sync, {});
   },
 });

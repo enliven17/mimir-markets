@@ -19,6 +19,7 @@ const V3_ABI = parseAbi([
   "function getClaim(uint256) view returns (address creator, string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 creatorStake, uint256 totalChallengerStake, uint256 reservedCreatorLiability, uint256 deadline, uint8 state, uint8 winnerSide, string resolutionSummary, uint8 confidence, string category, uint256 parentId, uint256 challengerCount, uint256 createdAt, bytes32 evidenceHash)",
   "function getClaimMarketConfig(uint256) view returns (string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, uint256 reservedCreatorLiability)",
   "function getChallengerList(uint256) view returns (address[] addrs, uint256[] stakes)",
+  "function getClaimFees(uint256) view returns (uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient, address agentOwnerRecipient)",
 ]);
 const POOL_ABI = parseAbi([
   "event MarketCreated(uint256 indexed id, address indexed creator, uint256 deadline, string category)",
@@ -112,10 +113,11 @@ export const sync = internalAction({
 type Client = ReturnType<typeof createPublicClient>;
 
 async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number) {
-  const [c, cfg, list] = await Promise.all([
+  const [c, cfg, list, fees] = await Promise.all([
     client.readContract({ address, abi: V3_ABI, functionName: "getClaim", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimMarketConfig", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getChallengerList", args: [id] }),
+    client.readContract({ address, abi: V3_ABI, functionName: "getClaimFees", args: [id] }),
   ]);
   const [creator, question, creatorPosition, counterPosition, resolutionUrl, creatorStake, totalChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
   const byUser = new Map<string, bigint>();
@@ -144,6 +146,7 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
       volumeUsd: usd(creatorStake + totalChallengerStake),
       participants: 1 + byUser.size,
       isPrivate: cfg[6],
+      feeBps: fees[0],
       updatedBlock: block,
     },
     positions,
@@ -155,7 +158,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarket", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args: [id] }),
   ]);
-  const [creator, deadline, createdAt, state, outcome, totalA, totalB] = m;
+  const [creator, deadline, createdAt, state, outcome, totalA, totalB, feeBps] = m;
   const [question, labelA, labelB, resolutionUrl, category, summary] = text;
   const positions = [];
   for (const u of users) {
@@ -186,6 +189,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
       // ponytail: participants is filled from the positions table in arc.apply (no on-chain count for pools).
       participants: 0,
       isPrivate: false,
+      feeBps,
       updatedBlock: block,
     },
     positions,

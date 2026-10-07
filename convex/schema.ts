@@ -35,6 +35,8 @@ export default defineSchema({
     volumeUsd: v.number(),
     participants: v.number(),
     isPrivate: v.boolean(),
+    /** Fee on profit this market settles with (VS: the platform share; an attributed agent may add its own). */
+    feeBps: v.number(),
     updatedBlock: v.number(),
   })
     .index("by_market", ["kind", "marketId"])

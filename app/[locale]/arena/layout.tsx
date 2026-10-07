@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
+
 // The Solana wallet context now lives in the root layout, so this group
 // only needs to set its metadata.
 export const metadata = {
@@ -9,5 +11,6 @@ export const metadata = {
 };
 
 export default function ArenaLayout({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  // Convex feeds the Arc markets (convex/arc.ts); without NEXT_PUBLIC_CONVEX_URL it passes children through.
+  return <ConvexClientProvider>{children}</ConvexClientProvider>;
 }
