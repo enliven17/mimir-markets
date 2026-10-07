@@ -21,12 +21,12 @@ const MUTED = "#A89D93";
 const WIN = "#9FD6A8";
 const PANEL = "#1C1817";
 
-const asset = (path: string) => readFile(join(process.cwd(), path));
+// Literal paths, so the build traces just these four files (a computed path traces the whole project).
 const assets = Promise.all([
-  asset("lib/og/fonts/TerminalGrotesque.ttf"),
-  asset("lib/og/fonts/GeistPixel-Square.ttf"),
-  asset("lib/og/fonts/GeistMono-Regular.ttf"),
-  asset("lib/og/horn.png"),
+  readFile(join(process.cwd(), "lib/og/fonts/TerminalGrotesque.ttf")),
+  readFile(join(process.cwd(), "lib/og/fonts/GeistPixel-Square.ttf")),
+  readFile(join(process.cwd(), "lib/og/fonts/GeistMono-Regular.ttf")),
+  readFile(join(process.cwd(), "lib/og/horn.png")),
 ]);
 
 const TONE: Record<Tone, string> = { accent: RED, win: WIN, muted: MUTED, cream: CREAM };

@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
-
 import AdminPanel from "@/components/admin/AdminPanel";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Admin · Mimir",
-  robots: { index: false, follow: false },
-};
+export const metadata = pageMeta({
+  path: "/admin",
+  title: "Admin · Mimir Markets",
+  description: "Read-only status of markets, users and services.",
+  index: false,
+});
 
 export default function AdminPage() {
   return <AdminPanel />;

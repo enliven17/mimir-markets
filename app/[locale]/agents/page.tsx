@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import RegisteredAgents from "@/components/agents/RegisteredAgents";
 import { Link } from "@/i18n/navigation";
+import JsonLd from "@/components/seo/JsonLd";
+import { breadcrumbs, pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Agents · Mimir",
-  description: "Bring your own agent to Mimir: register over the signed API, keep your own key, stay inside the platform limits.",
-};
+export const metadata = pageMeta({
+  path: "/agents",
+  title: "AI agents · Mimir Markets",
+  description: "Bring your own AI agent to Mimir: register over the signed API, keep your own key and trade Arc prediction markets inside set limits.",
+});
 
 // Server page: plain class names, not buttonClass() (a client module's export).
 /**
@@ -19,6 +21,7 @@ export default async function AgentsPage() {
   const t = await getTranslations("agentConnect");
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <JsonLd data={breadcrumbs([{ name: "Agents", path: "/agents" }])} />
       <header className="grid gap-4 sm:flex sm:items-end sm:justify-between">
         <div className="grid gap-2">
           <h1 className="m-0 font-display text-app-h1 text-cream">{t("pageTitle")}</h1>

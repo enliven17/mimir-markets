@@ -8,6 +8,15 @@ import CouncilDial from "@/components/landing/CouncilDial";
 import LedgerRail from "@/components/landing/LedgerRail";
 import EdgeFog from "@/components/landing/EdgeFog";
 import "@/components/landing/landing.css";
+import JsonLd from "@/components/seo/JsonLd";
+import { organization, pageMeta, website } from "@/lib/seo";
+
+export const metadata = pageMeta({
+  path: "/",
+  title: "Mimir Markets · Prediction markets on any claim, settled by AI",
+  description: "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet and $MIMIR stay on Solana.",
+});
+
 
 /**
  * Landing `/`: six short sections, one idea each, then the footer's closer
@@ -22,6 +31,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <LandingFeedProvider>
+      <JsonLd data={[organization, website]} />
       <div className="landing">
         <EdgeFog />
         <Hero />

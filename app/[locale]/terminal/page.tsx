@@ -1,16 +1,17 @@
-import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 
 import { SURFACE } from "@/components/arena/surface";
 import CommandLine from "./CommandLine";
+import { pageMeta } from "@/lib/seo";
 
 /* /terminal: the Mimir CLI (mimir-terminal on npm, cli/ in the repo). The in-browser terminal is retired; this page
  * is how to install and use the CLI. */
 
-export const metadata: Metadata = {
-  title: "Mimir CLI",
+export const metadata = pageMeta({
+  path: "/terminal",
+  title: "Mimir CLI · Prediction markets in your terminal",
   description: "Mimir in your own terminal: live Arc markets, the council and your own agents, thinking with Claude, Gemini, OpenAI, Groq, OpenRouter or Ollama.",
-};
+});
 
 const NPM = "https://www.npmjs.com/package/mimir-terminal";
 const AGENTS_DOC = "https://github.com/enliven17/mimir-markets/blob/main/docs/AGENTS.md";
