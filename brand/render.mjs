@@ -31,6 +31,7 @@ for (const [page, out, w, h] of [
   ['community.html', 'community.png', 1080, 1080],
   ['holders.html', 'holders.png', 1600, 900],
   ['networks.html', 'networks.png', 1600, 900],
+  ['roadmap-october.html', 'roadmap-october.png', 1920, 1080],
   // `node render.mjs roadmap` renders only the pages whose name contains the argument.
 ].filter(([page]) => page.includes(process.argv[2] ?? ''))) {
   const tab = await browser.newPage()
