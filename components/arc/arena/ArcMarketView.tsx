@@ -161,7 +161,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             ) : null}
           </p>
         </section>
-        <ArcCouncilTakes kind={kind} marketId={m.marketId} />
+        <ArcCouncilTakes kind={kind} marketId={m.marketId} labelA={m.labelA} labelB={m.labelB} />
         <section aria-label="Every transaction" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Every transaction</h2>
           <ArcActivity m={m} events={m.events} verdict={m.verdict ?? null} />

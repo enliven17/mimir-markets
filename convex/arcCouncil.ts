@@ -16,6 +16,10 @@ import { internalAction } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { activePersonas } from "../agents/council/personas";
 import { createThrottle, evaluatePersonaForClaim } from "../agents/council/shared/persona-runner";
+import { getOrFetchEvidence } from "../agents/council/shared/evidence-cache";
+import { evaluateClaimAsPersona } from "../agents/council/shared/persona-llm";
+import type { PersonaSpec } from "../agents/council/personas";
+import type { ActionCtx } from "./_generated/server";
 import { sizeStakeUnits } from "../agents/council/shared/persona-rules";
 import type { CouncilClaim, EvidenceCacheEntry } from "../agents/council/shared/types";
 import { arcPublicClient } from "../lib/arc/chain";
@@ -86,6 +90,12 @@ export const tick = internalAction({
     const evidenceCache = new Map<string, EvidenceCacheEntry>();
     const throttle = createThrottle(Number(e.COUNCIL_LLM_THROTTLE_MS ?? 4500));
     const balances = new Map<string, bigint>();
+
+    // Comment mode: one take per market from the best-suited persona, no stake (COUNCIL_COMMENTS, on by default).
+    if (e.COUNCIL_COMMENTS !== "0") await writeTakes(ctx, markets, evidenceCache, throttle);
+    // Betting can be switched off on its own (mainnet: COUNCIL_BETS=0 saves the USDC and most of the LLM spend).
+    if (e.COUNCIL_BETS === "0") return;
+
     let decisions = 0;
     let staked = false;
 
@@ -157,3 +167,52 @@ export const tick = internalAction({
     if (staked) await ctx.scheduler.runAfter(0, internal.arcSync.sync, {});
   },
 });
+
+const TAKES_PER_TICK = Number(process.env.COUNCIL_TAKES_PER_TICK ?? 3);
+const LEAN = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 0, UNRESOLVABLE: 0 } as const;
+
+/**
+ * The persona best placed to read a market: the specialist for its category (crypto, sports, weather), else the
+ * Statistician, else Socrates. Rule personas never comment: they have no read, only pool arithmetic.
+ */
+function bestPersonaFor(category: string): PersonaSpec | null {
+  const all = activePersonas().filter((p) => p.archetype !== "rule-based");
+  const c = category.toLowerCase();
+  return (
+    all.find((p) => p.categoryFilter?.some((f) => c.includes(f))) ??
+    all.find((p) => p.slug === "statistician") ??
+    all.find((p) => p.slug === "socrates") ??
+    all[0] ??
+    null
+  );
+}
+
+/** One take for each open market that has none yet: one evidence fetch and one LLM call each, a few per tick. */
+async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<string, EvidenceCacheEntry>, throttle: () => Promise<void>) {
+  const taken = new Set(await ctx.runQuery(internal.arcCouncilDb.takenMarkets, {}));
+  let written = 0;
+  for (const m of markets.sort((a, b) => b.createdAt - a.createdAt)) {
+    if (written >= TAKES_PER_TICK) break;
+    if (taken.has(`${m.kind}:${m.marketId}`)) continue;
+    const persona = bestPersonaFor(m.category);
+    if (!persona) return;
+    try {
+      const claim = asCouncilClaim(m, []);
+      const evidence = await getOrFetchEvidence(`${m.kind}:${m.marketId}`, m.resolutionUrl, evidenceCache);
+      await throttle();
+      const v = await evaluateClaimAsPersona(persona, claim, evidence.text);
+      await ctx.runMutation(internal.arcCouncilDb.saveTake, {
+        kind: m.kind,
+        marketId: m.marketId,
+        slug: persona.slug,
+        lean: LEAN[v.verdict],
+        confidence: v.confidence,
+        text: v.explanation.slice(0, 600),
+      });
+      written++;
+      console.log(`[council] take on ${m.kind} #${m.marketId} by ${persona.slug}: ${v.verdict} ${v.confidence}%`);
+    } catch (err) {
+      console.warn(`[council] take on ${m.kind} #${m.marketId}:`, err instanceof Error ? err.message : err);
+    }
+  }
+}

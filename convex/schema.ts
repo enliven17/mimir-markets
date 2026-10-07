@@ -116,6 +116,18 @@ export default defineSchema({
     .index("by_market", ["kind", "marketId"])
     .index("by_until", ["until"]),
 
+  /** One council take per market: the best-suited persona's read, no stake (convex/arcCouncil.ts, comment mode). */
+  arcMarketTakes: defineTable({
+    kind,
+    marketId: v.number(),
+    slug: v.string(),
+    /** The side it leans to: 1 (A / creator), 2 (B / challengers), 0 neither (draw, unresolvable). */
+    lean: v.number(),
+    confidence: v.number(),
+    text: v.string(),
+    at: v.number(),
+  }).index("by_market", ["kind", "marketId"]),
+
   /** One row per indexer: the last Arc block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),
 });

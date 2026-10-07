@@ -44,3 +44,24 @@ export const forMarket = query({
       .filter((d) => d.outcome === "staked" || d.outcome === "abstained")
       .map(({ slug, outcome, rationale, confidence, amount, txHash, at }) => ({ slug, outcome, rationale, confidence, amount, txHash, at })),
 });
+
+/** Markets that already have a council take, as "kind:id" keys. */
+export const takenMarkets = internalQuery({
+  args: {},
+  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").collect()).map((t) => `${t.kind}:${t.marketId}`),
+});
+
+export const saveTake = internalMutation({
+  args: { kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string() },
+  handler: async (ctx, t) => {
+    const prev = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("kind", t.kind).eq("marketId", t.marketId)).first();
+    if (!prev) await ctx.db.insert("arcMarketTakes", { ...t, at: Date.now() });
+  },
+});
+
+/** The council's take on one market, shown under it. */
+export const takeFor = query({
+  args: { kind, marketId: v.number() },
+  handler: async (ctx, { kind, marketId }) =>
+    (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).first()) ?? null,
+});
