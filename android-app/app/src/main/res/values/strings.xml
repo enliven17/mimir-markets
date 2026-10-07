@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Mimir Markets</string>
+    <!-- Ties the app to the site for passkeys (Credential Manager) and links. -->
+    <string name="asset_statements" translatable="false">[{\"include\": \"https://mimirmarkets.xyz/.well-known/assetlinks.json\"}]</string>
+</resources>

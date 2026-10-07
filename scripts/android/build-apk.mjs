@@ -1,3 +1,4 @@
+// SUPERSEDED by build-webview.mjs (android-app/, a native WebView shell, versionCode 5+). Kept for reference.
 // Builds the signed Android APK (and the Play bundle): a Trusted Web Activity around mimirmarkets.xyz.
 //
 //   cd scripts/android && npm install && npm run build

@@ -1,10 +1,15 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "xyz.mimirmarkets.app",
-      "sha256_cert_fingerprints": ["DF:72:3E:82:98:C3:CC:FD:F1:3F:63:A4:17:9A:36:5B:FB:EF:A1:C6:8F:26:D8:03:FC:02:F7:FC:40:CD:68:DF"]
+      "sha256_cert_fingerprints": [
+        "DF:72:3E:82:98:C3:CC:FD:F1:3F:63:A4:17:9A:36:5B:FB:EF:A1:C6:8F:26:D8:03:FC:02:F7:FC:40:CD:68:DF"
+      ]
     }
   }
 ]

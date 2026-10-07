@@ -50,8 +50,12 @@ export default function AppBanners() {
     }
     // The head script (app/layout.tsx) already read ?app=<build> into sessionStorage and marked html[data-app].
     const param = new URLSearchParams(location.search).get(APP_VERSION_PARAM);
-    const build = Number((param && /^\d+$/.test(param) ? param : readSession(BUILD_KEY)) ?? 0);
+    // The native app (android-app/) names its build in the user agent: " MimirApp/<versionCode>".
+    const fromUa = /\sMimirApp\/(\d+)/.exec(navigator.userAgent)?.[1];
+    const build = Number(fromUa ?? (param && /^\d+$/.test(param) ? param : readSession(BUILD_KEY)) ?? 0);
     const inApp = document.documentElement.hasAttribute("data-app");
+    // The native app keeps its launch screen up until the page says it is ready; only it defines this bridge.
+    if (inApp) (window as unknown as { MimirApp?: { ready?: () => void } }).MimirApp?.ready?.();
     // In the app the page is a screen, not a document: no accidental pinch zoom (the website keeps it).
     if (inApp) document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover");
 
