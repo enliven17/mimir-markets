@@ -32,6 +32,12 @@ for (const [page, out, w, h] of [
   ['icon.html?app', '../public/app/icon-192.png', 96, 96],
   ['icon.html?app', '../public/app/icon-512.png', 256, 256],
   ['icon.html?maskable', '../public/app/icon-maskable-512.png', 256, 256],
+  // The Android app's launch screen, one per density (300 dp square).
+  ['splash.html', '../scripts/android/splash/splash-mdpi.png', 150, 150],
+  ['splash.html', '../scripts/android/splash/splash-hdpi.png', 225, 225],
+  ['splash.html', '../scripts/android/splash/splash-xhdpi.png', 300, 300],
+  ['splash.html', '../scripts/android/splash/splash-xxhdpi.png', 450, 450],
+  ['splash.html', '../scripts/android/splash/splash-xxxhdpi.png', 600, 600],
   ['roadmap.html', 'roadmap.png', 1920, 1080],
   ['community.html', 'community.png', 1080, 1080],
   ['holders.html', 'holders.png', 1600, 900],
@@ -65,7 +71,7 @@ for (const [page, out, w, h] of [
   await tab.setViewport({ width: w, height: h, deviceScaleFactor: 2 })
   await tab.goto(`http://localhost:${port}/${page}`, { waitUntil: 'networkidle0' })
   await tab.waitForSelector('body[data-ready="1"]')
-  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h }, omitBackground: page === 'icon.html' || page.startsWith('kit-logo-export') })
+  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h }, omitBackground: page === 'icon.html' || page === 'splash.html' || page.startsWith('kit-logo-export') })
   console.log('wrote', out)
 }
 await browser.close()

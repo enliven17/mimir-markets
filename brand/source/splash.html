@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mimir app splash</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    /* The Android app's launch screen (scripts/android: copied over Bubblewrap's generated splash.png). Android
+       centres this square on the ink background, so the canvas is transparent: a small horn, the name and the line. */
+    html, body { background: transparent; }
+    .s { width: 100vw; height: 100vh; display: grid; place-content: center; justify-items: center; gap: 4.5vw; }
+    .s img { width: 18vw; height: auto; filter: drop-shadow(0 0 5vw rgb(255 43 43 / 0.28)); }
+    .name { margin-top: 2vw; font-size: 10vw; line-height: 0.9; color: var(--cream); }
+    .name .dot { color: var(--red); }
+    .line { font-size: 3vw; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="s">
+    <img src="horn.svg" alt="" />
+    <div class="name display">Mimir Markets<span class="dot">.</span></div>
+    <div class="line mono">Claims, settled by AI</div>
+  </div>
+  <script type="module">
+    await document.fonts.ready
+    await document.querySelector('img').decode()
+    document.body.dataset.ready = '1'
+  </script>
+</body>
+</html>
