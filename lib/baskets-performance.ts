@@ -11,6 +11,18 @@ import "server-only";
  * return: an agent that never settled anything contributes nothing.
  */
 import { query } from "@/lib/server/db";
+import { ARC } from "@/lib/arc/config";
+import { getArcBinding } from "@/lib/server/arc-accounts";
+import { arcClaimsChallengedBy, resolveArcAgentWallets } from "@/lib/server/arc-baskets";
+
+/** Baskets read Arc once its contracts are configured. */
+const onArc = () => Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
+
+/** The address a follower stakes from: their Solana wallet, or on Arc the passkey account bound to it. */
+export async function stakingAddressOf(follower: string | null): Promise<string | null> {
+  if (!follower || !onArc()) return follower;
+  return (await getArcBinding(follower).catch(() => null))?.arc.toLowerCase() ?? null;
+}
 import { councilRoster } from "@/lib/server/council-roster";
 import { MIMIR_PROGRAM_ID, ST_ACTIVE, ST_OPEN, ST_RESOLVED } from "@/lib/solana/config";
 import {
@@ -28,6 +40,7 @@ import {
  * An id that resolves to neither is dropped rather than guessed at.
  */
 export async function resolveAgentWallets(agentIds: string[]): Promise<Map<string, string>> {
+  if (onArc()) return resolveArcAgentWallets(agentIds);
   const wanted = new Set(agentIds);
   const map = new Map<string, string>();
 
@@ -55,6 +68,7 @@ function invert(wallets: Map<string, string>): Map<string, string> {
 /** Claims of this program where any of `wallets` is a challenger, in `states`. Shared with copy trading. */
 export async function claimsChallengedBy(wallets: string[], states: number[], limit: number): Promise<IndexedClaim[]> {
   if (wallets.length === 0) return [];
+  if (onArc()) return arcClaimsChallengedBy(wallets, states, limit);
   const rows = await query(
     `SELECT id, creator, state, winner_side, creator_stake, total_challenger_stake, deadline,
             resolved_at, max_challengers, delegated, platform_fee_bps, agent_fee_bps, challengers,
@@ -116,7 +130,7 @@ export async function loadMirrorSignals(args: {
   return mirrorSignals({
     claims,
     agentByWallet: byWallet,
-    follower: args.follower,
+    follower: await stakingAddressOf(args.follower),
     perMarketCapUsdc: args.perMarketCapUsdc,
   });
 }

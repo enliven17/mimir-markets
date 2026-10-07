@@ -22,3 +22,18 @@ export async function arcPositions(arcAccount: string) {
   if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return c.query(api.arc.positionsOf, { user: arcAccount });
 }
+
+/** VS markets the given Arc addresses challenged, in the given statuses, each with its positions. */
+export async function arcChallengedBy(wallets: string[], statuses: string[], limit: number) {
+  const c = convex();
+  if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return c.query(api.arcViews.challengedBy, { wallets: wallets.map((w) => w.toLowerCase()), statuses, limit });
+}
+
+/** The council's Arc wallets (slug → address), from the Convex view. */
+export async function arcCouncilWallets(): Promise<Map<string, string>> {
+  const c = convex();
+  if (!c) return new Map();
+  const rows = await c.query(api.arcViews.council, {});
+  return new Map(rows.map((r) => [r.slug, r.address.toLowerCase()]));
+}

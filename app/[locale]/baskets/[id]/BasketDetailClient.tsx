@@ -13,6 +13,11 @@
  * line. The caveat under it is deliberate: it is a projection of settled
  * markets, not a record of anyone's money.
  */
+import { decodeFunctionData } from "viem";
+import { useArcAccount } from "@/components/arc/arena/useArcAccount";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
+import { ARC } from "@/lib/arc/config";
+import { MIMIR_V3_ABI } from "@/lib/arc/markets";
 import BasketCurve from "@/components/baskets/BasketCurve";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -101,6 +106,7 @@ function memberSeed(m: Pick<Member, "agentId" | "kind" | "wallet">): string {
 export default function BasketDetailClient({ basketId }: { basketId: string }) {
   const t = useTranslations("baskets");
   const { publicKey, connected, signMessage, signTransaction } = useWallet();
+  const arc = useArcAccount();
   const follower = publicKey?.toBase58() ?? null;
 
   const [data, setData] = useState<BasketDetail | null>(null);
@@ -184,6 +190,38 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
     }
   }
 
+  /**
+   * Arc: the server returns one stake call; it is checked here before the passkey signs it (a challenge on this
+   * market, on MimirV3, for no more than the signal's stake) and sent from the follower's Arc account.
+   */
+  async function mirrorOnArc(signal: MirrorSignal) {
+    if (!arc.session) throw new Error("Set up your Arc account on /wallet first: copies are staked from it.");
+    const res = await fetch(`/api/baskets/${basketId}/mirror`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ follower, claimId: signal.claimId }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as { message?: string; call?: { to: string; data: `0x${string}`; value: string } };
+    if (!res.ok || !payload.call) throw new Error(payload.message ?? t("failed"));
+    const { call } = payload;
+    const decoded = decodeFunctionData({ abi: MIMIR_V3_ABI, data: call.data });
+    const value = BigInt(call.value);
+    const cap = BigInt(signal.suggestedStakeUnits) * 1_000_000_000_000n;
+    if (
+      call.to.toLowerCase() !== ARC.contracts.mimirV3?.toLowerCase() ||
+      decoded.functionName !== "challengeClaim" ||
+      decoded.args[0] !== BigInt(signal.claimId) ||
+      decoded.args[1] !== value ||
+      value > cap
+    ) {
+      throw new Error("The copy transaction did not match the signal; nothing was signed.");
+    }
+    const receipt = await arc.session.sendCalls(arc.withTicket([{ to: call.to as `0x${string}`, data: call.data, value }]));
+    setNotice({ claimId: signal.claimId, text: t("mirrored", { sig: shortenAddress(receipt.txHash, 6) }) });
+    void arc.reload();
+    loadSignals();
+  }
+
   async function mirror(signal: MirrorSignal) {
     if (!follower) return;
     setError(null);
@@ -191,6 +229,10 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
     setNotice(null);
     setMirroring(signal.claimId);
     try {
+      if (arcArenaEnabled) {
+        await mirrorOnArc(signal);
+        return;
+      }
       if (!signTransaction) throw new Error(t("noSignTransaction"));
       const res = await fetch(`/api/baskets/${basketId}/mirror`, {
         method: "POST",

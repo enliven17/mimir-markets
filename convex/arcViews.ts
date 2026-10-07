@@ -1,6 +1,7 @@
 // Read-only views for the Arc UI that span tables: the council roster (each persona's Arc wallet, record and recent
 // stakes) and the oracle's totals. Wallet addresses come from ARC_COUNCIL_WALLETS (public addresses, no secrets).
 import { privateKeyToAccount } from "viem/accounts";
+import { v } from "convex/values";
 import { query } from "./_generated/server";
 
 type Wallets = Record<string, { id: string; address: string }>;
@@ -53,3 +54,29 @@ export const oracle = query({
   },
 });
 
+
+/**
+ * VS markets where any of `wallets` (lowercase Arc addresses) holds a challenger position, in `statuses`, with every
+ * position: the Arc side of baskets and copy trading (lib/server/arc-baskets.ts).
+ */
+export const challengedBy = query({
+  args: { wallets: v.array(v.string()), statuses: v.array(v.string()), limit: v.optional(v.number()) },
+  handler: async (ctx, { wallets, statuses, limit }) => {
+    const want = new Set(statuses);
+    const seen = new Set<number>();
+    const out = [];
+    for (const w of wallets.slice(0, 50)) {
+      const legs = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w.toLowerCase())).collect();
+      for (const leg of legs) {
+        if (leg.kind !== "vs" || leg.side !== 2 || seen.has(leg.marketId)) continue;
+        const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", "vs").eq("marketId", leg.marketId)).unique();
+        if (!m || m.isPrivate || !want.has(m.status)) continue;
+        seen.add(leg.marketId);
+        const positions = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "vs").eq("marketId", leg.marketId)).collect();
+        out.push({ ...m, positions: positions.map((p) => ({ user: p.user, side: p.side, amount: p.amount })) });
+      }
+    }
+    out.sort((a, b) => b.marketId - a.marketId);
+    return out.slice(0, Math.min(limit ?? 200, 1000));
+  },
+});

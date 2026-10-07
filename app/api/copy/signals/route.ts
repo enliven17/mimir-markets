@@ -19,6 +19,12 @@
  * on chain and recorded at the operator's actual stake, so the ledger the caps
  * are derived from cannot be talked down.
  */
+import { zeroAddress } from "viem";
+import { ARC } from "@/lib/arc/config";
+import { stakeCall } from "@/lib/arc/markets";
+import { getArcBinding } from "@/lib/server/arc-accounts";
+import { arcPositions } from "@/lib/server/arc-index";
+import { getAgent } from "@/lib/agents/store";
 import { PublicKey } from "@solana/web3.js";
 
 import {
@@ -124,12 +130,12 @@ export async function POST(req: Request): Promise<Response> {
     return fail(503, "chain_unavailable", "the chain could not be read, try again shortly");
   }
 
-  const instructions = await buildCopyInstructions(permissions, agent.operatorWallet).catch(() => []);
+  const instructions = await buildCopyInstructions(permissions, executorAddress(agent)).catch(() => []);
   await recordRequest(agent.agentId, "copySignals", true, null).catch(() => undefined);
   return json({
     ok: true,
     executionAgentId: agent.agentId,
-    signer: agent.operatorWallet,
+    signer: onArc() ? agent.arcOperator : agent.operatorWallet,
     permissions: permissions.length,
     copy: instructions
       .filter((i) => i.decision.allowed)
@@ -157,7 +163,8 @@ async function handlePrepare(agent: AgentRecord, permissions: CopyPermission[], 
   }
 
   // Re-gated at prepare time: the list a moment ago is advice, this is the decision.
-  const instructions = await buildCopyInstructions([permission], agent.operatorWallet);
+  if (onArc() && !agent.arcOperator) return fail(409, "no_arc_operator", "set an Arc operator first (setArcOperator): copies are sent from it");
+  const instructions = await buildCopyInstructions([permission], executorAddress(agent));
   const instruction = instructions.find((i) => i.claimId === t.claimId);
   if (!instruction) {
     return fail(409, "no_signal", "the signal agent holds no open position you can copy on that claim");
@@ -212,6 +219,23 @@ async function handlePrepare(agent: AgentRecord, permissions: CopyPermission[], 
     return fail(403, "daily_cap", `over ${agent.limits.maxDailyUsdc} USDC at risk today`);
   }
 
+  if (onArc()) {
+    const referrer = await copyReferrer(permission.signalAgentId).catch(() => zeroAddress);
+    const call = stakeCall(ARC.contracts.mimirV3!, "vs", t.claimId, stakeUnits * 1_000_000_000_000n, 2, referrer);
+    return json({
+      ok: true,
+      chain: "arc",
+      permissionId: permission.id,
+      claimId: t.claimId,
+      stakeUsdc: instruction.decision.stakeUsdc,
+      stakeUnits: stakeUnits.toString(),
+      signer: agent.arcOperator,
+      referrer,
+      transactions: [{ chainId: ARC.chain.id, to: call.to, data: call.data, value: String(call.value ?? 0n), description: `copy: challenge VS #${t.claimId}` }],
+      submit: "Sign the transaction with the Arc operator key (value is native USDC in wei), send it to Arc, then report the tx hash.",
+    });
+  }
+
   let prepared;
   try {
     prepared = await prepareWrite(
@@ -258,6 +282,17 @@ async function handleReport(agent: AgentRecord, permissions: CopyPermission[], r
   }
 
   const signature = typeof r.signature === "string" ? r.signature.trim() : "";
+  if (onArc()) {
+    if (signature && !/^0x[0-9a-fA-F]{64}$/.test(signature)) return fail(400, "bad_report", "signature must be the Arc tx hash");
+    // The index is the source of truth for whether the copy landed and for how much.
+    const legs = agent.arcOperator ? await arcPositions(agent.arcOperator).catch(() => []) : [];
+    const leg = legs.find((p) => p.kind === "vs" && p.marketId === t.claimId && p.side === 2);
+    if (!leg) return fail(409, "not_on_chain", "the Arc operator holds no challenge on that market yet (the index updates within seconds)");
+    const stakeUsdc = unitsToUsdc(BigInt(leg.amount) / 1_000_000_000_000n);
+    const recorded = await recordExecution({ permissionId: t.permissionId, claimId: t.claimId, executed: true, stakeUsdc, txSignature: signature || null });
+    await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
+    return json({ ok: true, recorded: { ...t, executed: true, stakeUsdc }, duplicate: !recorded });
+  }
   if (signature && !BASE58_SIGNATURE.test(signature)) {
     return fail(400, "bad_report", "signature must be a base58 Solana transaction signature");
   }
@@ -279,4 +314,25 @@ async function handleReport(agent: AgentRecord, permissions: CopyPermission[], r
   // The executed row now carries the spend; the provisional one goes.
   await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
   return json({ ok: true, recorded: { ...t, executed: true, stakeUsdc }, duplicate: !recorded });
+}
+
+/** Copies run on Arc once its contracts are configured. */
+function onArc(): boolean {
+  return Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
+}
+
+/** Where the executing agent stakes from: its Arc operator on Arc, its Solana operator wallet otherwise. */
+function executorAddress(agent: AgentRecord): string {
+  return onArc() ? (agent.arcOperator ?? "").toLowerCase() : agent.operatorWallet;
+}
+
+/**
+ * Who earns the 1% referrer share of a winning copy: the copied agent's owner (their bound Arc account, else the
+ * agent's Arc operator). House personas have no owner to pay, so their copies carry no referrer and no copy fee.
+ */
+async function copyReferrer(signalAgentId: string): Promise<`0x${string}`> {
+  const signal = await getAgent(signalAgentId).catch(() => null);
+  if (!signal) return zeroAddress;
+  const owner = (await getArcBinding(signal.ownerWallet).catch(() => null))?.arc;
+  return (owner ?? signal.arcOperator ?? zeroAddress) as `0x${string}`;
 }
