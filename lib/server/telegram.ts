@@ -22,6 +22,7 @@ import {
   type AlertPrefs,
 } from "../telegram";
 import type { NotificationEvent } from "../notifications";
+import { trimCaption } from "../telegram-card";
 
 type Chat = {
   chat_id: number;
@@ -150,6 +151,36 @@ export async function sendTo(chatId: number, text: string, extra: Record<string,
   }
 }
 
+/**
+ * A picture with the text as its caption (the market cards, app/api/telegram/card). `photo` is a URL Telegram
+ * fetches, or the file_id of a picture already sent. Same 429/403 handling as sendTo; when the photo cannot be sent
+ * (Telegram could not fetch the card, a caption it rejects) the text goes out on its own, so a message is never lost.
+ * Returns the sent photo's file_id, so a broadcast uploads the card once and reuses it.
+ */
+export async function sendPhotoTo(chatId: number, photo: string, text: string, extra: Record<string, unknown> = {}): Promise<string | null> {
+  const body = { chat_id: chatId, photo, caption: trimCaption(text), parse_mode: "HTML", ...extra };
+  type Sent = { photo?: Array<{ file_id: string }> };
+  const fileId = (r: Sent) => r.photo?.at(-1)?.file_id ?? null;
+  try {
+    return fileId(await tg<Sent>("sendPhoto", body, 20_000));
+  } catch (err) {
+    const e = err as Error & { retryAfter?: number; status?: number };
+    if (e.status === 403) {
+      await markBlocked(chatId).catch(() => undefined);
+      return null;
+    }
+    if (e.retryAfter !== undefined) {
+      await new Promise((r) => setTimeout(r, (e.retryAfter as number) * 1000));
+      const again = await tg<Sent>("sendPhoto", body, 20_000).catch(() => null);
+      if (again) return fileId(again);
+    } else {
+      console.warn(`[telegram] photo to ${chatId} failed, sending text:`, e.message);
+    }
+    await sendTo(chatId, text, extra);
+    return null;
+  }
+}
+
 /** Telegram allows ~30 messages/s per bot: stay well under it. */
 const BROADCAST_GAP_MS = 50;
 
@@ -177,7 +208,7 @@ export async function deliverTelegram(e: NotificationEvent): Promise<void> {
 }
 
 /** A new Arc market to every chat that wants new markets. */
-export async function broadcastArcMarket(m: { question: string; stakeA: string; deadline: number; url: string }): Promise<void> {
+export async function broadcastArcMarket(m: { question: string; stakeA: string; deadline: number; url: string; card?: string }): Promise<void> {
   if (!storeEnabled()) return;
   const chats = (await liveChats()).filter((c) => c.new_markets !== false);
   const usdc = (Number(BigInt(m.stakeA) / 10_000_000_000_000n) / 100_000).toFixed(2);
@@ -187,15 +218,23 @@ export async function broadcastArcMarket(m: { question: string; stakeA: string; 
     "",
     `Opening stake: ${usdc} USDC · closes ${new Date(m.deadline * 1000).toUTCString().replace(":00 GMT", " UTC")}`,
   ].join("\n");
+  // The card is fetched and uploaded once; every later chat gets the same file_id.
+  let photo = m.card;
   for (const c of chats) {
-    await sendTo(Number(c.chat_id), text, { reply_markup: marketUrlButton(m.url) });
+    const extra = { reply_markup: marketUrlButton(m.url) };
+    if (photo) photo = (await sendPhotoTo(Number(c.chat_id), photo, text, extra)) ?? photo;
+    else await sendTo(Number(c.chat_id), text, extra);
     await new Promise((r) => setTimeout(r, BROADCAST_GAP_MS));
   }
 }
 
 /** A personal Arc message to every chat following `wallet` (Solana) that wants this kind. */
-export async function deliverArc(wallet: string, text: string, pref: AlertPref, url: string): Promise<void> {
+export async function deliverArc(wallet: string, text: string, pref: AlertPref, url: string, card?: string): Promise<void> {
   if (!storeEnabled()) return;
   const chats = (await liveChats(wallet)).filter((c) => c[pref] !== false);
-  for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketUrlButton(url) });
+  for (const c of chats) {
+    const extra = { reply_markup: marketUrlButton(url) };
+    if (card) await sendPhotoTo(Number(c.chat_id), card, text, extra);
+    else await sendTo(Number(c.chat_id), text, extra);
+  }
 }
