@@ -218,7 +218,7 @@ async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<
       const claim = asCouncilClaim(m, []);
       const evidence = await getOrFetchEvidence(`${m.kind}:${m.marketId}`, m.resolutionUrl, evidenceCache);
       await throttle();
-      const v = await evaluateClaimAsPersona(persona, claim, evidence.text);
+      const v = await evaluateClaimAsPersona(persona, claim, evidence.text, { mode: "take" });
       await ctx.runMutation(internal.arcCouncilDb.saveTake, {
         kind: m.kind,
         marketId: m.marketId,
