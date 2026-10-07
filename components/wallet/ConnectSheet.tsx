@@ -9,7 +9,10 @@
  * - "Not installed": Phantom, Solflare and Backpack install links for the
  *   ones this browser does not have. Shown open until a wallet is installed,
  *   behind "I don't have a wallet" otherwise.
- * - Phones without an injected wallet (iOS Safari, Android Chrome): "Open in
+ * - Android (Chrome and the Mimir app): the Mobile Wallet Adapter comes first,
+ *   named for what it does. It hands the request to Phantom, Solflare or any
+ *   wallet app on the phone and comes back here, so the user never leaves.
+ * - iPhone (no Mobile Wallet Adapter) without an injected wallet: "Open in
  *   Phantom / Solflare" browse deep links that reopen this page inside the
  *   wallet's browser, where autoConnect picks the wallet up.
  * - Per-row connecting state, error state with retry, a shake on rejection;
@@ -32,6 +35,9 @@ import {
 } from "@/hooks/useMimirWallet";
 
 type RowError = { name: string; kind: "rejected" | "notReady" | "failed" };
+
+/** @solana-mobile/wallet-adapter-mobile's adapter name (wallet-adapter-react adds it on Android). */
+const MWA_NAME = "Mobile Wallet Adapter";
 
 interface KnownWallet {
   name: string;
@@ -159,13 +165,19 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
     () =>
       wallets
         .filter(isReady)
-        .sort((a, b) => Number(b.readyState === WalletReadyState.Installed) - Number(a.readyState === WalletReadyState.Installed)),
+        .sort(
+          (a, b) =>
+            Number(b.adapter.name === MWA_NAME) - Number(a.adapter.name === MWA_NAME) ||
+            Number(b.readyState === WalletReadyState.Installed) - Number(a.readyState === WalletReadyState.Installed),
+        ),
     [wallets],
   );
   const hasInstalled = detected.some((w) => w.readyState === WalletReadyState.Installed);
   const detectedNames = new Set(detected.map((w) => w.adapter.name.toLowerCase()));
   const missing = KNOWN_WALLETS.filter((w) => !detectedNames.has(w.name.toLowerCase()));
-  const browseable = platform.mobile && !hasInstalled ? KNOWN_WALLETS.filter((w) => w.browse) : [];
+  const hasMwa = detected.some((w) => w.adapter.name === MWA_NAME);
+  // With the Mobile Wallet Adapter there is no reason to leave for a wallet's browser.
+  const browseable = platform.mobile && !hasInstalled && !hasMwa ? KNOWN_WALLETS.filter((w) => w.browse) : [];
   // Loadable-only options (WalletConnect, Mobile Wallet Adapter) do not count
   // as having a wallet: keep the install links in view until one is installed.
   const installOpen = showInstall || !hasInstalled;
@@ -235,7 +247,9 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
                   >
                     <WalletIcon src={option.adapter.icon} name={name} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-display text-[1.2rem] leading-none text-cream">{name}</span>
+                      <span className="block truncate font-display text-[1.2rem] leading-none text-cream">
+                        {name === MWA_NAME ? t("mwaName") : name}
+                      </span>
                       <span
                         className={`mt-1 block text-[12px] leading-snug ${rowError ? "text-danger" : "text-muted"}`}
                       >
@@ -243,7 +257,9 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
                           ? t("approve", { wallet: name })
                           : rowError
                             ? t(rowError.kind, { wallet: name })
-                            : statusLabel(option)}
+                            : name === MWA_NAME
+                              ? t("mwaHint")
+                              : statusLabel(option)}
                       </span>
                     </span>
                     {isPending ? (
