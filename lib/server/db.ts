@@ -350,6 +350,13 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     amount_wei   TEXT NOT NULL,
     paid_at      BIGINT NOT NULL
   )`,
+  // A phone wallet's answer (Phantom / Solflare deeplink), parked until the page that asked collects it
+  // (lib/server/wallet-relay.ts). Still encrypted for the page; one read, then gone.
+  `CREATE TABLE IF NOT EXISTS wallet_relay (
+    op         TEXT PRIMARY KEY,
+    params     TEXT NOT NULL,
+    created_at BIGINT NOT NULL
+  )`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */

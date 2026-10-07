@@ -1223,6 +1223,7 @@
     "connect": "Connect",
     "connectWallet": "Connect wallet",
     "connecting": "Connecting…",
+    "deeplinkHint": "Opens {wallet} to approve, then brings you straight back.",
     "mwaName": "A wallet on this phone",
     "mwaHint": "Phantom, Solflare or any Solana wallet app. You come straight back here.",
     "sheetTitle": "Connect a wallet",

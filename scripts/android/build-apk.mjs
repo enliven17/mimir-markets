@@ -44,6 +44,7 @@ const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit'
 // A running Gradle daemon keeps the old build's files locked, and `update` rewrites the project.
 if (existsSync(join(PROJECT, 'gradlew.bat'))) run(join(PROJECT, win ? 'gradlew.bat' : 'gradlew'), ['--stop'], { cwd: PROJECT })
 bubblewrap('update', '--skipVersionUpgrade', '--manifest=./twa-manifest.json')
+patchWalletReturn()
 run(join(PROJECT, win ? 'gradlew.bat' : 'gradlew'), ['assembleRelease', '--no-daemon'], { cwd: PROJECT })
 
 const sdk = JSON.parse(readFileSync(join(homedir(), '.bubblewrap/config.json'), 'utf8')).androidSdkPath
@@ -76,3 +77,70 @@ src = src
   .replace(/sha256: "[^"]*",/, `sha256: "${release.sha256}",`)
 writeFileSync(file, src)
 console.log('built', release)
+
+/**
+ * Phantom and Solflare answer a request by opening https://<host>/api/wallet-return?op=… (lib/solana/deeplink-adapter.ts).
+ * The app owns that host (App Links), so the answer lands here, not in the page. Left alone, the launcher would load
+ * that URL in the app and reload the page that is waiting for it. Instead the launcher forwards the link to the
+ * server (which parks the answer, lib/server/wallet-relay.ts) and closes: the app's page comes back to the front,
+ * untouched, and collects the answer from the relay. `bubblewrap update` regenerates both files, so this runs
+ * after every update.
+ */
+function patchWalletReturn() {
+  const activity = join(PROJECT, 'app/src/main/java', ...manifest.packageId.split('.'), 'LauncherActivity.java')
+  let java = readFileSync(activity, 'utf8')
+  if (!java.includes('isWalletReturn')) {
+    java = java.replace(
+      'import android.os.Bundle;',
+      ['import android.os.Bundle;', 'import java.net.HttpURLConnection;', 'import java.net.URL;'].join('\n'),
+    )
+    const hooks = `
+    /** A wallet's answer (Phantom / Solflare deeplink), not a page to open. */
+    private boolean isWalletReturn() {
+        Uri uri = getIntent() == null ? null : getIntent().getData();
+        return uri != null && "/api/wallet-return".equals(uri.getPath());
+    }
+
+    @Override
+    protected boolean shouldLaunchImmediately() {
+        return !isWalletReturn();
+    }
+
+    /** Hands the answer to the server, off the main thread; the waiting page polls for it. */
+    private void relayWalletReturn(final Uri uri) {
+        new Thread(() -> {
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL(uri.toString()).openConnection();
+                c.setConnectTimeout(15000);
+                c.setReadTimeout(15000);
+                c.getResponseCode();
+            } catch (Exception ignored) {
+                // The page times out and says so; nothing to recover here.
+            } finally {
+                if (c != null) c.disconnect();
+            }
+        }).start();
+    }
+`
+    java = java.replace(
+      /(protected void onCreate\(Bundle savedInstanceState\) \{\s*super\.onCreate\(savedInstanceState\);)/,
+      `$1
+        if (isWalletReturn() && !isFinishing()) {
+            relayWalletReturn(getIntent().getData());
+            finish();
+            return;
+        }`,
+    )
+    java = java.replace(/(\n    @Override\s*\n    protected Uri getLaunchingUrl\(\))/, `${hooks}$1`)
+    if (!java.includes('relayWalletReturn(getIntent().getData())') || !java.includes('shouldLaunchImmediately')) throw new Error('LauncherActivity patch did not apply')
+    writeFileSync(activity, java)
+  }
+  const androidManifest = join(PROJECT, 'app/src/main/AndroidManifest.xml')
+  let xml = readFileSync(androidManifest, 'utf8')
+  if (!xml.includes('android.permission.INTERNET')) {
+    xml = xml.replace(/(<manifest[^>]*>)/, '$1\n    <uses-permission android:name="android.permission.INTERNET" />')
+    if (!xml.includes('android.permission.INTERNET')) throw new Error('AndroidManifest patch did not apply')
+    writeFileSync(androidManifest, xml)
+  }
+}
