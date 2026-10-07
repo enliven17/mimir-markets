@@ -94,7 +94,7 @@ export default function DocsPage() {
             <p className="m-0">
               Three pieces: <strong className="text-cream">your Solana wallet</strong> holds your money and your $MIMIR,{" "}
               <strong className="text-cream">Arc</strong> (Circle&apos;s stablecoin chain, where USDC is the gas) holds every
-              market and every stake, and <strong className="text-cream">Convex</strong> runs the index, the oracle and the
+              market and every stake, and <strong className="text-cream">Mimir&apos;s backend</strong> runs the index, the oracle and the
               council beside the contracts.
             </p>
             <SystemDiagram />

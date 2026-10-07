@@ -37,12 +37,12 @@ export function Figure({ label, caption, children }: { label: string; caption: s
   );
 }
 
-/** (a) The system: money in from Solana, markets on Arc, the house agents and the index on Convex, the app on top. */
+/** (a) The system: money in from Solana, markets on Arc, the house agents and the index on the backend, the app on top. */
 export function SystemDiagram() {
   return (
     <Figure
-      label="System overview. A Solana wallet sends USDC over Circle CCTP to the user's passkey account on Arc. The account stakes into the MimirV3 and MimirPool contracts. Convex indexes the contracts and runs the oracle and the council, which write back to the contracts. The web app reads the index live and sends the user's operations from the passkey account."
-      caption="USDC enters from Solana over CCTP, every stake and payout happens on Arc, and Convex keeps the index, the oracle and the council running beside the contracts."
+      label="System overview. A Solana wallet sends USDC over Circle CCTP to the user's passkey account on Arc. The account stakes into the MimirV3 and MimirPool contracts. Mimir's backend indexes the contracts and runs the oracle and the council, which write back to the contracts. The web app reads the index live and sends the user's operations from the passkey account."
+      caption="USDC enters from Solana over CCTP, every stake and payout happens on Arc, and Mimir's backend keeps the index, the oracle and the council running beside the contracts."
     >
       <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)_64px_minmax(0,1.15fr)] md:items-center">
         <Node tag="Solana" title="Your wallet" sub="Phantom, Solflare, any wallet. Holds USDC and your $MIMIR." />
@@ -64,7 +64,7 @@ export function SystemDiagram() {
         </div>
         <Link back label="live index" delay={1.8} className="max-md:order-2" />
         <div className="df-node max-md:order-1">
-          <span className="df-tag">Convex</span>
+          <span className="df-tag">Backend</span>
           <span className="df-title">Indexer · Oracle · Council</span>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
