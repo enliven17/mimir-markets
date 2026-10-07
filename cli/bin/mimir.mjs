@@ -31,6 +31,16 @@ const DEFAULTS = {
   // The agent you registered on the site; while `mimir` runs it heartbeats as that agent.
   link: null,
 };
+// Every provider below speaks the OpenAI chat API, so one call path serves them all; `ai <name> [model]` picks one.
+// The order is the auto-pick order when no AI was chosen and a key is in the environment.
+const PROVIDERS = {
+  claude: { baseUrl: "https://api.anthropic.com/v1", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY" },
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3.8-flash", apiKeyEnv: "GEMINI_API_KEY" },
+  openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-5-mini", apiKeyEnv: "OPENAI_API_KEY" },
+  groq: { baseUrl: "https://api.groq.com/openai/v1", model: "qwen/qwen3.8-27b", apiKeyEnv: "GROQ_API_KEY" },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "qwen/qwen3.8-27b:free", apiKeyEnv: "OPENROUTER_API_KEY" },
+  ollama: { ...DEFAULTS.ai },
+};
 const MAX_REPLY = 2000;
 // ponytail: 30 heartbeats/hour out of the 120-request hourly budget; the site shows live for 5 minutes after the last one.
 const HEARTBEAT_MS = 2 * 60_000;
@@ -74,10 +84,15 @@ const STATE = { 0: "open", 1: "live", 2: "settled", 3: "cancelled", 4: "verdict"
 function loadConfig() {
   try {
     const c = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
-    return { ...DEFAULTS, ...c, ai: { ...DEFAULTS.ai, ...c.ai }, agents: { ...c.agents } };
+    return { ...DEFAULTS, ...c, ai: c.ai ? { ...DEFAULTS.ai, ...c.ai } : autoAI(), agents: { ...c.agents } };
   } catch {
-    return structuredClone(DEFAULTS);
+    return { ...structuredClone(DEFAULTS), ai: autoAI() };
   }
+}
+/** No AI chosen yet: the first provider whose key is in the environment, else local Ollama. */
+function autoAI() {
+  const found = Object.values(PROVIDERS).find((p) => p.apiKeyEnv && process.env[p.apiKeyEnv]);
+  return { ...(found ?? DEFAULTS.ai) };
 }
 function saveConfig(c) {
   mkdirSync(CONFIG_DIR, { recursive: true });
@@ -304,7 +319,8 @@ const HELP = [
   ]],
   ["Setup", [
     ["ai", "which AI your agents think with", "ai"],
-    ["ai <url> <model> [KEY_ENV]", "switch it (the last word is an env var NAME, never the key)", "ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY"],
+    ["ai <provider> [model]", "claude, gemini, openai, groq, openrouter or ollama (key from its usual env var)", "ai gemini"],
+    ["ai <url> <model> [KEY_ENV]", "any other OpenAI-compatible endpoint (the last word is an env var NAME, never the key)", "ai https://api.mistral.ai/v1 mistral-small-latest MISTRAL_API_KEY"],
     ["clear", "clear the screen", ""],
     ["quit", "leave the terminal (or ctrl+c)", ""],
   ]],
@@ -456,8 +472,15 @@ async function run(cfg, state, line) {
       return saveConfig(cfg);
     case "ai": {
       if (!arg) return out(`  ${cream(cfg.ai.baseUrl)} ${dim("model")} ${cream(cfg.ai.model)} ${dim(cfg.ai.apiKeyEnv ? `key from $${cfg.ai.apiKeyEnv}` : "no key")}`);
+      const preset = PROVIDERS[rest[0]?.toLowerCase()];
+      if (preset) {
+        cfg.ai = { ...preset, model: rest[1] ?? preset.model };
+        saveConfig(cfg);
+        const missing = cfg.ai.apiKeyEnv && !process.env[cfg.ai.apiKeyEnv] ? yellow(` (set $${cfg.ai.apiKeyEnv} before asking)`) : "";
+        return out(green(`✓ agents now think with ${cfg.ai.model} (${rest[0].toLowerCase()})`) + missing);
+      }
       const [baseUrl, model, apiKeyEnv = ""] = rest;
-      if (!/^https?:\/\//.test(baseUrl) || !model) return err("usage: ai <baseUrl> <model> [API_KEY_ENV]");
+      if (!/^https?:\/\//.test(baseUrl) || !model) return err(`usage: ai <${Object.keys(PROVIDERS).join("|")}> [model], or ai <baseUrl> <model> [API_KEY_ENV]`);
       if (apiKeyEnv && !/^[A-Z_][A-Z0-9_]*$/.test(apiKeyEnv)) return err("the last argument is the NAME of an env var holding your key, not the key");
       cfg.ai = { baseUrl, model, apiKeyEnv };
       saveConfig(cfg);
