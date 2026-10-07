@@ -1,251 +1,156 @@
-# Arc as the base layer: design
+# Architecture: markets on Arc, wallets on Solana
 
-Branch: `feat/arc-base-layer`. Status: **design proven by a proof of concept, not built.** `main` stays as it is
-and keeps serving mimirmarkets.xyz (Solana devnet) until this branch is complete.
+Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People keep their **Solana**
+wallet: it is their identity, it funds them over CCTP, and it holds **$MIMIR**, which lowers fees and opens the door
+at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana mainnet come together, invite-only.
 
-## The decision
-
-- Markets, stakes, settlement and payouts all live on **Arc**. No Solana program, no 5 SOL of program rent, no
-  MagicBlock Ephemeral Rollup.
-- Users keep connecting a **Solana wallet**: it is their identity, it funds them over CCTP, and it proves their
-  **$MIMIR** holding for boosts and perks (`lib/token-proof.ts`, `lib/server/holder.ts`, unchanged).
-- On Arc every user has a **Circle Modular Wallet**: an ERC-4337 smart account owned by a **passkey** on the user's
-  device (Face ID, Touch ID, device PIN). The passkey signs every Arc action; **Circle Gas Station** pays the gas.
-  Mimir holds no key and runs no relayer.
-- `MimirV3` (from the old repo, Arc native-USDC mode) is the market contract, with the review fixes below.
-  `msg.sender` is the user's own smart account, so positions and payouts belong to the user.
-
-Why not a relayer (the first draft): it needs a hot key that can act for every user, a per-user `MimirAccount`
-contract to limit it, and a leaked key could still drain value through MimirV3 within the caps (review finding 1).
-The passkey model removes the key, the extra contract and most of that risk, and the POC showed it works end to end.
-
-Checked 2026-10-06: Arc mainnet is live (since 2026-09-16). CCTP lists Arc (domain 26) and Solana (domain 5) on
-mainnet, Fast Transfer from Solana
-([supported blockchains](https://developers.circle.com/cctp/cctp-supported-blockchains)). Circle Wallets supports
-Arc mainnet and testnet for modular wallets (MSCA)
-([wallets: supported blockchains](https://developers.circle.com/wallets/supported-blockchains)).
-
-## Architecture
+## The shape of it
 
 ```
- Solana (user's wallet)                         Arc
- ──────────────────────                         ─────────────────────────────────────────────────
+ Solana (the user's wallet)                      Arc
+ ──────────────────────────                      ─────────────────────────────────────────────────
  USDC ──depositForBurn (CCTP, fast)──▶ attestation ──▶ smart account: receiveMessage (sponsored)
                                                            │
- passkey (device) ── signs user ops ──▶ Circle bundler ──▶ smart account ──▶ MimirV3 (claims, stakes)
-                                       + Gas Station          ▲   │
-                                                              └───┘ payouts pushed back to the account
- USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn (one op)
- $MIMIR balance ──▶ holder proof (perks, campaign boost)
+ passkey (device) ── signs user ops ──▶ Circle bundler ──▶ smart account ──▶ MimirV3 (VS) / MimirPool
+                                       + Gas Station          ▲   │                 │
+                                                              └───┘ payouts          │ events
+ USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn
+ $MIMIR balance ──▶ fee ticket (lower entry fee), invite-only access                 ▼
+                                                              the backend: indexer, oracle, council, creator
 ```
 
-### Accounts and identity
+- **No relayer, no hot key for users.** Every user action is a user operation signed by the user's passkey; Circle's
+  Gas Station pays the gas. `msg.sender` is the user's own smart account, so positions and payouts are theirs.
+- **Mimir's own actors** (oracle, council personas, market creator) sign through Circle developer-controlled
+  wallets or a dedicated oracle key; no persona key sits on Mimir's servers.
+- **Agents** bring their own EVM key; the agent API returns unsigned Arc transactions ([AGENTS.md](AGENTS.md)).
 
-- First visit: connect the Solana wallet, create a passkey, get the smart account address (counterfactual: known
-  before it is deployed; it deploys on its first operation).
-- Bind the two: the Solana wallet signs "this Solana address owns Arc account 0x…" (same shape as the holder proof).
-  Stored server side; it is what the campaign, the holder boost and the UI use to join the two identities.
-- **Recovery**: offer it at sign-up. A recovery mnemonic derives an EOA that is added as a second signer on the smart
-  account; with it a user re-binds a new passkey. Lose both the passkey and the mnemonic and the account is gone.
-- Agents with their own EVM key can skip all of this and call `MimirV3` directly. The agent API returns unsigned
-  **Arc** transactions instead of Solana ones.
+## Accounts
 
-### Deposit (Solana → Arc)
+- **Create:** connect the Solana wallet, create a passkey (Face ID, fingerprint, device PIN), get a Circle Modular
+  Wallet (ERC-4337 smart account). Its address is known before it deploys; it deploys on its first operation.
+- **Link:** the Solana wallet and the smart account each sign one message naming the other
+  (`app/api/arc/bind`). The link is what fee tickets, the campaign, invites and Telegram use to join the two.
+- **Recover:** at sign-up the user downloads a 12-word recovery file and confirms it. The words derive an EOA added as
+  a second owner of the smart account; with them a new passkey can be put on the same account. Lose both and the
+  account is gone.
+- **Invite-only (mainnet):** a wallet holding `MIMIR_ACCESS_MIN` $MIMIR (default 5M) gets in; anyone else needs a
+  code. Every member gets `MIMIR_INVITES_PER_USER` codes (default 2; raising it tops everyone up). Off on testnet
+  unless `NEXT_PUBLIC_INVITE_ONLY=1`. The bind route enforces it, so skipping the UI gains nothing
+  (`lib/server/access.ts`, `components/access/AccessGate.tsx`).
 
-1. The user signs one Solana transaction: CCTP `depositForBurn`, Fast Transfer, `mintRecipient` = their smart account
-   (domain 26). They pay the Solana fee (fractions of a cent).
-2. The app polls Circle's attestation API, then the smart account calls `receiveMessage` on Arc in a sponsored
-   operation (anyone may call it; the money can only go to the recipient in the message).
-3. **Bridge once per deposit, never per bet.** Bets are Arc-only.
+## Moving money
 
-### Withdraw (Arc → Solana)
+- **Deposit (Solana → Arc):** one Solana transaction, CCTP `depositForBurn` with Fast Transfer and the smart account
+  as recipient (domain 5 → 26). The app waits for Circle's attestation, then the account calls `receiveMessage` in a
+  sponsored operation. 13–18 s end to end on testnet. Bridge once per deposit, never per bet.
+- **Withdraw (Arc → Solana):** one sponsored operation, `approve` + `depositForBurn` to the user's Solana USDC
+  account; the mint on Solana is a Solana transaction the wallet sends.
+- **One balance, two views:** USDC on Arc is native (18 decimals, what `msg.value` spends) and also the ERC-20 at
+  `0x3600…0000` (6 decimals). CCTP mints into it; the market contracts spend it natively.
 
-1. One sponsored operation from the smart account: `approve` + `depositForBurn` to the user's Solana USDC token
-   account (domain 5).
-2. Minting on Solana needs a Solana transaction (`receive_message`): the user's wallet sends it, or Mimir's server
-   sends it and pays the SOL fee (it cannot redirect the money; the recipient is in the attested message).
+## Market contracts (`contracts/`)
 
-### Money in `MimirV3`
+| Contract | What it does |
+|---|---|
+| `MimirV3` | **VS markets** (the default). The creator backs side A; challengers take side B and, if they win, split the creator's stake pro rata. Challengers together can add at most 5× the creator's stake (`MAX_POOL_MULTIPLE`), and the creator risks at most 5× the challengers' total (the rest comes back). Fixed-odds mode is capped by the creator's liability. |
+| `MimirPool` | **Pool markets.** Anyone stakes on either side; winners take their stake back plus a pro-rata share of the losing side. An empty side, a draw or an unresolvable result refunds everyone. Payouts are per user (`claimFor`, sent by the backend). |
+| `MimirFees` | Entry-fee tiers and the holder fee tickets. |
 
-USDC on Arc is one balance with two views: native (18 decimals, what `msg.value` spends) and the ERC-20 interface at
-`0x3600…0000` (6 decimals). CCTP mints into it and `MimirV3`'s native mode spends it directly (POC step 3).
+Both market contracts share the lifecycle:
 
-## Proof of concept (2026-10-06, `scripts/arc-poc/`, Arc testnet + Solana devnet)
+1. **Open and stake** until 60 seconds before the deadline (`CHALLENGE_LOCK_SECONDS`).
+2. **Propose:** after the deadline the oracle proposes a result with a confidence and an evidence hash.
+3. **Dispute window:** `disputeWindow` set at deploy (1 hour on testnet, at most 7 days, never 0 on mainnet). A
+   participant disputes with `DISPUTE_BOND` = 2 USDC; the arbiter rules. The bond comes back if the result changes
+   and goes to the fee recipient if it stands.
+4. **Finalize:** winners are paid (VS pushes payouts; a push that fails is parked for `withdraw()`).
+5. **Escape hatch:** 7 days after the deadline (`RESOLUTION_GRACE_SECONDS`) anyone can call `refundExpired`. An
+   unsettled open or active market refunds in full; a disputed market the arbiter never ruled on **settles to the
+   oracle's proposal** and the bond is kept. Verdicts revert with `GraceOver()` once the hatch is open.
 
-| Step | Script | Result |
+Other limits: `minStake` is an immutable deploy parameter (0.01–100 USDC; **0.1 USDC** on testnet, `ARC_MIN_STAKE`
+in `scripts/arc/deploy.mjs`), at most 100 challengers, deadline at most a year out, fixed payout at most 10×. Owner,
+oracle and fee-recipient changes go through 2-day timelocks. Native USDC only.
+
+## Fees
+
+- **Entry fee on every position** (open, challenge, pool stake), taken from what is sent; the rest is the stake.
+  0.5% by default, **0.25% for 5M+ $MIMIR, 0.1% for 10M+**, never above 1% (`MAX_ENTRY_BPS`). Kept on refunds.
+- **Holder discount:** the token is on Solana, so the server reads the linked Solana wallet's balance and signs an
+  EIP-712 `FeeTicket(account, tier, expires)` for 24 hours (`app/api/arc/fee-ticket`). The account applies it in the
+  same user operation as its bet. The signer can only lower fees; each ticket records the signer epoch, so rotating
+  the signer voids old tickets.
+- **Copy trades:** a position opened with a `referrer` (the basket creator, or the copied agent's owner) pays 1% of
+  its net profit to the referrer and 1% to Mimir, on wins only.
+- **Agent deploy:** $1, $0.50 at 5M, free at 10M, paid in USDC on Arc and checked by the API.
+- No fee on winnings.
+
+## The backend
+
+Scheduled jobs, each run finishing on its own and retried on the next tick (`convex/`):
+
+| Job | Every | What |
 |---|---|---|
-| Passkey account + sponsored op with a zero balance | `run.mjs` | account `0xf221…c36f`, tx `0x3cdd00a0…f3b178` success, via Circle's bundler (EntryPoint v0.7) |
-| Solana → Arc, received by the account, gasless | `run-cctp.mjs` | 1 USDC, attested in 6–11 s, **13–18 s end to end**, tx `0xcf9f7deb…5979cd` |
-| One balance, two views | `run-cctp.mjs` | `1e18` native = `1000000` ERC-20 after the mint |
-| Arc → Solana, approve + burn in one sponsored op | `run-cctp.mjs` | 0.5 USDC, attested in 24 s, minted on devnet (8.53 → 9.03 USDC), tx `0xfa787e5c…197833` |
-| `MimirV3` played by two passkey accounts | `run-mimir.mjs` | deployed `0xa2bf…10de7` (5.25M gas, 0.13 USDC); create + challenge gasless with the stake as `msg.value`; oracle proposes, 60 s window, finalize: the winner's account was **pushed 3.90 USDC** (2 stake + 2 profit − 5% of profit), nothing parked |
+| Indexer (`arcSync`) | 30 s | Reads both contracts' logs into markets, positions and every transaction (shown on each market page). Posts market events to the Telegram route. |
+| Oracle (`arcOracle`) | 1 min | Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
+| Council (`arcCouncil`) | 5 min | One forecast take per market from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
+| Market creator (`arcCreator`) | 1 h | Opens house VS markets from live data within `CREATOR_DAILY_BUDGET_USDC` (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1), cancels its own unchallenged ones. |
 
-| This branch's contracts (after the review fixes) | `run-contracts.mjs` | MimirV3 `0x18c9…5155` and MimirPool `0x1032…a220` deployed (0.14 + 0.07 USDC). VS: challenger account pushed **3.90 USDC**. Pool: Y on B, X on A, A wins, the app pushes X's **3.90 USDC** with `claimFor`; `claimFor` for the loser reverts. 0.10 USDC fee on each (5% of profit) |
+Model keys are split by role so the oracle's quota is never spent by anything else (`lib/llm.ts`): the oracle uses
+`ORACLE_GEMINI_API_KEY` (a list is allowed), others never touch those keys. The web app's tables (agents, baskets,
+campaign, Telegram, access, Arc account links, agent payments) stay in Postgres (`lib/server/db.ts`).
 
-Not tested by the POC: the real-device prompt (the virtual authenticator approves silently), passkey recovery, and
-a session-key module (none documented; batch what can be batched).
+## Security
 
-**Console setup that works:** Client Key "Allowed Domain" and Modular Wallets → Passkey "Domain Name" both exactly
-`mimirmarkets.xyz`. Circle matches the host exactly (subdomains and `localhost:port` are refused); the SDK sends it in
-an `X-AppInfo` header. The POC serves its page at that origin inside a headless browser (request interception), so
-nothing is deployed. Previews of this branch need their own Console entries, or run on mimirmarkets.xyz only.
+Contracts: `forge test` (136 tests, including smart-account callers, reentrancy attempts, fee tickets and invariant
+suites: escrow solvency, payouts ≤ pot, no winner below their net stake, copy fees only on profit). Slither: no
+high-severity findings. Sizes: MimirV3 21,887 B (`optimizer_runs = 1`), MimirPool 12,693 B, MimirFees 2,675 B.
+
+### First review (2026-10-06)
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| 1 | Medium | A free-form fee recipient on each call let a compromised front end take the agent fee | The agent fee is gone; the field is now `referrer`, worth a fixed 1% of a copy's profit |
+| 2 | Medium | `refundExpired` and a late verdict were both valid after the grace period | Verdicts revert after the grace period |
+| 3 | Medium | `resolveDispute` paid the bond before changing state | State first; `nonReentrant` on every state-changing function |
+| 4 | Medium | The owner is the arbiter with no ownership timelock | Timelocked ownership; multisig arbiter before mainnet; unruled disputes settle to the proposal |
+| 5 | Low | A recipient's 50k-gas push can be starved (no loss) | Parked payouts, pulled with `withdraw()` |
+| 6–8 | Low | No reentrancy guard; ERC-20 permit and send edge cases | Guard added; ERC-20 mode removed |
+
+### Second review (2026-10-07)
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| H-1 | High | A dust challenger on a big claim won the creator's whole stake | The creator risks at most 5× the challengers' total; the rest goes back to the creator |
+| M-1 | Medium | An unruled dispute refunded everyone, so a loser could buy a refund for the bond | A disputed claim past the grace settles to the proposal; the bond is forfeited |
+| L-1, L-2 | Low | Pool copy fees charged on a hedger's own money, and on uncopied stake | Fee on net profit of the copied stake only (`copyA`, `copyB`) |
+| L-3 | Low | Tickets from a rotated-out signer stayed valid | Signer epochs; `cancelOwnershipTransfer()` |
+| Caps | Low | Unbounded inputs | Payout ≤ 10×, deadline ≤ 1 year, entry fee ≤ 1% |
 
 ## Costs
 
-- **Circle Wallets** ([circle.com/wallets](https://www.circle.com/wallets)): the first 1,000 monthly active wallets
-  free, then $0.05 down to $0.02 per wallet a month.
-- **Gas Station**: the sponsored gas + 5%. Arc gas is 25 gwei: a user operation is about a cent or less; a
-  `MimirV3` deploy was 0.13 USDC.
-- **Solana**: users pay their own burn fee on deposit; the withdrawal mint costs Mimir fractions of a cent if the
-  server sends it.
+- **Circle Wallets:** the first 1,000 monthly active wallets free, then $0.05 down to $0.02 a wallet a month.
+- **Gas Station:** sponsored gas + 5%. A user operation is about a cent or less at 25 gwei.
+- **The house:** the market creator's daily budget (default 1 USDC) and, on testnet, council bets.
 
-## Contract security, before anything holds real USDC
+## Before mainnet
 
-`forge test` on `MimirV3`: 55/55 pass in the old repo; none covers a smart-account caller or the cases below.
-Review of 2026-10-06, no critical findings. What changes with the passkey model is noted.
+1. External audit of the three contracts.
+2. A multisig as owner and arbiter.
+3. Arc mainnet and CCTP mainnet addresses checked against Circle's docs; Circle Console entries for the domain.
+4. `COUNCIL_BETS=0`, invite-only on, key management for the oracle, fee signer and Circle entity secret.
+5. Deploy with a non-zero dispute window.
 
-| # | Severity | Where | Issue | Fix |
-|---|---|---|---|---|
-| 1 | Medium (was High with a relayer) | `createClaim`, `challengeClaim`, `_payWinner` | The caller names `agentOwnerRecipient`. The user signs a hash, not readable calldata, so a compromised front end could name itself and take the agent fee (up to 10% of profit) | **Superseded by the fee rework (2026-10-07):** the agent fee is gone; the free-form field is now `referrer` (copy trades), worth a fixed 1% of profit. No allowlist: a passkey account signs a hash, so a compromised front end already controls the whole account; a list would only guard that 1% |
-| 2 | Medium | `refundExpired` vs `resolveClaim` / `resolveDispute` | After the grace period both are valid; a loser can front-run a late verdict with a refund | Verdicts revert after the grace period |
-| 3 | Medium | `resolveDispute` | Pays the bond (`_settleBond`) while the claim is still `ST_DISPUTED`; the payee can re-enter `refundExpired` and settle twice; only the 50k gas stipend stops it | Set state before any transfer; `nonReentrant` on every state-changing function |
-| 4 | Medium | `resolveDispute`, `transferOwnership` | The owner is the arbiter with no ownership timelock; a compromised owner can dispute and rule for itself; a loser can stall with cheap disputes | Multisig arbiter, timelocked ownership; a dispute never ruled on settles to the proposal and the bond is kept (M-1 below) |
-| 5 | Low | `_transfer` | Anyone can starve a recipient's 50k-gas push so it is parked (no loss) | The app calls `withdraw()` for the user when `pendingWithdrawals > 0` |
-| 6 | Low | whole contract | No reentrancy guard; safety rests on ordering + the gas stipend | Add one |
-| 7 | Low | `usdcPermit` | Permit front-running (ERC-20 mode only, not Arc) | Gone: ERC-20 mode removed (native USDC only) |
-| 8 | Low | send helper | ERC-20 send to a code-less address counts as success | Gone with ERC-20 mode; the fees contract must have code at deploy |
+## Proof of concept (2026-10-06, `scripts/arc-poc/`)
 
-Sound: payouts never exceed the pot, fees never cut into a winner's stake, pause never blocks settlement or
-withdrawals, `multicall` is non-payable and off in native mode. To check on Arc: whether Circle's blocklist applies
-to native value transfers. Never deploy with `disputeWindow = 0` on mainnet.
-
-**Size:** runtime 23,653 bytes (via-IR, 200 runs) against the 24,576 limit: about 900 bytes for the fixes.
-`optimizer_runs = 1` gives 23,476; beyond that, split the contract.
-
-Before mainnet: a test per fix, invariant/fuzz tests on the money (balances + liabilities vs the contract's USDC),
-a fork test on Arc testnet with smart-account callers, Slither clean or every finding explained, and an
-**external audit**.
-
-### Second review (2026-10-07), fixed on this branch
-
-| # | Severity | Where | Issue | Fix |
-|---|---|---|---|---|
-| H-1 | High | `MimirV3._settle`, pool odds | A dust challenger on a big claim won the creator's whole stake (the 5× cap only bounded the challengers) | The creator risks at most 5× the challengers' total; each share is `stake × atRisk / total`; the rest (cap and rounding dust) goes back to the creator |
-| M-1 | Medium | `refundExpired`, both contracts | An unruled dispute refunded everyone, so a loser could buy a refund for the bond | A disputed claim past the grace settles to the oracle's proposal (`DisputeResolved(id, proposed, false)`) and the bond is forfeited; an unresolved ACTIVE / OPEN market is still a full refund |
-| L-1 | Low | `MimirPool` copy fees | A hedger paid the copy fee on their own losing-side money coming back | Fee on net profit: the share less the user's own losing-side stake, floored at 0 |
-| L-2 | Low | `MimirPool` copy fees | The first referrer taxed the profit of the user's whole position, copied or not | Copied stake is tracked per side (`copyA`, `copyB`); only its share of the net profit pays; the first referrer stays the payee; `claimable` matches `claimFor` |
-| L-3 | Low | `MimirFees` | Tickets signed by a rotated-out signer stayed valid until expiry; a pending ownership transfer could not be withdrawn | Each ticket records `signerEpoch`, bumped by `setSigner`; a stale ticket pays BASE_BPS. `cancelOwnershipTransfer()` added |
-| Caps | Low | both contracts | Unbounded inputs | Fixed payout ≤ 10× (`MAX_PAYOUT_BPS`); deadline ≤ 1 year out on create and rematch (`MAX_DEADLINE_AHEAD`); entry fee ≤ 1% whatever `MimirFees` answers (`MAX_ENTRY_BPS`); a private claim checks the invite key before calling the fee contract |
-
-Gas: a full claim (100 challengers whose `receive()` burns its whole stipend, 100 distinct referrers) finalizes in
-11.2M gas with the challengers winning, and refunds in 6.1M (test bound 16M). Pragma pinned to 0.8.28.
-
-## What moves where
-
-| From | What | Into this branch |
+| Step | Script | Result |
 |---|---|---|
-| old repo `enliven17/mimir` | `contracts/MimirV3.sol` + Foundry tests | `contracts/`, with the fixes |
-| old repo | CCTP code (`lib/cctp.ts`), EVM oracle and council workers, EVM indexer, x402 | `lib/`, `agents/` |
-| `scripts/arc-poc/` | passkey account, sponsored ops, CCTP both ways | the app's wallet layer |
-| this repo | UI, Terminal, CLI, campaign, Telegram bot, baskets, copy trading, holder proof, agent API shapes | stays |
-| this repo | `onchain/` (Anchor), MagicBlock ER code, `lib/solana/*` program clients, Solana indexer | removed |
-| this repo | Solana wallet adapter | stays (connect, bind, CCTP deposit, $MIMIR proof) |
+| Passkey account + sponsored op with a zero balance | `run.mjs` | success via Circle's bundler (EntryPoint v0.7) |
+| Solana → Arc, received by the account, gasless | `run-cctp.mjs` | 1 USDC, attested in 6–11 s, 13–18 s end to end |
+| Arc → Solana, approve + burn in one sponsored op | `run-cctp.mjs` | 0.5 USDC, attested in 24 s, minted on devnet |
+| Markets played by passkey accounts | `run-mimir.mjs`, `run-contracts.mjs` | create, challenge, propose, finalize, payouts pushed |
 
-## Market contracts (built on this branch, `contracts/`)
-
-- **`MimirV3`: the VS (duel) market**, the default. A creator stakes a claim, challengers take the other side.
-  Pool odds: challengers split the creator's stake pro rata. **New: in pool mode the challengers' total is capped at
-  5× the creator's stake** (`MAX_POOL_MULTIPLE`, a constant: changing it means a redeploy), so a 2 USDC claim takes at
-  most 10 USDC of challenges and every challenger's upside stays meaningful. Fixed odds is unchanged (already capped
-  by the creator's liability). All review fixes are in (table below).
-- **`MimirPool`: two-sided pool markets**, a separate contract. Anyone stakes on either side; the creator only seeds
-  the first stake. Winners take their stake back plus a pro-rata share of the losing side; fee on profit only; if a
-  side is empty, or the outcome is a draw or unresolvable, everyone is refunded in full with no fee. Payouts are
-  per-user (`claim` / `claimFor`, so a crowded market never runs out of gas settling); a hedger is paid only the
-  winning leg. Same oracle proposal, dispute window, refund escape hatch and timelocks as MimirV3.
-- **UI rule for both:** every stake button shows "risk X, win at most Y" from the live totals.
-- **Fees (2026-10-07; the 5% profit fee and the agent fee are gone):**
-  - **Entry fee on every position** (create, rematch, challenge, pool stake): `MimirFees.entryBps(account)` of what
-    is sent, taken on the way in; the rest is the stake. 0.5% by default, **0.25% for 5M+ $MIMIR, 0.1% for 10M+**.
-    The fee is earned on entry and kept on refunds (draw, unresolvable, cancel, expired refund return the net stake).
-  - **Holder discount:** the token is on Solana, so the server checks the account's linked Solana wallet and signs
-    an EIP-712 `FeeTicket(address account,uint8 tier,uint64 expires)` (domain "Mimir Fees" / "1" / chainId /
-    `MimirFees`), at most 2 days ahead (24 h in practice, spot balance). The account submits `applyTicket` in the
-    same user operation as its bet. The signer can only lower fees, so a leaked signer key costs revenue, never user
-    money; the owner rotates it at once.
-  - **Copy trades:** a position opened with a `referrer` (the copied basket's creator) pays 1% of its **net profit**
-    (on the copied stake only) to the referrer and 1% to the platform. Nothing on a loss or a refund; nobody pays themselves.
-  - One fee recipient per contract, changed only through a 2-day timelock; forfeited dispute bonds go there too.
-  - Native USDC only: the ERC-20 mode (permit, multicall) is removed.
-- Tests: 136 pass (`forge test`), including smart-account callers, reentrancy attempts, fee tickets (wrong signer,
-  replay by another account, upgrade, expiry, malleable signature, rotation) and invariant suites with real fees
-  (escrow solvency, payouts ≤ pot, no winner below their net stake, claim fees only a copy share of profit). Runtime
-  sizes: MimirV3 21,887 B (2,689 under EIP-170, `optimizer_runs = 1`), MimirPool 12,693 B, MimirFees 2,675 B.
-  Slither not run yet (not installed).
-
-What the app and workers must handle: verdicts revert with `GraceOver()` once `refundExpired` is open; `msg.value`
-is the gross amount and the recorded stake is net of the entry fee; a holder's ticket call goes first in the user
-operation; ownership transfer is timelocked 2 days; in MimirPool the app pushes winners with `claimFor` after
-checking `claimable`.
-
-## Council: two wallets per persona
-
-The council plays on Arc and shows on both networks:
-- **Arc wallet (where it bets):** a Circle **developer-controlled** wallet per persona. The council is a server-side
-  bot, so it signs through Circle's API (no passkey, and the key stays with Circle, not on our servers). The old repo
-  already created these for the 10 classic personas (`CIRCLE_COUNCIL_*`, `scripts/circle-create-council-wallets.ts`);
-  the 10 philosopher personas still need theirs.
-- **Solana wallet (identity):** the existing keys derived from the admin key (`derivePersonaKeypair`), kept as they
-  are. The council page shows both addresses per persona, the visible proof that Mimir runs on both networks.
-  Funding can go Solana → Arc over CCTP like any user.
-
-## Campaign (decided 2026-10-06)
-
-Restarts on Arc; today's devnet points are not carried over. One leaderboard keyed by the user's **Solana address**:
-volume and copies from the bound Arc account, agents, baskets, follows and invites from the off-chain tables as now.
-The only Solana read left is the **$MIMIR holder tier** for the boost. `lib/server/campaign.ts` swaps its
-`solana_claims` volume query for the Arc index.
-
-## Copy
-
-"Mimir never holds your keys" stays true: the passkey is on the user's device. New lines needed: what a passkey is,
-that Arc gas is sponsored, the recovery phrase at sign-up, and that funds move Solana ↔ Arc through Circle's CCTP.
-Remove every MagicBlock / Ephemeral Rollup mention.
-
-## Open questions
-
-1. **Audit:** which auditor, and when.
-2. **Arbiter:** a multisig (who signs) for disputes, and the ownership timelock length.
-3. **Agent fee recipients:** an on-chain allowlist of registered agent payout wallets, or drop agent attribution
-   from the user path (finding 1).
-4. **Real-device UX:** the passkey prompt per bet on phones and desktops; whether to batch more.
-
-## Backend: leaning to Convex (decide before phase 3)
-
-Railway is expensive for what it runs. The plan is to move the backend to **Convex** as part of phase 3, since the
-oracle, council and indexer are being rewritten for Arc anyway:
-- **Workers → Convex cron jobs + actions**: oracle, council, indexer, market creator and settlement jobs become
-  scheduled, idempotent steps (each run finishes; a failed step is retried on the next tick) instead of endless
-  loops on Railway. Arc signing goes through Circle's API (developer-controlled wallets), which fits actions well.
-- **Telegram bot → webhook** to a Convex HTTP action instead of long polling.
-- **Database → Convex**, only together with the workers (Convex as a worker host while the data stays in Neon makes
-  no sense). The new Arc index is written to Convex from day one; the other tables (agents, campaign, baskets,
-  Telegram, copy trading) move in the same phase. Bonus: live leaderboard, pools and odds without polling.
-- At the Arc mainnet switch, Railway and Neon are shut down. Hosting stays on Vercel (Cloudflare only if traffic
-  ever makes it cheaper). PostHog (analytics) and R2 (files) are independent and can be added any time.
-- To check first: Convex action time and memory limits against the longest worker step (evidence fetch + LLM call),
-  scheduler granularity, pricing at expected volume.
-
-## Environments
-
-Arc testnet + Solana devnet (CCTP testnet domains 26 ↔ 5) until everything passes. Then Arc mainnet + Solana
-mainnet together, and the live site switches. `main` (Solana devnet) is untouched until then.
-
-## Phases
-
-1. Port `MimirV3` into `contracts/` with its tests; fix the review findings with a test each; smart-account and
-   invariant tests; deploy on Arc testnet.
-2. Wallet layer in the app: passkey account, bind to the Solana wallet, deposit and withdraw over CCTP, recovery.
-3. Port the oracle, council, indexer and agent API to Arc; point the UI at Arc (this branch's preview, not the live site).
-4. Copy; external audit.
-5. Arc mainnet + Solana mainnet; switch the live site; then the showcase swap (`docs/TODO-arc-showcase.md`).
+**Circle Console:** the Client Key "Allowed Domain" and Modular Wallets → Passkey "Domain Name" must both be exactly
+`mimirmarkets.xyz` (subdomains and `localhost:port` are refused). The end-to-end scripts serve the page at that
+origin inside a headless browser (request interception), so nothing is deployed.

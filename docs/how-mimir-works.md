@@ -65,7 +65,7 @@ A market moves through these steps:
 2. The oracle proposes a result.
 3. During the dispute window, any participant can dispute it with a 2 USDC bond. The bond comes back if the arbiter changes the result, and is lost if the result stands. Disputing costs nothing when you are right and costs something when you are spamming.
 4. When the window closes, the result is final and winners are paid straight to their account, with no claim step.
-5. A draw or an unresolvable question refunds every stake. If no result is ever reached, anyone can trigger a full refund seven days after the deadline, so money can never get stuck.
+5. A draw or an unresolvable question refunds every stake. If no result is ever reached, anyone can trigger a full refund seven days after the deadline, so money can never get stuck. A dispute the arbiter never rules on settles to the oracle's proposal, so disputing cannot be used to buy a refund.
 
 ## How the oracle decides
 
@@ -85,6 +85,8 @@ The confidence level decides what happens next:
 - **If Mimir itself holds a position** in the market, only an 80%+ verdict can settle it.
 
 Every decision produces an **audit bundle**: the sources read, the prices with their timestamps, the model, the raw verdict and every adjustment. Its sha256 hash is written on chain, so anyone can check that the published reasoning is the reasoning the result was based on.
+
+When only one side of a pool was staked, there is nothing to decide: everyone is refunded without asking a model.
 
 The rule underneath all of this: when the oracle cannot be sure, people get their money back.
 

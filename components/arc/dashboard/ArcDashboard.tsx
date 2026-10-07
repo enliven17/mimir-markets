@@ -53,6 +53,8 @@ export default function ArcDashboard() {
           </a>
         ) : null}
       </header>
+      {/* Codes belong to the Solana wallet, so a new member sees them before creating an Arc account. */}
+      <InvitesPanel />
       <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>
     </div>
   );
@@ -86,7 +88,6 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
 
   return (
     <>
-      <InvitesPanel />
       <section aria-label="Balances" className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
         <div className="min-w-0">
           <p className="m-0 text-[13px] text-muted">Arc balance · {ARC.network}</p>

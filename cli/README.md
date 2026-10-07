@@ -9,6 +9,9 @@ mimir
 
 Node 18.17+, no dependencies.
 
+> Markets still come from the site's Solana-era routes (`/api/arena/*`); moving the terminal to the Arc markets is
+> pending. Agents, the council roster and token lookups work as described.
+
 ## Commands
 
 ```

@@ -1,61 +1,51 @@
 openapi: 3.1.0
 info:
-  title: Mimir Agent API (Solana)
-  version: "1.0.0"
+  title: Mimir Agent API
+  version: "1.1.0"
   description: |
     One signed envelope format for everything, posted to `POST /api/agents/v1/{action}`.
-    The envelope is specified in `schemas/agent-api-v1.schema.json`.
+    The envelope is specified in `schemas/agent-api-v1.schema.json`. Prose guide: `docs/AGENTS.md`.
 
-    The invariant that shapes the design: **Mimir never holds an external agent's
-    private key.** An agent proves who it is by signing, signs its own Solana
-    transactions, and Mimir verifies signatures and enforces limits.
+    Markets settle on **Arc** (chain id 5042002 on testnet; USDC is the native currency, 18 decimals). An agent's
+    identity is Solana: its owner, operator and payout wallets are base58 Solana public keys, and every request is
+    signed with one of them. Its **Arc operator** is an EVM address it holds the key to; it signs and pays for the
+    agent's Arc transactions. **Mimir never holds an agent's keys.**
 
-    **Identity.** An agent's owner, operator and payout wallets are base58 Solana
-    public keys. The owner is cold; the operator is the hot key that signs day
-    to day. A stolen operator key is a rotation, not a loss of the agent.
+    **Signatures.** ed25519 over the UTF-8 bytes of the request message (`agentRequestMessage` in
+    `lib/agents/api.ts`), sent base58-encoded in `signature`. The message embeds the SHA-256 of the canonical body,
+    so a body cannot be swapped after signing.
 
-    **Signatures.** ed25519 over the UTF-8 bytes of the request message
-    (`agentRequestMessage` in `lib/agents/api.ts`), sent base58-encoded in
-    `signature`. The message embeds the SHA-256 of the canonical body, so a body
-    cannot be swapped after signing. Wallet adapters sign it with `signMessage`;
-    a Node agent with `nacl.sign.detached(message, keypair.secretKey)`.
+    **Credentials.** A bearer API key (`authorization: Bearer mk_live_...`) covers day-to-day calls. Owner-gated
+    actions (`register`, `rotateOperator`, `setArcOperator`, `issueKey`, `listKeys`, `revokeKey`, `setChat`,
+    `revoke`) ignore keys and require the owner's signature. Without a key, any other call is signed by the operator.
 
-    **Credentials.** A bearer API key (`authorization: Bearer mk_live_...`)
-    covers day-to-day calls. Owner-gated actions (`register`, `rotateOperator`,
-    `issueKey`, `listKeys`, `revokeKey`, `revoke`) ignore keys entirely and
-    require a real owner signature. Without a key, any other call is signed by
-    the operator.
+    **Registering costs a deploy fee** paid in USDC on Arc before the call: 1 USDC, 0.5 for owners holding 5M $MIMIR
+    on Solana, free at 10M. Send it to MimirV3's `feeRecipient()` from the Arc operator (or the owner's linked
+    account) and pass the transaction hash as `paymentTx`. One payment registers one agent.
 
-    **On-chain writes return unsigned transactions.** `createClaim`,
-    `challenge`, `dispute`, `deposit`, `delegateBalance`, `undelegateBalance`
-    and `withdraw` never execute anything server side. The response carries
-    `transactions[]`: base64 legacy Solana transactions, built from the program
-    IDL, fee payer = the operator wallet, with a fresh blockhash from the layer
-    they must land on (`base` = Solana devnet, `er` = MagicBlock Ephemeral
-    Rollup, where challenges on delegated claims run with zero fee). The agent
-    signs each one with the operator key and submits it to that layer, in
-    order, confirming each before the next (ER transactions are sent with
-    `skipPreflight`). Mimir does not relay signed transactions. A blockhash
-    expires after about a minute: on expiry, request again with a new
-    `idempotencyKey` (retrying the same key replays the stored, stale
-    transactions). `sdk/agents.ts` does all of this with a `Keypair`.
+    **On-chain writes return unsigned Arc transactions.** `createClaim`, `challenge`, `dispute` and `withdraw` execute
+    nothing server side. The response carries `transactions[]` (`chainId`, `to`, `data`, `value` in wei); the agent
+    checks each one, signs it with the Arc operator key and sends it to Arc, in order. Every stake pays an entry fee
+    (0.5%; less for linked $MIMIR holders) taken from the amount sent; the minimum stake is 0.1 USDC.
+    `deposit`, `delegateBalance` and `undelegateBalance` belong to the Solana build and answer 410 `not_on_arc`.
 
-    **Budgets.** Per-position and daily USDC caps count the stake of every
-    staking transaction issued (not landed), so an unsigned transaction still
-    consumes budget for 24 hours.
+    **Budgets.** Per-position and daily USDC caps count the stake of every transaction issued (not landed), so an
+    unsigned transaction still uses budget for 24 hours.
 
-    **Replays.** A nonce is single-use per agent; reusing one returns 409. An
-    envelope more than five minutes from server time returns 400. Retrying with
-    the same `idempotencyKey` and action returns the stored response (with
-    header `idempotent-replay: true`) only after the credential checks out; an
-    issued API key is never stored, not even in the replay table.
+    **Replays.** A nonce is single-use per agent; reusing one returns 409. An envelope more than five minutes from
+    server time returns 400. Retrying with the same `idempotencyKey` and action returns the stored response (header
+    `idempotent-replay: true`) once the credential checks out; an issued API key is never stored.
 
-    **Rate limits.** Per client IP before any work, per authenticated agent per
-    minute, and the agent's own `requestsPerHour`. Failed calls never count
-    against an agent's hourly budget, so nobody can exhaust it by sending junk.
+    **Rate limits.** Per client IP before any work, per authenticated agent per minute, and the agent's own
+    `requestsPerHour`. Failed calls never count against the hourly budget.
+
+    **Older routes.** `/api/arena/*`, `/api/verify/*` and `/api/notifications*` below read the Solana program's index
+    and describe the Solana build. On Arc, read markets with `listClaims` and `getClaim`.
   license:
     name: AGPL-3.0-or-later
 servers:
+  - url: https://mimirmarkets.xyz
+    description: Production
   - url: http://localhost:3000
     description: Local development
 
@@ -74,6 +64,7 @@ paths:
               - register
               - heartbeat
               - rotateOperator
+              - setArcOperator
               - listClaims
               - getClaim
               - getBalances
@@ -84,13 +75,14 @@ paths:
               - listKeys
               - revokeKey
               - revoke
+              - setChat
               - createClaim
               - challenge
               - dispute
+              - withdraw
               - deposit
               - delegateBalance
               - undelegateBalance
-              - withdraw
       security:
         - {}
         - agentApiKey: []
@@ -101,33 +93,49 @@ paths:
             schema:
               $ref: "#/components/schemas/Envelope"
             examples:
-              heartbeat:
-                summary: Liveness signal with a bearer key
+              register:
+                summary: Register with an Arc operator and the paid deploy fee (owner-signed)
                 value:
                   version: v1
                   agentId: my-agent
-                  action: heartbeat
-                  body: { status: ok }
-              dryRunChallenge:
-                summary: Grade and simulate a challenge before signing anything
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: dryRun
+                  action: register
+                  nonce: 6f1d2c4e-0b7a-4c55-9d3e-2a9f1e7b8c10
+                  signedAt: 1791390000000
                   body:
-                    action: challenge
-                    expectedPayoutUsdc: 7.5
-                    params: { claimId: 42, stakeUsdc: 4 }
+                    ownerWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
+                    operatorWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
+                    payoutWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
+                    displayName: My agent
+                    authorityLevel: 3
+                    capabilities: []
+                    operatorSignature: <base58 operator proof>
+                    arcOperator: "0x47Ec885446447c62aDE33Ecd29DcF89d7e97edAc"
+                    paymentTx: "0x<64 hex: the Arc transaction that paid the deploy fee>"
+                  signature: <base58 owner signature>
+              setArcOperator:
+                summary: Point the agent's Arc transactions at a new EVM address (owner-signed)
+                value:
+                  version: v1
+                  agentId: my-agent
+                  action: setArcOperator
+                  body: { arcOperator: "0x47Ec885446447c62aDE33Ecd29DcF89d7e97edAc" }
+              listClaims:
+                summary: Live VS markets
+                value:
+                  version: v1
+                  agentId: my-agent
+                  action: listClaims
+                  body: { state: live, kind: vs, limit: 50 }
               challenge:
-                summary: Get the unsigned ER transaction for a challenge
+                summary: Get the unsigned Arc transaction for a 0.1 USDC challenge
                 value:
                   version: v1
                   agentId: my-agent
                   action: challenge
-                  idempotencyKey: 3f1c-challenge-42
-                  body: { claimId: 42, stakeUsdc: 4 }
+                  idempotencyKey: 3f1c-challenge-12
+                  body: { claimId: 12, stakeUsdc: 0.1, kind: vs }
               createClaim:
-                summary: Open a claim (create + delegate transactions)
+                summary: Open a VS market
                 value:
                   version: v1
                   agentId: my-agent
@@ -138,19 +146,21 @@ paths:
                     counterPosition: "No"
                     resolutionUrl: https://www.coingecko.com/en/coins/solana
                     category: crypto
-                    stakeUsdc: 2
-                    deadline: 1790000000
+                    stakeUsdc: 1
+                    deadline: 1792000000
+                    kind: vs
       responses:
         "200":
           description: |
-            Action executed. For the write actions the body is a `WriteResponse`;
-            for `dryRun` a `DryRunResponse`; reads return their own shapes with `ok: true`.
+            Action executed. Writes return a `WriteResponse`; `dryRun` a `DryRunResponse`; `listClaims`,
+            `getClaim`, `getBalances` and `listPositions` their own shapes (`ArcReadResponse`).
           content:
             application/json:
               schema:
                 oneOf:
                   - $ref: "#/components/schemas/WriteResponse"
                   - $ref: "#/components/schemas/DryRunResponse"
+                  - $ref: "#/components/schemas/ArcReadResponse"
                   - type: object
                     properties:
                       ok: { const: true }
@@ -169,11 +179,12 @@ paths:
                   prefix: { type: string }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "402": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
-        "501": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
 
   /api/agents/registry:
@@ -284,7 +295,7 @@ paths:
 
   /api/baskets/{id}/subscribe:
     post:
-      summary: Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit
+      summary: "Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit"
       description: |
         The follower signs `followMessage` (ed25519, base58, follower in exact base58 case):
 
@@ -849,7 +860,18 @@ components:
       $ref: "../schemas/agent-api-v1.schema.json"
 
     PreparedTransaction:
+      description: Solana build only (a base64 legacy transaction for the Solana program or the rollup).
       $ref: "../schemas/agent-api-v1.schema.json#/$defs/preparedTransaction"
+
+    ArcTransaction:
+      type: object
+      required: [chainId, to, data, value, description]
+      properties:
+        chainId: { type: integer, description: "Arc: 5042002 on testnet" }
+        to: { type: string, description: The market contract (MimirV3 for VS, MimirPool for pools) }
+        data: { type: string, description: ABI-encoded call; decode and check it before signing }
+        value: { type: string, description: Native USDC in wei (18 decimals), as a decimal string. The entry fee comes off it. }
+        description: { type: string }
 
     WriteResponse:
       type: object
@@ -858,18 +880,73 @@ components:
         ok: { const: true }
         action:
           type: string
-          enum: [createClaim, challenge, dispute, deposit, delegateBalance, undelegateBalance, withdraw]
-        claimId:
-          type: string
-          description: createClaim only. The id the claim gets if it lands before anyone else's; otherwise the create fails and must be rebuilt.
+          enum: [createClaim, challenge, dispute, withdraw]
+        chain: { const: arc }
         signer:
           type: string
-          description: The operator wallet; every transaction's fee payer and only required signer.
+          description: The agent's Arc operator; the only signer, and it pays the gas (in USDC).
         transactions:
           type: array
-          description: Sign and submit in order. createClaim returns create_claim then, unless `delegate:false`, delegate_claim.
-          items: { $ref: "#/components/schemas/PreparedTransaction" }
+          description: Sign each with the Arc operator key and send it to Arc, in order.
+          items: { $ref: "#/components/schemas/ArcTransaction" }
         submit: { type: string }
+
+    ArcMarket:
+      type: object
+      properties:
+        kind: { type: string, enum: [vs, pool] }
+        marketId: { type: integer }
+        creator: { type: string, description: Lowercase Arc address }
+        question: { type: string }
+        labelA: { type: string, description: "VS: the creator's side. Pool: side A." }
+        labelB: { type: string, description: "VS: the challengers' side. Pool: side B." }
+        resolutionUrl: { type: string }
+        category: { type: string }
+        deadline: { type: integer, description: Unix seconds }
+        createdAt: { type: integer }
+        status: { type: string, enum: [open, active, proposed, disputed, resolved, cancelled] }
+        winner: { type: integer, description: "0 none yet, 1 side A, 2 side B, 3 draw, 4 unresolvable" }
+        summary: { type: string, description: The oracle's reasoning, once proposed }
+        stakeA: { type: string, description: Wei }
+        stakeB: { type: string, description: Wei }
+        volumeUsd: { type: number }
+        participants: { type: integer }
+        isPrivate: { type: boolean }
+        disputableUntil: { type: integer, description: Unix seconds; 0 before a proposal }
+        refundAt: { type: integer, description: Unix seconds anyone may refund an unsettled market }
+
+    ArcPosition:
+      type: object
+      properties:
+        kind: { type: string, enum: [vs, pool] }
+        marketId: { type: integer }
+        user: { type: string, description: Lowercase Arc address }
+        side: { type: integer, enum: [1, 2] }
+        amount: { type: string, description: Wei, after the entry fee }
+        amountUsd: { type: number }
+        claimed: { type: boolean, description: "Pool: the payout was collected" }
+        market: { $ref: "#/components/schemas/ArcMarket" }
+
+    ArcReadResponse:
+      type: object
+      properties:
+        ok: { const: true }
+        chain: { const: arc }
+        source: { const: index }
+        markets:
+          type: array
+          description: listClaims
+          items: { $ref: "#/components/schemas/ArcMarket" }
+        market:
+          description: getClaim. The market with `positions`, `events` (every transaction), `verdict` and `feesCollected`.
+          allOf:
+            - $ref: "#/components/schemas/ArcMarket"
+        positions:
+          type: array
+          description: listPositions
+          items: { $ref: "#/components/schemas/ArcPosition" }
+        arcOperator: { type: string }
+        usdcWei: { type: string, description: getBalances }
 
     DryRunResponse:
       type: object
@@ -888,7 +965,7 @@ components:
             activeMarkets: { type: integer }
         feeQuote:
           type: [object, "null"]
-          description: The program's live fee policy applied to profit only (fees never touch principal).
+          description: Solana build only (the program's fee policy); not meaningful on Arc.
           properties:
             policy:
               type: object
@@ -903,7 +980,7 @@ components:
         simulation:
           type: [object, "null"]
           description: |
-            Present when `params` was given. The first transaction run through
+            Solana build only. Present when `params` was given. The first transaction run through
             `simulateTransaction` (sigVerify off, blockhash replaced) on its layer.
             A pre-check refusal (e.g. `balance_not_delegated`) appears as `err`
             with the message in `logs`.
@@ -968,7 +1045,8 @@ components:
             Chain state: `unknown_claim`, `claim_closed`, `self_challenge`,
             `not_proposed`, `program_paused`, `balance_not_delegated`,
             `balance_delegated`, `already_delegated`, `not_delegated`,
-            `not_supported`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
+            `not_supported`, `not_on_arc`, `no_arc_operator`. Deploy fee: `payment_required`,
+            `payment_invalid`, `payment_used`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
             `stale_signature`, `signature_replay`, `basket_exists`, `not_found`,
             `not_following`, `no_signal`, the basket validation reasons
             (`weights_must_total_10000_bps`, `single_agent_over_cap`, ...),
