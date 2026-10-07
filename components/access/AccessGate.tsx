@@ -16,6 +16,7 @@ import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderT
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { usePathname } from "@/i18n/navigation";
 import { inviteOnly, type AccessStatus } from "@/lib/access";
+import { inviteKind, xIntentUrl } from "@/lib/invite-share";
 import { ARC } from "@/lib/arc/config";
 
 const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
@@ -69,6 +70,11 @@ export default function AccessGate({ children }: { children: ReactNode }) {
 function Gate({ children }: { children: ReactNode }) {
   const a = useAccess();
   const [code, setCode] = useState("");
+  // A shared invite (/i/<code>) arrives as ?invite=CODE: fill it in.
+  useEffect(() => {
+    const fromLink = inviteKind(new URLSearchParams(window.location.search).get("invite") ?? "");
+    if (fromLink?.kind === "access") setCode(fromLink.code);
+  }, []);
   const [busy, setBusy] = useState(false);
   if (a.status?.allowed) return <>{children}</>;
 
@@ -158,13 +164,19 @@ export function InvitesPanel() {
             {inv.used ? (
               <span className="text-[12px] text-dim">used</span>
             ) : (
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard.writeText(inv.code).then(() => setCopied(inv.code))}
-                className="text-[12px] text-coral hover:underline"
-              >
-                {copied === inv.code ? "Copied" : "Copy"}
-              </button>
+              <span className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard.writeText(inv.code).then(() => setCopied(inv.code))}
+                  className="text-[12px] text-coral hover:underline"
+                >
+                  {copied === inv.code ? "Copied" : "Copy"}
+                </button>
+                {/* X's composer, prefilled; the /i/<code> link brings the invite card (lib/invite-share.ts). */}
+                <a href={xIntentUrl("access", inv.code)} target="_blank" rel="noreferrer" className="text-[12px] text-coral hover:underline">
+                  Share on X
+                </a>
+              </span>
             )}
           </li>
         ))}

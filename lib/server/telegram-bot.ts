@@ -23,6 +23,7 @@ import {
   setBotMeta,
   getAlertPrefs,
   newLinkCode,
+  sendPhotoTo,
   sendTo,
   setAllAlerts,
   toggleAlertPref,
@@ -30,6 +31,7 @@ import {
   upsertChat,
 } from "./telegram";
 import { getArcBinding } from "./arc-accounts";
+import { openMarkets, timeLeft } from "./open-markets";
 import { arcPositions } from "./arc-index";
 import { SITE_URL } from "../site";
 import {
@@ -271,6 +273,10 @@ async function onPublic(chatId: number, command: string): Promise<boolean> {
     });
     return true;
   }
+  if (command === "/markets") {
+    await onMarkets(chatId);
+    return true;
+  }
   if (command === "/leaderboard") {
     await onLeaderboard(chatId);
     return true;
@@ -280,6 +286,23 @@ async function onPublic(chatId: number, command: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+/** /markets, in private chats and groups: the open-markets card, the five closing soonest as links, the arena button. */
+async function onMarkets(chatId: number): Promise<void> {
+  const { total, markets } = await openMarkets(5);
+  const lines = markets.map(
+    (m) => `• <a href="${arcMarketUrl(m.kind, m.marketId)}">${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}</a> ${esc(m.question.slice(0, 90))} · ${timeLeft(m.deadline)}`,
+  );
+  const text = [
+    `<b>Open markets · ${total}</b>`,
+    "",
+    ...(lines.length ? lines : ["Nothing open right now. Open the first one."]),
+    total > markets.length ? `\n…and ${total - markets.length} more in the arena.` : "",
+  ].join("\n").trim();
+  // One card per minute at most: the bucket busts Telegram's cache without a fresh render per message.
+  const card = `${SITE_URL}/api/telegram/markets-card?t=${Math.floor(Date.now() / 60_000)}`;
+  await sendPhotoTo(chatId, card, text, { reply_markup: { inline_keyboard: [[{ text: "Open the arena", url: `${SITE_URL}/en/arena` }]] } });
 }
 
 /** In a group only the public commands answer; wallet, bets and alerts stay in private chats. */
@@ -306,6 +329,7 @@ export async function setup(): Promise<void> {
       { command: "price", description: "$MIMIR price and stats" },
       { command: "app", description: "Open Mimir" },
       { command: "ca", description: "$MIMIR contract address" },
+      { command: "markets", description: "Open markets" },
       { command: "leaderboard", description: "Leaderboard top 10" },
       { command: "website", description: "mimirmarkets.xyz" },
       { command: "alerts", description: "Choose which alerts you get" },
