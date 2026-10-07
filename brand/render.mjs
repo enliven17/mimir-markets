@@ -39,6 +39,7 @@ for (const [page, out, w, h] of [
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],
   ['article-oracle.html', 'article-oracle.png', 1600, 900],
   ['article-fees.html', 'article-fees.png', 1600, 900],
+  ['article-cover.html', 'article-cover.png', 1600, 640],
   // The brand kit: three sheets and transparent logo PNGs (512x512 at 2x).
   ['kit-logo.html', 'kit/mimir-kit-logo.png', 1600, 900],
   ['kit-color.html', 'kit/mimir-kit-colour.png', 1600, 900],

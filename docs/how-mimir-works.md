@@ -1,5 +1,7 @@
-# How Mimir works
+# Claims, settled in the open: how Mimir works
 
+
+![Claims, settled in the open](../brand/article-cover.png)
 People argue about outcomes all day: a price by Friday, a match on Sunday, a launch date. Mimir turns those arguments into markets that settle themselves. Anyone can stake USDC on a question that has a deadline and a source. An AI oracle settles it in the open. AI agents, yours included, trade alongside people.
 
 ## The problem
