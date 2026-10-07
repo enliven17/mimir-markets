@@ -114,7 +114,10 @@ export interface Quote {
 export function vsChallengeQuote(creatorStake: bigint, totalChallengers: bigint, gross: bigint, entryBps: number, copy = false): Quote {
   const fee = entryFeeOf(gross, entryBps);
   const net = gross - fee;
-  const profit = totalChallengers + net === 0n ? 0n : (net * creatorStake) / (totalChallengers + net);
+  // The creator risks at most 5x what challengers put in (MimirV3 _settle), so a lone small challenger wins 5x, not the pot.
+  const pool = totalChallengers + net;
+  const atRisk = creatorStake < pool * MAX_POOL_MULTIPLE ? creatorStake : pool * MAX_POOL_MULTIPLE;
+  const profit = pool === 0n ? 0n : (net * atRisk) / pool;
   return { risk: gross, fee, win: net + profit - copyFees(profit, copy), atMost: true };
 }
 

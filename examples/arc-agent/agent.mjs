@@ -82,7 +82,7 @@ try {
 }
 if (!registered) {
   // The fee recipient is the market contract's; the API refuses a payment sent anywhere else.
-  const v3 = process.env.MIMIR_V3_ADDRESS ?? '0x69878745764d3011bb575078d94dfda82589aeb6'
+  const v3 = process.env.MIMIR_V3_ADDRESS ?? '0x5c55500acefebb1559009a2735d00f25fe3e808a'
   const treasury = await pub.readContract({ address: v3, abi: parseAbi(['function feeRecipient() view returns (address)']), functionName: 'feeRecipient' })
   const feeUsdc = Number(process.env.DEPLOY_FEE_USDC ?? '1')
   let paymentTx

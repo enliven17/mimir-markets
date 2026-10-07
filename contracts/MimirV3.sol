@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 /// The entry-fee rate per account (contracts/MimirFees.sol).
 interface IMimirFees {
@@ -55,14 +55,19 @@ contract MimirV3 {
     /// Pool odds: the challengers' total stake may not exceed this multiple of
     /// the creator's stake, so each challenger's upside stays meaningful.
     uint256 public constant MAX_POOL_MULTIPLE      = 5;
-    /// 2 USDC (native, 18 decimals): the smallest amount a position may send, and the dispute bond.
-    /// Smallest stake (gross) that opens or joins a claim, fixed at deploy (0.01 to 100 USDC).
+    /// Smallest stake (gross, native USDC, 18 decimals) that opens or joins a claim, fixed at deploy (0.01 to 100 USDC).
     uint256 public immutable MIN_STAKE;
     uint256 public constant MIN_STAKE_FLOOR = 1e16;
     uint256 public constant MIN_STAKE_CEILING = 100e18;
     /// What a dispute costs, apart from the stake minimum: cheap bets must not make disputes cheap to spam.
     uint256 public constant DISPUTE_BOND = 2e18;
     uint256 public constant DEFAULT_PAYOUT_BPS     = 20_000;    // 2x
+    /// Fixed odds pay at most 10x: beyond it a challenge overflows the liability math and blocks the claim.
+    uint256 public constant MAX_PAYOUT_BPS         = 100_000;
+    /// A claim may close at most a year out, so a challenged stake is never locked indefinitely.
+    uint256 public constant MAX_DEADLINE_AHEAD     = 365 days;
+    /// Entry fees above 1% are refused, whatever the fee contract answers.
+    uint256 public constant MAX_ENTRY_BPS          = 100;
 
     // Anti-sniping: no new challenges accepted in the final N seconds before
     // a claim's deadline. Stops late-information actors from waiting to see
@@ -192,7 +197,7 @@ contract MimirV3 {
     event ClaimCreated(uint256 indexed id, address indexed creator, string category);
     event ClaimChallenged(uint256 indexed id, address indexed challenger, uint256 stake);
     event ClaimResolved(uint256 indexed id, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash);
-    event ClaimCancelled(uint256 indexed id);
+    event ClaimCancelled(uint256 indexed id, uint256 refunded);
     event OracleChanged(address indexed previous, address indexed next);
     event WithdrawalPending(address indexed to, uint256 amount);
     event Withdrawal(address indexed account, address indexed to, uint256 amount);
@@ -371,7 +376,9 @@ contract MimirV3 {
     /// return the rest: the stake that is recorded and can be won or refunded.
     function _takeEntry(uint256 claimId, uint256 amount) internal returns (uint256 net) {
         require(msg.value == amount, "Mimir: wrong USDC value");
-        uint256 fee = (amount * fees.entryBps(msg.sender)) / 10_000;
+        uint256 bps = fees.entryBps(msg.sender);
+        require(bps <= MAX_ENTRY_BPS, "Mimir: entry fee too high");
+        uint256 fee = (amount * bps) / 10_000;
         if (fee != 0) {
             _accrue(claimId, feeRecipient, fee);
             claimEntryFees[claimId] += fee;
@@ -547,6 +554,7 @@ contract MimirV3 {
     function _createClaim(CreateArgs memory a) internal returns (uint256 id) {
         require(a.stakeAmount >= MIN_STAKE, "Mimir: stake too small");
         require(a.deadline > block.timestamp, "Mimir: deadline in past");
+        require(a.deadline <= block.timestamp + MAX_DEADLINE_AHEAD, "Mimir: deadline too far");
         require(bytes(a.question).length > 0, "Mimir: empty question");
         // A private claim with no key would silently be public (a rematch of a
         // private parent included).
@@ -557,6 +565,7 @@ contract MimirV3 {
         uint256 payoutBps = isFixed
             ? (a.challengerPayoutBps >= 10_000 ? a.challengerPayoutBps : DEFAULT_PAYOUT_BPS)
             : 0;
+        require(payoutBps <= MAX_PAYOUT_BPS, "Mimir: payout too high");
 
         uint256 maxCh = (a.maxChallengers == 0 || a.maxChallengers > MAX_CHALLENGERS)
             ? MAX_CHALLENGERS
@@ -659,15 +668,14 @@ contract MimirV3 {
             block.timestamp + CHALLENGE_LOCK_SECONDS <= claim.deadline,
             "Mimir: challenge window closed"
         );
-        uint256 net = _takeEntry(claimId, stakeAmount);
-
-        // Private claim: verify invite key
+        // Private claim: verify invite key (before the fee contract is called).
         if (claim.isPrivate && claim.inviteKeyHash != bytes32(0)) {
             require(
                 keccak256(bytes(inviteKey)) == claim.inviteKeyHash,
                 "Mimir: invalid invite key"
             );
         }
+        uint256 net = _takeEntry(claimId, stakeAmount);
 
         // Fixed odds: ensure creator has enough unreserved liquidity
         if (_strEq(claim.oddsMode, "fixed")) {
@@ -796,25 +804,31 @@ contract MimirV3 {
     }
 
     /**
-     * Escape hatch. If the oracle has not resolved an ACTIVE claim within
-     * RESOLUTION_GRACE_SECONDS of its deadline (lost key, custody outage,
-     * a settlement that keeps reverting), anyone can refund it: every
-     * participant gets their stake back, exactly as an UNRESOLVABLE verdict
-     * would pay (the entry fee stays earned). Without this, the oracle going away
-     * would lock every open stake forever.
+     * Escape hatch, callable by anyone once RESOLUTION_GRACE_SECONDS have passed.
+     *  - An ACTIVE claim the oracle never resolved (lost key, custody outage, a
+     *    settlement that keeps reverting) is refunded: every participant gets
+     *    their stake back, exactly as an UNRESOLVABLE verdict would pay (the
+     *    entry fee stays earned). Without this, the oracle going away would lock
+     *    every open stake forever.
+     *  - A DISPUTED claim the arbiter never ruled on (grace counted from the
+     *    dispute) settles to the oracle's proposal, and the bond is forfeited:
+     *    a cheap dispute cannot turn a losing verdict into a free refund.
      */
     function refundExpired(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
-        // A disputed claim the arbiter never rules on gets the same escape hatch,
-        // counted from the dispute. The bond is kept (platform fees), so a cheap
-        // dispute cannot stall a losing verdict into a free refund.
         bool disputed = claim.state == ST_DISPUTED;
         require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
-        emit ClaimExpiredRefund(claimId, msg.sender);
-        _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));
-        if (disputed) _settleBond(claimId, proposals[claimId], false);
+        if (disputed) {
+            Proposal storage p = proposals[claimId];
+            emit DisputeResolved(claimId, p.winnerSide, false);
+            _settle(claimId, p.winnerSide, p.summary, p.confidence, p.evidenceHash);
+            _settleBond(claimId, p, false);
+        } else {
+            emit ClaimExpiredRefund(claimId, msg.sender);
+            _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));
+        }
     }
 
     /// When refundExpired opens for a claim: grace counted from the deadline,
@@ -847,7 +861,7 @@ contract MimirV3 {
         uint256 totalFees;
 
         if (winnerSide == SIDE_CREATOR) {
-            (uint256 paid, uint256 fees) = _payWinner(
+            (uint256 paid, uint256 taken) = _payWinner(
                 claimId,
                 claim.creator,
                 claim.creatorStake + claim.totalChallengerStake,
@@ -855,7 +869,7 @@ contract MimirV3 {
                 claimReferrer[claimId]
             );
             totalPaid += paid;
-            totalFees += fees;
+            totalFees += taken;
             wins[claim.creator]++;
             for (uint256 i = 0; i < claim.challengerCount; i++) {
                 losses[challengerAddresses[_chKey(claimId, i)]]++;
@@ -864,6 +878,11 @@ contract MimirV3 {
         } else if (winnerSide == SIDE_CHALLENGERS) {
             bool isFixed      = _strEq(claim.oddsMode, "fixed");
             uint256 remainder = claim.creatorStake;
+            // Pool odds: the creator risks at most MAX_POOL_MULTIPLE times what the
+            // challengers staked, the mirror of their cap. A dust challenger wins a
+            // matching slice, not the creator's whole stake; the rest goes back.
+            uint256 atRisk = claim.totalChallengerStake * MAX_POOL_MULTIPLE;
+            if (atRisk > claim.creatorStake) atRisk = claim.creatorStake;
 
             for (uint256 i = 0; i < claim.challengerCount; i++) {
                 uint256 key      = _chKey(claimId, i);
@@ -876,21 +895,23 @@ contract MimirV3 {
                     uint256 profit = payout > chStake ? payout - chStake : 0;
                     remainder = remainder > profit ? remainder - profit : 0;
                 } else {
-                    // Pool: proportional share of creator stake
-                    uint256 share = (chStake * claim.creatorStake) / claim.totalChallengerStake;
+                    // Pool: proportional share of the creator's stake at risk;
+                    // what the shares leave (the cap, rounding dust) is returned below.
+                    uint256 share = (chStake * atRisk) / claim.totalChallengerStake;
+                    remainder -= share;
                     payout = chStake + share;
                 }
 
-                (uint256 paid, uint256 fees) = _payWinner(
+                (uint256 paid, uint256 taken) = _payWinner(
                     claimId, ch, payout, chStake, challengerReferrer[key]
                 );
                 totalPaid += paid;
-                totalFees += fees;
+                totalFees += taken;
                 wins[ch]++;
             }
 
             losses[claim.creator]++;
-            if (isFixed && remainder > 0) {
+            if (remainder > 0) {
                 // Unspent creator liquidity, returned at cost: not a profit, not fee'd.
                 _transfer(claim.creator, remainder);
                 totalPaid += remainder;
@@ -921,7 +942,7 @@ contract MimirV3 {
 
         claim.state = ST_CANCELLED;
         _transfer(claim.creator, claim.creatorStake);
-        emit ClaimCancelled(claimId);
+        emit ClaimCancelled(claimId, claim.creatorStake);
     }
 
     // ── View: claim data ──────────────────────────────────────────────────────

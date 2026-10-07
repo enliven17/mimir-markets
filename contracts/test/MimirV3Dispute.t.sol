@@ -137,10 +137,11 @@ contract MimirV3DisputeTest {
         assert(!ok);
     }
 
-    function test_anUnruledDisputeIsRefundableAndForfeitsTheBond() public {
+    function test_anUnruledDisputeSettlesToTheProposalAndForfeitsTheBond() public {
         uint256 id = _claim();
         _propose(id, mimir.SIDE_CREATOR());
         uint256 aliceBefore = alice.balance;
+        uint256 creatorBefore = creator.balance;
         uint256 bondAmount = mimir.MIN_STAKE();
         vm.prank(alice);
         mimir.disputeResolution{value: bondAmount}(id);
@@ -148,7 +149,8 @@ contract MimirV3DisputeTest {
         vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
         vm.prank(bob);
         mimir.refundExpired(id);
-        assert(alice.balance - aliceBefore == STAKE - bondAmount); // stake back, bond kept
+        assert(aliceBefore - alice.balance == bondAmount); // the proposal stands, bond lost
+        assert(creator.balance - creatorBefore == 2 * STAKE);
         assert(mimir.accruedFees(platform) == bondAmount);
         assert(_state(id) == mimir.ST_RESOLVED());
     }

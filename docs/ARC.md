@@ -109,7 +109,7 @@ Review of 2026-10-06, no critical findings. What changes with the passkey model 
 | 1 | Medium (was High with a relayer) | `createClaim`, `challengeClaim`, `_payWinner` | The caller names `agentOwnerRecipient`. The user signs a hash, not readable calldata, so a compromised front end could name itself and take the agent fee (up to 10% of profit) | **Superseded by the fee rework (2026-10-07):** the agent fee is gone; the free-form field is now `referrer` (copy trades), worth a fixed 1% of profit. No allowlist: a passkey account signs a hash, so a compromised front end already controls the whole account; a list would only guard that 1% |
 | 2 | Medium | `refundExpired` vs `resolveClaim` / `resolveDispute` | After the grace period both are valid; a loser can front-run a late verdict with a refund | Verdicts revert after the grace period |
 | 3 | Medium | `resolveDispute` | Pays the bond (`_settleBond`) while the claim is still `ST_DISPUTED`; the payee can re-enter `refundExpired` and settle twice; only the 50k gas stipend stops it | Set state before any transfer; `nonReentrant` on every state-changing function |
-| 4 | Medium | `resolveDispute`, `transferOwnership` | The owner is the arbiter with no ownership timelock; a compromised owner can dispute and rule for itself; a loser can stall with cheap disputes | Multisig arbiter, timelocked ownership, keep the bond if a dispute is never ruled on |
+| 4 | Medium | `resolveDispute`, `transferOwnership` | The owner is the arbiter with no ownership timelock; a compromised owner can dispute and rule for itself; a loser can stall with cheap disputes | Multisig arbiter, timelocked ownership; a dispute never ruled on settles to the proposal and the bond is kept (M-1 below) |
 | 5 | Low | `_transfer` | Anyone can starve a recipient's 50k-gas push so it is parked (no loss) | The app calls `withdraw()` for the user when `pendingWithdrawals > 0` |
 | 6 | Low | whole contract | No reentrancy guard; safety rests on ordering + the gas stipend | Add one |
 | 7 | Low | `usdcPermit` | Permit front-running (ERC-20 mode only, not Arc) | Gone: ERC-20 mode removed (native USDC only) |
@@ -125,6 +125,20 @@ to native value transfers. Never deploy with `disputeWindow = 0` on mainnet.
 Before mainnet: a test per fix, invariant/fuzz tests on the money (balances + liabilities vs the contract's USDC),
 a fork test on Arc testnet with smart-account callers, Slither clean or every finding explained, and an
 **external audit**.
+
+### Second review (2026-10-07), fixed on this branch
+
+| # | Severity | Where | Issue | Fix |
+|---|---|---|---|---|
+| H-1 | High | `MimirV3._settle`, pool odds | A dust challenger on a big claim won the creator's whole stake (the 5× cap only bounded the challengers) | The creator risks at most 5× the challengers' total; each share is `stake × atRisk / total`; the rest (cap and rounding dust) goes back to the creator |
+| M-1 | Medium | `refundExpired`, both contracts | An unruled dispute refunded everyone, so a loser could buy a refund for the bond | A disputed claim past the grace settles to the oracle's proposal (`DisputeResolved(id, proposed, false)`) and the bond is forfeited; an unresolved ACTIVE / OPEN market is still a full refund |
+| L-1 | Low | `MimirPool` copy fees | A hedger paid the copy fee on their own losing-side money coming back | Fee on net profit: the share less the user's own losing-side stake, floored at 0 |
+| L-2 | Low | `MimirPool` copy fees | The first referrer taxed the profit of the user's whole position, copied or not | Copied stake is tracked per side (`copyA`, `copyB`); only its share of the net profit pays; the first referrer stays the payee; `claimable` matches `claimFor` |
+| L-3 | Low | `MimirFees` | Tickets signed by a rotated-out signer stayed valid until expiry; a pending ownership transfer could not be withdrawn | Each ticket records `signerEpoch`, bumped by `setSigner`; a stale ticket pays BASE_BPS. `cancelOwnershipTransfer()` added |
+| Caps | Low | both contracts | Unbounded inputs | Fixed payout ≤ 10× (`MAX_PAYOUT_BPS`); deadline ≤ 1 year out on create and rematch (`MAX_DEADLINE_AHEAD`); entry fee ≤ 1% whatever `MimirFees` answers (`MAX_ENTRY_BPS`); a private claim checks the invite key before calling the fee contract |
+
+Gas: a full claim (100 challengers whose `receive()` burns its whole stipend, 100 distinct referrers) finalizes in
+11.2M gas with the challengers winning, and refunds in 6.1M (test bound 16M). Pragma pinned to 0.8.28.
 
 ## What moves where
 
@@ -159,14 +173,14 @@ a fork test on Arc testnet with smart-account callers, Slither clean or every fi
     `MimirFees`), at most 2 days ahead (24 h in practice, spot balance). The account submits `applyTicket` in the
     same user operation as its bet. The signer can only lower fees, so a leaked signer key costs revenue, never user
     money; the owner rotates it at once.
-  - **Copy trades:** a position opened with a `referrer` (the copied basket's creator) pays 1% of its **profit** to
-    the referrer and 1% to the platform. Nothing on a loss or a refund; nobody pays themselves.
+  - **Copy trades:** a position opened with a `referrer` (the copied basket's creator) pays 1% of its **net profit**
+    (on the copied stake only) to the referrer and 1% to the platform. Nothing on a loss or a refund; nobody pays themselves.
   - One fee recipient per contract, changed only through a 2-day timelock; forfeited dispute bonds go there too.
   - Native USDC only: the ERC-20 mode (permit, multicall) is removed.
-- Tests: 113 pass (`forge test`), including smart-account callers, reentrancy attempts, fee tickets (wrong signer,
+- Tests: 136 pass (`forge test`), including smart-account callers, reentrancy attempts, fee tickets (wrong signer,
   replay by another account, upgrade, expiry, malleable signature, rotation) and invariant suites with real fees
   (escrow solvency, payouts ≤ pot, no winner below their net stake, claim fees only a copy share of profit). Runtime
-  sizes: MimirV3 21,245 B (3,331 under EIP-170, `optimizer_runs = 1`), MimirPool 11,938 B, MimirFees 2,391 B.
+  sizes: MimirV3 21,887 B (2,689 under EIP-170, `optimizer_runs = 1`), MimirPool 12,693 B, MimirFees 2,675 B.
   Slither not run yet (not installed).
 
 What the app and workers must handle: verdicts revert with `GraceOver()` once `refundExpired` is open; `msg.value`

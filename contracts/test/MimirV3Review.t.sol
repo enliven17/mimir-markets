@@ -247,8 +247,8 @@ contract MimirV3ReviewTest {
         vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
         mimir.refundExpired(id);
 
-        // Stake back, bond gone to the platform: stalling is not free.
-        assert(alice.balance == aliceBefore - bond + STAKE);
+        // The proposal stands and the bond goes to the platform: stalling gains nothing.
+        assert(alice.balance == aliceBefore - bond);
         assert(mimir.accruedFees(platform) == bond);
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed());
     }

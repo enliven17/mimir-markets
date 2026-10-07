@@ -377,13 +377,15 @@ contract MimirPoolTest {
         assert(alice.balance == 100 * ONE && carol.balance == 100 * ONE);
     }
 
-    function test_anUnruledDisputeIsRefundedAndTheBondIsKept() public {
-        uint256 id = _disputed();
+    function test_anUnruledDisputeSettlesToTheProposalAndForfeitsTheBond() public {
+        uint256 id = _disputed(); // proposed A; carol (B) disputed
         vm.warp(AFTER + pool.RESOLUTION_GRACE_SECONDS());
         pool.refundExpired(id);
-        pool.claimFor(id, carol);
-        assert(carol.balance == 98 * ONE); // stake back, bond kept
-        assert(pool.accruedFees(platform) == 2 * ONE);
+        assert(_state(id) == pool.ST_RESOLVED());
+        (uint256 alicePay,) = pool.claimable(id, alice);
+        (uint256 carolPay,) = pool.claimable(id, carol);
+        assert(alicePay == 20 * ONE && carolPay == 0); // the proposal stands
+        assert(pool.accruedFees(platform) == 2 * ONE); // bond forfeited
     }
 
     function test_aLateOracleVerdictReverts() public {

@@ -10,7 +10,7 @@ const V3_ABI = parseAbi([
   "event ClaimCreated(uint256 indexed id, address indexed creator, string category)",
   "event ClaimChallenged(uint256 indexed id, address indexed challenger, uint256 stake)",
   "event ClaimResolved(uint256 indexed id, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash)",
-  "event ClaimCancelled(uint256 indexed id)",
+  "event ClaimCancelled(uint256 indexed id, uint256 refunded)",
   "event ResolutionProposed(uint256 indexed id, uint8 winnerSide, uint8 confidence, bytes32 evidenceHash, uint256 disputableUntil)",
   "event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond)",
   "event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight)",
@@ -231,7 +231,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
 function eventRow(kind: Kind, log: DecodedLog) {
   const a = log.args;
   const user = (a.challenger ?? a.creator ?? a.user ?? a.participant ?? a.recipient ?? a.disputer ?? a.caller) as string | undefined;
-  const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond ?? a.totalPaid) as bigint | undefined;
+  const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond ?? a.totalPaid ?? a.refunded) as bigint | undefined;
   const side = (a.side ?? a.winnerSide ?? a.outcome) as number | undefined;
   return {
     kind,

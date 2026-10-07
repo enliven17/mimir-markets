@@ -26,6 +26,11 @@ test("vs challenge: the entry fee comes off the stake, no fee on winnings", () =
   assert.equal(vsChallengeQuote(u("2"), 0n, u("2"), 10).win, u("3.998"));
 });
 
+test("vs challenge: a small challenger wins at most 5x its stake, not the whole pot", () => {
+  // creator 100, I add 0.01 at 0%: the creator risks 5 x 0.01 = 0.05, so I win 0.01 + 0.05
+  assert.equal(vsChallengeQuote(u("100"), 0n, u("0.01"), 0).win, u("0.06"));
+});
+
 test("vs challenge: later challengers share the creator stake; copy trades give 2% of the profit", () => {
   // creator 2, 6 already in, net 2 at 0%: profit 2*2/8 = 0.5 → 2.5; as a copy: 0.5 - 1% - 1% = 0.49 → 2.49
   assert.equal(vsChallengeQuote(u("2"), u("6"), u("2"), 0).win, u("2.5"));

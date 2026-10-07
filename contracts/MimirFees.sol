@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 /**
  * MimirFees: the entry-fee rate each account pays on MimirV3 and MimirPool.
@@ -12,7 +12,9 @@ pragma solidity ^0.8.20;
  *
  * Trust: the signer can only lower an account's rate (BASE_BPS is the most
  * anyone pays), so a stolen signer key costs the protocol revenue, never a
- * user money. That is why rotating it is immediate, not timelocked.
+ * user money. That is why rotating it is immediate, not timelocked, and why a
+ * rotation retires every ticket the old signer issued (each ticket carries the
+ * signer epoch it was applied under).
  */
 contract MimirFees {
     uint16 public constant BASE_BPS = 50; // 0.5%
@@ -31,6 +33,7 @@ contract MimirFees {
     struct Ticket {
         uint8 tier;
         uint64 expires;
+        uint64 epoch;
     }
 
     mapping(address => Ticket) public tickets;
@@ -38,10 +41,13 @@ contract MimirFees {
     address public owner;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
+    /// Bumped by setSigner: tickets applied under an earlier epoch pay BASE_BPS.
+    uint64 public signerEpoch;
 
     event TicketApplied(address indexed account, uint8 tier, uint64 expires);
     event SignerChanged(address indexed previous, address indexed next);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner, uint256 eta);
+    event OwnershipTransferCancelled(address indexed pendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     error NotOwner();
@@ -69,6 +75,7 @@ contract MimirFees {
         if (next == address(0)) revert ZeroAddress();
         emit SignerChanged(signer, next);
         signer = next;
+        signerEpoch++;
     }
 
     function transferOwnership(address next) external onlyOwner {
@@ -76,6 +83,13 @@ contract MimirFees {
         pendingOwner = next;
         pendingOwnerEta = block.timestamp + OWNERSHIP_TIMELOCK_SECONDS;
         emit OwnershipTransferStarted(owner, next, pendingOwnerEta);
+    }
+
+    function cancelOwnershipTransfer() external onlyOwner {
+        if (pendingOwner == address(0)) revert NotPendingOwner();
+        emit OwnershipTransferCancelled(pendingOwner);
+        pendingOwner = address(0);
+        pendingOwnerEta = 0;
     }
 
     function acceptOwnership() external {
@@ -103,14 +117,14 @@ contract MimirFees {
         if (tier > 2) revert BadTier();
         if (expires <= block.timestamp || expires > block.timestamp + MAX_TICKET_SECONDS) revert BadExpiry();
         if (_recover(ticketDigest(msg.sender, tier, expires), sig) != signer) revert BadSignature();
-        tickets[msg.sender] = Ticket(tier, expires);
+        tickets[msg.sender] = Ticket(tier, expires, signerEpoch);
         emit TicketApplied(msg.sender, tier, expires);
     }
 
     /// The account's entry fee in basis points right now.
     function entryBps(address account) external view returns (uint16) {
         Ticket memory t = tickets[account];
-        if (t.expires <= block.timestamp) return BASE_BPS;
+        if (t.expires <= block.timestamp || t.epoch != signerEpoch) return BASE_BPS;
         return t.tier == 2 ? WHALE_BPS : t.tier == 1 ? HOLDER_BPS : BASE_BPS;
     }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 /// The entry-fee rate per account (contracts/MimirFees.sol).
 interface IMimirFees {
@@ -30,8 +30,9 @@ interface IMimirFees {
  *     for $MIMIR holders with a signed ticket); the rest is staked. The entry
  *     fee is earned and kept on refunds. Winnings pay no fee, except copy
  *     trades: a stake made with a `referrer` (the basket creator it copies)
- *     pays REFERRER_FEE_BPS of its profit to the referrer and COPY_FEE_BPS to
- *     the platform.
+ *     pays REFERRER_FEE_BPS of its net profit (less the user's own stake on the
+ *     losing side), on the copied part of the winning stake only, to the
+ *     referrer and COPY_FEE_BPS to the platform.
  *   - Payout: a winner gets their stake back plus a pro-rata share of the
  *     losing side, rounded down (dust stays in the contract, so payouts never
  *     exceed the pot). If either side is empty, or on DRAW / UNRESOLVABLE,
@@ -64,6 +65,9 @@ contract MimirPool {
     uint256 public constant DISPUTE_BOND = 2e18;
     /// No new stakes in the final LOCK_SECONDS before the deadline (anti-sniping).
     uint256 public constant LOCK_SECONDS = 60;
+    /// A market may close at most a year out; entry fees above 1% are refused whatever the fee contract answers.
+    uint256 public constant MAX_DEADLINE_AHEAD = 365 days;
+    uint256 public constant MAX_ENTRY_BPS = 100;
     /// Copy trades: the referrer's share of a winning stake's profit, and the platform's.
     uint16  public constant REFERRER_FEE_BPS = 100;
     uint16  public constant COPY_FEE_BPS = 100;
@@ -102,6 +106,9 @@ contract MimirPool {
     mapping(uint256 => mapping(address => bool)) public claimed;
     /// The referrer (copied basket's creator) of a user's stakes in a market: the first non-zero one named.
     mapping(uint256 => mapping(address => address)) public referrerOf;
+    /// Net stake each user placed with a referrer (a copy), per side: copy fees are charged on its profit only.
+    mapping(uint256 => mapping(address => uint256)) public copyA;
+    mapping(uint256 => mapping(address => uint256)) public copyB;
     /// Payouts whose push was refused, pulled with withdraw().
     mapping(address => uint256) public pendingWithdrawals;
     /// Fees and forfeited bonds owed to a recipient, pulled with claimFees().
@@ -159,6 +166,7 @@ contract MimirPool {
 
     // ── Errors ────────────────────────────────────────────────────────────────
     error BadMinStake();
+    error EntryFeeTooHigh();
     error NotOwner();
     error NotOracle();
     error NotPendingOwner();
@@ -318,7 +326,8 @@ contract MimirPool {
         address referrer
     ) external payable whenNotPaused nonReentrant returns (uint256 id) {
         if (bytes(question).length == 0) revert EmptyQuestion();
-        if (deadline < block.timestamp + LOCK_SECONDS || deadline > type(uint64).max) revert BadDeadline();
+        // At most a year out, so a staked market never locks funds indefinitely.
+        if (deadline < block.timestamp + LOCK_SECONDS || deadline > block.timestamp + MAX_DEADLINE_AHEAD) revert BadDeadline();
         id = ++marketCount;
         Market storage m = _markets[id];
         m.creator = msg.sender;
@@ -344,15 +353,19 @@ contract MimirPool {
 
     function _addStake(uint256 id, Market storage m, uint8 side, address referrer) internal {
         if (msg.value < MIN_STAKE) revert StakeTooSmall();
-        uint256 fee = (msg.value * fees.entryBps(msg.sender)) / 10_000;
+        uint256 bps = fees.entryBps(msg.sender);
+        if (bps > MAX_ENTRY_BPS) revert EntryFeeTooHigh();
+        uint256 fee = (msg.value * bps) / 10_000;
         if (fee != 0) _accrue(id, feeRecipient, fee);
         uint256 net = msg.value - fee;
         if (side == SIDE_A) {
             stakeA[id][msg.sender] += net;
             m.totalA += net;
+            if (referrer != address(0)) copyA[id][msg.sender] += net;
         } else if (side == SIDE_B) {
             stakeB[id][msg.sender] += net;
             m.totalB += net;
+            if (referrer != address(0)) copyB[id][msg.sender] += net;
         } else {
             revert BadSide();
         }
@@ -446,17 +459,23 @@ contract MimirPool {
         _settleBond(id, m, disputerRight);
     }
 
-    /// Escape hatch: a market nobody settled in time is refunded in full, by anyone.
+    /// Escape hatch, by anyone once the grace has passed. A market the oracle never resolved is refunded in full;
+    /// a dispute the arbiter never ruled on settles to the oracle's proposal and the bond is forfeited, so a cheap
+    /// dispute cannot turn a loss into a free refund.
     function refundExpired(uint256 id) external nonReentrant {
         Market storage m = _markets[id];
         if (m.creator == address(0)) revert NoMarket();
         bool disputed = m.state == ST_DISPUTED;
         if (!disputed && m.state != ST_OPEN) revert NotOpen();
         if (block.timestamp < _refundAt(m)) revert GraceNotOver();
-        emit MarketExpiredRefund(id, msg.sender);
-        _settle(id, m, UNRESOLVABLE, "Refunded: not resolved within the grace period", bytes32(0));
-        // An unruled dispute cannot stall a loss into a free refund.
-        if (disputed) _settleBond(id, m, false);
+        if (disputed) {
+            emit DisputeResolved(id, m.proposed, false);
+            _settle(id, m, m.proposed, m.summary, m.evidenceHash);
+            _settleBond(id, m, false);
+        } else {
+            emit MarketExpiredRefund(id, msg.sender);
+            _settle(id, m, UNRESOLVABLE, "Refunded: not resolved within the grace period", bytes32(0));
+        }
     }
 
     function _settle(uint256 id, Market storage m, uint8 outcome, string memory summary, bytes32 evidenceHash)
@@ -479,31 +498,41 @@ contract MimirPool {
 
     // ── Claims ────────────────────────────────────────────────────────────────
     /// What `user` is owed from a resolved market: gross = stake back + share of
-    /// the losing side; profit = the share alone. Full refund when either side
-    /// is empty or on DRAW / UNRESOLVABLE.
-    function _owed(uint256 id, Market storage m, address user) internal view returns (uint256 gross, uint256 profit) {
+    /// the losing side. Full refund when either side is empty or on DRAW /
+    /// UNRESOLVABLE. `feeBase` is the profit copy fees may be charged on: the
+    /// user's NET profit (the share less their own stake on the losing side, so a
+    /// hedger never pays a copy fee on their own money), counted only on the
+    /// copied part of the winning stake.
+    function _owed(uint256 id, Market storage m, address user) internal view returns (uint256 gross, uint256 feeBase) {
         uint256 a = stakeA[id][user];
         uint256 b = stakeB[id][user];
         uint8 o = m.outcome;
         bool contested = m.totalA != 0 && m.totalB != 0;
+        uint256 win;
+        uint256 lose;
+        uint256 copied;
+        uint256 profit;
         if (contested && o == SIDE_A) {
+            (win, lose, copied) = (a, b, copyA[id][user]);
             profit = (a * m.totalB) / m.totalA;
-            gross = a == 0 ? 0 : a + profit;
         } else if (contested && o == SIDE_B) {
+            (win, lose, copied) = (b, a, copyB[id][user]);
             profit = (b * m.totalA) / m.totalB;
-            gross = b == 0 ? 0 : b + profit;
         } else {
-            gross = a + b;
+            return (a + b, 0);
         }
+        if (win == 0) return (0, 0);
+        gross = win + profit;
+        if (profit > lose && copied != 0) feeBase = ((profit - lose) * copied) / win;
     }
 
-    /// Copy-trade fees on a winning stake's profit: (to the referrer, to the platform).
+    /// Copy-trade fees on the copied net profit (`_owed`): (to the referrer, to the platform).
     /// Nobody pays themselves: a referrer or fee recipient who is the user waives that leg.
-    function _copyFees(uint256 id, address user, uint256 profit) internal view returns (uint256 toRef, uint256 toPlatform) {
+    function _copyFees(uint256 id, address user, uint256 feeBase) internal view returns (uint256 toRef, uint256 toPlatform) {
         address ref = referrerOf[id][user];
-        if (profit == 0 || ref == address(0) || ref == user) return (0, 0);
-        toRef = (profit * REFERRER_FEE_BPS) / 10_000;
-        if (feeRecipient != user) toPlatform = (profit * COPY_FEE_BPS) / 10_000;
+        if (feeBase == 0 || ref == address(0) || ref == user) return (0, 0);
+        toRef = (feeBase * REFERRER_FEE_BPS) / 10_000;
+        if (feeRecipient != user) toPlatform = (feeBase * COPY_FEE_BPS) / 10_000;
     }
 
     /// Collect your own payout.
@@ -517,10 +546,10 @@ contract MimirPool {
         Market storage m = _markets[id];
         if (m.state != ST_RESOLVED || m.creator == address(0)) revert NotResolved();
         if (claimed[id][user]) revert AlreadyClaimed();
-        (uint256 gross, uint256 profit) = _owed(id, m, user);
+        (uint256 gross, uint256 feeBase) = _owed(id, m, user);
         if (gross == 0) revert NothingToClaim();
         claimed[id][user] = true;
-        (uint256 toRef, uint256 toPlatform) = _copyFees(id, user, profit);
+        (uint256 toRef, uint256 toPlatform) = _copyFees(id, user, feeBase);
         if (toRef != 0) _accrue(id, referrerOf[id][user], toRef);
         if (toPlatform != 0) _accrue(id, feeRecipient, toPlatform);
         uint256 fee = toRef + toPlatform;
@@ -630,8 +659,8 @@ contract MimirPool {
     function claimable(uint256 id, address user) external view returns (uint256 payout, uint256 fee) {
         Market storage m = _markets[id];
         if (m.state != ST_RESOLVED || claimed[id][user]) return (0, 0);
-        (uint256 gross, uint256 profit) = _owed(id, m, user);
-        (uint256 toRef, uint256 toPlatform) = _copyFees(id, user, profit);
+        (uint256 gross, uint256 feeBase) = _owed(id, m, user);
+        (uint256 toRef, uint256 toPlatform) = _copyFees(id, user, feeBase);
         fee = toRef + toPlatform;
         payout = gross - fee;
     }
