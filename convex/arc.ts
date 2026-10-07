@@ -189,3 +189,9 @@ export const openMarkets = internalQuery({
       (m) => !m.isPrivate && (m.status === "open" || m.status === "active"),
     ),
 });
+
+/** Every market one address opened (lowercase), any status. */
+export const marketsBy = internalQuery({
+  args: { creator: v.string() },
+  handler: async (ctx, { creator }) => ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).collect(),
+});

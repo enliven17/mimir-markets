@@ -8,4 +8,6 @@ crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});
 crons.interval("arc oracle", { minutes: 1 }, internal.arcOracle.tick, {});
 // The council: a few persona decisions per tick, each at most one throttled LLM call (convex/arcCouncil.ts).
 crons.interval("arc council", { minutes: 5 }, internal.arcCouncil.tick, {});
+// The house market creator: drafts and opens VS markets hourly (convex/arcCreator.ts).
+crons.interval("arc market creator", { hours: 1 }, internal.arcCreator.tick, {});
 export default crons;

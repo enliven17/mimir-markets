@@ -56,6 +56,15 @@ function asCouncilClaim(m: Market, positions: Position[]): CouncilClaim {
   } as unknown as CouncilClaim;
 }
 
+/** The house creator's Arc address: rule personas trade only its markets (persona-rules.ts). */
+function houseCreator(): string | null {
+  try {
+    return (JSON.parse(process.env.ARC_CREATOR_WALLET ?? "null")?.address as string | undefined)?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** 6-dp units as the decimal USDC string Circle takes for msg.value. */
 const usdcString = (u: bigint) => (Number(u) / 1e6).toFixed(6).replace(/\.?0+$/, "");
 
@@ -98,7 +107,7 @@ export const tick = internalAction({
         const record = (d: { outcome: "staked" | "abstained" | "retry" | "failed"; rationale: string; confidence?: number; amount?: string; txHash?: string; until: number }) =>
           ctx.runMutation(internal.arcCouncilDb.record, { slug: persona.slug, kind: m.kind, marketId: m.marketId, ...d });
         try {
-          const decision = await evaluatePersonaForClaim(persona, claim, { evidenceCache, throttle, recordForecasts: false, houseCreator: null, mainnet: cfg.network === "mainnet" });
+          const decision = await evaluatePersonaForClaim(persona, claim, { evidenceCache, throttle, recordForecasts: false, houseCreator: houseCreator(), mainnet: cfg.network === "mainnet" });
           if (!decision.shouldStake) {
             const transient = decision.skipReason === "llm-failed" || decision.skipReason === "no-evidence";
             const considered = !transient && persona.archetype !== "rule-based";
