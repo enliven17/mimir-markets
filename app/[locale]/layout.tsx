@@ -9,6 +9,7 @@ import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
 import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
+import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
 import SkipToContentLink from "@/components/SkipToContentLink";
 import { SITE_URL } from "@/lib/site";
 
@@ -55,6 +56,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <NextIntlClientProvider messages={messages}>
+      <ConvexClientProvider>
       <WalletSheetProvider>
         <HtmlLang locale={locale} />
         <SkipToContentLink />
@@ -67,6 +69,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         <Footer />
         <ArcLaunchModal />
       </WalletSheetProvider>
+      </ConvexClientProvider>
     </NextIntlClientProvider>
   );
 }

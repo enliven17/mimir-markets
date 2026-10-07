@@ -1,5 +1,6 @@
 "use client";
 
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Marquee, RollingNumber, useInViewOnce } from "@/components/motion";
@@ -76,14 +77,14 @@ export default function LiveStrip() {
           </dd>
         </div>
         <div className="l-stat">
-          <dt>{t("liveOnEr")}</dt>
+          <dt>{arcArenaEnabled ? t("openNow") : t("liveOnEr")}</dt>
           <dd>{value(stats.liveOnEr, whole)}</dd>
         </div>
         <div className="l-src" data-state={status}>
           <dt className="sr-only">{t("network")}</dt>
           <dd className="flex items-center gap-2">
             <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
-            {status === "error" ? t("offline") : t("networkValue")}
+            {status === "error" ? t("offline") : arcArenaEnabled ? t("networkArc") : t("networkValue")}
           </dd>
         </div>
       </dl>
@@ -98,7 +99,7 @@ export default function LiveStrip() {
             {items.map((c, i) => (
               <span key={`${c.id}-${i}`} className="l-tx">
                 <span className="l-tx-sq" data-done={c.state === ST_RESOLVED || undefined} />
-                <span className="l-tx-id">#{c.id}</span>
+                <span className="l-tx-id">{c.label ?? `#${c.id}`}</span>
                 <span>{clip(c.question)}</span>
                 <span className="l-tx-pool">
                   {formatUsdcBare(poolUsdc(c))} {t("usdc")}

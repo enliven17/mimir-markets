@@ -1,9 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { requestRefresh } from "@/lib/motion";
 import type { LandingFeed } from "@/lib/landing";
 import { cachedBody, cachedJson, fetchBody } from "@/lib/json-cache";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
+import { arcLandingFeed } from "@/lib/arc/landing";
 
 const FEED_URL = "/api/arena/claims";
 
@@ -37,7 +41,25 @@ export function requestScrollRefresh(): void {
   requestRefresh();
 }
 
+/** Arc: the same feed from the live Convex index; no polling, Convex pushes changes. */
+function ArcLandingFeedProvider({ children }: { children: ReactNode }) {
+  const markets = useQuery(api.arc.markets, { limit: 500 });
+  const loaded = useRef(false);
+  useEffect(() => {
+    if (markets && !loaded.current) {
+      loaded.current = true;
+      requestScrollRefresh();
+    }
+  }, [markets]);
+  const state = useMemo<FeedState>(() => (markets ? { feed: arcLandingFeed(markets), status: "ready" } : { feed: null, status: "loading" }), [markets]);
+  return <FeedContext.Provider value={state}>{children}</FeedContext.Provider>;
+}
+
 export default function LandingFeedProvider({ children }: { children: ReactNode }) {
+  return arcArenaEnabled ? <ArcLandingFeedProvider>{children}</ArcLandingFeedProvider> : <SolanaLandingFeedProvider>{children}</SolanaLandingFeedProvider>;
+}
+
+function SolanaLandingFeedProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<FeedState>(() => {
     const json = cachedJson<{ success?: boolean; data?: LandingFeed }>(FEED_URL);
     return json?.success && json.data ? { feed: json.data, status: "ready" } : { feed: null, status: "loading" };

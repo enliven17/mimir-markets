@@ -17,12 +17,12 @@ function LedgerCard({ entry }: { entry: LedgerEntry }) {
   const { claim, tag, side, pool } = entry;
   const summary = claim.resolutionSummary?.trim();
   return (
-    <Link href={`/arena/${claim.id}`} className="l-card">
+    <Link href={claim.href ?? `/arena/${claim.id}`} className="l-card">
       <div className="l-card-top">
         <span className="l-tag" data-tag={tag}>
           {t(`tags.${tag}`)}
         </span>
-        <span className="font-mono text-dim">#{claim.id}</span>
+        <span className="font-mono text-dim">{claim.label ?? `#${claim.id}`}</span>
       </div>
       <h3>{claim.question}</h3>
       <div className="l-card-verdict">

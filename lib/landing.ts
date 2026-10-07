@@ -17,6 +17,10 @@ export interface LandingChallenger {
 /** The subset of the API claim the landing reads. */
 export interface LandingClaim {
   id: number;
+  /** Where the claim lives; defaults to /arena/<id> (Arc markets set /arena/arc/<kind>/<id>). */
+  href?: string;
+  /** How to show the id; defaults to #<id>. */
+  label?: string;
   question: string;
   category: string;
   creatorPosition: string;
@@ -62,7 +66,8 @@ export function liveStats(feed: LandingFeed | null): LiveStats {
     markets: feed.claimCount,
     resolved: feed.totalResolved,
     openPool: unitsToUsdc(feed.openPool),
-    liveOnEr: feed.claims.filter((c) => isLiveState(c.state) && c.delegated).length,
+    // Arc has no rollup: its strip shows open markets in this slot ("Open now").
+    liveOnEr: feed.claims.filter((c) => isLiveState(c.state) && (c.delegated || c.href !== undefined)).length,
   };
 }
 

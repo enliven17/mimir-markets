@@ -425,6 +425,8 @@
       "usdc": "USDC",
       "network": "Network",
       "networkValue": "Solana devnet",
+      "networkArc": "Arc testnet",
+      "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
       "tickerEmpty": "No claims yet. The first one could be yours."
