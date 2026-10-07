@@ -1,64 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {FlatFees} from "./FlatFees.sol";
 
 /**
- * Optimistic resolution with a dispute window, and one-signature staking via
- * EIP-2612 permit + multicall.
+ * Optimistic resolution with a dispute window. Entry fees are 0 here
+ * (FlatFees(0)) so the amounts isolate the dispute mechanics.
  */
 interface Vm {
     function warp(uint256) external;
     function deal(address, uint256) external;
     function prank(address) external;
-    function addr(uint256) external returns (address);
-    function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
-}
-
-/// 6-decimal token with a real EIP-2612 permit.
-contract PermitUSDC {
-    uint8 public constant decimals = 6;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    mapping(address => uint256) public nonces;
-    bytes32 public immutable DOMAIN_SEPARATOR;
-    bytes32 constant PERMIT_TYPEHASH =
-        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-
-    constructor() {
-        DOMAIN_SEPARATOR = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("USDC"), keccak256("2"), block.chainid, address(this)
-        ));
-    }
-
-    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(block.timestamp <= deadline, "expired");
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR,
-            keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))));
-        require(ecrecover(digest, v, r, s) == owner, "bad sig");
-        allowance[owner][spender] = value;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
 }
 
 contract MimirV3DisputeTest {
@@ -78,7 +31,7 @@ contract MimirV3DisputeTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, 50, 0, platform, address(0), WINDOW);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
@@ -153,8 +106,8 @@ contract MimirV3DisputeTest {
 
         mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)));
         assert(_state(id) == mimir.ST_RESOLVED());
-        // Alice got her bond back and won the pot (minus the 50 bps fee on profit).
-        assert(alice.balance - aliceBefore == 2 * STAKE - (STAKE * 50) / 10_000);
+        // Alice got her bond back and won the whole pot (no fee on winnings).
+        assert(alice.balance - aliceBefore == 2 * STAKE);
     }
 
     function test_aWrongDisputeForfeitsTheBondToThePlatform() public {
@@ -206,48 +159,6 @@ contract MimirV3DisputeTest {
     }
 
     function deployWithWindow(uint256 window) external {
-        new MimirV3(oracle, 50, 0, platform, address(0), window);
-    }
-
-    // ── permit + multicall ──────────────────────────────────────────────────
-
-    function test_aPermitAndAStakeGoThroughInOneTransaction() public {
-        PermitUSDC usdc = new PermitUSDC();
-        MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(usdc), 0);
-        uint256 key = 0xA11CE5;
-        address owner = vm.addr(key);
-        usdc.mint(owner, 100e6);
-        usdc.mint(creator, 100e6);
-
-        // The creator opens with a plain approve; the challenger uses permit.
-        vm.prank(creator);
-        usdc.approve(address(m), 10e6);
-        vm.prank(creator);
-        uint256 id = m.createClaim(
-            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, 10e6,
-            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
-        );
-
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", usdc.DOMAIN_SEPARATOR(), keccak256(abi.encode(
-            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
-            owner, address(m), uint256(5e6), uint256(0), deadline
-        ))));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, digest);
-
-        bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeWithSelector(MimirV3.usdcPermit.selector, uint256(5e6), deadline, v, r, s);
-        calls[1] = abi.encodeWithSelector(MimirV3.challengeClaim.selector, id, uint256(5e6), "", address(0));
-        vm.prank(owner);
-        m.multicall(calls);
-
-        assert(m.hasChallenged(id, owner));
-        assert(usdc.balanceOf(owner) == 95e6);
-    }
-
-    function test_multicallIsRefusedInNativeMode() public {
-        bytes[] memory calls = new bytes[](0);
-        (bool ok,) = address(mimir).call(abi.encodeWithSelector(MimirV3.multicall.selector, calls));
-        assert(!ok);
+        new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), window);
     }
 }

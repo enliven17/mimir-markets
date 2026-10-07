@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {MimirFees} from "../MimirFees.sol";
 
 /**
  * Invariants on the money, over random sequences of create / challenge /
@@ -11,7 +12,11 @@ import {MimirV3} from "../MimirV3.sol";
  *   1. The escrow's native balance covers everything it owes: parked payouts,
  *      accrued fees, and every stake and bond of a market not yet settled.
  *   2. The fee books agree: accrued minus claimed equals the open fee balances.
- *   3. No winner (and nobody refunded) ever gets back less than their stake.
+ *   3. No winner (and nobody refunded) ever gets back less than their stake
+ *      (the net stake recorded after the entry fee).
+ *
+ * Fees in play: the real 0.5% entry fee on every position, and the 1% + 1%
+ * copy-trade fee on the profit of positions opened with a referrer.
  *
  * Dependency-free: forge reads targetContracts() by selector, no forge-std.
  */
@@ -286,10 +291,9 @@ contract MimirV3InvariantTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        // Real fees on both legs, and a dispute window, so every path moves money.
-        mimir = new MimirV3(oracle, 500, 300, platform, address(0), 1 hours);
-        mimir.setAgentPayout(agent, true);
-        uint256 t = 1_000_000 + mimir.FEE_TIMELOCK_SECONDS();
+        // Entry fees, referrers ("agent" here) and a dispute window, so every path moves money.
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 1 hours);
+        uint256 t = 1_000_000 + 2 days;
         vm.warp(t);
 
         Refuser refuser = new Refuser();

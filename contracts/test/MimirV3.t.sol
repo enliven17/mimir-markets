@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {MimirFees} from "../MimirFees.sol";
 
 /**
- * Tests for the fee-bearing escrow.
+ * Tests for the fee-bearing escrow: an entry fee on every position, no fee on
+ * winnings except copy trades (1% of profit to the referrer, 1% to the platform).
  *
  * Deliberately dependency-free: only the cheatcodes actually needed are
- * declared, so the suite runs without vendoring forge-std into the repo. The
- * assertions are the ones that decide whether the money is safe, not a
- * line-coverage exercise.
+ * declared, so the suite runs without vendoring forge-std into the repo.
  */
 interface Vm {
     function warp(uint256) external;
     function deal(address, uint256) external;
     function prank(address) external;
-    function startPrank(address) external;
-    function stopPrank() external;
 }
 
 /** A recipient whose receive() reverts, to prove one bad address cannot freeze a settlement. */
@@ -38,10 +36,11 @@ contract MimirV3Test {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     MimirV3 mimir;
+    MimirFees fees;
 
     address oracle = address(0x0417ac1e);
     address platform = address(0xFEE);
-    address agentOwner = address(0xA6E7);
+    address referrer = address(0xA6E7);
     address creator = address(0xC7ea704);
     address challenger = address(0xC4a11e);
 
@@ -51,11 +50,8 @@ contract MimirV3Test {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, 50, 50, platform, address(0), 0);
-        // Agent payout wallets must be listed (review finding #1).
-        mimir.setAgentPayout(agentOwner, true);
-        mimir.setAgentPayout(creator, true);
-        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
+        fees = new MimirFees(address(0x5161));
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(fees)), 0);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(challenger, 1_000 * ONE);
         vm.deal(address(this), 1_000 * ONE);
@@ -63,32 +59,26 @@ contract MimirV3Test {
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    function _create(address who, uint256 stake, address agent) internal returns (uint256 id) {
+    /// The base entry fee (0.5%) and what is staked after it.
+    function _fee(uint256 amount) internal pure returns (uint256) {
+        return (amount * 50) / 10_000;
+    }
+
+    function _net(uint256 amount) internal pure returns (uint256) {
+        return amount - _fee(amount);
+    }
+
+    function _create(address who, uint256 stake, address ref) internal returns (uint256 id) {
         vm.prank(who);
         id = mimir.createClaim{value: stake}(
-            "Will it?",
-            "yes",
-            "no",
-            "https://example.com",
-            block.timestamp + DEADLINE_GAP,
-            stake,
-            "custom",
-            0,
-            "binary",
-            "pool",
-            0,
-            "",
-            "resolve from the source",
-            0,
-            false,
-            "",
-            agent
+            "Will it?", "yes", "no", "https://example.com", block.timestamp + DEADLINE_GAP, stake,
+            "custom", 0, "binary", "pool", 0, "", "resolve from the source", 0, false, "", ref
         );
     }
 
-    function _challenge(address who, uint256 id, uint256 stake, address agent) internal {
+    function _challenge(address who, uint256 id, uint256 stake, address ref) internal {
         vm.prank(who);
-        mimir.challengeClaim{value: stake}(id, stake, "", agent);
+        mimir.challengeClaim{value: stake}(id, stake, "", ref);
     }
 
     function _settle(uint256 id, uint8 side) internal {
@@ -97,89 +87,148 @@ contract MimirV3Test {
         mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
     }
 
-    // ── Fees are charged on profit, never on principal ──────────────────────
+    // ── Entry fee ───────────────────────────────────────────────────────────
 
-    function test_feeIsChargedOnProfitOnly() public {
-        uint256 id = _create(creator, STAKE, agentOwner);
+    function test_everyPositionPaysTheEntryFee() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, address(0));
+
+        (,,,,, uint256 creatorStake, uint256 challengers,,,,,,,,,,,) = mimir.getClaim(id);
+        assert(creatorStake == _net(STAKE));
+        assert(challengers == _net(STAKE));
+        assert(mimir.accruedFees(platform) == 2 * _fee(STAKE));
+        (uint256 entryFees,) = mimir.getClaimFees(id);
+        assert(entryFees == 2 * _fee(STAKE));
+    }
+
+    function test_theValueMustMatchTheStake() public {
+        vm.prank(creator);
+        (bool ok,) = address(mimir).call{value: STAKE - 1}(
+            abi.encodeWithSelector(
+                MimirV3.createClaim.selector, "q", "yes", "no", "u", block.timestamp + DEADLINE_GAP, STAKE,
+                "custom", uint256(0), "binary", "pool", uint256(0), "", "", uint256(0), false, "", address(0)
+            )
+        );
+        assert(!ok);
+    }
+
+    function test_theMinimumAppliesToWhatIsSent() public {
+        // 2 USDC sent is enough even though 1.99 is staked after the fee.
+        uint256 id = _create(creator, 2 * ONE, address(0));
+        (,,,,, uint256 creatorStake,,,,,,,,,,,,) = mimir.getClaim(id);
+        assert(creatorStake == _net(2 * ONE));
+    }
+
+    // ── Winnings: no fee, except copy trades ────────────────────────────────
+
+    function test_aWinnerTakesBothNetStakesWithNoFee() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, address(0));
+
+        uint256 before = creator.balance;
+        _settle(id, mimir.SIDE_CREATOR());
+        assert(creator.balance - before == 2 * _net(STAKE));
+        assert(mimir.accruedFees(platform) == 2 * _fee(STAKE));
+    }
+
+    function test_aCopyTradePaysOnePercentEachOnProfit() public {
+        uint256 id = _create(creator, STAKE, referrer);
         _challenge(challenger, id, STAKE, address(0));
 
         uint256 before = creator.balance;
         _settle(id, mimir.SIDE_CREATOR());
 
-        // Gross 20, principal 10, profit 10. Platform 50bps + agent owner 50bps of 10.
-        uint256 profit = 10 * ONE;
-        uint256 expectedFees = (profit * 50) / 10_000 + (profit * 50) / 10_000;
-        assert(creator.balance - before == 20 * ONE - expectedFees);
-        assert(mimir.accruedFees(platform) == (profit * 50) / 10_000);
-        assert(mimir.accruedFees(agentOwner) == (profit * 50) / 10_000);
+        uint256 profit = _net(STAKE);
+        uint256 copyFees = (profit * 100) / 10_000 + (profit * 100) / 10_000;
+        assert(creator.balance - before == 2 * _net(STAKE) - copyFees);
+        assert(mimir.accruedFees(referrer) == (profit * 100) / 10_000);
+        assert(mimir.accruedFees(platform) == 2 * _fee(STAKE) + (profit * 100) / 10_000);
     }
 
-    function test_winnerNeverReceivesLessThanPrincipal() public {
-        uint256 id = _create(creator, STAKE, agentOwner);
-        _challenge(challenger, id, 2 * ONE, address(0));
-
-        uint256 before = creator.balance;
+    function test_aLosingCopyTradePaysNoCopyFee() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, referrer);
         _settle(id, mimir.SIDE_CREATOR());
-
-        assert(creator.balance - before >= STAKE);
+        assert(mimir.accruedFees(referrer) == 0);
     }
 
-    function test_refundsAreFree() public {
-        uint256 id = _create(creator, STAKE, agentOwner);
-        _challenge(challenger, id, STAKE, agentOwner);
-
-        uint256 creatorBefore = creator.balance;
-        uint256 challengerBefore = challenger.balance;
+    function test_aRefundPaysNoCopyFee() public {
+        uint256 id = _create(creator, STAKE, referrer);
+        _challenge(challenger, id, STAKE, referrer);
         _settle(id, mimir.SIDE_DRAW());
-
-        assert(creator.balance - creatorBefore == STAKE);
-        assert(challenger.balance - challengerBefore == STAKE);
-        assert(mimir.lifetimeFeesAccrued() == 0);
-    }
-
-    function test_unresolvableRefundsInFull() public {
-        uint256 id = _create(creator, STAKE, address(0));
-        _challenge(challenger, id, STAKE, address(0));
-
-        uint256 challengerBefore = challenger.balance;
-        _settle(id, mimir.SIDE_UNRESOLVABLE());
-
-        assert(challenger.balance - challengerBefore == STAKE);
-        assert(mimir.lifetimeFeesAccrued() == 0);
-    }
-
-    function test_noAgentAttributionMeansNoAgentLeg() public {
-        uint256 id = _create(creator, STAKE, address(0));
-        _challenge(challenger, id, STAKE, address(0));
-        _settle(id, mimir.SIDE_CREATOR());
-
-        assert(mimir.accruedFees(agentOwner) == 0);
-        assert(mimir.accruedFees(platform) > 0);
+        assert(mimir.accruedFees(referrer) == 0);
+        assert(mimir.accruedFees(platform) == 2 * _fee(STAKE));
     }
 
     function test_nobodyPaysThemselves() public {
-        // The winner is also the attributed agent owner: that leg is waived.
+        // The winner is its own referrer: no copy fee at all.
         uint256 id = _create(creator, STAKE, creator);
         _challenge(challenger, id, STAKE, address(0));
+        uint256 before = creator.balance;
         _settle(id, mimir.SIDE_CREATOR());
-
+        assert(creator.balance - before == 2 * _net(STAKE));
         assert(mimir.accruedFees(creator) == 0);
     }
 
-    function test_challengerAttributionIsPerPosition() public {
+    function test_aChallengersReferrerIsPerPosition() public {
         uint256 id = _create(creator, STAKE, address(0));
-        _challenge(challenger, id, STAKE, agentOwner);
+        _challenge(challenger, id, STAKE, referrer);
         _settle(id, mimir.SIDE_CHALLENGERS());
+        assert(mimir.accruedFees(referrer) == (_net(STAKE) * 100) / 10_000);
+    }
 
-        // The challenger won through an agent, so the agent owner earns.
-        assert(mimir.accruedFees(agentOwner) > 0);
+    function test_aWinnerNeverReceivesLessThanTheirNetStake() public {
+        uint256 id = _create(creator, STAKE, referrer);
+        _challenge(challenger, id, 2 * ONE, address(0));
+        uint256 before = creator.balance;
+        _settle(id, mimir.SIDE_CREATOR());
+        assert(creator.balance - before >= _net(STAKE));
+    }
+
+    // ── Refunds keep the entry fee ──────────────────────────────────────────
+
+    function test_aDrawRefundsTheNetStakes() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, address(0));
+        uint256 creatorBefore = creator.balance;
+        uint256 challengerBefore = challenger.balance;
+        _settle(id, mimir.SIDE_DRAW());
+        assert(creator.balance - creatorBefore == _net(STAKE));
+        assert(challenger.balance - challengerBefore == _net(STAKE));
+        assert(mimir.lifetimeFeesAccrued() == 2 * _fee(STAKE));
+    }
+
+    function test_unresolvableRefundsTheNetStakes() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, address(0));
+        uint256 challengerBefore = challenger.balance;
+        _settle(id, mimir.SIDE_UNRESOLVABLE());
+        assert(challenger.balance - challengerBefore == _net(STAKE));
+    }
+
+    function test_aCancelRefundsTheNetStake() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        uint256 before = creator.balance;
+        vm.prank(creator);
+        mimir.cancelClaim(id);
+        assert(creator.balance - before == _net(STAKE));
+        assert(mimir.accruedFees(platform) == _fee(STAKE));
+    }
+
+    function test_anExpiredRefundKeepsTheEntryFee() public {
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(challenger, id, STAKE, address(0));
+        vm.warp(block.timestamp + DEADLINE_GAP + mimir.RESOLUTION_GRACE_SECONDS());
+        uint256 before = challenger.balance;
+        mimir.refundExpired(id);
+        assert(challenger.balance - before == _net(STAKE));
+        assert(address(mimir).balance == mimir.lifetimeFeesAccrued());
     }
 
     function test_feesAreConserved() public {
-        uint256 id = _create(creator, STAKE, agentOwner);
+        uint256 id = _create(creator, STAKE, referrer);
         _challenge(challenger, id, STAKE, address(0));
         _settle(id, mimir.SIDE_CREATOR());
-
         // Everything not paid out is exactly the fees still owed.
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued());
     }
@@ -187,13 +236,12 @@ contract MimirV3Test {
     // ── Pull payments ───────────────────────────────────────────────────────
 
     function test_feesArePulledNotPushed() public {
-        uint256 id = _create(creator, STAKE, agentOwner);
+        uint256 id = _create(creator, STAKE, address(0));
         _challenge(challenger, id, STAKE, address(0));
         _settle(id, mimir.SIDE_CREATOR());
 
         uint256 owed = mimir.accruedFees(platform);
         assert(owed > 0);
-
         uint256 before = platform.balance;
         vm.prank(platform);
         mimir.claimFees();
@@ -208,151 +256,73 @@ contract MimirV3Test {
 
         uint256 id = _create(creator, STAKE, address(0));
         bad.challenge{value: STAKE}(mimir, id, STAKE);
-
-        // Settlement must not revert even though the push to `bad` fails.
         _settle(id, mimir.SIDE_CHALLENGERS());
 
-        // The payout was parked instead of reverting the whole settlement. Fees
-        // are still charged on the profit, so what is parked is the net.
-        uint256 profit = 10 * ONE;
         uint256 parked = mimir.pendingWithdrawals(address(bad));
-        assert(parked == 20 * ONE - (profit * 50) / 10_000);
-
-        // The settlement itself completed regardless.
+        assert(parked == 2 * _net(STAKE));
         (,,,,,,,,, uint8 state,,,,,,,,) = mimir.getClaim(id);
         assert(state == mimir.ST_RESOLVED());
 
-        // A failed pull is atomic: the recipient still rejects payment, so
-        // withdraw() reverts and the balance stays on the books rather than
-        // being zeroed on the way out.
+        // A failed pull is atomic: the balance stays on the books.
         vm.prank(address(bad));
         (bool pulled,) = address(mimir).call(abi.encodeWithSignature("withdraw()"));
         assert(!pulled);
         assert(mimir.pendingWithdrawals(address(bad)) == parked);
     }
 
-    // ── Fee governance ──────────────────────────────────────────────────────
+    // ── Fee recipient governance ────────────────────────────────────────────
 
-    function test_feePolicyIsTimelocked() public {
-        mimir.queueFeePolicy(100, 100, platform);
-
-        (bool early,) = address(mimir).call(abi.encodeWithSignature("executeFeePolicy()"));
+    function test_aNewFeeRecipientIsTimelocked() public {
+        mimir.queueFeeRecipient(referrer);
+        (bool early,) = address(mimir).call(abi.encodeWithSignature("executeFeeRecipient()"));
         assert(!early);
-
-        vm.warp(block.timestamp + 2 days);
-        (bool late,) = address(mimir).call(abi.encodeWithSignature("executeFeePolicy()"));
+        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
+        (bool late,) = address(mimir).call(abi.encodeWithSignature("executeFeeRecipient()"));
         assert(late);
-
-        (uint16 platformBps,,) = mimir.feePolicy();
-        assert(platformBps == 100);
+        assert(mimir.feeRecipient() == referrer);
     }
 
-    function test_aQueuedPolicyCanBeCancelled() public {
-        mimir.queueFeePolicy(100, 100, platform);
-        mimir.cancelFeePolicy();
+    function test_aQueuedFeeRecipientCanBeCancelled() public {
+        mimir.queueFeeRecipient(referrer);
+        mimir.cancelFeeRecipient();
         vm.warp(block.timestamp + 3 days);
-
-        (bool ok,) = address(mimir).call(abi.encodeWithSignature("executeFeePolicy()"));
+        (bool ok,) = address(mimir).call(abi.encodeWithSignature("executeFeeRecipient()"));
         assert(!ok);
+        assert(mimir.feeRecipient() == platform);
     }
 
-    function test_theFeeCapCannotBeExceeded() public {
-        (bool ok,) = address(mimir).call(
-            abi.encodeWithSignature("queueFeePolicy(uint16,uint16,address)", 900, 200, platform)
-        );
+    function test_onlyTheOwnerQueuesAFeeRecipient() public {
+        vm.prank(creator);
+        (bool ok,) = address(mimir).call(abi.encodeWithSelector(MimirV3.queueFeeRecipient.selector, creator));
         assert(!ok);
-    }
-
-    function test_openMarketsKeepTheTermsTheyWereCreatedUnder() public {
-        uint256 id = _create(creator, STAKE, address(0));
-        _challenge(challenger, id, STAKE, address(0));
-
-        // The policy changes after the market is funded.
-        mimir.queueFeePolicy(1000, 0, platform);
-        vm.warp(block.timestamp + 2 days);
-        mimir.executeFeePolicy();
-
-        (uint16 snapshotBps,,,) = mimir.getClaimFees(id);
-        assert(snapshotBps == 50);
-
-        uint256 before = creator.balance;
-        _settle(id, mimir.SIDE_CREATOR());
-
-        // Settled on the original 50 bps, not the new 1000 bps.
-        uint256 profit = 10 * ONE;
-        assert(creator.balance - before == 20 * ONE - (profit * 50) / 10_000);
     }
 
     // ── The invariant, fuzzed ───────────────────────────────────────────────
 
     /**
-     * Across any stake sizes and any policy the cap allows, a winner must never
-     * receive less than they staked, and the escrow must never pay out more
-     * than it took in.
-     *
-     * Inputs are folded into range by hand rather than with forge-std's bound,
-     * which keeps the suite dependency-free.
+     * Any stakes, with or without a referrer: a winner never gets back less
+     * than their net stake, and the escrow never pays out more than it took in.
      */
-    function testFuzz_winnerNeverLosesPrincipal(
-        uint96 rawCreatorStake,
-        uint96 rawChallengerStake,
-        uint16 rawPlatformBps,
-        uint16 rawAgentBps
-    ) public {
+    function testFuzz_winnerNeverLosesPrincipal(uint96 rawCreatorStake, uint96 rawChallengerStake, bool withReferrer)
+        public
+    {
         uint256 creatorStake = 2 * ONE + (uint256(rawCreatorStake) % (500 * ONE));
-        // Pool mode caps the challenger side at MAX_POOL_MULTIPLE x the creator's stake.
-        uint256 challengerStake = 2 * ONE + (uint256(rawChallengerStake) % (creatorStake * 5 - 2 * ONE + 1));
-        uint16 platformBps = uint16(rawPlatformBps % 501); // 0-500
-        uint16 agentBps = uint16(rawAgentBps % 501); // together at most 1000
-
-        MimirV3 m = new MimirV3(oracle, platformBps, agentBps, platform, address(0), 0);
-        m.setAgentPayout(agentOwner, true);
-        vm.warp(block.timestamp + m.FEE_TIMELOCK_SECONDS());
+        // Net challenger stakes are capped at 5x the creator's net stake; 4x gross always fits.
+        uint256 challengerStake = 2 * ONE + (uint256(rawChallengerStake) % (creatorStake * 4 - 2 * ONE + 1));
         vm.deal(creator, creatorStake);
         vm.deal(challenger, challengerStake);
 
-        vm.prank(creator);
-        uint256 id = m.createClaim{value: creatorStake}(
-            "Will it?",
-            "yes",
-            "no",
-            "https://example.com",
-            block.timestamp + DEADLINE_GAP,
-            creatorStake,
-            "custom",
-            0,
-            "binary",
-            "pool",
-            0,
-            "",
-            "rule",
-            0,
-            false,
-            "",
-            agentOwner
-        );
-        vm.prank(challenger);
-        m.challengeClaim{value: challengerStake}(id, challengerStake, "", address(0));
+        uint256 id = _create(creator, creatorStake, withReferrer ? referrer : address(0));
+        _challenge(challenger, id, challengerStake, address(0));
 
         uint256 escrow = creatorStake + challengerStake;
         uint256 before = creator.balance;
-        // Read before the prank: an external call in the argument list would
-        // consume it, and the resolve would arrive from the test contract.
-        uint8 creatorSide = m.SIDE_CREATOR();
-
-        vm.warp(block.timestamp + DEADLINE_GAP + 1);
-        vm.prank(oracle);
-        m.resolveClaim(id, creatorSide, "because", 90, bytes32(uint256(1)));
-
+        _settle(id, mimir.SIDE_CREATOR());
         uint256 received = creator.balance - before;
 
-        // Being right never costs money.
-        assert(received >= creatorStake);
-        // Nothing is created: what was paid out plus what is owed in fees is
-        // never more than what came in.
-        assert(received + m.lifetimeFeesAccrued() <= escrow);
-        // Whatever the escrow still holds is exactly what it owes.
-        assert(address(m).balance == m.lifetimeFeesAccrued());
+        assert(received >= _net(creatorStake));
+        assert(received + mimir.lifetimeFeesAccrued() <= escrow);
+        assert(address(mimir).balance == mimir.lifetimeFeesAccrued());
     }
 
     // ── Authorization ───────────────────────────────────────────────────────
@@ -361,11 +331,8 @@ contract MimirV3Test {
         uint256 id = _create(creator, STAKE, address(0));
         _challenge(challenger, id, STAKE, address(0));
         vm.warp(block.timestamp + DEADLINE_GAP + 1);
-
         (bool ok,) = address(mimir).call(
-            abi.encodeWithSignature(
-                "resolveClaim(uint256,uint8,string,uint8,bytes32)", id, uint8(1), "x", uint8(90), bytes32(0)
-            )
+            abi.encodeWithSignature("resolveClaim(uint256,uint8,string,uint8,bytes32)", id, uint8(1), "x", uint8(90), bytes32(0))
         );
         assert(!ok);
     }

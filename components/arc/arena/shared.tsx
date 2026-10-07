@@ -39,6 +39,10 @@ export const KIND_LABEL = { vs: "VS", pool: "Pool" } as const;
 export const usd = (wei: bigint | string) =>
   `$${weiToUsd(wei).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Small amounts (fees) to the tenth of a cent. */
+export const usdFine = (wei: bigint | string) =>
+  `$${weiToUsd(wei).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+
 /** Side A's share of the money, 0..100; null when one side is still empty (no price yet). */
 export function shareA(m: Pick<ArcMarket, "stakeA" | "stakeB">): number | null {
   const a = BigInt(m.stakeA);

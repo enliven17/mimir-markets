@@ -38,6 +38,8 @@ export interface ArcConfig {
     mimirV3: `0x${string}` | null;
     /** Two-sided pool markets. */
     mimirPool: `0x${string}` | null;
+    /** Entry-fee tiers and holder tickets (both market contracts read it). */
+    mimirFees: `0x${string}` | null;
     /** The first block worth indexing (the deploy block). */
     fromBlock: bigint;
   };
@@ -72,6 +74,7 @@ export interface ArcEnv {
   clientKey?: string;
   mimirV3?: string;
   mimirPool?: string;
+  mimirFees?: string;
   fromBlock?: string;
 }
 
@@ -82,6 +85,7 @@ function contractsFrom(env: ArcEnv): ArcConfig["contracts"] {
   return {
     mimirV3: addressOrNull(env.mimirV3),
     mimirPool: addressOrNull(env.mimirPool),
+    mimirFees: addressOrNull(env.mimirFees),
     fromBlock: block && /^\d+$/.test(block) ? BigInt(block) : 0n,
   };
 }
@@ -144,6 +148,7 @@ export const ARC: ArcConfig = arcConfig({
   clientKey: process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY,
   mimirV3: process.env.NEXT_PUBLIC_MIMIR_V3_ADDRESS,
   mimirPool: process.env.NEXT_PUBLIC_MIMIR_POOL_ADDRESS,
+  mimirFees: process.env.NEXT_PUBLIC_MIMIR_FEES_ADDRESS,
   fromBlock: process.env.NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK,
 });
 

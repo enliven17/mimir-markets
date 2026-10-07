@@ -9,9 +9,10 @@ import { useState } from "react";
 
 import { Link } from "@/i18n/navigation";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
-import { MIN_STAKE_WEI, parseUsdc, poolQuote, stakeCall, vsChallengeQuote, vsRoom } from "@/lib/arc/markets";
+import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
+import { maxGrossFor, MIN_STAKE_WEI, parseUsdc, poolQuote, stakeCall, vsChallengeQuote, vsRoom } from "@/lib/arc/markets";
 import AccountGate from "./AccountGate";
-import { BTN_PRIMARY, usd, type ArcMarket } from "./shared";
+import { BTN_PRIMARY, usd, usdFine, type ArcMarket } from "./shared";
 import type { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
 
@@ -33,15 +34,17 @@ export default function ArcStakePanel({
   const a = BigInt(m.stakeA);
   const b = BigInt(m.stakeB);
   const isCreator = account.address?.toLowerCase() === m.creator;
-  const room = m.kind === "vs" ? vsRoom(a, b) : null;
+  const bps = account.entryBps;
+  // The 5x cap counts net stakes; what you may send is a little more, the fee on top.
+  const room = m.kind === "vs" ? maxGrossFor(vsRoom(a, b), bps) : null;
   const quote =
     stake === null
       ? null
       : m.kind === "vs"
-        ? vsChallengeQuote(a, b, stake, m.feeBps)
+        ? vsChallengeQuote(a, b, stake, bps)
         : side === 1
-          ? poolQuote(a, b, stake, m.feeBps)
-          : poolQuote(b, a, stake, m.feeBps);
+          ? poolQuote(a, b, stake, bps)
+          : poolQuote(b, a, stake, bps);
 
   let blocker: string | null = null;
   if (m.kind === "vs" && isCreator) blocker = "You created this market: challengers take the other side.";
@@ -54,7 +57,7 @@ export default function ArcStakePanel({
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;
-    if (await send([stakeCall(contract, m.kind, m.marketId, stake, side)])) void account.reload();
+    if (await send(account.withTicket([stakeCall(contract, m.kind, m.marketId, stake, side)]))) void account.reload();
   };
 
   return (
@@ -95,6 +98,10 @@ export default function ArcStakePanel({
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-panel p-3.5 text-[13px]">
             <span className="text-muted">You risk</span>
             <span className="text-right text-cream">{usd(quote.risk)}</span>
+            <span className="text-muted">
+              Fee {bps / 100}%{account.tier ? <span className="ml-1 text-win">({FEE_TIER_LABEL[account.tier]})</span> : null}
+            </span>
+            <span className="text-right text-cream">{usdFine(quote.fee)}</span>
             <span className="text-muted">{quote.atMost ? "You win at most" : "Returns if it closed now"}</span>
             <span className="text-right text-win">{usd(quote.win)}</span>
           </div>
@@ -102,7 +109,7 @@ export default function ArcStakePanel({
 
         <p className="m-0 text-[12px] text-dim">
           Arc balance: {account.balance === null ? "-" : usd(account.balance)}
-          {m.feeBps ? ` · ${m.feeBps / 100}% fee on profit only` : ""}
+          {account.tier === 0 ? " · Hold 5M+ $MIMIR for a 0.25% fee, 10M+ for 0.1%" : ""}
         </p>
 
         {blocker === "not-enough" ? (

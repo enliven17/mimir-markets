@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirPool} from "../MimirPool.sol";
+import {MimirPool, IMimirFees} from "../MimirPool.sol";
+import {MimirFees} from "../MimirFees.sol";
+import {FlatFees} from "./FlatFees.sol";
 
 /**
  * MimirPool unit tests. Dependency-free (own cheatcode interface), absolute
  * timestamps throughout (via-IR can cache block.timestamp across vm.warp).
+ * The mechanics run with no entry fee (FlatFees(0)) so amounts stay round;
+ * the "Fees" section uses the real MimirFees.
  */
 interface Vm {
     function warp(uint256) external;
@@ -75,7 +79,7 @@ contract ReentrantClaimer {
     }
 
     function stakeOn(uint256 _id, uint8 side) external payable {
-        pool.stake{value: msg.value}(_id, side);
+        pool.stake{value: msg.value}(_id, side, address(0));
     }
 
     function pull() external {
@@ -111,7 +115,6 @@ contract MimirPoolTest {
     PoolAccount third;
 
     uint256 constant ONE = 1e18;
-    uint16 constant FEE_BPS = 500; // 5% of profit
     uint256 constant WINDOW = 1 hours;
     uint256 constant T0 = 1_000_000;
     uint256 constant DEADLINE = T0 + 1 days;
@@ -124,7 +127,7 @@ contract MimirPoolTest {
 
     function setUp() public {
         vm.warp(T0);
-        pool = new MimirPool(oracle, FEE_BPS, platform, WINDOW);
+        pool = new MimirPool(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW);
         maker = new PoolAccount(address(this));
         taker = new PoolAccount(address(this));
         third = new PoolAccount(address(this));
@@ -139,23 +142,23 @@ contract MimirPoolTest {
 
     function _createAs(PoolAccount acct, uint256 amount, uint8 side) internal returns (uint256 id) {
         bytes memory ret = acct.execute(address(pool), amount, abi.encodeWithSelector(
-            MimirPool.createMarket.selector, "Will it?", "YES", "NO", "https://example.com", "custom", DEADLINE, side
+            MimirPool.createMarket.selector, "Will it?", "YES", "NO", "https://example.com", "custom", DEADLINE, side, address(0)
         ));
         id = abi.decode(ret, (uint256));
     }
 
     function _create(address who, uint256 amount, uint8 side) internal returns (uint256 id) {
         vm.prank(who);
-        id = pool.createMarket{value: amount}("Will it?", "YES", "NO", "https://example.com", "custom", DEADLINE, side);
+        id = pool.createMarket{value: amount}("Will it?", "YES", "NO", "https://example.com", "custom", DEADLINE, side, address(0));
     }
 
     function _stakeAs(PoolAccount acct, uint256 id, uint256 amount, uint8 side) internal {
-        acct.execute(address(pool), amount, abi.encodeWithSelector(MimirPool.stake.selector, id, side));
+        acct.execute(address(pool), amount, abi.encodeWithSelector(MimirPool.stake.selector, id, side, address(0)));
     }
 
     function _stake(address who, uint256 id, uint256 amount, uint8 side) internal {
         vm.prank(who);
-        pool.stake{value: amount}(id, side);
+        pool.stake{value: amount}(id, side, address(0));
     }
 
     function _propose(uint256 id, uint8 outcome) internal {
@@ -171,7 +174,7 @@ contract MimirPoolTest {
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
-        (,,, state,,,,,) = pool.getMarket(id);
+        (,,, state,,,) = pool.getMarket(id);
     }
 
     function _err(bytes4 sel) internal pure returns (bytes32) {
@@ -204,13 +207,13 @@ contract MimirPoolTest {
         pool.finalize(id);
         assert(_state(id) == pool.ST_RESOLVED());
 
-        // maker: 15 back + 15 profit - 5% of 15.
+        // maker: 15 back + 15 profit, no fee on winnings.
         (uint256 owed, uint256 fee) = pool.claimable(id, address(maker));
-        assert(owed == 2925 * ONE / 100 && fee == 75 * ONE / 100);
+        assert(owed == 30 * ONE && fee == 0);
         maker.execute(address(pool), 0, abi.encodeWithSelector(MimirPool.claim.selector, id));
         third.execute(address(pool), 0, abi.encodeWithSelector(MimirPool.claim.selector, id));
-        assert(address(maker).balance == 85 * ONE + 2925 * ONE / 100);
-        assert(address(third).balance == 95 * ONE + 975 * ONE / 100);
+        assert(address(maker).balance == 85 * ONE + 30 * ONE);
+        assert(address(third).balance == 95 * ONE + 10 * ONE);
 
         // The loser has nothing to claim; nobody claims twice.
         (bool lost, bytes memory r1) = _claimCall(id, address(taker));
@@ -218,11 +221,8 @@ contract MimirPoolTest {
         (bool twice, bytes memory r2) = _claimCall(id, address(maker));
         assert(!twice && keccak256(r2) == _err(MimirPool.AlreadyClaimed.selector));
 
-        // What is left is exactly the fee, which the platform pulls.
-        assert(address(pool).balance == ONE && pool.accruedFees(platform) == ONE);
-        vm.prank(platform);
-        pool.claimFees();
-        assert(address(pool).balance == 0);
+        // Everything was paid out.
+        assert(address(pool).balance == 0 && pool.accruedFees(platform) == 0);
     }
 
     function test_sideBWinsKeeperPushesAndDustStaysInThePot() public {
@@ -290,9 +290,9 @@ contract MimirPoolTest {
         _stake(carol, id, 10 * ONE, B);
         _settle(id, A);
 
-        // Alice's 10 on A wins all 20 on B (her own 10 included): profit 20, fee 1.
+        // Alice's 10 on A wins all 20 on B (her own 10 included): 30 back.
         pool.claimFor(id, alice);
-        assert(alice.balance == 80 * ONE + 30 * ONE - ONE);
+        assert(alice.balance == 80 * ONE + 30 * ONE);
     }
 
     // ── Disputes ────────────────────────────────────────────────────────────
@@ -314,8 +314,8 @@ contract MimirPoolTest {
         pool.resolveDispute(id, B, "arbiter", bytes32(uint256(2)));
         assert(carol.balance == 90 * ONE); // bond back
         pool.claimFor(id, carol);
-        // 10 back + 10 profit - 5% of 10.
-        assert(carol.balance == 90 * ONE + 20 * ONE - ONE / 2);
+        // 10 back + 10 profit.
+        assert(carol.balance == 90 * ONE + 20 * ONE);
     }
 
     function test_aWrongDisputeForfeitsTheBondToThePlatform() public {
@@ -370,7 +370,7 @@ contract MimirPoolTest {
         vm.warp(DEADLINE + pool.RESOLUTION_GRACE_SECONDS());
         vm.prank(keeper);
         pool.refundExpired(id);
-        (,,,, uint8 outcome,,,,) = pool.getMarket(id);
+        (,,,, uint8 outcome,,) = pool.getMarket(id);
         assert(outcome == UNRESOLVABLE);
         pool.claimFor(id, alice);
         pool.claimFor(id, carol);
@@ -453,50 +453,120 @@ contract MimirPoolTest {
         assert(!pool.claimed(id, alice));
     }
 
-    // ── Fees ────────────────────────────────────────────────────────────────
+    // ── Fees (the real MimirFees: 0.5% entry; copy trades 1% + 1% of profit) ──
 
-    function test_theFeeIsFrozenAtCreation() public {
-        uint256 id = _create(alice, 10 * ONE, A);
-        _stake(carol, id, 10 * ONE, B);
-        pool.queueFeePolicy(1_000, platform);
+    address ref = address(0x5EF);
+
+    function _feePool() internal returns (MimirPool p) {
+        p = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 0);
+    }
+
+    function _net(uint256 amount) internal pure returns (uint256) {
+        return amount - (amount * 50) / 10_000;
+    }
+
+    function test_everyStakePaysTheEntryFee() public {
+        MimirPool p = _feePool();
+        vm.prank(alice);
+        uint256 id = p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", DEADLINE, A, address(0));
+        vm.prank(carol);
+        p.stake{value: 4 * ONE}(id, B, address(0));
+
+        (uint256 onA,) = p.stakeOf(id, alice);
+        (, uint256 onB) = p.stakeOf(id, carol);
+        assert(onA == _net(10 * ONE) && onB == _net(4 * ONE));
+        assert(p.accruedFees(platform) == 14 * ONE - _net(10 * ONE) - _net(4 * ONE));
+    }
+
+    function test_aRefundReturnsTheNetStakeAndKeepsTheFee() public {
+        MimirPool p = _feePool();
+        vm.prank(alice);
+        uint256 id = p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", DEADLINE, A, address(0));
+        vm.warp(AFTER);
+        vm.prank(oracle);
+        p.resolve(id, DRAW, "v", bytes32(0));
+        p.claimFor(id, alice);
+        assert(alice.balance == 90 * ONE + _net(10 * ONE));
+        assert(address(p).balance == p.accruedFees(platform));
+    }
+
+    function test_aWinningCopyTradePaysOnePercentEachOnProfit() public {
+        MimirPool p = _feePool();
+        vm.prank(alice);
+        uint256 id = p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", DEADLINE, A, ref);
+        vm.prank(carol);
+        p.stake{value: 10 * ONE}(id, B, address(0));
+        vm.warp(AFTER);
+        vm.prank(oracle);
+        p.resolve(id, A, "v", bytes32(0));
+
+        uint256 profit = _net(10 * ONE);
+        (uint256 payout, uint256 fee) = p.claimable(id, alice);
+        assert(fee == 2 * ((profit * 100) / 10_000));
+        p.claimFor(id, alice);
+        assert(alice.balance == 90 * ONE + 2 * _net(10 * ONE) - fee && payout == 2 * _net(10 * ONE) - fee);
+        assert(p.accruedFees(ref) == (profit * 100) / 10_000);
+        assert(address(p).balance == p.accruedFees(platform) + p.accruedFees(ref));
+    }
+
+    function test_aLosingOrRefundedCopyTradePaysNothingMore() public {
+        MimirPool p = _feePool();
+        vm.prank(alice);
+        uint256 id = p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", DEADLINE, A, address(0));
+        vm.prank(carol);
+        p.stake{value: 10 * ONE}(id, B, ref);
+        vm.warp(AFTER);
+        vm.prank(oracle);
+        p.resolve(id, A, "v", bytes32(0));
+        p.claimFor(id, alice);
+        assert(p.accruedFees(ref) == 0); // carol (the copier) lost
+    }
+
+    function test_theFirstReferrerSticksAndNobodyPaysThemselves() public {
+        MimirPool p = _feePool();
+        vm.prank(alice);
+        uint256 id = p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", DEADLINE, A, alice);
+        vm.prank(alice);
+        p.stake{value: 2 * ONE}(id, A, ref); // a later referrer does not replace the first
+        assert(p.referrerOf(id, alice) == alice);
+        vm.prank(carol);
+        p.stake{value: 10 * ONE}(id, B, address(0));
+        vm.warp(AFTER);
+        vm.prank(oracle);
+        p.resolve(id, A, "v", bytes32(0));
+        (, uint256 fee) = p.claimable(id, alice);
+        assert(fee == 0);
+    }
+
+    function test_aNewFeeRecipientIsTimelocked() public {
+        pool.queueFeeRecipient(carol);
+        (bool early,) = address(pool).call(abi.encodeWithSelector(MimirPool.executeFeeRecipient.selector));
+        assert(!early);
         vm.warp(T0 + pool.TIMELOCK_SECONDS());
-        pool.executeFeePolicy();
-        assert(pool.feeBps() == 1_000);
-
-        _settle(id, A);
-        (, uint256 fee) = pool.claimable(id, alice);
-        assert(fee == (10 * ONE * FEE_BPS) / 10_000);
+        pool.executeFeeRecipient();
+        assert(pool.feeRecipient() == carol);
     }
 
-    function test_theFeeCapHolds() public {
-        (bool ok, bytes memory r) =
-            address(pool).call(abi.encodeWithSelector(MimirPool.queueFeePolicy.selector, uint16(1_001), platform));
-        assert(!ok && keccak256(r) == _err(MimirPool.FeeTooHigh.selector));
-    }
-
-    /// Any stakes, any fee the cap allows: a winner gets at least their stake,
-    /// and the market never pays out more than it took in.
-    function testFuzz_winnersKeepTheirStakeAndThePotHolds(
-        uint96 rawA1,
-        uint96 rawA2,
-        uint96 rawB,
-        uint16 rawFee,
-        bool aWins
-    ) public {
+    /// Any stakes, with or without a referrer: a winner gets at least their net
+    /// stake, and the market never pays out more than it took in.
+    function testFuzz_winnersKeepTheirStakeAndThePotHolds(uint96 rawA1, uint96 rawA2, uint96 rawB, bool aWins, bool copy)
+        public
+    {
         uint256 a1 = 2 * ONE + (uint256(rawA1) % (1_000 * ONE));
         uint256 a2 = 2 * ONE + (uint256(rawA2) % (1_000 * ONE));
         uint256 b = 2 * ONE + (uint256(rawB) % (1_000 * ONE));
-        MimirPool p = new MimirPool(oracle, uint16(rawFee % 1_001), platform, 0);
+        MimirPool p = _feePool();
+        address r = copy ? ref : address(0);
         vm.deal(alice, a1);
         vm.deal(carol, a2);
         vm.deal(keeper, b);
 
         vm.prank(alice);
-        uint256 id = p.createMarket{value: a1}("q", "Y", "N", "u", "c", DEADLINE, A);
+        uint256 id = p.createMarket{value: a1}("q", "Y", "N", "u", "c", DEADLINE, A, r);
         vm.prank(carol);
-        p.stake{value: a2}(id, A);
+        p.stake{value: a2}(id, A, r);
         vm.prank(keeper);
-        p.stake{value: b}(id, B);
+        p.stake{value: b}(id, B, r);
 
         vm.warp(AFTER);
         vm.prank(oracle);
@@ -505,17 +575,16 @@ contract MimirPoolTest {
         if (aWins) {
             p.claimFor(id, alice);
             p.claimFor(id, carol);
+            assert(alice.balance >= _net(a1) && carol.balance >= _net(a2) && keeper.balance == 0);
         } else {
             p.claimFor(id, keeper);
-        }
-        if (aWins) {
-            assert(alice.balance >= a1 && carol.balance >= a2 && keeper.balance == 0);
-        } else {
-            assert(keeper.balance >= b && alice.balance == 0 && carol.balance == 0);
+            assert(keeper.balance >= _net(b) && alice.balance == 0 && carol.balance == 0);
         }
         uint256 paid = alice.balance + carol.balance + keeper.balance;
-        assert(paid + p.accruedFees(platform) <= a1 + a2 + b);
+        uint256 fees = p.accruedFees(platform) + p.accruedFees(ref);
+        assert(paid + fees <= a1 + a2 + b);
         assert(address(p).balance == a1 + a2 + b - paid);
+        assert(address(p).balance >= fees);
     }
 
     // ── Staking rules, pause, parking, admin ────────────────────────────────
@@ -525,16 +594,17 @@ contract MimirPoolTest {
         vm.warp(DEADLINE - pool.LOCK_SECONDS() + 1);
         vm.prank(carol);
         (bool ok, bytes memory r) =
-            address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B));
+            address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B, address(0)));
         assert(!ok && keccak256(r) == _err(MimirPool.BettingClosed.selector));
     }
 
     function test_stakesBelowTheMinimumOrOnNoSideAreRefused() public {
         uint256 id = _create(alice, 10 * ONE, A);
         vm.prank(carol);
-        (bool small,) = address(pool).call{value: ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B));
+        (bool small,) = address(pool).call{value: ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B, address(0)));
         vm.prank(carol);
-        (bool noSide,) = address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, 3));
+        (bool noSide,) =
+            address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, 3, address(0)));
         assert(!small && !noSide);
     }
 
@@ -544,14 +614,13 @@ contract MimirPoolTest {
         pool.setPaused(true);
 
         vm.prank(carol);
-        (bool staked,) = address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B));
+        (bool staked,) =
+            address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B, address(0)));
         assert(!staked);
 
         _settle(id, B);
         pool.claimFor(id, carol);
         assert(carol.balance > 90 * ONE);
-        vm.prank(platform);
-        pool.claimFees();
     }
 
     function test_aRefusedPushIsParkedAndPulledLater() public {
@@ -562,7 +631,7 @@ contract MimirPoolTest {
         maker.setRefuse(true);
         pool.claimFor(id, address(maker));
         uint256 parked = pool.pendingWithdrawals(address(maker));
-        assert(parked == 20 * ONE - ONE / 2);
+        assert(parked == 20 * ONE);
 
         maker.setRefuse(false);
         maker.execute(address(pool), 0, abi.encodeWithSelector(MimirPool.withdraw.selector));

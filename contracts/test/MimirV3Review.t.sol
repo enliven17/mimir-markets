@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {FlatFees} from "./FlatFees.sol";
 
 /**
- * One test (or more) per finding of the 2026-10-06 review (docs/ARC.md).
- * Dependency-free like the rest of the suite.
+ * One test (or more) per finding of the 2026-10-06 review (docs/ARC.md) that
+ * still applies after the fee rework (ERC-20 mode, permit and the agent
+ * allowlist are gone). Entry fees are 0 here (FlatFees(0)) so amounts isolate
+ * the mechanics. Dependency-free like the rest of the suite.
  */
 interface Vm {
     function warp(uint256) external;
     function deal(address, uint256) external;
     function prank(address) external;
-    function addr(uint256) external returns (address);
-    function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
 }
 
 /// A challenger that disputes, then tries to settle the claim a second time
@@ -57,93 +58,6 @@ contract ReentrantDisputer {
     }
 }
 
-/// ERC-20 whose transferFrom calls back into the escrow with all the gas it
-/// has: no PUSH_GAS stipend on this path, so only the lock can stop it.
-contract HookToken {
-    uint8 public constant decimals = 6;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    MimirV3 public target;
-    bytes public reentryCall;
-    bool public reentered;
-    bytes public reentryRet;
-
-    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
-
-    function arm(MimirV3 m, bytes calldata data) external {
-        target = m;
-        reentryCall = data;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        if (address(target) != address(0)) {
-            (reentered, reentryRet) = address(target).call(reentryCall);
-            target = MimirV3(payable(address(0)));
-        }
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-}
-
-/// 6-decimal token with a real EIP-2612 permit (nonces, so a replay fails).
-contract PermitToken {
-    uint8 public constant decimals = 6;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    mapping(address => uint256) public nonces;
-    bytes32 public immutable DOMAIN_SEPARATOR;
-    bytes32 constant PERMIT_TYPEHASH =
-        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-
-    constructor() {
-        DOMAIN_SEPARATOR = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("USDC"), keccak256("2"), block.chainid, address(this)
-        ));
-    }
-
-    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(block.timestamp <= deadline, "expired");
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR,
-            keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))));
-        require(ecrecover(digest, v, r, s) == owner, "bad sig");
-        allowance[owner][spender] = value;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-}
-
 contract MimirV3ReviewTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -161,7 +75,7 @@ contract MimirV3ReviewTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, 50, 0, platform, address(0), WINDOW);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
@@ -221,25 +135,6 @@ contract MimirV3ReviewTest {
             address(mimir).balance
                 == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed() + mimir.pendingWithdrawals(address(d))
         );
-    }
-
-    function test_theLockStopsAFullGasReentry() public {
-        HookToken token = new HookToken();
-        MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);
-        token.mint(creator, 100e6);
-        vm.prank(creator);
-        token.approve(address(m), type(uint256).max);
-
-        // During the stake pull (all gas forwarded), the token re-enters
-        // refundExpired. Without the lock this would fail for another reason.
-        token.arm(m, abi.encodeWithSelector(MimirV3.refundExpired.selector, uint256(1)));
-        vm.prank(creator);
-        m.createClaim(
-            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, 10e6,
-            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
-        );
-        assert(!token.reentered());
-        assert(keccak256(token.reentryRet()) == keccak256(_lockError()));
     }
 
     // ── #2: no verdict once the refund is open ──────────────────────────────
@@ -358,163 +253,40 @@ contract MimirV3ReviewTest {
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed());
     }
 
-    // -- #1: agent payout wallets come from an owner-managed, timelocked list
+    // -- #1 (reworked): the referrer is free-form; a rematch keeps it only for its creator
 
-    function _createWithAgent(address who, address agent) internal returns (bool ok) {
-        vm.prank(who);
-        (ok,) = address(mimir).call{value: STAKE}(abi.encodeWithSelector(
-            MimirV3.createClaim.selector,
+    function test_anyReferrerIsAcceptedAndRecorded() public {
+        address ref = address(0xA6E7);
+        vm.prank(creator);
+        uint256 id = mimir.createClaim{value: STAKE}(
             "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, STAKE,
-            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", agent
-        ));
-    }
-
-    function _challengeWithAgent(address who, uint256 id, address agent) internal returns (bool ok) {
-        vm.prank(who);
-        (ok,) = address(mimir).call{value: STAKE}(
-            abi.encodeWithSelector(MimirV3.challengeClaim.selector, id, STAKE, "", agent)
+            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", ref
         );
-    }
+        (, address recorded) = mimir.getClaimFees(id);
+        assert(recorded == ref);
 
-    function test_aCallerCannotNameAnUnlistedAgentPayout() public {
-        address thief = address(0x7E1F);
-        assert(!_createWithAgent(creator, thief));
-
-        uint256 id = _create(creator);
-        assert(!_challengeWithAgent(alice, id, thief));
-        // No attribution is always fine.
-        assert(_challengeWithAgent(alice, id, address(0)));
-    }
-
-    function test_aListedAgentPayoutIsAcceptedOnlyAfterTheTimelock() public {
-        address agent = address(0xA6E7);
-        vm.prank(bob);
-        (bool stranger,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, agent, true));
-        assert(!stranger);
-
-        mimir.setAgentPayout(agent, true);
-        assert(mimir.agentPayoutSince(agent) == block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
-        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS() - 1);
-        assert(!_createWithAgent(creator, agent));
-
-        vm.warp(block.timestamp + 1);
-        assert(_createWithAgent(creator, agent));
-        uint256 id = mimir.claimCount();
-        assert(_challengeWithAgent(alice, id, agent));
-        (,,, address credited) = mimir.getClaimFees(id);
-        assert(credited == agent);
-    }
-
-    function test_aDelistedAgentPayoutIsRefusedAtOnceButKeepsOpenPositions() public {
-        address agent = address(0xA6E7);
-        mimir.setAgentPayout(agent, true);
-        vm.warp(block.timestamp + mimir.FEE_TIMELOCK_SECONDS());
-        assert(_createWithAgent(creator, agent));
-        uint256 id = mimir.claimCount();
-
-        mimir.setAgentPayout(agent, false);
-        assert(mimir.agentPayoutSince(agent) == 0);
-        assert(!_createWithAgent(creator, agent));
-        assert(!_challengeWithAgent(alice, id, agent));
-
-        // The creator's own rematch would inherit a delisted agent: refused.
+        // The creator's rematch inherits it; a stranger's does not.
         vm.prank(creator);
-        (bool rematch,) = address(mimir).call{value: STAKE}(abi.encodeWithSelector(
-            MimirV3.createRematch.selector, id, block.timestamp + GAP, STAKE, ""
-        ));
-        assert(!rematch);
-
-        // The open market keeps the agent it was created with.
-        assert(_challengeWithAgent(alice, id, address(0)));
-        (,,, address credited) = mimir.getClaimFees(id);
-        assert(credited == agent);
+        uint256 own = mimir.createRematch{value: STAKE}(id, block.timestamp + GAP, STAKE, "");
+        vm.prank(alice);
+        uint256 strangers = mimir.createRematch{value: STAKE}(id, block.timestamp + GAP, STAKE, "");
+        (, address ownRef) = mimir.getClaimFees(own);
+        (, address strangerRef) = mimir.getClaimFees(strangers);
+        assert(ownRef == ref);
+        assert(strangerRef == address(0));
     }
 
-    function test_listingTwiceCannotResetTheTimelock() public {
-        address agent = address(0xA6E7);
-        mimir.setAgentPayout(agent, true);
-        (bool again,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, agent, true));
-        assert(!again);
-        (bool zero,) = address(mimir).call(abi.encodeWithSelector(MimirV3.setAgentPayout.selector, address(0), true));
-        assert(!zero);
+    // -- #8 (reworked): the fees contract must have code -------------------
+
+    function deployWithFees(address fees) external returns (MimirV3) {
+        return new MimirV3(oracle, platform, IMimirFees(fees), 0);
     }
 
-    // -- #7: a front-run permit does not block the stake ------------------
-
-    struct PermitCase {
-        PermitToken usdc;
-        MimirV3 m;
-        address owner;
-        uint256 id;
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
-
-    function _permitCase(uint256 value) internal returns (PermitCase memory c) {
-        c.usdc = new PermitToken();
-        c.m = new MimirV3(oracle, 50, 0, platform, address(c.usdc), 0);
-        uint256 key = 0xA11CE5;
-        c.owner = vm.addr(key);
-        c.usdc.mint(c.owner, 100e6);
-        c.usdc.mint(creator, 100e6);
-        vm.prank(creator);
-        c.usdc.approve(address(c.m), 10e6);
-        vm.prank(creator);
-        c.id = c.m.createClaim(
-            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, 10e6,
-            "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
-        );
-        c.deadline = block.timestamp + 1 hours;
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", c.usdc.DOMAIN_SEPARATOR(), keccak256(abi.encode(
-            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
-            c.owner, address(c.m), value, uint256(0), c.deadline
-        ))));
-        (c.v, c.r, c.s) = vm.sign(key, digest);
-    }
-
-    function _permitAndStake(PermitCase memory c, uint256 value) internal returns (bool ok, bytes memory ret) {
-        bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeWithSelector(MimirV3.usdcPermit.selector, value, c.deadline, c.v, c.r, c.s);
-        calls[1] = abi.encodeWithSelector(MimirV3.challengeClaim.selector, c.id, value, "", address(0));
-        vm.prank(c.owner);
-        (ok, ret) = address(c.m).call(abi.encodeWithSelector(MimirV3.multicall.selector, calls));
-    }
-
-    function test_aFrontRunPermitDoesNotBlockTheStake() public {
-        PermitCase memory c = _permitCase(5e6);
-        // Someone copies the signed permit from the mempool and submits it first.
-        vm.prank(bob);
-        c.usdc.permit(c.owner, address(c.m), 5e6, c.deadline, c.v, c.r, c.s);
-
-        (bool ok,) = _permitAndStake(c, 5e6);
-        assert(ok);
-        assert(c.m.hasChallenged(c.id, c.owner));
-        assert(c.usdc.balanceOf(c.owner) == 95e6);
-    }
-
-    function test_aFailedPermitWithoutAllowanceStillReverts() public {
-        PermitCase memory c = _permitCase(5e6);
-        c.s = bytes32(uint256(c.s) ^ 1); // corrupt the signature
-
-        (bool ok, bytes memory ret) = _permitAndStake(c, 5e6);
-        assert(!ok);
-        assert(keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.PermitFailed.selector)));
-        assert(!c.m.hasChallenged(c.id, c.owner));
-    }
-
-    // -- #8: an ERC-20 deployment needs a token with code -----------------
-
-    function deployWithToken(address token) external returns (MimirV3) {
-        return new MimirV3(oracle, 50, 0, platform, token, 0);
-    }
-
-    function test_aTokenWithoutCodeIsRefusedAtDeploy() public {
+    function test_aFeesAddressWithoutCodeIsRefusedAtDeploy() public {
         (bool ok, bytes memory ret) =
-            address(this).call(abi.encodeWithSelector(this.deployWithToken.selector, address(0xDEAD)));
+            address(this).call(abi.encodeWithSelector(this.deployWithFees.selector, address(0xDEAD)));
         assert(!ok);
-        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: token has no code")));
+        assert(keccak256(ret) == keccak256(abi.encodeWithSignature("Error(string)", "Mimir: fees has no code")));
     }
 
     // -- Pool cap: challengers at most MAX_POOL_MULTIPLE x the creator ------
@@ -572,25 +344,5 @@ contract MimirV3ReviewTest {
         );
         (bool ok,) = _stakeAs(alice, id, 10 * STAKE);
         assert(ok);
-    }
-
-    function test_multicallStillWorksUnderTheLock() public {
-        HookToken token = new HookToken();
-        MimirV3 m = new MimirV3(oracle, 50, 0, platform, address(token), 0);
-        token.mint(creator, 100e6);
-        vm.prank(creator);
-        token.approve(address(m), type(uint256).max);
-
-        bytes memory create = abi.encodeWithSelector(
-            MimirV3.createClaim.selector,
-            "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, uint256(10e6),
-            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", address(0)
-        );
-        bytes[] memory calls = new bytes[](2);
-        calls[0] = create;
-        calls[1] = create;
-        vm.prank(creator);
-        m.multicall(calls);
-        assert(m.claimCount() == 2);
     }
 }

@@ -1,40 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-interface IERC20Like {
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function decimals() external view returns (uint8);
-}
-
-interface IERC20Permit {
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+/// The entry-fee rate per account (contracts/MimirFees.sol).
+interface IMimirFees {
+    function entryBps(address account) external view returns (uint16);
 }
 
 /**
- * MimirV3 — AI-settled prediction market, with fees. Runs on any EVM chain.
+ * MimirV3 — AI-settled VS (duel) market on Arc. Native USDC only: stakes are
+ * msg.value (18 decimals), there is no approval step.
  *
- * Two stake modes, fixed at deploy:
- *   - Native (usdc == address(0)): Arc, where USDC is the gas token. Stakes
- *     move through msg.value; there is no approval step.
- *   - ERC-20 (usdc != address(0)): Base, Arbitrum and anything else where
- *     USDC is a token. Stakes are pulled with transferFrom after an approve,
- *     and msg.value must be zero.
- *
- * What v3 adds over v2:
- *   - Fees charged on profit only, never on the gross payout. Staking 10 and
- *     winning 11 back must never leave you with less than 10.
- *   - The fee policy is snapshotted onto the claim at creation, so a later
- *     policy change cannot rewrite the economics of a market people already
- *     put money into.
- *   - Agent attribution: a position opened through a registered agent pays
- *     that agent's owner a share of the profit it produced.
- *   - Fee changes are timelocked and hard-capped, so no single owner action
- *     can take a meaningful share of a winner's profit by surprise.
- *   - Fees accrue to a pull balance. A push to a recipient that reverts would
- *     take the whole settlement down with it.
+ * Fees:
+ *   - An entry fee on every stake that opens or joins a claim (create,
+ *     rematch, challenge): MimirFees.entryBps(msg.sender) of the amount sent,
+ *     0.5% by default and less for $MIMIR holders with a signed ticket. The
+ *     rest is the stake. The fee is earned on entry and kept on refunds.
+ *   - No fee on winnings, except on copy trades: a position opened with a
+ *     `referrer` (the basket creator it copies) pays REFERRER_FEE_BPS of its
+ *     PROFIT to the referrer and COPY_FEE_BPS to the platform. Never on a
+ *     loss, a draw or a refund, so a winner never gets back less than staked.
+ *   - The fee recipient changes only through a timelock. Fees accrue to a
+ *     pull balance: a push to a recipient that reverts would take the whole
+ *     settlement down with it.
  *   - Settlement pushes carry a fixed gas stipend, so a recipient contract
  *     cannot burn the resolve transaction's gas; anything it refuses is parked.
  *   - An escape hatch: an ACTIVE claim the oracle has not resolved within
@@ -68,10 +55,8 @@ contract MimirV3 {
     /// Pool odds: the challengers' total stake may not exceed this multiple of
     /// the creator's stake, so each challenger's upside stays meaningful.
     uint256 public constant MAX_POOL_MULTIPLE      = 5;
-    /// 2 USDC in the stake asset's units: 2e18 native on Arc, 2e6 for ERC-20 USDC.
-    uint256 public immutable MIN_STAKE;
-    /// Stake asset. address(0) means the chain's native currency (Arc USDC).
-    address public immutable usdc;
+    /// 2 USDC (native, 18 decimals): the smallest amount a position may send, and the dispute bond.
+    uint256 public constant MIN_STAKE = 2e18;
     uint256 public constant DEFAULT_PAYOUT_BPS     = 20_000;    // 2x
 
     // Anti-sniping: no new challenges accepted in the final N seconds before
@@ -79,10 +64,12 @@ contract MimirV3 {
     // the outcome and slipping in a zero-risk bet.
     uint256 public constant CHALLENGE_LOCK_SECONDS = 60;
 
-    // ── Fee limits ────────────────────────────────────────────────────────────
-    /// No policy may ever take more than 10% of a winner's profit, in total.
-    uint16  public constant MAX_TOTAL_FEE_BPS   = 1_000;
-    /// A queued policy cannot take effect for this long, so participants can leave.
+    // ── Fees ──────────────────────────────────────────────────────────────────
+    /// Copy trades: the referrer's (basket creator's) share of a winning position's profit.
+    uint16  public constant REFERRER_FEE_BPS = 100;
+    /// Copy trades: the platform's share of a winning position's profit.
+    uint16  public constant COPY_FEE_BPS = 100;
+    /// A new fee recipient waits this long.
     uint256 public constant FEE_TIMELOCK_SECONDS = 2 days;
     /// An oracle change waits this long, so participants can react to a new settler.
     uint256 public constant ORACLE_TIMELOCK_SECONDS = 2 days;
@@ -128,22 +115,16 @@ contract MimirV3 {
         bytes32 evidenceHash;        // keccak256(evidence content) — verifiable reasoning trace
     }
 
-    struct FeePolicy {
-        uint16  platformFeeBps;
-        uint16  agentOwnerFeeBps;
-        address platformRecipient;
-    }
-
     mapping(uint256 => Claim)   public claims;
-    /// Fee terms frozen at creation. Changing the live policy never touches these.
-    mapping(uint256 => FeePolicy) public claimFeePolicy;
-    /// Agent owner credited for the creator's side, set at creation.
-    mapping(uint256 => address) public claimAgentOwner;
+    /// Referrer (copied basket's creator) of the creator's position, set at creation.
+    mapping(uint256 => address) public claimReferrer;
+    /// Entry fees taken on a claim (creator and challengers), for display.
+    mapping(uint256 => uint256) public claimEntryFees;
 
-    // claimId * MAX_CHALLENGERS + index → address / stake / agent owner
+    // claimId * MAX_CHALLENGERS + index → address / net stake / referrer
     mapping(uint256 => address) public challengerAddresses;
     mapping(uint256 => uint256) public challengerStakes;
-    mapping(uint256 => address) public challengerAgentOwner;
+    mapping(uint256 => address) public challengerReferrer;
     // Prevents double-entry per claim
     mapping(uint256 => mapping(address => bool)) public hasChallenged;
 
@@ -159,11 +140,6 @@ contract MimirV3 {
 
     /// Fees owed to a recipient, claimed with claimFees(). Never pushed.
     mapping(address => uint256) public accruedFees;
-
-    /// Agent payout wallets a position may name as agentOwnerRecipient: the
-    /// time from which each is accepted (0 = not listed). Adding one waits
-    /// FEE_TIMELOCK_SECONDS; removing is immediate.
-    mapping(address => uint256) public agentPayoutSince;
 
     uint256 public claimCount;
     uint256 public totalResolved;
@@ -196,10 +172,13 @@ contract MimirV3 {
     }
     mapping(uint256 => Proposal) public proposals;
 
-    FeePolicy public feePolicy;
-    FeePolicy public pendingFeePolicy;
-    /// Timestamp from which the pending policy may be executed. 0 = nothing queued.
-    uint256 public pendingFeePolicyEta;
+    /// Entry-fee rates per account.
+    IMimirFees public immutable fees;
+    /// Receives entry fees, the copy-trade platform share and forfeited dispute bonds.
+    address public feeRecipient;
+    address public pendingFeeRecipient;
+    /// Timestamp from which pendingFeeRecipient may be installed. 0 = nothing queued.
+    uint256 public pendingFeeRecipientEta;
 
     /// Reentrancy lock: 1 = free, 2 = entered.
     uint256 private _lock = 1;
@@ -212,10 +191,10 @@ contract MimirV3 {
     event OracleChanged(address indexed previous, address indexed next);
     event WithdrawalPending(address indexed to, uint256 amount);
     event Withdrawal(address indexed account, address indexed to, uint256 amount);
-    event AgentAttributed(uint256 indexed id, address indexed participant, address indexed agentOwner);
-    event FeePolicyQueued(uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient, uint256 eta);
-    event FeePolicyCancelled();
-    event FeePolicyUpdated(uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient);
+    event ReferrerSet(uint256 indexed id, address indexed participant, address indexed referrer);
+    event FeeRecipientQueued(address indexed next, uint256 eta);
+    event FeeRecipientCancelled(address indexed next);
+    event FeeRecipientChanged(address indexed previous, address indexed next);
     event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount);
     event FeeClaimed(address indexed recipient, address indexed to, uint256 amount);
     event MarketSettled(uint256 indexed id, uint256 totalPaid, uint256 totalFees);
@@ -229,16 +208,10 @@ contract MimirV3 {
     event ResolutionProposed(uint256 indexed id, uint8 winnerSide, uint8 confidence, bytes32 evidenceHash, uint256 disputableUntil);
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
-    /// eta 0 = delisted (or a queued listing cancelled).
-    event AgentPayoutSet(address indexed wallet, uint256 eta);
 
     // Custom errors for reverts added after the 2026-10-06 review (EIP-170 budget).
     error Reentrant();
     error GraceOver();
-    /// An agentOwnerRecipient that is not a listed agent payout wallet.
-    error AgentNotAllowed();
-    /// The permit failed and the allowance it would have set is not in place.
-    error PermitFailed();
     /// A pool-odds challenge would take the challenger side past MAX_POOL_MULTIPLE x the creator's stake.
     error PoolFull();
 
@@ -273,7 +246,6 @@ contract MimirV3 {
 
     /// Every entry point that can move value takes the lock, so a recipient
     /// cannot re-enter settlement even with more gas than PUSH_GAS.
-    /// `multicall` does not: its delegatecalls take it one at a time.
     modifier nonReentrant() {
         _enter();
         _;
@@ -286,35 +258,18 @@ contract MimirV3 {
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(
-        address _oracle,
-        uint16 _platformFeeBps,
-        uint16 _agentOwnerFeeBps,
-        address _platformRecipient,
-        address _usdc,
-        uint256 _disputeWindow
-    ) {
-        require(_oracle != address(0), "Mimir: zero oracle");
+    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow) {
+        require(_oracle != address(0) && _feeRecipient != address(0), "Mimir: zero address");
+        require(address(_fees).code.length > 0, "Mimir: fees has no code");
         require(_disputeWindow <= MAX_DISPUTE_WINDOW, "Mimir: dispute window too long");
-        // _trySend counts an empty return as success, which a code-less address
-        // always gives: refuse such a token outright.
-        require(_usdc == address(0) || _usdc.code.length > 0, "Mimir: token has no code");
         disputeWindow = _disputeWindow;
         owner  = msg.sender;
         oracle = _oracle;
-        usdc   = _usdc;
-        MIN_STAKE = _usdc == address(0)
-            ? 2 * 10**18
-            : 2 * 10**uint256(IERC20Like(_usdc).decimals());
-        _validateFeePolicy(_platformFeeBps, _agentOwnerFeeBps, _platformRecipient);
-        feePolicy = FeePolicy({
-            platformFeeBps:    _platformFeeBps,
-            agentOwnerFeeBps:  _agentOwnerFeeBps,
-            platformRecipient: _platformRecipient
-        });
+        fees   = _fees;
+        feeRecipient = _feeRecipient;
         emit OwnershipTransferred(address(0), msg.sender);
         emit OracleChanged(address(0), _oracle);
-        emit FeePolicyUpdated(_platformFeeBps, _agentOwnerFeeBps, _platformRecipient);
+        emit FeeRecipientChanged(address(0), _feeRecipient);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
@@ -335,7 +290,7 @@ contract MimirV3 {
         pendingOracleEta = 0;
     }
 
-    /// Permissionless once the timelock has elapsed, like executeFeePolicy.
+    /// Permissionless once the timelock has elapsed, like executeFeeRecipient.
     function executeOracle() external {
         require(pendingOracleEta != 0, "Mimir: nothing queued");
         require(block.timestamp >= pendingOracleEta, "Mimir: timelocked");
@@ -375,59 +330,29 @@ contract MimirV3 {
         emit Paused(_paused);
     }
 
-    /// List an agent payout wallet (accepted from FEE_TIMELOCK_SECONDS from now)
-    /// or delist it at once (which also cancels a queued listing). Positions
-    /// already opened keep the attribution they were opened with.
-    function setAgentPayout(address wallet, bool listed) external onlyOwner {
-        if (listed) {
-            if (wallet == address(0) || agentPayoutSince[wallet] != 0) revert AgentNotAllowed();
-            uint256 eta = block.timestamp + FEE_TIMELOCK_SECONDS;
-            agentPayoutSince[wallet] = eta;
-            emit AgentPayoutSet(wallet, eta);
-        } else {
-            agentPayoutSince[wallet] = 0;
-            emit AgentPayoutSet(wallet, 0);
-        }
+    // ── Fee recipient (timelocked) ────────────────────────────────────────────
+    function queueFeeRecipient(address next) external onlyOwner {
+        require(next != address(0), "Mimir: zero recipient");
+        pendingFeeRecipient = next;
+        pendingFeeRecipientEta = block.timestamp + FEE_TIMELOCK_SECONDS;
+        emit FeeRecipientQueued(next, pendingFeeRecipientEta);
     }
 
-    /// address(0) (no attribution) or a listed wallet whose timelock has passed.
-    /// Off chain: agentPayoutSince(wallet) != 0 && agentPayoutSince(wallet) <= now.
-    function _isAgentPayout(address wallet) internal view returns (bool) {
-        uint256 since = agentPayoutSince[wallet];
-        return wallet == address(0) || (since != 0 && block.timestamp >= since);
+    function cancelFeeRecipient() external onlyOwner {
+        require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
+        emit FeeRecipientCancelled(pendingFeeRecipient);
+        pendingFeeRecipient = address(0);
+        pendingFeeRecipientEta = 0;
     }
 
-    // ── Fee governance ────────────────────────────────────────────────────────
-    function _validateFeePolicy(uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient) internal pure {
-        require(uint256(platformFeeBps) + uint256(agentOwnerFeeBps) <= MAX_TOTAL_FEE_BPS, "Mimir: fee too high");
-        require(platformFeeBps == 0 || platformRecipient != address(0), "Mimir: no fee recipient");
-    }
-
-    function queueFeePolicy(uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient) external onlyOwner {
-        _validateFeePolicy(platformFeeBps, agentOwnerFeeBps, platformRecipient);
-        pendingFeePolicy = FeePolicy({
-            platformFeeBps:    platformFeeBps,
-            agentOwnerFeeBps:  agentOwnerFeeBps,
-            platformRecipient: platformRecipient
-        });
-        pendingFeePolicyEta = block.timestamp + FEE_TIMELOCK_SECONDS;
-        emit FeePolicyQueued(platformFeeBps, agentOwnerFeeBps, platformRecipient, pendingFeePolicyEta);
-    }
-
-    function cancelFeePolicy() external onlyOwner {
-        require(pendingFeePolicyEta != 0, "Mimir: nothing queued");
-        pendingFeePolicyEta = 0;
-        emit FeePolicyCancelled();
-    }
-
-    /// Permissionless once the timelock has elapsed: the owner cannot queue a
-    /// change, let people see it, and then quietly decline to apply it.
-    function executeFeePolicy() external {
-        require(pendingFeePolicyEta != 0, "Mimir: nothing queued");
-        require(block.timestamp >= pendingFeePolicyEta, "Mimir: timelocked");
-        feePolicy = pendingFeePolicy;
-        pendingFeePolicyEta = 0;
-        emit FeePolicyUpdated(feePolicy.platformFeeBps, feePolicy.agentOwnerFeeBps, feePolicy.platformRecipient);
+    /// Permissionless once due: the owner cannot queue a change and then quietly withhold it.
+    function executeFeeRecipient() external {
+        require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
+        require(block.timestamp >= pendingFeeRecipientEta, "Mimir: timelocked");
+        emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
+        feeRecipient = pendingFeeRecipient;
+        pendingFeeRecipient = address(0);
+        pendingFeeRecipientEta = 0;
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
@@ -435,23 +360,22 @@ contract MimirV3 {
         return claimId * MAX_CHALLENGERS + index;
     }
 
-    /// Take a stake from msg.sender in whichever asset this deployment uses.
-    function _pullStake(uint256 amount) internal {
-        if (usdc == address(0)) {
-            require(msg.value == amount, "Mimir: wrong USDC value");
-            return;
+    /// Take `amount` (exactly msg.value), keep msg.sender's entry fee and
+    /// return the rest: the stake that is recorded and can be won or refunded.
+    function _takeEntry(uint256 claimId, uint256 amount) internal returns (uint256 net) {
+        require(msg.value == amount, "Mimir: wrong USDC value");
+        uint256 fee = (amount * fees.entryBps(msg.sender)) / 10_000;
+        if (fee != 0) {
+            _accrue(claimId, feeRecipient, fee);
+            claimEntryFees[claimId] += fee;
         }
-        require(msg.value == 0, "Mimir: native value not accepted");
-        uint256 before = IERC20Like(usdc).balanceOf(address(this));
-        require(
-            IERC20Like(usdc).transferFrom(msg.sender, address(this), amount),
-            "Mimir: transferFrom failed"
-        );
-        // Exact accounting: a fee-on-transfer token would silently under-fund payouts.
-        require(
-            IERC20Like(usdc).balanceOf(address(this)) == before + amount,
-            "Mimir: unsupported token"
-        );
+        net = amount - fee;
+    }
+
+    function _accrue(uint256 claimId, address to, uint256 amount) internal {
+        accruedFees[to] += amount;
+        lifetimeFeesAccrued += amount;
+        emit FeeAccrued(claimId, to, amount);
     }
 
     /// Send that reports failure instead of reverting. A blacklisted USDC
@@ -460,25 +384,10 @@ contract MimirV3 {
     /// their own receiver); settlement pushes pass PUSH_GAS.
     function _trySend(address to, uint256 amount, uint256 gasLimit) internal returns (bool ok) {
         uint256 g = gasLimit == 0 ? gasleft() : gasLimit;
-        if (usdc == address(0)) {
-            // Assembly so no returndata is copied: a recipient cannot answer
-            // with a huge revert payload and make the copy itself run out of gas.
-            assembly ("memory-safe") {
-                ok := call(g, to, amount, 0, 0, 0, 0)
-            }
-        } else {
-            bytes memory data = abi.encodeWithSelector(IERC20Like.transfer.selector, to, amount);
-            address token = usdc;
-            uint256 retSize;
-            uint256 retWord;
-            assembly ("memory-safe") {
-                ok := call(g, token, 0, add(data, 0x20), mload(data), 0, 0x20)
-                retSize := returndatasize()
-                retWord := mload(0)
-            }
-            // No return value, or a true one. Anything else is a failed send,
-            // never a revert of the whole settlement.
-            ok = ok && (retSize == 0 || (retSize >= 32 && retWord == 1));
+        // Assembly so no returndata is copied: a recipient cannot answer
+        // with a huge revert payload and make the copy itself run out of gas.
+        assembly ("memory-safe") {
+            ok := call(g, to, amount, 0, 0, 0, 0)
         }
     }
 
@@ -493,47 +402,33 @@ contract MimirV3 {
     }
 
     /**
-     * Pay a winner, charging fees on profit only.
+     * Pay a winner. Only a copy trade (a position with a referrer) pays a fee
+     * on winnings: REFERRER_FEE_BPS of the profit to the referrer and
+     * COPY_FEE_BPS to the platform. The base is `gross - principal` floored at
+     * zero, so a refund and a break-even win are free and a winner never gets
+     * back less than staked. Nobody pays themselves: a referrer or fee
+     * recipient who is the winner waives that leg.
      *
-     * The base is always `gross - principal` floored at zero, so a refund and a
-     * break-even win are both free, and a winner can never receive less than
-     * the amount they staked. Division rounds down, which leaves any remainder
-     * with the participant rather than the protocol. Nobody pays themselves:
-     * if a fee recipient is the winner, that leg is waived rather than taken
-     * and handed straight back.
+     * The referrer is chosen by the account that opened the position, with no
+     * allowlist: a passkey account signs a hash, so a compromised front end can
+     * already make it do anything; a list would only have guarded this 1%.
      */
     function _payWinner(
         uint256 claimId,
         address to,
         uint256 gross,
         uint256 principal,
-        address agentOwner
-    ) internal returns (uint256 paid, uint256 fees) {
+        address referrer
+    ) internal returns (uint256 paid, uint256 taken) {
         uint256 profit = gross > principal ? gross - principal : 0;
-        if (profit > 0) {
-            FeePolicy memory p = claimFeePolicy[claimId];
-
-            if (p.platformFeeBps > 0 && p.platformRecipient != address(0) && p.platformRecipient != to) {
-                uint256 platformFee = (profit * p.platformFeeBps) / 10_000;
-                if (platformFee > 0) {
-                    accruedFees[p.platformRecipient] += platformFee;
-                    fees += platformFee;
-                    emit FeeAccrued(claimId, p.platformRecipient, platformFee);
-                }
-            }
-
-            if (p.agentOwnerFeeBps > 0 && agentOwner != address(0) && agentOwner != to) {
-                uint256 agentFee = (profit * p.agentOwnerFeeBps) / 10_000;
-                if (agentFee > 0) {
-                    accruedFees[agentOwner] += agentFee;
-                    fees += agentFee;
-                    emit FeeAccrued(claimId, agentOwner, agentFee);
-                }
-            }
+        if (profit != 0 && referrer != address(0) && referrer != to) {
+            uint256 refFee = (profit * REFERRER_FEE_BPS) / 10_000;
+            if (refFee != 0) _accrue(claimId, referrer, refFee);
+            uint256 copyFee = feeRecipient == to ? 0 : (profit * COPY_FEE_BPS) / 10_000;
+            if (copyFee != 0) _accrue(claimId, feeRecipient, copyFee);
+            taken = refFee + copyFee;
         }
-
-        lifetimeFeesAccrued += fees;
-        paid = gross - fees;
+        paid = gross - taken;
         _transfer(to, paid);
     }
 
@@ -577,39 +472,6 @@ contract MimirV3 {
         emit FeeClaimed(msg.sender, to, amount);
     }
 
-    // ── One-signature staking (ERC-20 mode) ──────────────────────────────────
-    /// Approve this escrow through the token's EIP-2612 permit. Meant to be the
-    /// first call of a multicall whose second call stakes, so a position opens
-    /// in one transaction without a separate approve. Anyone can submit a
-    /// signed permit first (front-running burns its nonce); that is tolerated
-    /// as long as the allowance is in place, so the stake still goes through.
-    function usdcPermit(uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(usdc != address(0), "Mimir: native mode");
-        (bool ok,) = usdc.call(
-            abi.encodeCall(IERC20Permit.permit, (msg.sender, address(this), value, deadline, v, r, s))
-        );
-        if (!ok && IERC20Like(usdc).allowance(msg.sender, address(this)) < value) revert PermitFailed();
-    }
-
-    /**
-     * Batch calls to this contract in one transaction (msg.sender preserved).
-     * Non-payable and ERC-20 mode only: delegatecalls would otherwise all see
-     * the same msg.value, the classic multicall double-spend.
-     */
-    function multicall(bytes[] calldata data) external returns (bytes[] memory results) {
-        require(usdc != address(0), "Mimir: native mode");
-        results = new bytes[](data.length);
-        for (uint256 i = 0; i < data.length; i++) {
-            (bool ok, bytes memory ret) = address(this).delegatecall(data[i]);
-            if (!ok) {
-                assembly ("memory-safe") {
-                    revert(add(ret, 0x20), mload(ret))
-                }
-            }
-            results[i] = ret;
-        }
-    }
-
     function _grossPayout(uint256 stake, uint256 bps) internal pure returns (uint256) {
         return (stake * bps) / 10_000;
     }
@@ -632,7 +494,7 @@ contract MimirV3 {
         uint256 maxChallengers;
         bool    isPrivate;
         string  inviteKey;
-        address agentOwnerRecipient;
+        address referrer;
     }
 
     function createClaim(
@@ -652,7 +514,7 @@ contract MimirV3 {
         uint256          maxChallengers,
         bool             isPrivate,
         string  calldata inviteKey,
-        address          agentOwnerRecipient
+        address          referrer
     ) external payable whenNotPaused nonReentrant returns (uint256 id) {
         return _createClaim(CreateArgs({
             question:            question,
@@ -671,7 +533,7 @@ contract MimirV3 {
             maxChallengers:      maxChallengers,
             isPrivate:           isPrivate,
             inviteKey:           inviteKey,
-            agentOwnerRecipient: agentOwnerRecipient
+            referrer:            referrer
         }));
     }
 
@@ -682,8 +544,6 @@ contract MimirV3 {
         // A private claim with no key would silently be public (a rematch of a
         // private parent included).
         require(!a.isPrivate || bytes(a.inviteKey).length > 0, "Mimir: private claim needs invite key");
-        if (!_isAgentPayout(a.agentOwnerRecipient)) revert AgentNotAllowed();
-        _pullStake(a.stakeAmount);
 
         // Normalise odds params
         bool isFixed = _strEq(a.oddsMode, "fixed");
@@ -697,6 +557,7 @@ contract MimirV3 {
 
         claimCount++;
         id = claimCount;
+        uint256 net = _takeEntry(id, a.stakeAmount);
 
         claims[id] = Claim({
             creator:                  msg.sender,
@@ -704,7 +565,7 @@ contract MimirV3 {
             creatorPosition:          a.creatorPosition,
             counterPosition:          a.counterPosition,
             resolutionUrl:            a.resolutionUrl,
-            creatorStake:             a.stakeAmount,
+            creatorStake:             net,
             totalChallengerStake:     0,
             reservedCreatorLiability: 0,
             deadline:                 a.deadline,
@@ -729,13 +590,9 @@ contract MimirV3 {
             evidenceHash:             bytes32(0)
         });
 
-        // Freeze the economics: whatever the policy becomes later, this market
-        // settles on the terms its participants agreed to.
-        claimFeePolicy[id] = feePolicy;
-
-        if (a.agentOwnerRecipient != address(0)) {
-            claimAgentOwner[id] = a.agentOwnerRecipient;
-            emit AgentAttributed(id, msg.sender, a.agentOwnerRecipient);
+        if (a.referrer != address(0)) {
+            claimReferrer[id] = a.referrer;
+            emit ReferrerSet(id, msg.sender, a.referrer);
         }
 
         emit ClaimCreated(id, msg.sender, claims[id].category);
@@ -769,9 +626,9 @@ contract MimirV3 {
             maxChallengers:      parent.maxChallengers,
             isPrivate:           parent.isPrivate,
             inviteKey:           inviteKey,
-            // The parent's agent earned its attribution on the parent's creator;
-            // a stranger rematching the claim does not inherit it.
-            agentOwnerRecipient: msg.sender == parent.creator ? claimAgentOwner[parentId] : address(0)
+            // The parent's referrer earned it on the parent's creator; a
+            // stranger rematching the claim does not inherit it.
+            referrer:            msg.sender == parent.creator ? claimReferrer[parentId] : address(0)
         }));
     }
 
@@ -780,7 +637,7 @@ contract MimirV3 {
         uint256 claimId,
         uint256 stakeAmount,
         string  calldata inviteKey,
-        address agentOwnerRecipient
+        address referrer
     ) external payable whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
@@ -795,8 +652,7 @@ contract MimirV3 {
             block.timestamp + CHALLENGE_LOCK_SECONDS <= claim.deadline,
             "Mimir: challenge window closed"
         );
-        if (!_isAgentPayout(agentOwnerRecipient)) revert AgentNotAllowed();
-        _pullStake(stakeAmount);
+        uint256 net = _takeEntry(claimId, stakeAmount);
 
         // Private claim: verify invite key
         if (claim.isPrivate && claim.inviteKeyHash != bytes32(0)) {
@@ -808,30 +664,30 @@ contract MimirV3 {
 
         // Fixed odds: ensure creator has enough unreserved liquidity
         if (_strEq(claim.oddsMode, "fixed")) {
-            uint256 gross   = _grossPayout(stakeAmount, claim.challengerPayoutBps);
-            uint256 profit  = gross > stakeAmount ? gross - stakeAmount : 0;
+            uint256 gross   = _grossPayout(net, claim.challengerPayoutBps);
+            uint256 profit  = gross > net ? gross - net : 0;
             uint256 avail   = claim.creatorStake - claim.reservedCreatorLiability;
             require(avail >= profit, "Mimir: creator has insufficient liquidity");
             claim.reservedCreatorLiability += profit;
-        } else if (claim.totalChallengerStake + stakeAmount > claim.creatorStake * MAX_POOL_MULTIPLE) {
+        } else if (claim.totalChallengerStake + net > claim.creatorStake * MAX_POOL_MULTIPLE) {
             revert PoolFull();
         }
 
         uint256 key = _chKey(claimId, claim.challengerCount);
         challengerAddresses[key]          = msg.sender;
-        challengerStakes[key]             = stakeAmount;
+        challengerStakes[key]             = net;
         hasChallenged[claimId][msg.sender] = true;
 
-        if (agentOwnerRecipient != address(0)) {
-            challengerAgentOwner[key] = agentOwnerRecipient;
-            emit AgentAttributed(claimId, msg.sender, agentOwnerRecipient);
+        if (referrer != address(0)) {
+            challengerReferrer[key] = referrer;
+            emit ReferrerSet(claimId, msg.sender, referrer);
         }
 
-        claim.totalChallengerStake += stakeAmount;
+        claim.totalChallengerStake += net;
         claim.challengerCount++;
         claim.state = ST_ACTIVE;
 
-        emit ClaimChallenged(claimId, msg.sender, stakeAmount);
+        emit ClaimChallenged(claimId, msg.sender, net);
     }
 
     // ── Write: resolve (oracle only) ──────────────────────────────────────────
@@ -886,7 +742,8 @@ contract MimirV3 {
         require(claim.state == ST_PROPOSED, "Mimir: nothing to dispute");
         require(block.timestamp < p.proposedAt + disputeWindow, "Mimir: dispute window closed");
         require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender], "Mimir: not a participant");
-        _pullStake(MIN_STAKE);
+        // The bond is not a position: no entry fee.
+        require(msg.value == MIN_STAKE, "Mimir: wrong USDC value");
         claim.state  = ST_DISPUTED;
         p.disputer   = msg.sender;
         p.disputedAt = uint64(block.timestamp);
@@ -921,20 +778,14 @@ contract MimirV3 {
         _settleBond(claimId, p, disputerRight);
     }
 
-    /// Bond back to a disputer who was right; to the platform otherwise, including
-    /// when nobody ruled. With no platform recipient it goes back to the disputer.
+    /// Bond back to a disputer who was right; to the fee recipient otherwise,
+    /// including when nobody ruled.
     function _settleBond(uint256 claimId, Proposal storage p, bool returnIt) internal {
         uint256 bond = p.bond;
         if (bond == 0) return;
         p.bond = 0;
-        address platform = claimFeePolicy[claimId].platformRecipient;
-        if (returnIt || platform == address(0)) {
-            _transfer(p.disputer, bond);
-        } else {
-            accruedFees[platform] += bond;
-            lifetimeFeesAccrued += bond;
-            emit FeeAccrued(claimId, platform, bond);
-        }
+        if (returnIt) _transfer(p.disputer, bond);
+        else _accrue(claimId, feeRecipient, bond);
     }
 
     /**
@@ -942,7 +793,7 @@ contract MimirV3 {
      * RESOLUTION_GRACE_SECONDS of its deadline (lost key, custody outage,
      * a settlement that keeps reverting), anyone can refund it: every
      * participant gets their stake back, exactly as an UNRESOLVABLE verdict
-     * would pay, and no fee is taken. Without this, the oracle going away
+     * would pay (the entry fee stays earned). Without this, the oracle going away
      * would lock every open stake forever.
      */
     function refundExpired(uint256 claimId) external nonReentrant {
@@ -994,7 +845,7 @@ contract MimirV3 {
                 claim.creator,
                 claim.creatorStake + claim.totalChallengerStake,
                 claim.creatorStake,
-                claimAgentOwner[claimId]
+                claimReferrer[claimId]
             );
             totalPaid += paid;
             totalFees += fees;
@@ -1024,7 +875,7 @@ contract MimirV3 {
                 }
 
                 (uint256 paid, uint256 fees) = _payWinner(
-                    claimId, ch, payout, chStake, challengerAgentOwner[key]
+                    claimId, ch, payout, chStake, challengerReferrer[key]
                 );
                 totalPaid += paid;
                 totalFees += fees;
@@ -1039,9 +890,8 @@ contract MimirV3 {
             }
 
         } else {
-            // Draw / unresolvable: full refunds, no fee. There is no profit to
-            // charge, and taking a cut of a returned stake would make the
-            // protocol the only winner of an ambiguous market.
+            // Draw / unresolvable: every net stake back, nothing more taken
+            // (the entry fee was earned when the position was opened).
             _transfer(claim.creator, claim.creatorStake);
             totalPaid += claim.creatorStake;
             for (uint256 i = 0; i < claim.challengerCount; i++) {
@@ -1116,15 +966,9 @@ contract MimirV3 {
         );
     }
 
-    /// The terms this specific market settles on, whatever the live policy is now.
-    function getClaimFees(uint256 claimId) external view returns (
-        uint16  platformFeeBps,
-        uint16  agentOwnerFeeBps,
-        address platformRecipient,
-        address agentOwnerRecipient
-    ) {
-        FeePolicy storage p = claimFeePolicy[claimId];
-        return (p.platformFeeBps, p.agentOwnerFeeBps, p.platformRecipient, claimAgentOwner[claimId]);
+    /// Entry fees taken on this claim so far, and the creator's referrer.
+    function getClaimFees(uint256 claimId) external view returns (uint256 entryFees, address creatorReferrer) {
+        return (claimEntryFees[claimId], claimReferrer[claimId]);
     }
 
     function getChallenger(uint256 claimId, uint256 index) external view returns (
@@ -1161,10 +1005,7 @@ contract MimirV3 {
         uint256 resolved,
         uint256 balance
     ) {
-        uint256 held = usdc == address(0)
-            ? address(this).balance
-            : IERC20Like(usdc).balanceOf(address(this));
-        return (claimCount, totalResolved, held);
+        return (claimCount, totalResolved, address(this).balance);
     }
 
     /// Accrued minus claimed must always be covered by the contract balance.

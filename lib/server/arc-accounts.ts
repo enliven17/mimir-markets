@@ -32,6 +32,16 @@ export async function getArcBinding(solana: string): Promise<ArcBindingRow | nul
   return r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
 }
 
+/** The Solana wallet an Arc account is bound to. `arc` must be checksummed (getAddress), as it is stored. */
+export async function getArcBindingByArc(arc: string): Promise<ArcBindingRow | null> {
+  const rows = await query<{ solana: string; arc: string; bound_at: string | null }>(
+    "SELECT solana, arc, bound_at FROM arc_accounts WHERE arc = $1",
+    [arc],
+  );
+  const r = rows[0];
+  return r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
+}
+
 export async function upsertArcBinding(args: {
   solana: string;
   arc: `0x${string}`;

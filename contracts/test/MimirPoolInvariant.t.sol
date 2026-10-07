@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirPool} from "../MimirPool.sol";
+import {MimirPool, IMimirFees} from "../MimirPool.sol";
+import {MimirFees} from "../MimirFees.sol";
 
 /**
  * MimirPool invariants over random create / stake / resolve / dispute /
@@ -12,8 +13,11 @@ import {MimirPool} from "../MimirPool.sol";
  *      still claim (fee included), parked payouts and accrued fees.
  *   2. No market ever pays out (payouts + fees) more than its pot.
  *   3. No winner (or refunded staker) gets back less than their stake.
- *   4. The fee books agree with the open fee balance.
- *   5. A fee is only ever a capped share of profit: never charged on a stake.
+ *   4. The fee books agree with the open fee balances (platform and referrer).
+ *   5. A claim's fee is only ever the copy-trade share of profit (at most
+ *      2%): never charged on a stake.
+ *
+ * Fees in play: the real 0.5% entry fee on every stake, and random referrers.
  *
  * Dependency-free: forge reads targetContracts()/targetSelectors() by selector.
  */
@@ -40,6 +44,8 @@ contract PoolHandler {
 
     uint256 constant ONE = 1e18;
     uint256 constant MAX_MARKETS = 16;
+    /// The basket creator named on copy stakes.
+    address public constant REF = address(0x5EF);
 
     MimirPool public immutable pool;
     address public immutable owner;
@@ -76,7 +82,7 @@ contract PoolHandler {
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
-        (,,, state,,,,,) = pool.getMarket(id);
+        (,,, state,,,) = pool.getMarket(id);
     }
 
     function _find(uint256 s, uint8 a, uint8 b) internal view returns (uint256) {
@@ -97,7 +103,7 @@ contract PoolHandler {
     }
 
     function _deadline(uint256 id) internal view returns (uint256 d) {
-        (, d,,,,,,,) = pool.getMarket(id);
+        (, d,,,,,) = pool.getMarket(id);
     }
 
     // ── Actions ─────────────────────────────────────────────────────────────
@@ -113,7 +119,7 @@ contract PoolHandler {
         uint256 deadline = t + 1 hours + (mode % 2 days);
         vm.prank(_actor(who));
         (bool ok,) = address(pool).call{value: value}(abi.encodeWithSelector(
-            MimirPool.createMarket.selector, "q", "Y", "N", "u", "c", deadline, side
+            MimirPool.createMarket.selector, "q", "Y", "N", "u", "c", deadline, side, mode % 3 == 0 ? REF : address(0)
         ));
         ok;
     }
@@ -124,7 +130,7 @@ contract PoolHandler {
         uint256 value = 2 * ONE + (amount % (100 * ONE));
         vm.prank(_actor(who));
         (bool ok,) = address(pool).call{value: value}(
-            abi.encodeWithSelector(MimirPool.stake.selector, id, onA ? uint8(1) : uint8(2))
+            abi.encodeWithSelector(MimirPool.stake.selector, id, onA ? uint8(1) : uint8(2), amount % 2 == 0 ? REF : address(0))
         );
         ok;
     }
@@ -209,7 +215,7 @@ contract PoolHandler {
             return;
         }
         // At least the stake that earned the payout: the winning leg, or both legs on a refund.
-        (,,,, uint8 outcome, uint256 totalA, uint256 totalB,,) = pool.getMarket(id);
+        (,,,, uint8 outcome, uint256 totalA, uint256 totalB) = pool.getMarket(id);
         (uint256 onA, uint256 onB) = pool.stakeOf(id, a);
         bool contested = totalA != 0 && totalB != 0;
         uint256 floor = contested && outcome == 1 ? onA : contested && outcome == 2 ? onB : onA + onB;
@@ -217,8 +223,9 @@ contract PoolHandler {
             principalViolated = true;
             return;
         }
-        // payout + fee - floor is the profit; the fee may be at most MAX_FEE_BPS of it.
-        if (fee * 10_000 > (payout + fee - floor) * pool.MAX_FEE_BPS()) feeOnPrincipal = true;
+        // payout + fee - floor is the profit; the fee may be at most the copy-trade share of it.
+        uint256 maxBps = uint256(pool.REFERRER_FEE_BPS()) + pool.COPY_FEE_BPS();
+        if (fee * 10_000 > (payout + fee - floor) * maxBps) feeOnPrincipal = true;
     }
 
     function withdraw(uint256 who) external {
@@ -256,7 +263,7 @@ contract MimirPoolInvariantTest {
     function setUp() public {
         uint256 t = 1_000_000;
         vm.warp(t);
-        pool = new MimirPool(oracle, 700, platform, 1 hours);
+        pool = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 1 hours);
 
         PoolRefuser refuser = new PoolRefuser();
         address[] memory actors = new address[](5);
@@ -299,14 +306,14 @@ contract MimirPoolInvariantTest {
     /// forge-config: default.invariant.runs = 64
     /// forge-config: default.invariant.depth = 200
     function invariant_balanceCoversEveryObligation() public view {
-        uint256 owed = pool.accruedFees(platform);
+        uint256 owed = pool.accruedFees(platform) + pool.accruedFees(handler.REF());
         uint256 n = handler.actorCount();
         for (uint256 i = 0; i < n; i++) {
             owed += pool.pendingWithdrawals(handler.actors(i));
         }
         uint256 markets = pool.marketCount();
         for (uint256 id = 1; id <= markets; id++) {
-            (,,, uint8 state,, uint256 totalA, uint256 totalB,,) = pool.getMarket(id);
+            (,,, uint8 state,, uint256 totalA, uint256 totalB) = pool.getMarket(id);
             if (state != pool.ST_RESOLVED()) {
                 (,,,, uint256 bond,) = pool.getProposal(id);
                 owed += totalA + totalB + bond;
@@ -325,7 +332,7 @@ contract MimirPoolInvariantTest {
     function invariant_noMarketPaysMoreThanItsPot() public view {
         uint256 markets = pool.marketCount();
         for (uint256 id = 1; id <= markets; id++) {
-            (,,,,, uint256 totalA, uint256 totalB,,) = pool.getMarket(id);
+            (,,,,, uint256 totalA, uint256 totalB) = pool.getMarket(id);
             assert(handler.grossPaid(id) <= totalA + totalB);
         }
     }
@@ -345,6 +352,9 @@ contract MimirPoolInvariantTest {
     /// forge-config: default.invariant.runs = 64
     /// forge-config: default.invariant.depth = 200
     function invariant_feeBooksBalance() public view {
-        assert(pool.lifetimeFeesAccrued() - pool.lifetimeFeesClaimed() == pool.accruedFees(platform));
+        assert(
+            pool.lifetimeFeesAccrued() - pool.lifetimeFeesClaimed()
+                == pool.accruedFees(platform) + pool.accruedFees(handler.REF())
+        );
     }
 }

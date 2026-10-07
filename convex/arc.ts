@@ -74,9 +74,14 @@ export const market = query({
     if (!m) return null;
     const [positions, events] = await Promise.all([
       ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).collect(),
-      ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).order("desc").take(100),
+      ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).collect(),
     ]);
-    return { ...m, positions, events };
+    // Every transaction on the market, newest first (chain order, not insertion order).
+    events.sort((x, y) => y.block - x.block || y.logIndex - x.logIndex);
+    const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).order("desc").first();
+    // Fees this market paid, from its FeeAccrued events: entry fees and copy-trade fees, all on chain.
+    const feesCollected = events.filter((e) => e.name === "FeeAccrued").reduce((sum, e) => sum + BigInt(e.amount ?? "0"), 0n).toString();
+    return { ...m, positions, events, verdict, feesCollected };
   },
 });
 

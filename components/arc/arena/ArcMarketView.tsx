@@ -15,8 +15,9 @@ import Skeleton from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import type { ArcMarketKind } from "@/lib/arc/markets";
+import ArcActivity from "./ArcActivity";
 import ArcStakePanel from "./ArcStakePanel";
-import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd } from "./shared";
+import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
 
 /** Anyone writes this URL on-chain: link it only when it is http(s), never javascript: or data:. */
@@ -99,6 +100,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
           <p className="m-0 flex flex-wrap justify-between gap-2 text-[13px] text-muted">
             <span>
               Pool <span className="text-cream">${m.volumeUsd.toFixed(2)}</span> · {m.participants} in
+              {m.feesCollected !== "0" ? <> · fees {usdFine(m.feesCollected)}</> : null}
             </span>
             {phase === "open" ? (
               <Countdown until={m.deadline} format={(t) => `${t} left`} className="font-mono" />
@@ -146,6 +148,10 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
               </>
             ) : null}
           </p>
+        </section>
+        <section aria-label="Every transaction" className={`${SURFACE} grid gap-3 p-5`}>
+          <h2 className="m-0 text-[15px] text-cream">Every transaction</h2>
+          <ArcActivity m={m} events={m.events} verdict={m.verdict ?? null} />
         </section>
       </div>
 

@@ -106,14 +106,14 @@ Review of 2026-10-06, no critical findings. What changes with the passkey model 
 
 | # | Severity | Where | Issue | Fix |
 |---|---|---|---|---|
-| 1 | Medium (was High with a relayer) | `createClaim`, `challengeClaim`, `_payWinner` | The caller names `agentOwnerRecipient`. The user signs a hash, not readable calldata, so a compromised front end could name itself and take the agent fee (up to 10% of profit) | Only accept recipients that are registered agent payout wallets (an on-chain allowlist the owner sets with a timelock), or drop the free-form parameter |
+| 1 | Medium (was High with a relayer) | `createClaim`, `challengeClaim`, `_payWinner` | The caller names `agentOwnerRecipient`. The user signs a hash, not readable calldata, so a compromised front end could name itself and take the agent fee (up to 10% of profit) | **Superseded by the fee rework (2026-10-07):** the agent fee is gone; the free-form field is now `referrer` (copy trades), worth a fixed 1% of profit. No allowlist: a passkey account signs a hash, so a compromised front end already controls the whole account; a list would only guard that 1% |
 | 2 | Medium | `refundExpired` vs `resolveClaim` / `resolveDispute` | After the grace period both are valid; a loser can front-run a late verdict with a refund | Verdicts revert after the grace period |
 | 3 | Medium | `resolveDispute` | Pays the bond (`_settleBond`) while the claim is still `ST_DISPUTED`; the payee can re-enter `refundExpired` and settle twice; only the 50k gas stipend stops it | Set state before any transfer; `nonReentrant` on every state-changing function |
 | 4 | Medium | `resolveDispute`, `transferOwnership` | The owner is the arbiter with no ownership timelock; a compromised owner can dispute and rule for itself; a loser can stall with cheap disputes | Multisig arbiter, timelocked ownership, keep the bond if a dispute is never ruled on |
 | 5 | Low | `_transfer` | Anyone can starve a recipient's 50k-gas push so it is parked (no loss) | The app calls `withdraw()` for the user when `pendingWithdrawals > 0` |
 | 6 | Low | whole contract | No reentrancy guard; safety rests on ordering + the gas stipend | Add one |
-| 7 | Low | `usdcPermit` | Permit front-running (ERC-20 mode only, not Arc) | try/catch + allowance check |
-| 8 | Low | send helper | ERC-20 send to a code-less address counts as success | Misconfigured deploys only |
+| 7 | Low | `usdcPermit` | Permit front-running (ERC-20 mode only, not Arc) | Gone: ERC-20 mode removed (native USDC only) |
+| 8 | Low | send helper | ERC-20 send to a code-less address counts as success | Gone with ERC-20 mode; the fees contract must have code at deploy |
 
 Sound: payouts never exceed the pot, fees never cut into a winner's stake, pause never blocks settlement or
 withdrawals, `multicall` is non-payable and off in native mode. To check on Arc: whether Circle's blocklist applies
@@ -150,14 +150,29 @@ a fork test on Arc testnet with smart-account callers, Slither clean or every fi
   per-user (`claim` / `claimFor`, so a crowded market never runs out of gas settling); a hedger is paid only the
   winning leg. Same oracle proposal, dispute window, refund escape hatch and timelocks as MimirV3.
 - **UI rule for both:** every stake button shows "risk X, win at most Y" from the live totals.
-- Tests: 107 pass (`forge test`), including smart-account callers, reentrancy attempts and invariant suites (escrow
-  solvency, payouts ≤ pot, no winner below their stake, fee only on profit). Runtime sizes: MimirV3 24,453 B
-  (123 under EIP-170, built with `optimizer_runs = 1`), MimirPool 11,678 B. Slither not run yet (not installed).
+- **Fees (2026-10-07; the 5% profit fee and the agent fee are gone):**
+  - **Entry fee on every position** (create, rematch, challenge, pool stake): `MimirFees.entryBps(account)` of what
+    is sent, taken on the way in; the rest is the stake. 0.5% by default, **0.25% for 5M+ $MIMIR, 0.1% for 10M+**.
+    The fee is earned on entry and kept on refunds (draw, unresolvable, cancel, expired refund return the net stake).
+  - **Holder discount:** the token is on Solana, so the server checks the account's linked Solana wallet and signs
+    an EIP-712 `FeeTicket(address account,uint8 tier,uint64 expires)` (domain "Mimir Fees" / "1" / chainId /
+    `MimirFees`), at most 2 days ahead (24 h in practice, spot balance). The account submits `applyTicket` in the
+    same user operation as its bet. The signer can only lower fees, so a leaked signer key costs revenue, never user
+    money; the owner rotates it at once.
+  - **Copy trades:** a position opened with a `referrer` (the copied basket's creator) pays 1% of its **profit** to
+    the referrer and 1% to the platform. Nothing on a loss or a refund; nobody pays themselves.
+  - One fee recipient per contract, changed only through a 2-day timelock; forfeited dispute bonds go there too.
+  - Native USDC only: the ERC-20 mode (permit, multicall) is removed.
+- Tests: 113 pass (`forge test`), including smart-account callers, reentrancy attempts, fee tickets (wrong signer,
+  replay by another account, upgrade, expiry, malleable signature, rotation) and invariant suites with real fees
+  (escrow solvency, payouts ≤ pot, no winner below their net stake, claim fees only a copy share of profit). Runtime
+  sizes: MimirV3 21,245 B (3,331 under EIP-170, `optimizer_runs = 1`), MimirPool 11,938 B, MimirFees 2,391 B.
+  Slither not run yet (not installed).
 
-What the app and workers must handle: verdicts revert with `GraceOver()` once `refundExpired` is open; agent fee
-recipients must be listed first (`setAgentPayout`, 2-day timelock), otherwise create/challenge revert with
-`AgentNotAllowed()`; ownership transfer is timelocked 2 days; in MimirPool the app pushes winners with `claimFor`
-after checking `claimable`.
+What the app and workers must handle: verdicts revert with `GraceOver()` once `refundExpired` is open; `msg.value`
+is the gross amount and the recorded stake is net of the entry fee; a holder's ticket call goes first in the user
+operation; ownership transfer is timelocked 2 days; in MimirPool the app pushes winners with `claimFor` after
+checking `claimable`.
 
 ## Council: two wallets per persona
 

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {FlatFees} from "./FlatFees.sol";
 
 /**
  * Safety properties added after the September 2026 review: the oracle-timeout
@@ -42,13 +43,18 @@ contract MimirV3SafetyTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, 50, 0, platform, address(0), 0);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(50))), 0);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// What is staked after the 0.5% entry fee.
+    function _net(uint256 amount) internal pure returns (uint256) {
+        return amount - (amount * 50) / 10_000;
+    }
 
     function _createCall(uint256 stake, string memory oddsMode, uint256 payoutBps, bool isPrivate, string memory key)
         internal
@@ -105,12 +111,13 @@ contract MimirV3SafetyTest {
         vm.prank(bob); // anyone
         mimir.refundExpired(id);
 
-        assert(creator.balance - creatorBefore == STAKE);
-        assert(alice.balance - aliceBefore == STAKE);
+        // Net stakes back; the entry fees stay earned.
+        assert(creator.balance - creatorBefore == _net(STAKE));
+        assert(alice.balance - aliceBefore == _net(STAKE));
         (uint8 state, uint8 side) = _state(id);
         assert(state == mimir.ST_RESOLVED());
         assert(side == mimir.SIDE_UNRESOLVABLE());
-        assert(mimir.lifetimeFeesAccrued() == 0);
+        assert(mimir.lifetimeFeesAccrued() == 2 * (STAKE - _net(STAKE)));
     }
 
     function test_aResolvedClaimCannotBeRefundedAgain() public {
@@ -266,7 +273,7 @@ contract MimirV3SafetyTest {
         uint256 before = creator.balance;
         vm.prank(creator);
         mimir.cancelClaim(id);
-        assert(creator.balance - before == STAKE);
+        assert(creator.balance - before == _net(STAKE));
 
         uint256 id2 = _create(STAKE, "pool", 0);
         assert(_challenge(alice, id2, STAKE));
@@ -284,18 +291,19 @@ contract MimirV3SafetyTest {
     // ── Odds paths ──────────────────────────────────────────────────────────
 
     function test_fixedOddsReservesCreatorLiquidity() public {
-        // 2x fixed: each challenger's profit equals their stake, reserved from the creator.
+        // 2x fixed on net stakes: each challenger's profit equals their net stake,
+        // reserved from the creator's net 9.95.
         uint256 id = _create(STAKE, "fixed", 20_000);
-        assert(_challenge(alice, id, 6 * ONE));
-        assert(!_challenge(bob, id, 6 * ONE)); // only 4 of creator liquidity left
-        assert(_challenge(bob, id, 4 * ONE));
+        assert(_challenge(alice, id, 6 * ONE)); // reserves 5.97
+        assert(!_challenge(bob, id, 6 * ONE)); // only 3.98 of creator liquidity left
+        assert(_challenge(bob, id, 4 * ONE)); // net 3.98: exactly what is left
 
         uint256 aliceBefore = alice.balance;
         uint256 creatorBefore = creator.balance;
         _resolve(id, mimir.SIDE_CHALLENGERS());
 
-        // Alice: 12 gross, 6 profit, 50 bps fee on the profit.
-        assert(alice.balance - aliceBefore == 12 * ONE - (6 * ONE * 50) / 10_000);
+        // Alice: twice her net stake, no fee on winnings.
+        assert(alice.balance - aliceBefore == 2 * _net(6 * ONE));
         // Every unit of creator liquidity was committed, so nothing comes back.
         assert(creator.balance == creatorBefore);
     }
@@ -306,8 +314,8 @@ contract MimirV3SafetyTest {
 
         uint256 creatorBefore = creator.balance;
         _resolve(id, mimir.SIDE_CHALLENGERS());
-        // 10 staked, 4 paid out as Alice's profit, 6 back at cost.
-        assert(creator.balance - creatorBefore == 6 * ONE);
+        // Net 9.95 staked, Alice's net 3.98 paid out as profit, the rest back at cost.
+        assert(creator.balance - creatorBefore == _net(STAKE) - _net(4 * ONE));
     }
 
     function test_poolSplitsTheCreatorStakeProportionally() public {
@@ -319,9 +327,9 @@ contract MimirV3SafetyTest {
         uint256 bobBefore = bob.balance;
         _resolve(id, mimir.SIDE_CHALLENGERS());
 
-        // Alice owns 1/4 of the challenger side, Bob 3/4 of the creator's 20.
-        assert(alice.balance - aliceBefore == 15 * ONE - (5 * ONE * 50) / 10_000);
-        assert(bob.balance - bobBefore == 45 * ONE - (15 * ONE * 50) / 10_000);
+        // Alice owns 1/4 of the challenger side, Bob 3/4 of the creator's net 19.9.
+        assert(alice.balance - aliceBefore == _net(10 * ONE) + _net(20 * ONE) / 4);
+        assert(bob.balance - bobBefore == _net(30 * ONE) + (_net(20 * ONE) * 3) / 4);
         // All that remains is fees owed.
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued());
     }

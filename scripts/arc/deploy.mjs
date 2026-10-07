@@ -1,11 +1,13 @@
-// Deploy MimirV3 (VS) and MimirPool (two-sided) to Arc in native-USDC mode, then print the env lines lib/arc/config.ts reads.
+// Deploy MimirFees, then MimirV3 (VS) and MimirPool (two-sided) wired to it, on Arc in native-USDC mode, and print
+// the env lines lib/arc/config.ts reads.
 //   forge build && ARC_DEPLOYER_KEY=0x… node scripts/arc/deploy.mjs
 // Env (all optional except the key):
 //   ARC_NETWORK testnet|mainnet, ARC_RPC (required on mainnet)
-//   ARC_ORACLE, ARC_FEE_RECIPIENT  default: the deployer
-//   ARC_PLATFORM_FEE_BPS 500, ARC_AGENT_FEE_BPS 0, ARC_POOL_FEE_BPS 500, ARC_DISPUTE_WINDOW 3600 (seconds)
-// The deployer becomes owner of both; hand ownership over with transferOwnership + acceptOwnership (timelocked).
-// Agent payout wallets are listed later by the owner with setAgentPayout(wallet, true).
+//   ARC_ORACLE, ARC_FEE_RECIPIENT   default: the deployer
+//   ARC_FEE_SIGNER                  the server key that signs $MIMIR holder fee tickets; default: the deployer
+//   ARC_DISPUTE_WINDOW 3600 (seconds)
+// Fees are fixed in the contracts: 0.5% entry (0.25% / 0.1% with a holder ticket), copy trades 1% + 1% of profit.
+// The deployer owns all three; hand ownership over with transferOwnership + acceptOwnership (timelocked).
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -26,14 +28,14 @@ const chain = mainnet
 const account = privateKeyToAccount(key)
 const oracle = getAddress(e.ARC_ORACLE || account.address)
 const feeTo = getAddress(e.ARC_FEE_RECIPIENT || account.address)
-const num = (v, d) => { const n = Number(v ?? d); if (!Number.isInteger(n) || n < 0) throw new Error(`bad number ${v}`); return n }
-const platformBps = num(e.ARC_PLATFORM_FEE_BPS, 500), agentBps = num(e.ARC_AGENT_FEE_BPS, 0), poolBps = num(e.ARC_POOL_FEE_BPS, 500)
-const window = BigInt(num(e.ARC_DISPUTE_WINDOW, 3600))
+const feeSigner = getAddress(e.ARC_FEE_SIGNER || account.address)
+const window = BigInt(e.ARC_DISPUTE_WINDOW ?? 3600)
+if (window < 0n || window > 7n * 86400n) throw new Error('ARC_DISPUTE_WINDOW must be 0..604800 seconds')
 
 const pub = createPublicClient({ chain, transport: http() })
 const wallet = createWalletClient({ account, chain, transport: http() })
 if ((await pub.getChainId()) !== chain.id) throw new Error(`RPC is not chain ${chain.id}`)
-console.log(`${chain.name}: deployer ${account.address} (${Number(await pub.getBalance({ address: account.address })) / 1e18} USDC), oracle ${oracle}, fees to ${feeTo}`)
+console.log(`${chain.name}: deployer ${account.address} (${Number(await pub.getBalance({ address: account.address })) / 1e18} USDC), oracle ${oracle}, fees to ${feeTo}, fee signer ${feeSigner}`)
 
 const deploy = async (name, args) => {
   const a = await art(name)
@@ -42,9 +44,11 @@ const deploy = async (name, args) => {
   console.log(`  ${name} ${rc.contractAddress} block ${rc.blockNumber} (${Number(rc.gasUsed * rc.effectiveGasPrice) / 1e18} USDC)`)
   return rc
 }
-const v3 = await deploy('MimirV3', [oracle, platformBps, agentBps, feeTo, '0x0000000000000000000000000000000000000000', window])
-const pool = await deploy('MimirPool', [oracle, poolBps, feeTo, window])
+const fees = await deploy('MimirFees', [feeSigner])
+const v3 = await deploy('MimirV3', [oracle, feeTo, fees.contractAddress, window])
+const pool = await deploy('MimirPool', [oracle, feeTo, fees.contractAddress, window])
 
-console.log(`\nNEXT_PUBLIC_MIMIR_V3_ADDRESS=${v3.contractAddress}
+console.log(`\nNEXT_PUBLIC_MIMIR_FEES_ADDRESS=${fees.contractAddress}
+NEXT_PUBLIC_MIMIR_V3_ADDRESS=${v3.contractAddress}
 NEXT_PUBLIC_MIMIR_POOL_ADDRESS=${pool.contractAddress}
 NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK=${v3.blockNumber}`)

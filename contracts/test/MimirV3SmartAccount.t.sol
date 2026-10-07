@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MimirV3} from "../MimirV3.sol";
+import {MimirV3, IMimirFees} from "../MimirV3.sol";
+import {FlatFees} from "./FlatFees.sol";
 
 /**
  * On Arc every user is an ERC-4337 smart account (Circle Modular Wallet), so
@@ -58,12 +59,11 @@ contract MimirV3SmartAccountTest {
 
     address oracle = address(0x0417ac1e);
     address platform = address(0xFEE);
-    address agent = address(0xA6E7);
     address keeper = address(0xB0B);
 
     uint256 constant ONE = 1e18;
     uint256 constant STAKE = 2 * ONE;
-    uint256 constant FEE_BPS = 500; // 5% of profit, as in the Arc POC
+    uint256 constant FEE_BPS = 50; // the 0.5% base entry fee
     uint256 constant WINDOW = 60;
 
     uint256 constant T0 = 1_000_000;
@@ -71,8 +71,7 @@ contract MimirV3SmartAccountTest {
 
     function setUp() public {
         vm.warp(T0);
-        mimir = new MimirV3(oracle, uint16(FEE_BPS), 0, platform, address(0), WINDOW);
-        mimir.setAgentPayout(agent, true);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(uint16(FEE_BPS)))), WINDOW);
         vm.warp(T0 + 2 days);
 
         maker = new MiniAccount(address(this));
@@ -87,7 +86,7 @@ contract MimirV3SmartAccountTest {
         bytes memory ret = maker.execute(address(mimir), STAKE, abi.encodeWithSelector(
             MimirV3.createClaim.selector,
             "Will it?", "yes", "no", "https://example.com", DEADLINE, STAKE,
-            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", agent
+            "custom", uint256(0), "binary", "pool", uint256(0), "", "rule", uint256(0), false, "", address(0)
         ));
         id = abi.decode(ret, (uint256));
     }
@@ -109,9 +108,13 @@ contract MimirV3SmartAccountTest {
         (,,,,,,,,, state,,,,,,,,) = mimir.getClaim(id);
     }
 
-    /// What a winner of the full pot nets: stake back plus profit minus the fee on profit.
+    /// The entry fee on one stake, and what a winner of the full pot gets: both net stakes.
+    function _fee() internal pure returns (uint256) {
+        return (STAKE * FEE_BPS) / 10_000;
+    }
+
     function _netWin() internal pure returns (uint256) {
-        return 2 * STAKE - (STAKE * FEE_BPS) / 10_000;
+        return 2 * (STAKE - _fee());
     }
 
     // ── Flows ───────────────────────────────────────────────────────────────
@@ -134,8 +137,9 @@ contract MimirV3SmartAccountTest {
         assert(address(maker).balance == 98 * ONE + _netWin());
         assert(address(taker).balance == 98 * ONE);
         assert(mimir.pendingWithdrawals(address(maker)) == 0);
-        // Agent fee is 0 bps in this deployment; the platform fee is what is left.
+        // The two entry fees are all that is left.
         assert(address(mimir).balance == mimir.accruedFees(platform));
+        assert(mimir.accruedFees(platform) == 2 * _fee());
         assert(mimir.wins(address(maker)) == 1 && mimir.losses(address(taker)) == 1);
     }
 
@@ -184,8 +188,9 @@ contract MimirV3SmartAccountTest {
         vm.prank(keeper);
         mimir.refundExpired(id);
 
-        assert(address(maker).balance == 100 * ONE);
-        assert(address(taker).balance == 100 * ONE);
-        assert(address(mimir).balance == 0);
+        // Net stakes back; the entry fees stay earned.
+        assert(address(maker).balance == 100 * ONE - _fee());
+        assert(address(taker).balance == 100 * ONE - _fee());
+        assert(address(mimir).balance == 2 * _fee());
     }
 }

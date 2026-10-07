@@ -35,8 +35,6 @@ export default defineSchema({
     volumeUsd: v.number(),
     participants: v.number(),
     isPrivate: v.boolean(),
-    /** Fee on profit this market settles with (VS: the platform share; an attributed agent may add its own). */
-    feeBps: v.number(),
     /** Unix seconds the proposed result can be disputed until; 0 = no proposal yet. */
     disputableUntil: v.number(),
     /** Unix seconds refundExpired opens (7 days after the deadline, or after a dispute). */
@@ -71,6 +69,10 @@ export default defineSchema({
     txHash: v.string(),
     logIndex: v.number(),
     block: v.number(),
+    /** Block time, unix seconds. */
+    at: v.optional(v.number()),
+    /** The side the event names: a stake's side, a proposed or final outcome. */
+    side: v.optional(v.number()),
   })
     .index("by_log", ["txHash", "logIndex"])
     .index("by_market", ["kind", "marketId"])

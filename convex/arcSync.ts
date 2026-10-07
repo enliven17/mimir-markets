@@ -1,7 +1,7 @@
 // Arc indexer: pulls MimirV3 / MimirPool logs since the cursor, re-reads every market they touch from the chain
 // (so contract logic is never re-implemented here) and hands the snapshots to arc.apply in one transaction.
 // Arc has BFT finality (no reorgs), so a block once read is final. Runs from convex/crons.ts.
-import { createPublicClient, http, parseAbi, type Log } from "viem";
+import { createPublicClient, http, parseAbi, parseEventLogs, type Log } from "viem";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import { arcConfig } from "../lib/arc/config";
@@ -16,12 +16,13 @@ const V3_ABI = parseAbi([
   "event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight)",
   "event MarketSettled(uint256 indexed id, uint256 totalPaid, uint256 totalFees)",
   "event ClaimExpiredRefund(uint256 indexed id, address indexed caller)",
+  "event ReferrerSet(uint256 indexed id, address indexed participant, address indexed referrer)",
+  "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
   "function getClaim(uint256) view returns (address creator, string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 creatorStake, uint256 totalChallengerStake, uint256 reservedCreatorLiability, uint256 deadline, uint8 state, uint8 winnerSide, string resolutionSummary, uint8 confidence, string category, uint256 parentId, uint256 challengerCount, uint256 createdAt, bytes32 evidenceHash)",
   "function getClaimMarketConfig(uint256) view returns (string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, uint256 reservedCreatorLiability)",
   "function getChallengerList(uint256) view returns (address[] addrs, uint256[] stakes)",
   "function disputeWindow() view returns (uint256)",
   "function proposals(uint256) view returns (uint8 winnerSide, uint8 confidence, uint64 proposedAt, uint64 disputedAt, address disputer, uint256 bond, bytes32 evidenceHash, string summary)",
-  "function getClaimFees(uint256) view returns (uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient, address agentOwnerRecipient)",
 ]);
 const POOL_ABI = parseAbi([
   "event MarketCreated(uint256 indexed id, address indexed creator, uint256 deadline, string category)",
@@ -32,7 +33,9 @@ const POOL_ABI = parseAbi([
   "event MarketResolved(uint256 indexed id, uint8 outcome, string summary, bytes32 evidenceHash)",
   "event MarketExpiredRefund(uint256 indexed id, address indexed caller)",
   "event Claimed(uint256 indexed id, address indexed user, uint256 paid, uint256 fee)",
-  "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB, uint16 marketFeeBps, address marketFeeRecipient)",
+  "event ReferrerSet(uint256 indexed id, address indexed user, address indexed referrer)",
+  "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
+  "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB)",
   "function getMarketText(uint256) view returns (string question, string labelA, string labelB, string resolutionUrl, string category, string summary)",
   "function stakeOf(uint256, address) view returns (uint256 onA, uint256 onB)",
   "function disputeWindow() view returns (uint256)",
@@ -41,9 +44,10 @@ const POOL_ABI = parseAbi([
 
 const V3_STATUS = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
 const POOL_STATUS = ["open", "proposed", "disputed", "resolved"] as const;
-// ponytail: fixed chunk and per-run cap; raise them if a backlog ever outgrows a minute of cron runs.
-const CHUNK = 10_000n;
-const MAX_CHUNKS = 20;
+// The public Arc RPC refuses eth_getLogs ranges of a few hundred blocks ("requested range too large"); ~0.5 s blocks,
+// so 30 s of cron is ~60 blocks. ponytail: fixed chunk and per-run cap; a private RPC can take bigger ranges.
+const CHUNK = 250n;
+const MAX_CHUNKS = 40;
 const usd = (wei: bigint) => Number(wei) / 1e18;
 /** Both contracts: refundExpired opens this long after the deadline (or the dispute). */
 const RESOLUTION_GRACE_SECONDS = 7 * 86_400;
@@ -87,10 +91,13 @@ export const sync = internalAction({
     ]);
     for (let i = 0; i < MAX_CHUNKS && from <= head; i++) {
       const to = from + CHUNK - 1n < head ? from + CHUNK - 1n : head;
-      const [v3Logs, poolLogs] = await Promise.all([
-        client.getContractEvents({ address: mimirV3, abi: V3_ABI, fromBlock: from, toBlock: to }),
-        client.getContractEvents({ address: mimirPool, abi: POOL_ABI, fromBlock: from, toBlock: to }),
+      // No topic filter: the RPC's range limit is far lower with one, so take every log and keep the known events.
+      const [v3Raw, poolRaw] = await Promise.all([
+        client.getLogs({ address: mimirV3, fromBlock: from, toBlock: to }),
+        client.getLogs({ address: mimirPool, fromBlock: from, toBlock: to }),
       ]);
+      const v3Logs = parseEventLogs({ abi: V3_ABI, logs: v3Raw, strict: false });
+      const poolLogs = parseEventLogs({ abi: POOL_ABI, logs: poolRaw, strict: false });
       const logs = [
         ...v3Logs.map((l) => ({ kind: "vs" as Kind, log: l as unknown as DecodedLog })),
         ...poolLogs.map((l) => ({ kind: "pool" as Kind, log: l as unknown as DecodedLog })),
@@ -115,12 +122,18 @@ export const sync = internalAction({
         positions.push(...snap.positions);
       }
 
+      // Block times for the activity feed: one read per block that has a log.
+      const times = new Map<bigint, number>();
+      for (const b of new Set(logs.map(({ log }) => log.blockNumber))) {
+        times.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp));
+      }
+
       await ctx.runMutation(internal.arc.apply, {
         name: "arc",
         block: Number(to),
         markets,
         positions,
-        events: logs.map(({ kind, log }) => eventRow(kind, log)),
+        events: logs.map(({ kind, log }) => ({ ...eventRow(kind, log), at: times.get(log.blockNumber) })),
       });
       from = to + 1n;
     }
@@ -130,11 +143,10 @@ export const sync = internalAction({
 type Client = ReturnType<typeof createPublicClient>;
 
 async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number, window: bigint) {
-  const [c, cfg, list, fees, proposal] = await Promise.all([
+  const [c, cfg, list, proposal] = await Promise.all([
     client.readContract({ address, abi: V3_ABI, functionName: "getClaim", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimMarketConfig", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getChallengerList", args: [id] }),
-    client.readContract({ address, abi: V3_ABI, functionName: "getClaimFees", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "proposals", args: [id] }),
   ]);
   const [creator, question, creatorPosition, counterPosition, resolutionUrl, creatorStake, totalChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
@@ -164,7 +176,6 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
       volumeUsd: usd(creatorStake + totalChallengerStake),
       participants: 1 + byUser.size,
       isPrivate: cfg[6],
-      feeBps: fees[0],
       ...timing(deadline, BigInt(proposal[2]), BigInt(proposal[3]), window),
       updatedBlock: block,
     },
@@ -178,7 +189,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getProposal", args: [id] }),
   ]);
-  const [creator, deadline, createdAt, state, outcome, totalA, totalB, feeBps] = m;
+  const [creator, deadline, createdAt, state, outcome, totalA, totalB] = m;
   const [question, labelA, labelB, resolutionUrl, category, summary] = text;
   const positions = [];
   for (const u of users) {
@@ -209,7 +220,6 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
       // ponytail: participants is filled from the positions table in arc.apply (no on-chain count for pools).
       participants: 0,
       isPrivate: false,
-      feeBps,
       ...timing(deadline, proposal[1], proposal[2], window),
       updatedBlock: block,
     },
@@ -219,14 +229,16 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
 
 function eventRow(kind: Kind, log: DecodedLog) {
   const a = log.args;
-  const user = (a.challenger ?? a.creator ?? a.user ?? a.disputer ?? a.caller) as string | undefined;
-  const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond) as bigint | undefined;
+  const user = (a.challenger ?? a.creator ?? a.user ?? a.participant ?? a.recipient ?? a.disputer ?? a.caller) as string | undefined;
+  const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond ?? a.totalPaid) as bigint | undefined;
+  const side = (a.side ?? a.winnerSide ?? a.outcome) as number | undefined;
   return {
     kind,
     marketId: Number(a.id as bigint),
     name: log.eventName,
     user: user ? lower(user) : undefined,
     amount: amount?.toString(),
+    side: side === undefined ? undefined : Number(side),
     txHash: log.transactionHash,
     logIndex: log.logIndex,
     block: Number(log.blockNumber),
