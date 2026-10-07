@@ -6,7 +6,7 @@
 import { randomInt } from "node:crypto";
 
 import { ARC } from "@/lib/arc/config";
-import { accessMinMimir, INVITE_ALPHABET, INVITES_PER_HOLDER, inviteOnly, type AccessStatus } from "@/lib/access";
+import { accessMinMimir, INVITE_ALPHABET, invitesPerUser, inviteOnly, type AccessStatus } from "@/lib/access";
 import { query } from "./db";
 import { walletBalances } from "./holder";
 
@@ -22,17 +22,21 @@ async function grantOf(wallet: string): Promise<{ via: "holder" | "invite" } | n
   return rows[0] ? { via: rows[0].via === "invite" ? "invite" : "holder" } : null;
 }
 
-/** A holder's codes, creating the missing ones (idempotent: always exactly INVITES_PER_HOLDER). */
-async function holderInvites(wallet: string): Promise<AccessStatus["invites"]> {
+/**
+ * A member's codes, topped up to the current allowance (idempotent). Raising MIMIR_INVITES_PER_USER hands everyone
+ * the extra codes on their next visit; lowering it hides nothing already handed out.
+ */
+async function memberInvites(wallet: string): Promise<AccessStatus["invites"]> {
+  const allowance = invitesPerUser();
   const now = Date.now();
   let rows = await query<{ code: string; used_by: string | null }>("SELECT code, used_by FROM access_invites WHERE owner = $1 ORDER BY created_at", [wallet]);
-  for (let i = rows.length; i < INVITES_PER_HOLDER; i++) {
-    await query("INSERT INTO access_invites (code, owner, created_at) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING", [newCode(), wallet, now + i]);
-  }
-  if (rows.length < INVITES_PER_HOLDER) {
+  if (rows.length < allowance) {
+    for (let i = rows.length; i < allowance; i++) {
+      await query("INSERT INTO access_invites (code, owner, created_at) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING", [newCode(), wallet, now + i]);
+    }
     rows = await query("SELECT code, used_by FROM access_invites WHERE owner = $1 ORDER BY created_at", [wallet]);
   }
-  return rows.slice(0, INVITES_PER_HOLDER).map((r) => ({ code: r.code, used: r.used_by !== null }));
+  return rows.map((r) => ({ code: r.code, used: r.used_by !== null }));
 }
 
 /** Where `wallet` stands. A holder at or above the minimum is granted on the spot and gets its codes. */
@@ -46,8 +50,8 @@ export async function accessStatus(wallet: string): Promise<AccessStatus> {
     await query("INSERT INTO access_grants (wallet, via, granted_at) VALUES ($1, 'holder', $2) ON CONFLICT (wallet) DO NOTHING", [wallet, Date.now()]);
     grant = { via: "holder" };
   }
-  // Codes are a holder's perk: whoever holds the minimum now gets them, whatever let them in first.
-  const invites = isHolder ? await holderInvites(wallet) : [];
+  // Everyone who is in can bring others: holders and invitees alike.
+  const invites = grant ? await memberInvites(wallet) : [];
   return { inviteOnly: true, allowed: grant !== null, via: grant?.via ?? null, invites, minMimir };
 }
 

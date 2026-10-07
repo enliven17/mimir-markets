@@ -1,11 +1,15 @@
 /**
  * Invite-only access (mainnet launch). Open to everyone on testnet; invite-only
  * on mainnet unless NEXT_PUBLIC_INVITE_ONLY says otherwise ("1" forces it on,
- * "0" off). A wallet gets in by holding ACCESS_MIN_MIMIR $MIMIR on Solana,
- * which also hands it INVITES_PER_HOLDER codes, or by redeeming one of those
- * codes (no $MIMIR needed). Pure and isomorphic.
+ * "0" off). A wallet gets in by holding the minimum $MIMIR on Solana or by
+ * redeeming an invite code (no $MIMIR needed). Everyone who is in gets
+ * invitesPerUser() codes of their own; raising MIMIR_INVITES_PER_USER later
+ * (2 → 3) tops every member up on their next visit. Pure and isomorphic.
  */
-export const INVITES_PER_HOLDER = 2;
+export function invitesPerUser(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.MIMIR_INVITES_PER_USER?.trim());
+  return Number.isInteger(n) && n >= 0 && n <= 50 ? n : 2;
+}
 
 export function accessMinMimir(env: Record<string, string | undefined> = process.env): number {
   const n = Number(env.MIMIR_ACCESS_MIN?.trim());
@@ -31,7 +35,7 @@ export interface AccessStatus {
   inviteOnly: boolean;
   allowed: boolean;
   via: "open" | "holder" | "invite" | null;
-  /** The holder's own codes; empty for everyone else. */
+  /** This member's own codes (empty until they are in). */
   invites: Array<{ code: string; used: boolean }>;
   minMimir: number;
 }

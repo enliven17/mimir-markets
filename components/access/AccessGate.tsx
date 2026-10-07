@@ -134,7 +134,7 @@ function Gate({ children }: { children: ReactNode }) {
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Invite only</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">Mimir is opening in waves.</h1>
         <p className="m-0 text-[15px] leading-relaxed text-muted">
-          Hold {min} $MIMIR on Solana to get in, and two invite codes to share. Or use a code from someone who has.
+          Hold {min} $MIMIR on Solana to get in, or use an invite code from someone who is already in. Everyone inside gets codes to share.
         </p>
       </header>
       <section className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>{body}</section>
@@ -142,7 +142,7 @@ function Gate({ children }: { children: ReactNode }) {
   );
 }
 
-/** A holder's two invite codes, for the dashboard. Nothing when the app is open or the wallet has none. */
+/** A member's invite codes, for the dashboard. Nothing when the app is open or the wallet has none. */
 export function InvitesPanel() {
   const a = useAccess();
   const [copied, setCopied] = useState<string | null>(null);
