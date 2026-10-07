@@ -340,6 +340,16 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     used_at    BIGINT
   )`,
   `CREATE INDEX IF NOT EXISTS access_invites_owner_idx ON access_invites (owner)`,
+  // ── Agents on Arc ────────────────────────────────────────────────────────────
+  // The EVM address an agent sends its Arc transactions from, and each paid deploy (one tx pays for one agent).
+  `ALTER TABLE agent_registry ADD COLUMN IF NOT EXISTS arc_operator TEXT`,
+  `CREATE TABLE IF NOT EXISTS agent_payments (
+    tx_hash      TEXT PRIMARY KEY,
+    agent_id     TEXT NOT NULL,
+    owner_wallet TEXT NOT NULL,
+    amount_wei   TEXT NOT NULL,
+    paid_at      BIGINT NOT NULL
+  )`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */

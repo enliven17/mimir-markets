@@ -37,6 +37,7 @@ export const AGENT_API_ACTIONS = [
   "register",
   "heartbeat",
   "rotateOperator",
+  "setArcOperator",
   "listClaims",
   "getClaim",
   "getBalances",
@@ -57,6 +58,7 @@ export type AgentAction = (typeof AGENT_API_ACTIONS)[number];
 export const OWNER_SIGNED_ACTIONS: AgentAction[] = [
   "register",
   "rotateOperator",
+  "setArcOperator",
   "issueKey",
   "listKeys",
   "revokeKey",

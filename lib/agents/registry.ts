@@ -88,6 +88,8 @@ export interface AgentRecord {
   createdAt: number;
   updatedAt: number;
   lastSeenAt: number | null;
+  /** The EVM address its Arc transactions come from (lib/agents/arc-chain.ts); null until set. */
+  arcOperator: `0x${string}` | null;
   /** Mimir Terminal chat: set by setChat. The endpoint and its secret never leave the server. */
   chat: { enabled: boolean; priceUnits: number; bio: string };
 }

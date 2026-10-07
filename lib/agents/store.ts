@@ -38,6 +38,7 @@ function toRecord(row: Record<string, unknown>): AgentRecord {
     agentId: String(row.agent_id),
     ownerWallet: String(row.owner_wallet),
     operatorWallet: String(row.operator_wallet),
+    arcOperator: typeof row.arc_operator === "string" && row.arc_operator ? (row.arc_operator as `0x${string}`) : null,
     payoutWallet: String(row.payout_wallet),
     displayName: String(row.display_name ?? ""),
     authorityLevel: Number(row.authority_level ?? 0) as AuthorityLevel,
@@ -77,6 +78,7 @@ export interface CreateAgentInput {
   authorityLevel: AuthorityLevel;
   capabilities: AgentCapability[];
   status?: AgentStatus;
+  arcOperator?: string | null;
 }
 
 export async function createAgent(input: CreateAgentInput, now = Date.now()): Promise<AgentRecord> {
@@ -84,8 +86,8 @@ export async function createAgent(input: CreateAgentInput, now = Date.now()): Pr
   await query(
     `INSERT INTO agent_registry
        (agent_id, owner_wallet, operator_wallet, payout_wallet, display_name,
-        authority_level, capabilities, status, limits_json, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        authority_level, capabilities, status, limits_json, created_at, updated_at, arc_operator)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       input.agentId,
       input.ownerWallet,
@@ -98,6 +100,7 @@ export async function createAgent(input: CreateAgentInput, now = Date.now()): Pr
       JSON.stringify(limits),
       now,
       now,
+      input.arcOperator ?? null,
     ],
   );
   const created = await getAgent(input.agentId);
@@ -410,4 +413,9 @@ export async function claimsChallengedBy(wallet: string, limit = 100): Promise<I
     creator: String(r.creator),
     stake: String(r.stake ?? "0"),
   }));
+}
+
+/** Set (or change) the EVM address an agent sends its Arc transactions from. */
+export async function setArcOperator(agentId: string, arcOperator: string, now = Date.now()): Promise<void> {
+  await query("UPDATE agent_registry SET arc_operator = $1, updated_at = $2 WHERE agent_id = $3", [arcOperator, now, agentId]);
 }
