@@ -164,7 +164,7 @@ export default function TransferPanel({ session, arcUnits, solanaUnits, onSettle
               <li key={p.tx} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-ink-deep px-3 py-2 text-[13px]">
                 <span className="text-cream">
                   {p.amount} USDC {p.kind === "deposit" ? "to Arc" : "to Solana"}
-                  <span className="ml-2 font-mono text-[11px] text-dim">{new Date(p.at).toLocaleString()}</span>
+                  <span className="ml-2 font-mono text-[11px] text-dim">{new Date(p.at).toLocaleString("en-US")}</span>
                 </span>
                 <span className="flex gap-2">
                   <button

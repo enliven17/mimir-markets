@@ -45,7 +45,7 @@ const primaryAction = "btn-compact-primary press min-h-[40px] gap-1.5 px-4 text-
 const secondaryAction =
   "glass press inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full px-4 text-[14px] text-cream shadow-chip no-underline transition-colors hover:bg-[rgba(34,20,22,.78)]";
 
-const sol = (lamports: bigint) => (Number(lamports) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const sol = (lamports: bigint) => (Number(lamports) / 1e9).toLocaleString("en-US", { maximumFractionDigits: 3 });
 
 export interface OnboardingChecklistViewProps {
   funds: WalletFunds;

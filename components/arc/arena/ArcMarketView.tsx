@@ -117,7 +117,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             {phase === "open" ? (
               <Countdown until={m.deadline} format={(t) => `${t} left`} className="font-mono" />
             ) : (
-              <span>Closed {new Date(m.deadline * 1000).toLocaleString()}</span>
+              <span>Closed {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
             )}
           </p>
           {m.status === "resolved" || m.summary ? (

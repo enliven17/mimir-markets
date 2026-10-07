@@ -61,7 +61,7 @@ function label(m: ArcMarket, e: Event): string {
   }
 }
 
-const when = (at?: number) => (at ? new Date(at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
+const when = (at?: number) => (at ? new Date(at * 1000).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "");
 
 export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; events: Event[]; verdict: Verdict | null }) {
   const [open, setOpen] = useState(false);

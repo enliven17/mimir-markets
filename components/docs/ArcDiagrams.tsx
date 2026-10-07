@@ -70,7 +70,7 @@ export function SystemDiagram() {
             {[
               ["Indexer", "every 30 s", "reads both contracts, keeps markets, positions and every tx"],
               ["Oracle", "every minute", "proposes, finalizes, refunds, pushes pool payouts"],
-              ["Council", "every 5 min", "20 personas bet from Circle wallets"],
+              ["Council", "every 5 min", "20 personas read every market; the best fit posts its take"],
             ].map(([t, when, what]) => (
               <div key={t} className="grid gap-1 rounded-lg bg-[var(--panel-2)] p-2.5">
                 <span className="flex items-baseline justify-between gap-2 text-[13px] text-cream">

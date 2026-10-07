@@ -188,7 +188,7 @@ function Duel({
         <div className="flex items-baseline gap-2">
           <dt className="text-muted">{closes ? t("closesIn") : t("closedAt")}</dt>
           <dd className="m-0 font-mono text-[15px] tabular-nums text-cream">
-            {closes ? <Countdown until={claim.deadline} /> : new Date(claim.deadline * 1000).toLocaleDateString()}
+            {closes ? <Countdown until={claim.deadline} /> : new Date(claim.deadline * 1000).toLocaleDateString("en-US")}
           </dd>
         </div>
       </dl>

@@ -36,6 +36,7 @@ const POOL = parseAbi([
 const SIDE = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 3, UNRESOLVABLE: 4 } as const;
 // Decisions fetch evidence and call an LLM (up to a minute each): a few per tick keeps the action well inside 10 min.
 const MAX_DECISIONS_PER_TICK = 3;
+const ZERO_HASH: Hex = `0x${"0".repeat(64)}`;
 
 type Market = Doc<"arcMarkets">;
 type Position = Doc<"arcPositions">;
@@ -110,6 +111,16 @@ export const tick = internalAction({
     for (const m of work.decide.slice(0, MAX_DECISIONS_PER_TICK)) {
       const tag = `[oracle] ${m.kind} #${m.marketId}`;
       try {
+        // An uncontested pool refunds every stake whatever the outcome: propose DRAW without spending a model call,
+        // so markets nobody took the other side of cost the backend nothing to close.
+        if (m.kind === "pool" && (BigInt(m.stakeA) === 0n || BigInt(m.stakeB) === 0n)) {
+          const summary = "Only one side was staked, so every stake is refunded.";
+          const tx = await write(s, { address: s.mimirPool, abi: POOL, functionName: "resolve", args: [BigInt(m.marketId), SIDE.DRAW, summary, ZERO_HASH] });
+          await ctx.runMutation(internal.arc.saveVerdict, { kind: m.kind, marketId: m.marketId, side: SIDE.DRAW, confidence: 100, summary, evidenceHash: ZERO_HASH, bundle: "{}", txHash: tx });
+          console.log(`${tag}: uncontested, refund proposed ${tx}`);
+          changed = true;
+          continue;
+        }
         const full = await ctx.runQuery(internal.arc.marketWithPositions, { kind: m.kind, marketId: m.marketId });
         const decision: SettlementDecision | null = await decide(
           { oracle: addr(s.account.address.toLowerCase()), house: s.house, jury: null },

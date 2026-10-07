@@ -169,6 +169,8 @@ export const tick = internalAction({
 });
 
 const TAKES_PER_TICK = Number(process.env.COUNCIL_TAKES_PER_TICK ?? 3);
+// Anyone can open markets cheaply; a creator gets this many takes a day so a bot cannot spend the backend's model quota.
+const TAKES_PER_CREATOR_DAY = Number(process.env.COUNCIL_TAKES_PER_CREATOR_DAY ?? 3);
 const LEAN = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 0, UNRESOLVABLE: 0 } as const;
 
 /**
@@ -189,11 +191,17 @@ function bestPersonaFor(category: string): PersonaSpec | null {
 
 /** One take for each open market that has none yet: one evidence fetch and one LLM call each, a few per tick. */
 async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<string, EvidenceCacheEntry>, throttle: () => Promise<void>) {
-  const taken = new Set(await ctx.runQuery(internal.arcCouncilDb.takenMarkets, {}));
+  const takes = await ctx.runQuery(internal.arcCouncilDb.takenMarkets, {});
+  const taken = new Set(takes.map((t) => t.key));
+  const today = new Map<string, number>();
+  for (const t of takes) if (t.at > Date.now() - 86_400_000) today.set(t.creator, (today.get(t.creator) ?? 0) + 1);
+  const house = (JSON.parse(process.env.ARC_CREATOR_WALLET ?? "null") as { address?: string } | null)?.address?.toLowerCase();
   let written = 0;
   for (const m of markets.sort((a, b) => b.createdAt - a.createdAt)) {
     if (written >= TAKES_PER_TICK) break;
     if (taken.has(`${m.kind}:${m.marketId}`)) continue;
+    const creator = m.creator.toLowerCase();
+    if (creator !== house && (today.get(creator) ?? 0) >= TAKES_PER_CREATOR_DAY) continue;
     const persona = bestPersonaFor(m.category);
     if (!persona) return;
     try {
@@ -208,7 +216,9 @@ async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<
         lean: LEAN[v.verdict],
         confidence: v.confidence,
         text: v.explanation.slice(0, 600),
+        creator,
       });
+      today.set(creator, (today.get(creator) ?? 0) + 1);
       written++;
       console.log(`[council] take on ${m.kind} #${m.marketId} by ${persona.slug}: ${v.verdict} ${v.confidence}%`);
     } catch (err) {

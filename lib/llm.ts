@@ -101,7 +101,8 @@ const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b";
 // "openrouter/free" can route to a reasoning model that spends the whole budget thinking and answers nothing.
 const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "qwen/qwen3.8-27b:free";
 /** The models settlement verdicts may come from, unless SETTLEMENT_MODELS says otherwise. */
-const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.5-pro,claude-sonnet-4-6";
+// gemini-pro-latest is Google's alias for the current Pro: a pinned Pro id 404s once it is retired.
+const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.8-flash,gemini-pro-latest,claude-sonnet-4-6";
 
 const GEMINI_QUOTA_COOLDOWN_MS = Number(process.env.LLM_QUOTA_COOLDOWN_MS ?? "300000"); // 5 min
 const GROQ_QUOTA_COOLDOWN_MS = Number(process.env.GROQ_QUOTA_COOLDOWN_MS ?? "2700000"); // 45 min
@@ -172,9 +173,13 @@ export function geminiKeysFor(opts: ScopeOpts = {}): string[] {
     const own = envKey(scope.keyEnv ?? ORACLE_GEMINI_KEY_ENV);
     return scope.mainnet ? splitList(own) : splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
   }
-  const oracleKey = envKey(ORACLE_GEMINI_KEY_ENV);
+  // ORACLE_GEMINI_API_KEY may hold a list; every key in it is the oracle's.
+  const oracleKeys = new Set(splitList(envKey(ORACLE_GEMINI_KEY_ENV)));
   const own = scope.keyEnv && !isOracleEnv(scope.keyEnv) ? envKey(scope.keyEnv) : "";
-  return splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS).filter((k) => !scope.mainnet || k !== oracleKey);
+  const keys = splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
+  const others = keys.filter((k) => !oracleKeys.has(k));
+  // Settlement quota comes first everywhere; off mainnet the oracle key is shared only when it is the only key.
+  return scope.mainnet || others.length > 0 ? others : keys;
 }
 
 /** The Anthropic key a call may use (same rules as Gemini); "" when none. */

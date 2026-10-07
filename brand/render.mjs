@@ -35,6 +35,7 @@ for (const [page, out, w, h] of [
   ['roadmap-october.html', 'roadmap-october.png', 1920, 1080],
   ['passkey.html', 'passkey.png', 1600, 900],
   ['members100.html', 'members100.png', 1080, 1080],
+  ['burn.html', 'burn.png', 1080, 1080],
   ['article-system.html', 'article-system.png', 1600, 900],
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],
   ['article-oracle.html', 'article-oracle.png', 1600, 900],

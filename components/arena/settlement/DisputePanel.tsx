@@ -102,7 +102,7 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
         <Disclosure summary={t("disputeHow")}>
           <p className={NOTE}>
             {open
-              ? t("proposedOpenHint", { at: new Date(claim.disputableUntil * 1000).toLocaleString() })
+              ? t("proposedOpenHint", { at: new Date(claim.disputableUntil * 1000).toLocaleString("en-US") })
               : t("proposedClosedHint")}
           </p>
           {open ? <p className={`${NOTE} mt-2`}>{t("bondHint")}</p> : null}
@@ -121,7 +121,7 @@ export default function DisputePanel({ claim, mimir, viewer, onChanged }: Props)
           {t("disputedBody", {
             side: SIDE_LABEL[claim.proposedSide] ?? "-",
             who: claim.disputer ? shortKey(claim.disputer) : "-",
-            at: claim.disputedAt ? new Date(claim.disputedAt * 1000).toLocaleString() : "-",
+            at: claim.disputedAt ? new Date(claim.disputedAt * 1000).toLocaleString("en-US") : "-",
           })}
         </p>
         <p className={NOTE}>

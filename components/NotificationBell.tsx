@@ -161,7 +161,7 @@ export default function NotificationBell() {
                   >
                     {describe(item)}
                     <span className="mt-1 block font-mono text-[11px] text-muted">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {new Date(item.createdAt).toLocaleString("en-US")}
                     </span>
                   </Link>
                 </li>

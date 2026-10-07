@@ -126,6 +126,8 @@ export default defineSchema({
     confidence: v.number(),
     text: v.string(),
     at: v.number(),
+    /** Who opened the market (lowercase), for the per-creator daily cap on takes. */
+    creator: v.optional(v.string()),
   }).index("by_market", ["kind", "marketId"]),
 
   /** One row per indexer: the last Arc block fully applied. */

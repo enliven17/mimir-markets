@@ -171,7 +171,7 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket; now: number; index: nu
 
         <h3 className="m-0 line-clamp-3 text-card-title text-cream [text-wrap:pretty]">{m.question}</h3>
 
-        <div className="mt-auto grid gap-2">
+        <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
           <Split m={m} />
           <div className="flex justify-between gap-3 text-[12px]">
             <span className="min-w-0 max-w-[48%] truncate text-cream">{m.labelA}</span>

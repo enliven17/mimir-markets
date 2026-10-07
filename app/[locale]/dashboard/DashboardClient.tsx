@@ -31,7 +31,7 @@ import { formatDashboardSnapshotAge } from "@/lib/dashboardSnapshotAge";
 import { formatUsdcUnits, formatUsdcUnitsBare } from "@/lib/money";
 
 const sol = (lamports: bigint | null) =>
-  lamports === null ? "…" : (Number(lamports) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 3 });
+  lamports === null ? "…" : (Number(lamports) / 1e9).toLocaleString("en-US", { maximumFractionDigits: 3 });
 
 /** Arc once its contracts and Convex are configured; the Solana portfolio until then. */
 export default function DashboardClient() {
