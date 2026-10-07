@@ -1189,55 +1189,118 @@ html.lenis.lenis-stopped {
 .nav-cta[aria-current="page"] {
   background: var(--coral-hi);
 }
-.nav-burger {
-  display: inline-flex;
-  width: 44px;
-  height: 44px;
-  margin-right: -8px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 999px;
-  color: var(--cream);
+/* ──────────────────────────────────────────────────────────────────────────
+   App shell on phones. components/app/MobileTabBar.tsx, RouteProgress.tsx,
+   PullToRefresh.tsx; html[data-app] is set by the head script in app/layout.tsx
+   inside the Android app or a home-screen install.
+   ────────────────────────────────────────────────────────────────────────── */
+/* --tabbar-h: the bar's own height (without the safe area), for anything fixed above it (the consent card);
+   --tab-bar: everything it takes from the bottom of the screen, safe area included. */
+:root {
+  --tabbar-h: 0px;
+  --tab-bar: 0px;
 }
-.nav-burger span {
-  display: block;
-  width: 20px;
-  height: 1.5px;
-  background: currentColor;
-  transition: transform 300ms var(--ease-out);
-}
-.nav-burger.is-open span:first-child {
-  transform: translateY(3.75px) rotate(45deg);
-}
-.nav-burger.is-open span:last-child {
-  transform: translateY(-3.75px) rotate(-45deg);
-}
-@media (min-width: 1024px) {
-  .nav-burger {
-    display: none;
+@media (max-width: 1023px) {
+  :root {
+    --tabbar-h: 60px;
+    --tab-bar: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  }
+  /* Nothing hides behind the tab bar: the page and the footer end above it. */
+  body {
+    padding-bottom: var(--tab-bar);
   }
 }
-.nav-panel {
-  margin: 10px auto 0;
-  max-width: 560px;
-  max-height: calc(100dvh - 96px - env(safe-area-inset-top));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 12px 12px 16px;
-  border-radius: 24px;
-  background: rgb(14 7 9 / 0.97);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.055), 0 28px 80px rgb(0 0 0 / 0.42);
-  animation: wallet-menu-in 180ms ease-out both;
+.tab-bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Exactly --tabbar-h tall above the safe area, so what sits on it can rely on the variable. */
+  height: var(--tab-bar);
+  padding: 0 6px env(safe-area-inset-bottom);
+  background: rgb(14 7 9 / 0.94);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgb(243 234 214 / 0.07);
+}
+.lite .tab-bar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgb(14 7 9 / 0.99);
+}
+.tab-bar [aria-current="page"] {
+  background: rgb(255 81 72 / 0.08);
+}
+
+/* Touch feel: no grey tap flash, no rubber-band of the whole page, chrome you can't select by accident. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: none) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+  .nav-shell,
+  .tab-bar,
+  button,
+  [role="tab"],
+  [role="radio"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* The installed app is a product, not a website: no marketing footer. */
+html[data-app] .site-footer,
+html[data-app] .footer-closer {
+  display: none;
+}
+
+/* A new page slides in; the top bar shows a navigation in flight. */
+/* `backwards`, not `both`: a transform left applied after the animation would make the page frame the
+   containing block of every position: fixed child (the sticky stake button, the pull spinner). */
+.route-in {
+  animation: route-in 260ms var(--ease-out) backwards;
+}
+@keyframes route-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 70;
+  height: 2px;
+  pointer-events: none;
+  background: var(--coral);
+  box-shadow: 0 0 10px rgb(255 81 72 / 0.7);
+  transform-origin: left;
+  transition: transform 240ms var(--ease-out), opacity 300ms ease;
+}
+
+/* Bottom sheets: a grab handle, and they follow the finger when dragged down. */
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  margin: -14px auto 14px;
+  border-radius: 999px;
+  background: rgb(243 234 214 / 0.22);
 }
 @media (prefers-reduced-motion: reduce) {
-  .nav-panel {
+  .route-in {
     animation: none;
   }
-  .nav-burger span {
+  .route-progress {
     transition: none;
   }
+}
+.lite .route-in {
+  animation: none;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

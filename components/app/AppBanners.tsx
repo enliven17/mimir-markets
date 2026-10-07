@@ -31,6 +31,14 @@ const write = (k: string, v: string) => {
   }
 };
 
+const readSession = (k: string) => {
+  try {
+    return sessionStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+
 type Strip = "desktop" | "update" | null;
 
 export default function AppBanners() {
@@ -40,10 +48,12 @@ export default function AppBanners() {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
+    // The head script (app/layout.tsx) already read ?app=<build> into sessionStorage and marked html[data-app].
     const param = new URLSearchParams(location.search).get(APP_VERSION_PARAM);
-    if (param && /^\d+$/.test(param)) write(BUILD_KEY, param);
-    const build = Number(read(BUILD_KEY) ?? 0);
-    const inApp = build > 0 || document.referrer.startsWith(`android-app://${APP_RELEASE.packageId}`);
+    const build = Number((param && /^\d+$/.test(param) ? param : readSession(BUILD_KEY)) ?? 0);
+    const inApp = document.documentElement.hasAttribute("data-app");
+    // In the app the page is a screen, not a document: no accidental pinch zoom (the website keeps it).
+    if (inApp) document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover");
 
     if (inApp) setStrip(build > 0 && build < APP_RELEASE.versionCode ? "update" : null);
     else if (appReleased() && read(DISMISS_KEY) !== "1" && window.matchMedia("(min-width: 1024px)").matches) setStrip("desktop");

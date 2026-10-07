@@ -9,6 +9,9 @@ import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
 import AppBanners from "@/components/app/AppBanners";
+import MobileTabBar from "@/components/app/MobileTabBar";
+import ConsentNotice from "@/components/legal/ConsentNotice";
+import RouteProgress from "@/components/app/RouteProgress";
 import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
 import AccessGate from "@/components/access/AccessGate";
 import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
@@ -31,18 +34,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "metadata" });
+  // No canonical here: a layout's canonical is inherited by every page that sets none, which would point them all
+  // at the home page. Each page sets its own (lib/seo.ts pageMeta).
+  const verification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
   return {
     metadataBase: new URL(SITE_URL),
-    title: t("title"),
+    title: { default: t("title"), template: "%s · Mimir Markets" },
     description: t("description"),
-    alternates: { canonical: `/${locale}` },
-    openGraph: {
-      title: t("title"),
-      description: t("description"),
-      type: "website",
-      url: `/${locale}`,
-      siteName: "Mimir",
-    },
+    applicationName: "Mimir Markets",
+    openGraph: { title: t("title"), description: t("description"), type: "website", siteName: "Mimir Markets", locale },
+    twitter: { card: "summary_large_image", site: "@mimirmarkets", title: t("title"), description: t("description") },
+    ...(verification ? { verification: { google: verification } } : {}),
   };
 }
 
@@ -73,6 +75,9 @@ export default async function LocaleLayout({ children, params }: Props) {
         <Footer />
         <ArcLaunchModal />
         <AppBanners />
+        <MobileTabBar />
+        <ConsentNotice />
+        <RouteProgress />
       </WalletSheetProvider>
       </ConvexClientProvider>
     </NextIntlClientProvider>

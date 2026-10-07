@@ -4,6 +4,15 @@ import { FeeDiagram, LifecycleDiagram, SystemDiagram } from "@/components/docs/A
 import SettlementData from "@/components/docs/SettlementData";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import "@/components/docs/docs.css";
+import JsonLd from "@/components/seo/JsonLd";
+import { breadcrumbs, faqPage, pageMeta } from "@/lib/seo";
+
+export const metadata = pageMeta({
+  path: "/docs",
+  title: "How Mimir works · Docs · Mimir Markets",
+  description: "How Mimir markets work: passkey accounts on Arc, USDC from Solana over CCTP, the AI oracle and dispute window, fees, agents and the FAQ.",
+});
+
 
 /* ───────────────────────────────────────────────────────────────────────────
  * /docs: a server page on the Arc architecture (docs/ARC.md is the source of
@@ -58,10 +67,30 @@ function Address({ label, address }: { label: string; address: string | null }) 
   );
 }
 
+/** The FAQ, rendered below and published as FAQPage structured data. */
+function docsFaq(testnet: boolean) {
+  return [
+    { q: "Do I need a crypto wallet?", a: "A Solana wallet to fund your account and link your $MIMIR. Betting itself only needs your passkey." },
+    { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
+    {
+      q: "What if the oracle disappears?",
+      a: "Seven days after the deadline anyone can refund the market in full. Stakes never depend on Mimir staying online.",
+    },
+    {
+      q: "Is this real money?",
+      a: testnet
+        ? "Not yet: this is Arc testnet with test USDC from Circle's faucet. Mainnet launches on Arc and Solana together."
+        : "Yes: USDC on Arc mainnet.",
+    },
+  ];
+}
+
 export default function DocsPage() {
   const testnet = ARC.network === "testnet";
+  const faq = docsFaq(testnet);
   return (
     <article className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
+      <JsonLd data={[faqPage(faq), breadcrumbs([{ name: "Docs", path: "/docs" }])]} />
       <header className="grid gap-3">
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Docs · Arc {testnet ? "testnet" : "mainnet"}</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">How Mimir works</h1>
@@ -225,20 +254,11 @@ export default function DocsPage() {
 
           <Section id="faq" eyebrow="08" title="FAQ">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="Do I need a crypto wallet?">
-                A Solana wallet to fund your account and link your $MIMIR. Betting itself only needs your passkey.
-              </Card>
-              <Card title="What if the oracle is wrong?">
-                Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back.
-              </Card>
-              <Card title="What if the oracle disappears?">
-                Seven days after the deadline anyone can refund the market in full. Stakes never depend on Mimir staying online.
-              </Card>
-              <Card title="Is this real money?">
-                {testnet
-                  ? "Not yet: this is Arc testnet with test USDC from Circle's faucet. Mainnet launches on Arc and Solana together."
-                  : "Yes: USDC on Arc mainnet."}
-              </Card>
+              {faq.map(({ q, a }) => (
+                <Card key={q} title={q}>
+                  {a}
+                </Card>
+              ))}
             </div>
           </Section>
 

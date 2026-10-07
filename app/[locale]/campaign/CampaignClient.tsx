@@ -4,6 +4,7 @@
  * /campaign body: your score and invite link, how points are earned, and the
  * leaderboard. Joining is one free signature; `?ref=CODE` pre-fills the code.
  */
+import { xIntentUrl } from "@/lib/invite-share";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -165,6 +166,14 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
                 >
                   {copied ? "Copied" : "Copy"}
                 </button>
+                <a
+                  href={xIntentUrl("campaign", me.code)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="press grid shrink-0 place-items-center rounded-xl bg-coral px-4 text-[13px] font-medium text-[#160909]"
+                >
+                  Share on X
+                </a>
               </div>
             </div>
           ) : (

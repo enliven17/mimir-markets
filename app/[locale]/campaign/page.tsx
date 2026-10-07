@@ -1,13 +1,14 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { setRequestLocale } from "next-intl/server";
 
 import CampaignClient from "./CampaignClient";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Leaderboard · Mimir",
+export const metadata = pageMeta({
+  path: "/campaign",
+  title: "Leaderboard · Mimir Markets",
   description: "Stake on Arc testnet, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
-};
+});
 
 /** /campaign[?ref=CODE]: the testnet campaign leaderboard. */
 export default async function CampaignPage({ params }: { params: Promise<{ locale: string }> }) {

@@ -10,20 +10,19 @@
  * without a scrub. It never hides on scroll.
  *
  * Pill: wordmark, Arena · Council · Portfolio · More (centred), then Create,
- * notifications and the wallet chip. Below `lg`, a burger opens a panel under
- * the pill with every link; Tab stays inside the header while it is open,
- * Esc closes it and Lenis pauses.
+ * notifications and the wallet chip. Below `lg` the bar keeps only the
+ * wordmark, notifications and the wallet chip: every page is in the bottom tab
+ * bar and its More sheet (components/app/MobileTabBar.tsx), like an app.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
-import { ScrollTrigger, gsap, setScrollLocked, useGSAP } from "@/lib/motion";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { ScrollTrigger, gsap, useGSAP } from "@/lib/motion";
 import Wordmark from "@/components/ui/Wordmark";
 import NotificationBell from "./NotificationBell";
-import NavMoreMenu, { NavMoreLinks } from "./NavMoreMenu";
+import NavMoreMenu from "./NavMoreMenu";
 import { NAV_CTA, NAV_PRIMARY, activeNavHref } from "./nav-items";
 
 // The chip reads the wallet (window-only); the placeholder keeps the bar from shifting.
@@ -35,12 +34,9 @@ const WalletChip = dynamic(() => import("./wallet/WalletChip"), {
 export default function Header() {
   const t = useTranslations("nav");
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const shellRef = useRef<HTMLElement>(null);
   const isHome = pathname === "/";
   const active = activeNavHref(pathname);
-
-  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   // Entrance, once per page load: the bar drops in, then its contents settle.
   // fromTo with explicit end states so a remount mid-flight never strands it.
@@ -100,26 +96,10 @@ export default function Header() {
     { dependencies: [isHome], revertOnUpdate: true },
   );
 
-  useEffect(() => setMobileOpen(false), [pathname]);
-
-  useEffect(() => {
-    if (!mobileOpen) return;
-    setScrollLocked(true);
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const onWide = () => mq.matches && setMobileOpen(false);
-    mq.addEventListener("change", onWide);
-    return () => {
-      setScrollLocked(false);
-      mq.removeEventListener("change", onWide);
-    };
-  }, [mobileOpen]);
-
-  useFocusTrap(shellRef, mobileOpen, { onEscape: closeMobile, initialFocus: "#mobile-nav a[href]" });
-
   const linkClass = (isActive: boolean) => `nav-link nav-stagger ${isActive ? "is-active" : ""}`;
 
   return (
-    <header ref={shellRef} className="nav-shell" data-home={isHome || undefined} data-open={mobileOpen || undefined}>
+    <header ref={shellRef} className="nav-shell" data-home={isHome || undefined}>
       <nav aria-label={t("main")} className="nav-bar">
         <Link href="/" aria-label={t("home")} className="nav-stagger justify-self-start rounded-xs">
           <Wordmark />
@@ -157,51 +137,9 @@ export default function Header() {
           <span className="nav-stagger">
             <WalletChip />
           </span>
-          <button
-            type="button"
-            className={`nav-burger nav-stagger lg:hidden ${mobileOpen ? "is-open" : ""}`}
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-nav"
-            aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
-          >
-            <span />
-            <span />
-          </button>
         </div>
       </nav>
 
-      {mobileOpen ? (
-        <div id="mobile-nav" className="nav-panel lg:hidden" data-lenis-prevent>
-          <ul className="grid gap-1">
-            {NAV_PRIMARY.map((item) => {
-              const isActive = active === item.href;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={closeMobile}
-                    className={`block rounded-[14px] px-4 py-3 font-display text-[1.75rem] leading-none transition-colors ${
-                      isActive ? "bg-cream/[0.07] text-coral" : "text-cream hover:bg-panel-raised"
-                    }`}
-                  >
-                    {t(`items.${item.key}.label`)}
-                    {item.badge ? <span className="nav-badge ml-2 align-middle">{item.badge}</span> : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="mt-4 border-t border-line pt-4">
-            <NavMoreLinks onNavigate={closeMobile} compact />
-          </div>
-          <Link href={NAV_CTA.href} onClick={closeMobile} className="btn-primary mt-5 !py-3.5 !text-[1.2rem]">
-            <Plus size={16} aria-hidden />
-            {t("items.create.label")}
-          </Link>
-        </div>
-      ) : null}
     </header>
   );
 }

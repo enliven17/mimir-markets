@@ -21,8 +21,8 @@
     "path": "~/.mimir-android/mimir-release.jks",
     "alias": "mimir"
   },
-  "appVersion": "1.1.0",
-  "appVersionCode": 3,
+  "appVersion": "1.2.0",
+  "appVersionCode": 4,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "fallbackType": "customtabs",

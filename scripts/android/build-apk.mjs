@@ -44,6 +44,10 @@ const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit'
 // A running Gradle daemon keeps the old build's files locked, and `update` rewrites the project.
 if (existsSync(join(PROJECT, 'gradlew.bat'))) run(join(PROJECT, win ? 'gradlew.bat' : 'gradlew'), ['--stop'], { cwd: PROJECT })
 bubblewrap('update', '--skipVersionUpgrade', '--manifest=./twa-manifest.json')
+// Our launch screen (brand/source/splash.html, rendered per density into ./splash) instead of the icon blown up.
+for (const d of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+  copyFileSync(join(HERE, 'splash', `splash-${d}.png`), join(PROJECT, 'app/src/main/res', `drawable-${d}`, 'splash.png'))
+}
 patchWalletReturn()
 run(join(PROJECT, win ? 'gradlew.bat' : 'gradlew'), ['assembleRelease', '--no-daemon'], { cwd: PROJECT })
 

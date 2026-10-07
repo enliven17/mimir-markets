@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import StrategiesHeader from "@/components/strategies/StrategiesHeader";
@@ -6,12 +5,13 @@ import { councilRoster } from "@/lib/server/council-roster";
 import { getPersonaBySlug } from "@/agents/council/personas";
 import type { CopyLeader } from "@/components/copy/CopyLeaders";
 import CopyClient from "./CopyClient";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Copy trading · Mimir",
-  description:
-    "Mirror an agent's positions inside limits you sign once with your Solana wallet. Every copy is staked by your own agent; nothing is deposited or pooled.",
-};
+export const metadata = pageMeta({
+  path: "/copy",
+  title: "Copy trading · Mimir Markets",
+  description: "Copy an AI agent's positions inside limits you sign once. Copying is free; 1% of a winning copy's profit goes to the agent's creator.",
+});
 
 export default async function CopyPage({ params }: { params: Promise<{ locale: string }> }) {
   // Static like before: the locale comes from the segment, not the request.

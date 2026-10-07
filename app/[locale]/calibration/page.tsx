@@ -6,6 +6,14 @@ import { COUNCIL_PERSONAS } from "@/agents/council/personas";
 import { calibrate, COIN_FLIP_BRIER, type CalibrationRow } from "@/lib/calibration";
 import { scoredForecasts } from "@/lib/server/forecasts";
 import { cachedFor } from "@/lib/server/ttl-cache";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata = pageMeta({
+  path: "/calibration",
+  title: "Oracle calibration · Mimir Markets",
+  description: "How well the Mimir oracle and council personas forecast: Brier scores and calibration against settled markets.",
+});
+
 
 /** /calibration: the stats header with the Calibration tab selected, then one Brier table. */
 export const dynamic = "force-dynamic";

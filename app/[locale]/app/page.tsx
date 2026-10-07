@@ -1,16 +1,16 @@
-import type { Metadata } from "next";
-
 import { SURFACE } from "@/components/arena/surface";
 import { APP_RELEASE, appReleased } from "@/lib/app-release";
+import { pageMeta } from "@/lib/seo";
 
 /* /app: the Android app (a Trusted Web Activity around this site, lib/app-release.ts). A QR code for desktop
  * visitors, a direct download on phones, and the iPhone route (add to home screen). The APK is served from this
  * site, so the download and its checksum come from the same place as the app's content. */
 
-export const metadata: Metadata = {
-  title: "Mobile app · Mimir",
-  description: "Mimir on Android: the full app, with passkeys and your Solana wallet. Download the APK or scan the QR code.",
-};
+export const metadata = pageMeta({
+  path: "/app",
+  title: "Mimir Markets for Android · Mobile app",
+  description: "Mimir on your phone: open markets, stake and get paid with your passkey and Solana wallet. Download the Android app or add it to your home screen.",
+});
 
 const STEP = "grid grid-cols-[28px_minmax(0,1fr)] gap-3 text-[14px] leading-relaxed text-muted";
 const NUM = "grid h-7 w-7 place-items-center rounded-full bg-cream/[0.07] font-mono text-[12px] text-cream";

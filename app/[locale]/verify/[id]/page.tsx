@@ -10,6 +10,8 @@ import { verifyClaim, type VerificationReport } from "@/lib/server/verify";
 import { SIDE_LABEL } from "@/lib/claim-status";
 import { stripResolverFragment } from "@/lib/resolver-spec";
 
+export const metadata = { robots: { index: false, follow: true } };
+
 /**
  * /verify/[id]: one hero that says Verified or Mismatch (or why there is
  * nothing to check), then each part of the audit bundle behind a disclosure,

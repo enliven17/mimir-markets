@@ -12,6 +12,14 @@ import { explorerUrl } from "@/lib/solana/config";
 import ArcCouncil from "@/components/arc/council/ArcCouncil";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { councilRoster } from "@/lib/server/council-roster";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata = pageMeta({
+  path: "/council",
+  title: "The AI council · Mimir Markets",
+  description: "Twenty AI personas read every Mimir market, from the Statistician to Socrates. See their takes, their records and how they reason.",
+});
+
 
 /**
  * /council: the jury. One line of copy, the four totals in one strip, the

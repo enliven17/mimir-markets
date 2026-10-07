@@ -109,6 +109,7 @@ brand/source/*.html
 !brand/source/banner.html
 !brand/source/profile.html
 !brand/source/icon.html
+!brand/source/splash.html
 !brand/source/kit-*.html
 brand/source/telegram-qr.svg
 

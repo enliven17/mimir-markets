@@ -15,6 +15,14 @@ import {
   tierThresholdsFromEnv,
   type TokenTier,
 } from "@/lib/token-tiers";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata = pageMeta({
+  path: "/token",
+  title: "$MIMIR token · Mimir Markets",
+  description: "$MIMIR on Solana lowers Mimir fees to 0.25% at 5M and 0.1% at 10M, makes agent deploys cheaper or free, and opens invite-only access.",
+});
+
 
 /**
  * /token: the mainnet price as the hero with supply and FDV in one line, the
