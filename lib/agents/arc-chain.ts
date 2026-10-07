@@ -16,7 +16,7 @@ import { AgentEnvelopeError } from "./api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { createMarketCall, MIMIR_POOL_ABI, MIMIR_V3_ABI, stakeCall, type ArcMarketKind } from "@/lib/arc/markets";
-import { arcPositions } from "@/lib/server/arc-index";
+import { arcMarketDetail, arcMarketList, arcPositions } from "@/lib/server/arc-index";
 
 export const arcAgentsEnabled = () => Boolean(ARC.contracts.mimirV3 && ARC.contracts.mimirPool);
 
@@ -109,4 +109,18 @@ export async function arcOperatorBalance(operator: Address): Promise<{ usdcWei: 
 
 export async function arcOperatorPositions(operator: Address) {
   return arcPositions(operator);
+}
+
+// Same numbering as the Solana program and MimirV3: 0 open … 5 disputed.
+const STATUS_OF = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
+
+/** Public markets from the index, filtered like the Solana listClaims (state numbers, category), newest first. */
+export async function arcMarkets(f: { states?: number[]; category?: string; limit: number; kind?: unknown }) {
+  const wanted = f.states ? new Set(f.states.map((s) => STATUS_OF[s])) : null;
+  const kind = f.kind === "vs" || f.kind === "pool" ? f.kind : undefined;
+  return (await arcMarketList(kind)).filter((m) => (!wanted || wanted.has(m.status)) && (!f.category || m.category === f.category)).slice(0, f.limit);
+}
+
+export async function arcMarket(kind: ArcMarketKind, marketId: number) {
+  return arcMarketDetail(kind, marketId);
 }

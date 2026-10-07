@@ -27,7 +27,7 @@ import {
 import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
-import { arcAgentsEnabled, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, prepareArcWrite } from "@/lib/agents/arc-chain";
+import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, prepareArcWrite } from "@/lib/agents/arc-chain";
 import { deployPriceFor, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
 import { getArcBinding } from "@/lib/server/arc-accounts";
 import { dryRun } from "@/lib/agents/dry-run";
@@ -577,12 +577,21 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         throw new AgentEnvelopeError(`state must be one of ${Object.keys(STATE_FILTERS).join(", ")}`, 400, "bad_params");
       }
       const limit = Math.min(Math.max(Number(env.body.limit ?? 50) || 50, 1), 200);
+      if (arcAgentsEnabled()) {
+        const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind }));
+        return { status: 200, body: { ok: true, chain: "arc", source: "index", markets } };
+      }
       const rows = await readClaims({ states, category: str(env.body, "category", 32) || undefined, limit });
       return { status: 200, body: { ok: true, source: "index", claims: rows } };
     }
 
     case "getClaim": {
       const claimId = parseClaimId(env.body.claimId);
+      if (arcAgentsEnabled()) {
+        const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId)));
+        if (!market) throw new AgentEnvelopeError(`market ${claimId} does not exist`, 404, "unknown_claim");
+        return { status: 200, body: { ok: true, chain: "arc", market } };
+      }
       const found = await onChain(() => readClaim(claimId));
       if (!found) throw new AgentEnvelopeError(`claim ${claimId} does not exist`, 404, "unknown_claim");
       return {

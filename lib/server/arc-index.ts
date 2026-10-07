@@ -43,3 +43,15 @@ export async function arcVolumeByUser(): Promise<Array<{ user: string; usdc: num
   if (!c) return [];
   return c.query(api.arcViews.volumeByUser, {});
 }
+
+export async function arcMarketList(kind?: "vs" | "pool") {
+  const c = convex();
+  if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return c.query(api.arc.markets, { kind, limit: 500 });
+}
+
+export async function arcMarketDetail(kind: "vs" | "pool", marketId: number) {
+  const c = convex();
+  if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return c.query(api.arc.market, { kind, marketId });
+}
