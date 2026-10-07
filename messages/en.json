@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Mimir · Claims settled in USDC on Arc, funded from Solana.",
-    "description": "1v1 prediction challenges settled by AI. No referees. No arguments. Mimir decides."
+    "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
+    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet and $MIMIR stay on Solana."
   },
   "common": {
     "back": "Back",
@@ -391,12 +391,13 @@
     "how": "How it works",
     "about": "About",
     "disclaimer": "Disclaimer",
+    "terms": "Terms",
     "close": "Close",
     "info": {
       "how": {
         "title": "How it works",
         "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on Arc, where USDC is the gas and your passkey account pays none of it.",
-        "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The final verdict settles on Solana and winners pull their payout."
+        "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The result is final on Arc once the window closes, and winners are paid straight to their account."
       },
       "about": {
         "title": "About Mimir",
@@ -1731,6 +1732,7 @@
   },
   "nav": {
     "main": "Main",
+    "tabs": "App tabs",
     "home": "Mimir, home",
     "more": "More",
     "moreTitle": "More",

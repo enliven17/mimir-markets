@@ -14,6 +14,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 import { SURFACE } from "@/components/arena/surface";
 import ArcDashboard from "@/components/arc/dashboard/ArcDashboard";
+import PullToRefresh from "@/components/app/PullToRefresh";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import ClaimablePayouts from "@/components/dashboard/ClaimablePayouts";
 import DashboardFilterBar from "@/components/dashboard/DashboardFilterBar";
@@ -35,7 +36,13 @@ const sol = (lamports: bigint | null) =>
 
 /** Arc once its contracts and Convex are configured; the Solana portfolio until then. */
 export default function DashboardClient() {
-  return arcArenaEnabled ? <ArcDashboard /> : <SolanaDashboard />;
+  return arcArenaEnabled ? (
+    <PullToRefresh>
+      <ArcDashboard />
+    </PullToRefresh>
+  ) : (
+    <SolanaDashboard />
+  );
 }
 
 function SolanaDashboard() {

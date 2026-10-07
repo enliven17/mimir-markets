@@ -6,10 +6,12 @@ import MotionProvider from "@/components/motion/MotionProvider";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 
-// Dark only: the site's colour scheme and theme colour.
+// Dark only: the site's colour scheme and theme colour. viewport-fit=cover lets the safe-area insets (notch,
+// home bar) reach CSS, which the nav, the bottom tab bar and the sheets pad with.
 export const viewport: Viewport = {
   colorScheme: "dark",
   themeColor: "#110f0e",
+  viewportFit: "cover",
 };
 
 // `js` lets CSS hide pre-animation states only when scripts run; the 3s
@@ -17,7 +19,11 @@ export const viewport: Viewport = {
 // `lite` marks low-power devices (4 cores or fewer, 4GB or less, Save-Data):
 // smooth scroll, the hero field and the frosted nav step down there
 // (lib/motion.ts `isLite`).
-const HEAD_SCRIPT = `(function(){var d=document.documentElement,n=navigator,c=n.connection;d.classList.add('js');if((n.hardwareConcurrency||8)<=4||(n.deviceMemory||8)<=4||(c&&c.saveData))d.classList.add('lite');setTimeout(function(){d.classList.add('motion-timeout')},3000);})();`;
+// `data-app` marks the installed app (the Android APK opens the site with ?app=<build>, or the site was added to
+// the home screen); it is kept per tab in sessionStorage because the APK shares Chrome's storage, so a plain
+// Chrome tab never inherits it. In the app the landing page is skipped: `/` goes straight to the Arena before
+// anything paints (components/app/AppBanners.tsx handles the rest).
+const HEAD_SCRIPT = `(function(){var d=document.documentElement,n=navigator,c=n.connection;d.classList.add('js');if((n.hardwareConcurrency||8)<=4||(n.deviceMemory||8)<=4||(c&&c.saveData))d.classList.add('lite');setTimeout(function(){d.classList.add('motion-timeout')},3000);try{var s=sessionStorage,q=new URLSearchParams(location.search).get('app');if(q&&/^\\d+$/.test(q))s.setItem('mimir-app-build',q);if(s.getItem('mimir-app-build')||matchMedia('(display-mode: standalone)').matches||document.referrer.indexOf('android-app://xyz.mimirmarkets.app')===0){s.setItem('mimir-app','1')}if(s.getItem('mimir-app')){d.setAttribute('data-app','');var m=location.pathname.match(/^\\/([a-z]{2})?\\/?$/);if(m)location.replace('/'+(m[1]||'en')+'/arena')}}catch(e){}})();`;
 
 export default function RootLayout({
   children,

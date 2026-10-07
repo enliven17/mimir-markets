@@ -5,7 +5,7 @@
  * both sides with their money, time left or the verdict, the stake box while
  * betting is open, and who is in.
  */
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
@@ -13,6 +13,7 @@ import { SURFACE } from "@/components/arena/surface";
 import Countdown from "@/components/arena/Countdown";
 import { useNowSec } from "@/components/arena/settlement/useSettleAction";
 import Skeleton from "@/components/ui/Skeleton";
+import Modal from "@/components/ui/Modal";
 import { Link } from "@/i18n/navigation";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import type { ArcMarketKind } from "@/lib/arc/markets";
@@ -38,6 +39,19 @@ function safeHref(url: string): string | null {
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+/** Desktop (lg and up) keeps the stake box beside the market; phones open it as a bottom sheet. */
+function useWide(): boolean {
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
 export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind; marketId: number }) {
   const m = useQuery(api.arc.market, { kind, marketId });
   // Live bets: a chip flies into the side that was backed and the bar jolts (BetFx.tsx).
@@ -47,6 +61,8 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
   const account = useArcAccount();
   const address = account.address;
   const now = useNowSec(15_000);
+  const wide = useWide();
+  const [sheet, setSheet] = useState(false);
   const me = address?.toLowerCase() ?? null;
 
   if (m === undefined) {
@@ -168,6 +184,21 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
         </section>
       </div>
 
+      {phase === "open" && !wide ? (
+        <>
+          <ArcMarketActions m={m} mine={mine} account={account} now={now} />
+          {/* Keeps the last section clear of the sticky stake button. */}
+          <div aria-hidden className="h-16" />
+          <div className="fixed inset-x-0 bottom-[var(--tab-bar)] z-50 px-[var(--gut)] pb-2.5 pt-2">
+            <button type="button" onClick={() => setSheet(true)} className="btn-primary w-full !py-3.5 shadow-modal" aria-haspopup="dialog">
+              <span className="min-w-0 truncate">{kind === "vs" ? `Challenge · ${m.labelB}` : "Take a side"}</span>
+            </button>
+          </div>
+          <Modal open={sheet} onClose={() => setSheet(false)} title={kind === "vs" ? "Challenge" : "Take a side"} variant="sheet">
+            <ArcStakePanel m={m} mine={mine} account={account} inSheet />
+          </Modal>
+        </>
+      ) : (
       <aside aria-label="Stake" className={`${SURFACE} h-fit p-5 lg:sticky lg:top-[96px]`}>
         {phase === "open" ? (
           <ArcStakePanel m={m} mine={mine} account={account} />
@@ -183,6 +214,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
         )}
         <ArcMarketActions m={m} mine={mine} account={account} now={now} />
       </aside>
+      )}
     </div>
   );
 }

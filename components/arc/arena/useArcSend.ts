@@ -37,6 +37,8 @@ export function useArcSend(session: ArcSession | null) {
       try {
         const r = await session.sendCalls(calls);
         setLast(r);
+        // A short tap on phones that support it: the stake landed.
+        navigator.vibrate?.(18);
         void poke({}).catch(() => {});
         return r;
       } catch (err) {

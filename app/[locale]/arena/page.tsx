@@ -33,6 +33,7 @@ import {
 import { formatUsdcBare } from "@/lib/money";
 import { cachedJson, fetchBody } from "@/lib/json-cache";
 import ArcArena from "@/components/arc/arena/ArcArena";
+import PullToRefresh from "@/components/app/PullToRefresh";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 
 const POLL_MS = 4000;
@@ -75,7 +76,13 @@ const EMPTY_HREF: Record<ArenaView, string> = {
 
 /** Arc once its contracts and Convex are configured (docs/ARC.md), the Solana feed until then. */
 export default function ArenaPage() {
-  return arcArenaEnabled ? <ArcArena /> : <SolanaArenaPage />;
+  return arcArenaEnabled ? (
+    <PullToRefresh>
+      <ArcArena />
+    </PullToRefresh>
+  ) : (
+    <SolanaArenaPage />
+  );
 }
 
 function SolanaArenaPage() {

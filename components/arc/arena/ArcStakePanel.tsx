@@ -20,10 +20,13 @@ export default function ArcStakePanel({
   m,
   mine,
   account,
+  inSheet = false,
 }: {
   m: ArcMarket;
   mine: { side: number; amount: string }[];
   account: ReturnType<typeof useArcAccount>;
+  /** In the phone's bottom sheet, whose own title already says what this is. */
+  inSheet?: boolean;
 }) {
   const { send, busy, error, last } = useArcSend(account.session);
   const [amount, setAmount] = useState("1");
@@ -62,7 +65,7 @@ export default function ArcStakePanel({
 
   return (
     <div className="grid gap-4">
-      <h2 className="m-0 font-display text-[1.4rem] leading-none text-cream">{m.kind === "vs" ? "Challenge" : "Take a side"}</h2>
+      {inSheet ? null : <h2 className="m-0 font-display text-[1.4rem] leading-none text-cream">{m.kind === "vs" ? "Challenge" : "Take a side"}</h2>}
       <AccountGate account={account}>
         {m.kind === "pool" ? (
           <div role="radiogroup" aria-label="Side" className="grid grid-cols-2 gap-2">

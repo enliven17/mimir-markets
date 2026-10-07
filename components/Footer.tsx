@@ -246,6 +246,9 @@ export default function Footer() {
                 {t(key)}
               </button>
             ))}
+            <Link href="/terms" className="footer-link">
+              {t("terms")}
+            </Link>
           </nav>
           <span className="text-dim">{t("license", { year: new Date().getFullYear() })}</span>
         </div>
