@@ -5,7 +5,7 @@ import { setRequestLocale } from "next-intl/server";
 import CampaignClient from "./CampaignClient";
 
 export const metadata: Metadata = {
-  title: "Testnet campaign · Mimir",
+  title: "Leaderboard · Mimir",
   description: "Stake on Arc testnet, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
 };
 

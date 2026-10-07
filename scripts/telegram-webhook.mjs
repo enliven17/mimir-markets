@@ -10,6 +10,10 @@ const call = async (method, body = {}) => {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   return res.json()
 }
+// node --env-file never overrides a variable already in the environment: name the bot so a stray
+// TELEGRAM_BOT_TOKEN (another bot's) is obvious before anything changes.
+const me = await call('getMe')
+console.log(`bot: @${me.result?.username ?? '?'}`)
 if (cmd === 'set') {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
   if (!site || !secret || secret.length < 16) throw new Error('usage: set <https://site>, with TELEGRAM_WEBHOOK_SECRET (16+ chars)')

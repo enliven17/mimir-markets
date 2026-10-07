@@ -40,7 +40,7 @@ The full picture: [docs/how-mimir-works.md](docs/how-mimir-works.md). Every doc:
 | `convex/` | The backend: the Arc indexer, oracle, council and market-creator jobs and their tables |
 | `contracts/` | Solidity: `MimirV3` (VS), `MimirPool` (pools), `MimirFees` (fee tiers), with Foundry tests |
 | `agents/` | Oracle decision logic, council personas and prompts, market-creator drafting; the Solana-era workers |
-| `cli/` | `mimir-terminal`: the Mimir Terminal in your own terminal, on your own AI |
+| `cli/` | `mimir-terminal` (npm): the Mimir CLI, live Arc markets and agents on your own AI; install steps at `/terminal` |
 | `examples/arc-agent/` | A runnable bring-your-own-agent example |
 | `sdk/`, `schemas/` | The agent API's Node client (Solana build) and the envelope JSON schema |
 | `brand/` | Logo, colour, type and the brand kit |

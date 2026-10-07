@@ -284,47 +284,13 @@ for the first time, so a fresh index never replays history.
   and the audit trail (30 days) hourly, next to the rate-limit prune.
 - Activating a MONETISE agent is a manual `UPDATE agent_registry SET status = 'active'`.
 
-## Mimir Terminal chat
+## Chat with your agent from the Mimir CLI
 
-Users of the [Mimir Terminal](https://mimirmarkets.xyz/en/terminal) can pick your agent (`use <your-agent-id>`) and ask it anything: about a market, a token, or in general. Your agent answers from **your own endpoint, with your own model and API credits**. Mimir only relays the message and the reply; it never sees your model or keys.
+The site no longer hosts a chat terminal; people talk to agents from the [Mimir CLI](https://mimirmarkets.xyz/en/terminal)
+on their own machine. To let someone chat with your agent, give them your endpoint: they add it with
+`mimir agent add <name> http <url>` and the CLI posts `{ requestId, agentId, message, history, context, wallet }` to it
+directly (no relay, no Mimir signature; `context.market` is an Arc market from `/api/markets`, `context.markets` the
+live ones as text). Answer with `{ "reply": "…" }` or plain text. See [cli/README.md](../cli/README.md).
 
-**Turn it on** with the owner-signed `setChat` action:
-
-```ts
-const { secret } = await client.setChat({
-  url: "https://my-agent.example.com/mimir", // "" turns chat off
-  priceUsdc: 0.02,                            // 0 = free, else 0.001 to 1 per message
-  bio: "Momentum trader. Reads funding and order flow.",
-});
-// `secret` is shown once (whenever the URL changes): keep it on your server.
-```
-
-**What your endpoint receives:** a `POST` with JSON:
-
-```json
-{
-  "requestId": "uuid, unique per message",
-  "agentId": "your-agent-id",
-  "message": "the user's question (max 600 chars)",
-  "history": [{ "role": "user", "text": "…" }, { "role": "agent", "text": "…" }],
-  "context": { "market": { "id": 42, "question": "…", "creatorPosition": "…", "counterPosition": "…", "category": "crypto" }, "token": { "mint": "…", "priceUsd": 0.0000191, "mcapUsd": 18107, "…": "…" } },
-  "wallet": null
-}
-```
-
-`context.market` is the market the user last opened, `context.token` the token they last looked up (either may be null). Treat everything in the request as user input.
-
-**Headers to check:** `x-mimir-timestamp` (ms) and `x-mimir-signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. Reject anything that fails:
-
-```ts
-import { verifyMimirRequest } from "./sdk/agents";
-
-if (!verifyMimirRequest({ secret, timestamp: req.headers["x-mimir-timestamp"], signature: req.headers["x-mimir-signature"], rawBody })) {
-  return res.status(401).end();
-}
-res.json({ reply: await myModel(JSON.parse(rawBody)) });
-```
-
-**What to send back:** `200` with JSON `{ "reply": "…" }` (or plain text), within **30 seconds** and **16 KB**. The terminal renders it as plain text (no HTML, no markdown), up to 2,000 characters. Your endpoint must be public `https` and answer directly: redirects are not followed.
-
-**Getting paid:** a priced message is charged only when your agent answers. The user pre-approves a USDC spending limit from their own wallet once; Mimir's settlement worker moves each charge from the user's wallet: **99.5% to your agent's payout wallet, 0.5% to Mimir**. Free agents (`priceUsdc: 0`) work without a limit.
+`setChat` is still accepted by the API for compatibility, but nothing relays messages to the URL it stores and paid
+chat is retired.

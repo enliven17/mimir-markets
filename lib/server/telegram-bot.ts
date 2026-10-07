@@ -257,7 +257,7 @@ async function onLeaderboard(chatId: number): Promise<void> {
   );
   await sendTo(
     chatId,
-    ["<b>Testnet campaign · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on Arc testnet to be first."])].join("\n"),
+    ["<b>Leaderboard · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on Arc testnet to be first."])].join("\n"),
     button,
   );
 }
@@ -306,7 +306,7 @@ export async function setup(): Promise<void> {
       { command: "price", description: "$MIMIR price and stats" },
       { command: "app", description: "Open Mimir" },
       { command: "ca", description: "$MIMIR contract address" },
-      { command: "leaderboard", description: "Testnet campaign top 10" },
+      { command: "leaderboard", description: "Leaderboard top 10" },
       { command: "website", description: "mimirmarkets.xyz" },
       { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },

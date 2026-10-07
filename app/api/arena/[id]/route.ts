@@ -4,6 +4,7 @@
  * like the feed), else straight from chain.
  */
 import { NextResponse } from "next/server";
+import { oldCliGone } from "@/lib/server/public-markets";
 import { Keypair } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
 import { isIndexEnabled, readClaim } from "@/lib/server/solana-index";
@@ -26,6 +27,8 @@ const fromChain = cachedFor(async (id: number): Promise<ApiClaim | null> => {
 }, 3_000);
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const gone = oldCliGone(req);
+  if (gone) return gone;
   const { id } = await params;
   const claimId = Number(id);
   if (!Number.isInteger(claimId) || claimId <= 0) {

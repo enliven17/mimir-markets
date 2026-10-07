@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { getArcBindingByArc } from "@/lib/server/arc-accounts";
 import { broadcastArcMarket, deliverArc } from "@/lib/server/telegram";
 import { arcMarketUrl, esc, type AlertPref } from "@/lib/telegram";
+import { cardTypeFor, cardUrl } from "@/lib/telegram-card";
 import { getAddress } from "viem";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
   for (const e of (events ?? []).slice(0, 50)) {
     const url = arcMarketUrl(e.kind, e.marketId);
     if (e.type === "new") {
-      await broadcastArcMarket({ question: e.question, stakeA: e.stakeA, deadline: e.deadline, url });
+      await broadcastArcMarket({ question: e.question, stakeA: e.stakeA, deadline: e.deadline, url, card: cardUrl("new", e.kind, e.marketId) });
       sent++;
       continue;
     }
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       const msg = personalText(e, h.side);
       const binding = msg ? await getArcBindingByArc(getAddress(h.user)).catch(() => null) : null;
       if (!msg || !binding) continue;
-      await deliverArc(binding.solana, msg.text, msg.pref, url);
+      await deliverArc(binding.solana, msg.text, msg.pref, url, cardUrl(cardTypeFor(e, h.side), e.kind, e.marketId, h.side));
       sent++;
     }
   }

@@ -623,15 +623,3 @@ export async function registerAgent(args: {
   envelope.signature = await args.signWithOwner(agentRequestMessage(envelope));
   return postEnvelope(args.fetchImpl ?? fetch, args.baseUrl, envelope);
 }
-
-/**
- * On your chat endpoint: is this Mimir Terminal request genuine and fresh?
- * Pass the raw request body (before JSON parsing), the `x-mimir-timestamp`
- * and `x-mimir-signature` headers, and the secret setChat returned.
- *
- *   if (!verifyMimirRequest({ secret, timestamp: req.headers["x-mimir-timestamp"],
- *        signature: req.headers["x-mimir-signature"], rawBody })) return res.status(401).end();
- *   res.json({ reply: await myModel(JSON.parse(rawBody).message) });
- */
-export { verifyRelaySignature as verifyMimirRequest } from "../lib/terminal/relay";
-export type { RelayPayload as MimirChatRequest } from "../lib/terminal/relay";

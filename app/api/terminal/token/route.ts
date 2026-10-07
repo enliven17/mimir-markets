@@ -4,9 +4,11 @@
  */
 import { NextResponse } from "next/server";
 
-import { isMint } from "@/lib/terminal/commands";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { tokenInfo } from "@/lib/server/token-info";
+
+/** A Solana mint address (base58, 32-44 chars). */
+const isMint = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
 
 export const dynamic = "force-dynamic";
 

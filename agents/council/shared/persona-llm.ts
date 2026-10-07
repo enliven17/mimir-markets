@@ -31,7 +31,11 @@ export interface PersonaVerdict {
   explanation: string;
 }
 
-export type PersonaMode = "forecast" | "judge";
+/**
+ * `take` is the one public comment under a market: a forecast that always picks a side (the schema allows only
+ * the two sides), from the evidence when it has the answer and from what the persona knows when it does not.
+ */
+export type PersonaMode = "forecast" | "judge" | "take";
 
 /** The LLM call, injectable so the oracle's jury runs on its own key and throttle. */
 export type PersonaLLM = (prompt: string, opts: CallLLMOptions) => Promise<string>;
@@ -41,6 +45,16 @@ export const COUNCIL_KEY_ENV = "COUNCIL_GEMINI_API_KEY";
 
 /** Council traffic never spends an oracle key (lib/llm.ts role). */
 const defaultLLM: PersonaLLM = (prompt, opts) => callLLM(prompt, { ...opts, keyEnv: COUNCIL_KEY_ENV, role: "council" });
+
+const TAKE_SCHEMA = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["CREATOR_WINS", "CHALLENGERS_WIN"] },
+    confidence: { type: "integer" },
+    explanation: { type: "string" },
+  },
+  required: ["verdict", "confidence", "explanation"],
+} as const;
 
 const PERSONA_VERDICT_SCHEMA = {
   type: "object",
@@ -57,6 +71,16 @@ type PromptClaim = Pick<
   "question" | "creatorPosition" | "counterPosition" | "category" | "resolutionUrl" | "deadline" | "creatorStake" | "totalChallengerStake"
 >;
 
+// The public take: an opinion, like a pundit's preview. The event being in the future is the point, and a thin
+// evidence page (a fixture list, a ticker) is normal: fall back on what is known about the sides.
+const TAKE_RULES = `- This is your public take under the market, written before the outcome is known. Pick the side you think is
+  likelier, CREATOR_WINS or CHALLENGERS_WIN. There is no "can't know" answer here.
+- Use the evidence when it helps. When it is thin (a schedule, a fixture page, a bare price), forecast from what you
+  know: team or player quality, form, home advantage, head to head, the asset's recent range and the distance to the
+  threshold against the time left, base rates.
+- Never say the event "has not happened yet", "is scheduled" or that you "cannot determine" it. Give a view and the one
+  or two reasons behind it, in your own voice, like a short preview.
+- confidence is your probability (50-90) that your side wins; near 50 when it is a coin flip.`;
 const JUDGE_RULES = "- UNRESOLVABLE only if the evidence is missing, ambiguous, or lacks the data needed.";
 // A forecast is about an event that has not happened yet: "not yet played" or "the price can still move" is the
 // normal case, not a reason to abstain. Pick the likelier side from what is known now and say how likely it is.
@@ -117,7 +141,7 @@ ${task}
 Return JSON only:
 { "verdict": "CREATOR_WINS" | "CHALLENGERS_WIN" | "DRAW" | "UNRESOLVABLE", "confidence": <0-100>, "explanation": "<one or two sentences in your voice>" }
 
-${mode === "judge" ? JUDGE_RULES : FORECAST_RULES}
+${mode === "judge" ? JUDGE_RULES : mode === "take" ? TAKE_RULES : FORECAST_RULES}
 - Never invent evidence. Cite what you actually saw above.`;
 }
 
@@ -149,7 +173,7 @@ export async function evaluateClaimAsPersona(
   const text = await llm(buildPersonaPrompt(persona, claim, evidenceText, opts.peerReads, mode), {
     maxTokens: 512,
     jsonOnly: true,
-    jsonSchema: PERSONA_VERDICT_SCHEMA,
+    jsonSchema: mode === "take" ? TAKE_SCHEMA : PERSONA_VERDICT_SCHEMA,
     model: pickGeminiModel(persona.slug),
     // A juror's vote settles money: no anonymous free-router fallback.
     ...(mode === "judge" ? { noFreeRouter: true, temperature: 0 } : {}),
