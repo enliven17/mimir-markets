@@ -162,8 +162,8 @@ contract MimirFeesTest {
 
     function test_aWhaleTicketLowersTheEntryFeeOnBothMarkets() public {
         address platform = address(0xFEE);
-        MimirV3 v3 = new MimirV3(address(0x0417ac1e), platform, IMimirFees(address(fees)), 0);
-        MimirPool pool = new MimirPool(address(0x0417ac1e), platform, IPoolFees(address(fees)), 0);
+        MimirV3 v3 = new MimirV3(address(0x0417ac1e), platform, IMimirFees(address(fees)), 0, 2e18);
+        MimirPool pool = new MimirPool(address(0x0417ac1e), platform, IPoolFees(address(fees)), 0, 2e18);
         uint64 exp = uint64(T0 + 1 days);
         _apply(alice, 2, exp, _sig(SIGNER_KEY, alice, 2, exp));
         vm.deal(alice, 100 * ONE);

@@ -51,7 +51,7 @@ contract MimirV3Test {
     function setUp() public {
         vm.warp(1_000_000);
         fees = new MimirFees(address(0x5161));
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(fees)), 0);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(fees)), 0, 2e18);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(challenger, 1_000 * ONE);
         vm.deal(address(this), 1_000 * ONE);

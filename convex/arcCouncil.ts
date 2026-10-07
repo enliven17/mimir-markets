@@ -73,7 +73,7 @@ export const tick = internalAction({
   handler: async (ctx) => {
     if (process.env.MIMIR_PAUSE_COUNCIL === "1") return;
     const e = process.env;
-    const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS });
+    const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE });
     const { mimirV3, mimirPool } = cfg.contracts;
     const wallets = councilWalletsFromEnv();
     if (!mimirV3 || !mimirPool || !Object.keys(wallets).length) return;
@@ -124,7 +124,7 @@ export const tick = internalAction({
           if (m.kind === "vs") {
             // The 5x cap counts net stakes; personas pay the standard entry fee.
             const room = units(maxGrossFor(vsRoom(BigInt(m.stakeA), BigInt(m.stakeB)), ENTRY_FEE_BPS[0]));
-            if (room < 2_000_000n) {
+            if (room < units(cfg.contracts.minStakeWei)) {
               await record({ outcome: "abstained", rationale: `${persona.displayName} would challenge, but the market is full.`, confidence: decision.confidence, until: Date.now() + REEVAL_MS });
               continue;
             }

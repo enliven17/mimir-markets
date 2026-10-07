@@ -127,7 +127,7 @@ contract MimirPoolTest {
 
     function setUp() public {
         vm.warp(T0);
-        pool = new MimirPool(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW);
+        pool = new MimirPool(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
         maker = new PoolAccount(address(this));
         taker = new PoolAccount(address(this));
         third = new PoolAccount(address(this));
@@ -458,7 +458,7 @@ contract MimirPoolTest {
     address ref = address(0x5EF);
 
     function _feePool() internal returns (MimirPool p) {
-        p = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 0);
+        p = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 0, 2e18);
     }
 
     function _net(uint256 amount) internal pure returns (uint256) {

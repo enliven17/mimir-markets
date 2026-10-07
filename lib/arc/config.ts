@@ -42,6 +42,8 @@ export interface ArcConfig {
     mimirFees: `0x${string}` | null;
     /** The first block worth indexing (the deploy block). */
     fromBlock: bigint;
+    /** The contracts' stake minimum (a deploy parameter), in wei. */
+    minStakeWei: bigint;
   };
   circle: {
     /** Public browser key from Circle Console (allowed domain = the site's exact host). */
@@ -76,10 +78,19 @@ export interface ArcEnv {
   mimirPool?: string;
   mimirFees?: string;
   fromBlock?: string;
+  /** Decimal USDC, e.g. "0.1"; must match what the contracts were deployed with. */
+  minStake?: string;
 }
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const addressOrNull = (v: string | undefined) => (v && ADDRESS.test(v.trim()) ? (v.trim() as `0x${string}`) : null);
+/** "0.1" → wei; the 2 USDC the first deploys used when unset or malformed. */
+function minStakeWei(value: string | undefined): bigint {
+  const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value?.trim() ?? "");
+  if (!m) return 2_000_000_000_000_000_000n;
+  return BigInt(m[1]) * 10n ** 18n + BigInt((m[2] ?? "").padEnd(18, "0"));
+}
+
 function contractsFrom(env: ArcEnv): ArcConfig["contracts"] {
   const block = env.fromBlock?.trim();
   return {
@@ -87,6 +98,7 @@ function contractsFrom(env: ArcEnv): ArcConfig["contracts"] {
     mimirPool: addressOrNull(env.mimirPool),
     mimirFees: addressOrNull(env.mimirFees),
     fromBlock: block && /^\d+$/.test(block) ? BigInt(block) : 0n,
+    minStakeWei: minStakeWei(env.minStake),
   };
 }
 
@@ -150,6 +162,7 @@ export const ARC: ArcConfig = arcConfig({
   mimirPool: process.env.NEXT_PUBLIC_MIMIR_POOL_ADDRESS,
   mimirFees: process.env.NEXT_PUBLIC_MIMIR_FEES_ADDRESS,
   fromBlock: process.env.NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK,
+  minStake: process.env.NEXT_PUBLIC_MIMIR_MIN_STAKE,
 });
 
 export function arcExplorerUrl(kind: "tx" | "address", id: string, config: ArcConfig = ARC): string {

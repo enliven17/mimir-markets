@@ -17,7 +17,7 @@ interface IMimirFees {
  *     add up per side.
  *   - After the deadline the oracle proposes A, B, DRAW or UNRESOLVABLE. A
  *     participant can dispute within the dispute window by posting a bond of
- *     MIN_STAKE; the owner (the arbiter, a multisig in production) then rules.
+ *     DISPUTE_BOND; the owner (the arbiter, a multisig in production) then rules.
  *     The bond comes back if the ruling changes the verdict and goes to the
  *     platform otherwise. An undisputed proposal is finalized by anyone.
  *   - Escape hatch: RESOLUTION_GRACE_SECONDS after the deadline (or after the
@@ -56,7 +56,12 @@ contract MimirPool {
     uint8 public constant UNRESOLVABLE = 4;
 
     /// 2 USDC (native, 18 decimals): minimum stake and the dispute bond.
-    uint256 public constant MIN_STAKE = 2e18;
+    /// Smallest stake (gross), fixed at deploy (0.01 to 100 USDC).
+    uint256 public immutable MIN_STAKE;
+    uint256 public constant MIN_STAKE_FLOOR = 1e16;
+    uint256 public constant MIN_STAKE_CEILING = 100e18;
+    /// The dispute bond, independent of the stake minimum so disputes stay costly to spam.
+    uint256 public constant DISPUTE_BOND = 2e18;
     /// No new stakes in the final LOCK_SECONDS before the deadline (anti-sniping).
     uint256 public constant LOCK_SECONDS = 60;
     /// Copy trades: the referrer's share of a winning stake's profit, and the platform's.
@@ -153,6 +158,7 @@ contract MimirPool {
     event Paused(bool paused);
 
     // ── Errors ────────────────────────────────────────────────────────────────
+    error BadMinStake();
     error NotOwner();
     error NotOracle();
     error NotPendingOwner();
@@ -205,8 +211,10 @@ contract MimirPool {
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow) {
+    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow, uint256 _minStake) {
         if (_oracle == address(0) || _feeRecipient == address(0)) revert ZeroAddress();
+        if (_minStake < MIN_STAKE_FLOOR || _minStake > MIN_STAKE_CEILING) revert BadMinStake();
+        MIN_STAKE = _minStake;
         if (address(_fees).code.length == 0) revert NoCode();
         if (_disputeWindow > MAX_DISPUTE_WINDOW) revert DisputeWindowTooLong();
         disputeWindow = _disputeWindow;
@@ -399,13 +407,13 @@ contract MimirPool {
         emit ResolutionProposed(id, outcome, evidenceHash, block.timestamp + disputeWindow);
     }
 
-    /// A participant escalates the proposal to the arbiter with a MIN_STAKE bond.
+    /// A participant escalates the proposal to the arbiter with the DISPUTE_BOND.
     function dispute(uint256 id) external payable nonReentrant {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
         if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0) revert NotParticipant();
-        if (msg.value != MIN_STAKE) revert WrongBond();
+        if (msg.value != DISPUTE_BOND) revert WrongBond();
         m.state = ST_DISPUTED;
         m.disputer = msg.sender;
         m.disputedAt = uint64(block.timestamp);

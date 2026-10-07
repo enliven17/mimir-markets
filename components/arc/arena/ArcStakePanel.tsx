@@ -26,7 +26,7 @@ export default function ArcStakePanel({
   account: ReturnType<typeof useArcAccount>;
 }) {
   const { send, busy, error, last } = useArcSend(account.session);
-  const [amount, setAmount] = useState("2");
+  const [amount, setAmount] = useState("1");
   const [side, setSide] = useState<1 | 2>(m.kind === "vs" ? 2 : 1);
 
   const contract = m.kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
@@ -51,7 +51,7 @@ export default function ArcStakePanel({
   else if (m.kind === "vs" && mine.some((p) => p.side === 2)) blocker = "You already challenged this market.";
   else if (room === 0n) blocker = "This market is full: challengers can stake at most 5× the creator's stake.";
   else if (stake === null) blocker = "Enter an amount in USDC.";
-  else if (stake < MIN_STAKE_WEI) blocker = "The minimum stake is $2.";
+  else if (stake < MIN_STAKE_WEI) blocker = `The minimum stake is ${usd(MIN_STAKE_WEI)}.`;
   else if (room !== null && stake > room) blocker = `At most ${usd(room)} more fits in this market.`;
   else if (account.balance !== null && stake > account.balance) blocker = "not-enough";
 

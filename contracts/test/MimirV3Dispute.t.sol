@@ -31,7 +31,7 @@ contract MimirV3DisputeTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
@@ -159,6 +159,6 @@ contract MimirV3DisputeTest {
     }
 
     function deployWithWindow(uint256 window) external {
-        new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), window);
+        new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), window, 2e18);
     }
 }

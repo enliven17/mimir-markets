@@ -14,12 +14,13 @@
 import { encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address } from "viem";
 
 import type { ArcCall } from "./cctp-arc";
+import { ARC } from "./config";
 import { COPY_FEE_BPS, REFERRER_FEE_BPS, type FeeTicket } from "./fee-tiers";
 
 export type ArcMarketKind = "vs" | "pool";
 
-/** Both contracts: 2 USDC minimum (gross) stake, betting closes 60 s before the deadline. */
-export const MIN_STAKE_WEI = parseEther("2");
+/** Both contracts: the deploy-time minimum (gross) stake, betting closes 60 s before the deadline. */
+export const MIN_STAKE_WEI = ARC.contracts.minStakeWei;
 export const LOCK_SECONDS = 60;
 export const MAX_POOL_MULTIPLE = 5n;
 

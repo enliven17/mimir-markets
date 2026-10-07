@@ -51,7 +51,7 @@ export default function ArcCreateForm() {
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState("crypto");
   const [deadline, setDeadline] = useState(() => localInput(Math.floor(Date.now() / 1000) + 86_400));
-  const [amount, setAmount] = useState("5");
+  const [amount, setAmount] = useState("1");
   const [side, setSide] = useState<1 | 2>(1);
   const [stage, setStage] = useState<string | null>(null);
 
@@ -67,7 +67,7 @@ export default function ArcCreateForm() {
     if (!labelA.trim() || !labelB.trim() || labelA.trim() === labelB.trim()) return "Name both sides, differently.";
     if (!isHttpUrl(url.trim())) return "Add a resolution source (an http(s) link the oracle checks).";
     if (!Number.isFinite(deadlineSec) || deadlineSec < now + MIN_LEAD_SECONDS) return "Set the deadline at least 10 minutes from now.";
-    if (stake === null || stake < MIN_STAKE_WEI) return "Stake at least $2.";
+    if (stake === null || stake < MIN_STAKE_WEI) return `Stake at least ${usd(MIN_STAKE_WEI)}.`;
     if (account.balance !== null && stake > account.balance) return "not-enough";
     return null;
   }, [question, labelA, labelB, url, deadlineSec, stake, account.balance]);

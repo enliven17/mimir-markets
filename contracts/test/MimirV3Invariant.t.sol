@@ -292,7 +292,7 @@ contract MimirV3InvariantTest {
     function setUp() public {
         vm.warp(1_000_000);
         // Entry fees, referrers ("agent" here) and a dispute window, so every path moves money.
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 1 hours);
+        mimir = new MimirV3(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 1 hours, 2e18);
         uint256 t = 1_000_000 + 2 days;
         vm.warp(t);
 

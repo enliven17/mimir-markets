@@ -56,7 +56,12 @@ contract MimirV3 {
     /// the creator's stake, so each challenger's upside stays meaningful.
     uint256 public constant MAX_POOL_MULTIPLE      = 5;
     /// 2 USDC (native, 18 decimals): the smallest amount a position may send, and the dispute bond.
-    uint256 public constant MIN_STAKE = 2e18;
+    /// Smallest stake (gross) that opens or joins a claim, fixed at deploy (0.01 to 100 USDC).
+    uint256 public immutable MIN_STAKE;
+    uint256 public constant MIN_STAKE_FLOOR = 1e16;
+    uint256 public constant MIN_STAKE_CEILING = 100e18;
+    /// What a dispute costs, apart from the stake minimum: cheap bets must not make disputes cheap to spam.
+    uint256 public constant DISPUTE_BOND = 2e18;
     uint256 public constant DEFAULT_PAYOUT_BPS     = 20_000;    // 2x
 
     // Anti-sniping: no new challenges accepted in the final N seconds before
@@ -258,8 +263,10 @@ contract MimirV3 {
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow) {
+    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow, uint256 _minStake) {
         require(_oracle != address(0) && _feeRecipient != address(0), "Mimir: zero address");
+        require(_minStake >= MIN_STAKE_FLOOR && _minStake <= MIN_STAKE_CEILING, "Mimir: min stake out of range");
+        MIN_STAKE = _minStake;
         require(address(_fees).code.length > 0, "Mimir: fees has no code");
         require(_disputeWindow <= MAX_DISPUTE_WINDOW, "Mimir: dispute window too long");
         disputeWindow = _disputeWindow;
@@ -732,7 +739,7 @@ contract MimirV3 {
     /**
      * A participant who believes the proposed verdict is wrong escalates it to
      * the arbiter (the owner, a multisig in production) by posting a bond of
-     * MIN_STAKE. The bond comes back if the arbiter changes the verdict and is
+     * DISPUTE_BOND. The bond comes back if the arbiter changes the verdict and is
      * forfeited to the platform if it does not, so disputes cost something to
      * spam and nothing to raise when right.
      */
@@ -743,12 +750,12 @@ contract MimirV3 {
         require(block.timestamp < p.proposedAt + disputeWindow, "Mimir: dispute window closed");
         require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender], "Mimir: not a participant");
         // The bond is not a position: no entry fee.
-        require(msg.value == MIN_STAKE, "Mimir: wrong USDC value");
+        require(msg.value == DISPUTE_BOND, "Mimir: wrong USDC value");
         claim.state  = ST_DISPUTED;
         p.disputer   = msg.sender;
         p.disputedAt = uint64(block.timestamp);
-        p.bond       = MIN_STAKE;
-        emit ResolutionDisputed(claimId, msg.sender, MIN_STAKE);
+        p.bond       = DISPUTE_BOND;
+        emit ResolutionDisputed(claimId, msg.sender, DISPUTE_BOND);
     }
 
     /// Anyone can settle an undisputed proposal once its window has closed.

@@ -129,9 +129,20 @@ export const tick = internalAction({
       return;
     }
 
-    const stakeUsdc = envNum("CREATOR_STAKE_USDC", 3);
+    const stakeUsdc = envNum("CREATOR_STAKE_USDC", 0.1);
+    // A daily budget: what the house stakes on the markets it opens today (UTC) stays under it, so a creator that
+    // keeps losing its stakes costs at most this much a day. Cancelled empty markets give theirs back.
+    const budget = envNum("CREATOR_DAILY_BUDGET_USDC", 1);
+    const dayStart = Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()) / 1000);
+    const spentToday = own.filter((m) => m.createdAt >= dayStart && m.status !== "cancelled").reduce((sum, m) => sum + Number(BigInt(m.stakeA)) / 1e18, 0);
+    const affordable = Math.max(0, Math.floor((budget - spentToday + 1e-9) / stakeUsdc));
+    if (affordable === 0) {
+      console.log(`[creator] daily budget used (${spentToday.toFixed(2)} of ${budget} USDC)`);
+      return;
+    }
+    drafts.splice(affordable);
     const balance = await arcPublicClient(cfg).getBalance({ address: wallet.address });
-    if (balance < parseEther(String(stakeUsdc * drafts.length))) {
+    if (balance < parseEther((stakeUsdc * drafts.length).toFixed(6))) {
       console.warn(`[creator] not enough USDC on ${wallet.address} for ${drafts.length} markets; top it up`);
       return;
     }
@@ -143,7 +154,7 @@ export const tick = internalAction({
         continue;
       }
       try {
-        const amount = String(stakeUsdc);
+        const amount = stakeUsdc.toFixed(6);
         const tx = await executeContract({
           walletId: wallet.id,
           contractAddress: v3,
