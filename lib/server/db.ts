@@ -390,12 +390,25 @@ async function ensureSchema(pool: Pool): Promise<void> {
   );
 }
 
+function isLocalDatabase(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 /** The shared pool with the schema in place. Throws when DATABASE_URL is unset. */
 export async function getDb(): Promise<Pool> {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) throw new Error("DATABASE_URL is not configured");
   if (!globalThis.__mimirSolanaPool) {
-    globalThis.__mimirSolanaPool = new Pool({ connectionString: url });
+    globalThis.__mimirSolanaPool = isLocalDatabase(url)
+      ? // Local development only: a plain Postgres on this machine (e.g. PGlite's socket server) speaks TCP, not
+        // Neon's WebSocket protocol, so it gets node-postgres (a dev dependency) behind the same Pool interface.
+        (new (await import("pg")).default.Pool({ connectionString: url, max: 1 }) as unknown as Pool)
+      : new Pool({ connectionString: url });
   }
   if (!globalThis.__mimirSolanaDbReady) {
     const pool = globalThis.__mimirSolanaPool;
