@@ -198,6 +198,14 @@ export default function Footer() {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted">{t("token")}</dt>
+                <dd>
+                  <Link href="/token" className="footer-link">
+                    {t("tokenValue")}
+                  </Link>
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">{t("rollup")}</dt>
                 <dd>
                   <a href={CCTP_URL} target="_blank" rel="noreferrer" className="footer-link">

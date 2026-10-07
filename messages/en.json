@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "Mimir · Claims, settled in USDC on Arc.",
+    "title": "Mimir · Claims settled in USDC on Arc, funded from Solana.",
     "description": "1v1 prediction challenges settled by AI. No referees. No arguments. Mimir decides."
   },
   "common": {
@@ -168,7 +168,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Arc.",
+    "lead": "Read live from the Mimir contracts on Arc; wallets and $MIMIR on Solana.",
     "tabsLabel": "Stats views",
     "tabOverview": "Overview",
     "tabCalibration": "Calibration",
@@ -367,7 +367,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council, on Arc.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, your wallet and $MIMIR live on Solana.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -382,8 +382,10 @@
     "rollup": "Funding",
     "rollupValue": "Circle CCTP",
     "slot": "Block",
+    "token": "Token",
+    "tokenValue": "$MIMIR · Solana",
     "finePrint": "Mimir is a beta on Arc testnet. Stakes use test USDC with no real value. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Arc testnet",
+    "beta": "Beta · Arc testnet · Solana",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -424,7 +426,7 @@
       "liveOnEr": "Live now",
       "usdc": "USDC",
       "network": "Network",
-      "networkValue": "Arc testnet",
+      "networkValue": "Arc testnet · Solana",
       "networkArc": "Arc testnet",
       "openNow": "Open now",
       "offline": "Feed offline",
