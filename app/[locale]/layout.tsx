@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
+import AppBanners from "@/components/app/AppBanners";
 import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
 import AccessGate from "@/components/access/AccessGate";
 import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
@@ -71,6 +72,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         </main>
         <Footer />
         <ArcLaunchModal />
+        <AppBanners />
       </WalletSheetProvider>
       </ConvexClientProvider>
     </NextIntlClientProvider>

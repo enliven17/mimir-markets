@@ -28,6 +28,10 @@ for (const [page, out, w, h] of [
   // the site's tab icon and iOS home-screen icon (a PNG: the horn SVG is ~300KB)
   ['icon.html', '../app/icon.png', 128, 128],
   ['icon.html?flat', '../app/apple-icon.png', 90, 90],
+  // The installable app (app/manifest.ts, the Android APK): 192 and 512 px, plus a maskable 512.
+  ['icon.html?flat', '../public/app/icon-192.png', 96, 96],
+  ['icon.html?flat', '../public/app/icon-512.png', 256, 256],
+  ['icon.html?maskable', '../public/app/icon-maskable-512.png', 256, 256],
   ['roadmap.html', 'roadmap.png', 1920, 1080],
   ['community.html', 'community.png', 1080, 1080],
   ['holders.html', 'holders.png', 1600, 900],
@@ -36,6 +40,9 @@ for (const [page, out, w, h] of [
   ['passkey.html', 'passkey.png', 1600, 900],
   ['members100.html', 'members100.png', 1080, 1080],
   ['burn.html', 'burn.png', 1080, 1080],
+  ['post-arc.html', 'post-arc.png', 1080, 1080],
+  ['post-jev.html', 'post-jev.png', 1080, 1080],
+  ['post-mobile.html', 'post-mobile.png', 1080, 1080],
   ['article-system.html', 'article-system.png', 1600, 900],
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],
   ['article-oracle.html', 'article-oracle.png', 1600, 900],

@@ -1073,12 +1073,16 @@ html.lenis.lenis-stopped {
    of --nav-p: 0 = docked transparent bar, 1 = floating glass pill. Home
    scrubs it with scroll (components/Header.tsx); other routes hold it at 1.
    ────────────────────────────────────────────────────────────────────────── */
+/* The app strip above the nav (components/app/AppBanners.tsx) pushes the nav and the page down by its height. */
+:root { --top-banner: 0px; }
+:root[data-top-banner] { --top-banner: 34px; }
+
 .nav-shell {
   --nav-p: 1;
   position: fixed;
   inset: 0 0 auto;
   z-index: 50;
-  padding: calc(env(safe-area-inset-top) + var(--nav-p) * 14px) calc(var(--nav-p) * 16px) 0;
+  padding: calc(env(safe-area-inset-top) + var(--top-banner) + var(--nav-p) * 14px) calc(var(--nav-p) * 16px) 0;
   pointer-events: none;
 }
 .nav-shell[data-home] {

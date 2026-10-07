@@ -56,6 +56,7 @@ const nextConfig = {
   async rewrites() {
     const region = process.env.NEXT_PUBLIC_POSTHOG_REGION === "eu" ? "eu" : "us";
     return [
+      { source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" },
       { source: "/ingest/static/:path*", destination: `https://${region}-assets.i.posthog.com/static/:path*` },
       { source: "/ingest/:path*", destination: `https://${region}.i.posthog.com/:path*` },
     ];

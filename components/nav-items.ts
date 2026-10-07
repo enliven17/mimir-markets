@@ -57,6 +57,7 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
       { href: "/calibration", key: "calibration" },
     ],
   },
+  { key: "mobile", items: [{ href: "/app", key: "app", badge: "new" }] },
   { key: "docs", items: [{ href: "/docs", key: "docs" }] },
 ];
 

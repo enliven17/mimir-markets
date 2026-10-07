@@ -1747,7 +1747,8 @@
       "wallet": "Wallet",
       "token": "Token",
       "data": "Data",
-      "docs": "Docs"
+      "docs": "Docs",
+      "mobile": "Mobile"
     },
     "items": {
       "campaign": {
@@ -1814,6 +1815,10 @@
         "label": "Create a claim",
         "short": "Create",
         "hint": "Publish a claim and stake a side"
+      },
+      "app": {
+        "label": "Mobile app",
+        "hint": "Mimir on Android, and on your home screen"
       }
     }
   },
