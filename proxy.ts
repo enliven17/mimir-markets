@@ -23,5 +23,6 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/((?!api|trpc|_next|_vercel|.*\\..*).*)"],
+  // ingest: PostHog through our origin (next.config.js rewrites); a locale redirect would drop its POSTs.
+  matcher: ["/", "/((?!api|ingest|trpc|_next|_vercel|.*\\..*).*)"],
 };
