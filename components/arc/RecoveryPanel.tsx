@@ -23,6 +23,29 @@ export function readRecoveryFlag(address: string): RecoveryFlag {
   }
 }
 
+/** The phrase as a plain text file the user keeps offline. Built in the browser; nothing is uploaded. */
+function downloadPhrase(mnemonic: string, account: string): void {
+  const words = mnemonic.split(" ").map((w, i) => `${String(i + 1).padStart(2, " ")}. ${w}`).join("\n");
+  const text = [
+    "MIMIR ARC ACCOUNT RECOVERY PHRASE",
+    "",
+    `Account: ${account}`,
+    `Saved:   ${new Date().toISOString()}`,
+    "",
+    words,
+    "",
+    "Anyone with these 12 words can take over this account and the USDC in it.",
+    "Keep this file offline (a USB stick, a printed copy) and delete it from your Downloads.",
+    "Mimir never asks for these words. To recover: mimirmarkets.xyz/wallet, Recover with your phrase.",
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `mimir-recovery-${account.slice(2, 8).toLowerCase()}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function writeRecoveryFlag(address: string, flag: Exclude<RecoveryFlag, null>): void {
   localStorage.setItem(flagKey(address), flag);
 }
@@ -32,6 +55,8 @@ export function RecoverySetup({ session, onDone }: { session: ArcSession; onDone
   const [phrase, setPhrase] = useState<{ mnemonic: string; address: `0x${string}` } | null>(null);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The confirmation only unlocks once the words have actually left the page (downloaded or copied).
+  const [downloaded, setDownloaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,25 +124,46 @@ export function RecoverySetup({ session, onDone }: { session: ArcSession; onDone
           </li>
         ))}
       </ol>
-      <button
-        type="button"
-        onClick={() =>
-          void navigator.clipboard.writeText(phrase.mnemonic).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          })
-        }
-        className="press justify-self-start rounded-full bg-panel-raised px-4 py-2 text-[13px] text-cream"
-      >
-        {copied ? "Copied" : "Copy the words"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            downloadPhrase(phrase.mnemonic, session.address);
+            setDownloaded(true);
+          }}
+          className="rounded-full bg-coral px-4 py-2 text-[13px] font-medium text-[#160909]"
+        >
+          {downloaded ? "Downloaded ✓ Download again" : "Download the recovery file"}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void navigator.clipboard.writeText(phrase.mnemonic).then(() => {
+              setCopied(true);
+              setDownloaded(true);
+              setTimeout(() => setCopied(false), 2000);
+            })
+          }
+          className="press rounded-full bg-panel-raised px-4 py-2 text-[13px] text-cream"
+        >
+          {copied ? "Copied" : "Copy the words"}
+        </button>
+      </div>
       <span aria-live="polite" className="sr-only">
         {copied ? "Recovery phrase copied" : ""}
       </span>
       <div className="flex items-start gap-2">
-        <input id={confirmId} type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} className="mt-1 h-4 w-4 accent-coral" />
-        <label htmlFor={confirmId} className="text-[13px] text-cream">
-          I saved the words somewhere safe
+        <input
+          id={confirmId}
+          type="checkbox"
+          checked={saved}
+          disabled={!downloaded}
+          onChange={(e) => setSaved(e.target.checked)}
+          className="mt-1 h-4 w-4 accent-coral disabled:opacity-40"
+        />
+        <label htmlFor={confirmId} className={`text-[13px] ${downloaded ? "text-cream" : "text-dim"}`}>
+          I downloaded my recovery phrase and stored it somewhere safe. I understand Mimir cannot recover it for me.
+          {downloaded ? null : <span className="block text-[12px] text-dim">Download or copy the words first.</span>}
         </label>
       </div>
       <button
