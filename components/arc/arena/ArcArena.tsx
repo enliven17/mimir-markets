@@ -5,7 +5,7 @@
  * (convex/arc.ts, kept current by the indexer). Three views (Open, Settling,
  * Settled) and a VS / Pool filter. Cards link to /arena/arc/<kind>/<id>.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
@@ -15,6 +15,7 @@ import { FeedCard } from "@/components/ui/Card";
 import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { ARC } from "@/lib/arc/config";
+import { BetChip, jolt } from "./BetFx";
 import { arcPhase, BTN_PRIMARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, Split, type ArcMarket, type ArcPhase } from "./shared";
 
 type View = "open" | "settling" | "settled";
@@ -131,9 +132,24 @@ export default function ArcArena() {
 
 function ArcMarketCard({ m, now, index }: { m: ArcMarket; now: number; index: number }) {
   const phase = arcPhase(m, now);
+  // A live bet: the card jolts and the new money pops up over the pool (BetFx.tsx).
+  const cardRef = useRef<HTMLDivElement>(null);
+  const prev = useRef(m.volumeUsd);
+  const [bump, setBump] = useState<{ id: number; added: number; side: 1 | 2 } | null>(null);
+  const prevA = useRef(m.stakeA);
+  useEffect(() => {
+    const added = m.volumeUsd - prev.current;
+    if (added > 0.000001) {
+      jolt(cardRef.current, 0.7);
+      setBump({ id: Date.now(), added, side: m.stakeA !== prevA.current ? 1 : 2 });
+    }
+    prev.current = m.volumeUsd;
+    prevA.current = m.stakeA;
+  }, [m.volumeUsd, m.stakeA]);
   const winner = phase === "resolved" && (m.winner === 1 || m.winner === 2) ? (m.winner === 1 ? m.labelA : m.labelB) : null;
   return (
-    <FeedCard index={Math.min(index, 8)} className="group h-full focus-within:shadow-bubble-hover">
+    <FeedCard ref={cardRef} index={Math.min(index, 8)} className="group relative h-full focus-within:shadow-bubble-hover">
+      {bump ? <BetChip key={bump.id} bet={{ id: String(bump.id), side: bump.side, amount: String(BigInt(Math.round(bump.added * 1e6)) * 1_000_000_000_000n) }} tone={bump.side === 1 ? "cream" : "coral"} /> : null}
       <Link
         href={`/arena/arc/${m.kind}/${m.marketId}`}
         className="flex h-full min-h-[212px] flex-col gap-4 rounded-2xl p-5 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral sm:p-6"

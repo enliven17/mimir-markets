@@ -5,6 +5,7 @@
  * both sides with their money, time left or the verdict, the stake box while
  * betting is open, and who is in.
  */
+import { useRef } from "react";
 import { useQuery } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
@@ -15,7 +16,10 @@ import Skeleton from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import type { ArcMarketKind } from "@/lib/arc/markets";
+import RollingNumber from "@/components/motion/RollingNumber";
+import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
+import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
 import ArcStakePanel from "./ArcStakePanel";
 import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
@@ -34,6 +38,10 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind; marketId: number }) {
   const m = useQuery(api.arc.market, { kind, marketId });
+  // Live bets: a chip flies into the side that was backed and the bar jolts (BetFx.tsx).
+  const bets = useNewBets(m?.events);
+  const splitRef = useRef<HTMLDivElement>(null);
+  useJoltOn(splitRef, bets.at(-1)?.id, 0.6);
   const account = useArcAccount();
   const address = account.address;
   const now = useNowSec(15_000);
@@ -84,19 +92,21 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
         <section aria-label="Sides" className={`${SURFACE} grid gap-4 p-5`}>
           <div className="grid grid-cols-2 gap-3">
             {([1, 2] as const).map((s) => (
-              <div key={s} className={`grid gap-1 rounded-xl bg-panel p-4 ${m.winner === s && phase === "resolved" ? "shadow-[inset_0_0_0_1px_rgb(110_231_160/.6)]" : ""}`}>
-                <span className={`text-[12px] uppercase tracking-[0.14em] ${s === 1 ? "text-cream" : "text-coral"}`}>
-                  {kind === "vs" ? (s === 1 ? "Creator" : "Challengers") : `Side ${s === 1 ? "A" : "B"}`}
-                </span>
-                <span className="truncate text-[16px] text-cream">{sideName(s)}</span>
-                <span className="font-mono text-[14px] text-muted">
-                  {usd(s === 1 ? m.stakeA : m.stakeB)}
-                  {pct !== null ? ` · ${(s === 1 ? pct : 100 - pct).toFixed(0)}%` : ""}
-                </span>
-              </div>
+              <SideBox
+                key={s}
+                won={m.winner === s && phase === "resolved"}
+                tone={s === 1 ? "cream" : "coral"}
+                title={kind === "vs" ? (s === 1 ? "Creator" : "Challengers") : `Side ${s === 1 ? "A" : "B"}`}
+                name={sideName(s)}
+                stake={weiToUsd(s === 1 ? m.stakeA : m.stakeB)}
+                pct={pct === null ? null : s === 1 ? pct : 100 - pct}
+                bets={bets.filter((b) => b.side === s)}
+              />
             ))}
           </div>
-          <Split m={m} className="h-[6px]" />
+          <div ref={splitRef}>
+            <Split m={m} className="h-[6px]" />
+          </div>
           <p className="m-0 flex flex-wrap justify-between gap-2 text-[13px] text-muted">
             <span>
               Pool <span className="text-cream">${m.volumeUsd.toFixed(2)}</span> · {m.participants} in
@@ -169,6 +179,27 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
           </div>
         )}
       </aside>
+    </div>
+  );
+}
+
+const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** One side: its money rolls to the new total and the box jolts as each live bet lands in it. */
+function SideBox({ won, tone, title, name, stake, pct, bets }: { won: boolean; tone: "cream" | "coral"; title: string; name: string; stake: number; pct: number | null; bets: Bet[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useJoltOn(ref, bets.at(-1)?.id);
+  return (
+    <div ref={ref} className={`relative grid gap-1 overflow-visible rounded-xl bg-panel p-4 ${won ? "shadow-[inset_0_0_0_1px_rgb(110_231_160/.6)]" : ""}`}>
+      <span className={`text-[12px] uppercase tracking-[0.14em] ${tone === "cream" ? "text-cream" : "text-coral"}`}>{title}</span>
+      <span className="truncate text-[16px] text-cream">{name}</span>
+      <span className="flex items-baseline gap-1.5 font-mono text-[14px] text-muted">
+        <RollingNumber value={stake} format={money} flash className="text-cream" />
+        {pct !== null ? <span>· {pct.toFixed(0)}%</span> : null}
+      </span>
+      {bets.map((b) => (
+        <BetChip key={b.id} bet={b} tone={tone} />
+      ))}
     </div>
   );
 }

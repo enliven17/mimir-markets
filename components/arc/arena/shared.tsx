@@ -58,7 +58,7 @@ export function Split({ m, className = "h-[5px]" }: { m: Pick<ArcMarket, "stakeA
     <div
       className={`relative overflow-hidden rounded-full ${a === null ? "bg-[repeating-linear-gradient(135deg,rgb(243_234_214/.18)_0_4px,transparent_4px_8px)]" : "bg-coral"} ${className}`}
     >
-      {a !== null ? <div className="absolute inset-y-0 left-0 bg-cream" style={{ width: `${a}%` }} /> : null}
+      {a !== null ? <div className="absolute inset-y-0 left-0 bg-cream transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${a}%` }} /> : null}
     </div>
   );
 }
