@@ -52,6 +52,16 @@ const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  // PostHog through our own origin (instrumentation-client.ts): /ingest/* → the region's ingestion and asset hosts.
+  async rewrites() {
+    const region = process.env.NEXT_PUBLIC_POSTHOG_REGION === "eu" ? "eu" : "us";
+    return [
+      { source: "/ingest/static/:path*", destination: `https://${region}-assets.i.posthog.com/static/:path*` },
+      { source: "/ingest/:path*", destination: `https://${region}.i.posthog.com/:path*` },
+    ];
+  },
+  // PostHog's API paths end in a slash; a redirect would break them.
+  skipTrailingSlashRedirect: true,
 };
 
 module.exports = withNextIntl(nextConfig);

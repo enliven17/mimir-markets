@@ -114,7 +114,7 @@ export function RecoverySetup({ session, onDone }: { session: ArcSession; onDone
     <div className="grid gap-3">
       <h3 className="m-0 text-[15px] font-medium text-cream">Write these 12 words down</h3>
       <p className="m-0 text-[13px] text-muted">In this order, somewhere offline. They are shown once. Anyone with them can take over this account.</p>
-      <ol className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3" aria-label="Recovery phrase">
+      <ol className="ph-no-capture m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3" aria-label="Recovery phrase">
         {words.map((w, i) => (
           <li key={i} className="rounded-xl bg-ink-deep px-3 py-2 font-mono text-[14px] text-cream">
             <span className="mr-2 text-dim" aria-hidden>
@@ -206,7 +206,7 @@ export function RecoverWithPhrase({ busy, onRecover }: { busy: boolean; onRecove
         spellCheck={false}
         value={phrase}
         onChange={(e) => setPhrase(e.target.value)}
-        className="rounded-xl bg-ink-deep px-3 py-2.5 font-mono text-[14px] text-cream outline-none focus-visible:ring-2 focus-visible:ring-coral"
+        className="ph-no-capture rounded-xl bg-ink-deep px-3 py-2.5 font-mono text-[14px] text-cream outline-none focus-visible:ring-2 focus-visible:ring-coral"
       />
       <p className="m-0 text-[12px] text-muted">This creates a new passkey on this device and adds it to your account. No gas.</p>
       <button
