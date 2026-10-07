@@ -3,7 +3,7 @@
 // Arc has BFT finality (no reorgs), so a block once read is final. Runs from convex/crons.ts.
 import { createPublicClient, http, parseAbi, parseEventLogs, type Log } from "viem";
 import { internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { arcConfig } from "../lib/arc/config";
 
 const V3_ABI = parseAbi([
@@ -128,13 +128,14 @@ export const sync = internalAction({
         times.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp));
       }
 
-      await ctx.runMutation(internal.arc.apply, {
+      const changes = await ctx.runMutation(internal.arc.apply, {
         name: "arc",
         block: Number(to),
         markets,
         positions,
         events: logs.map(({ kind, log }) => ({ ...eventRow(kind, log), at: times.get(log.blockNumber) })),
       });
+      await notifyTelegram(ctx, changes);
       from = to + 1n;
     }
   },
@@ -243,4 +244,50 @@ function eventRow(kind: Kind, log: DecodedLog) {
     logIndex: log.logIndex,
     block: Number(log.blockNumber),
   };
+}
+
+type Change = { type: "new" | "proposed" | "resolved" | "cancelled"; kind: Kind; marketId: number };
+
+/**
+ * Post what changed to the site's Telegram route (app/api/telegram/arc-events), which messages the chats. Off unless
+ * TELEGRAM_EVENTS_URL and MIMIR_INTERNAL_SECRET are set; a failed post is logged, never retried (alerts are best effort).
+ * "New" only for markets opened in the last hour, so a re-index does not announce old markets again.
+ */
+async function notifyTelegram(ctx: ActionCtx, changes: Change[]): Promise<void> {
+  const url = process.env.TELEGRAM_EVENTS_URL?.trim();
+  const secret = process.env.MIMIR_INTERNAL_SECRET?.trim();
+  if (!url || !secret || !changes.length) return;
+  const recent = Math.floor(Date.now() / 1000) - 3600;
+  const events = [];
+  for (const c of changes) {
+    const m = await ctx.runQuery(internal.arc.marketWithPositions, { kind: c.kind, marketId: c.marketId });
+    if (!m || m.isPrivate || (c.type === "new" && m.createdAt < recent)) continue;
+    const holders = c.type === "cancelled" ? [{ user: m.creator, side: 1 }] : m.positions.map((p) => ({ user: p.user, side: p.side }));
+    events.push({
+      type: c.type,
+      kind: m.kind,
+      marketId: m.marketId,
+      question: m.question,
+      labelA: m.labelA,
+      labelB: m.labelB,
+      stakeA: m.stakeA,
+      deadline: m.deadline,
+      winner: m.winner,
+      summary: m.summary,
+      disputableUntil: m.disputableUntil,
+      holders,
+    });
+  }
+  if (!events.length) return;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ events }),
+      signal: AbortSignal.timeout(50_000),
+    });
+    if (!res.ok) console.warn(`[telegram] arc-events ${res.status}`);
+  } catch (err) {
+    console.warn("[telegram] arc-events post failed:", err instanceof Error ? err.message : err);
+  }
 }

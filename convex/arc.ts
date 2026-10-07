@@ -21,6 +21,8 @@ export const apply = internalMutation({
     events: v.array(schema.tables.arcEvents.validator),
   },
   handler: async (ctx, { name, block, markets, positions, events }) => {
+    // What changed, for Telegram (arcSync posts these to /api/telegram/arc-events).
+    const changes: Array<{ type: "new" | "proposed" | "resolved" | "cancelled"; kind: "vs" | "pool"; marketId: number }> = [];
     for (const p of positions) {
       const row = await ctx.db
         .query("arcPositions")
@@ -33,6 +35,10 @@ export const apply = internalMutation({
       const row = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", m.kind).eq("marketId", m.marketId)).unique();
       // Overlapping runs: never let an older snapshot overwrite a newer one.
       if (row && row.updatedBlock > m.updatedBlock) continue;
+      if (!row) changes.push({ type: "new", kind: m.kind, marketId: m.marketId });
+      else if (row.status !== m.status && (m.status === "proposed" || m.status === "resolved" || m.status === "cancelled")) {
+        changes.push({ type: m.status, kind: m.kind, marketId: m.marketId });
+      }
       const participants = m.kind === "pool"
         ? new Set((await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "pool").eq("marketId", m.marketId)).collect()).map((p) => p.user)).size
         : m.participants;
@@ -52,6 +58,7 @@ export const apply = internalMutation({
     const c = await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name)).unique();
     if (!c) await ctx.db.insert("arcCursor", { name, block });
     else if (block > c.block) await ctx.db.patch(c._id, { block });
+    return changes;
   },
 });
 

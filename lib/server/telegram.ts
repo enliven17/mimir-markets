@@ -10,7 +10,9 @@ import {
   ALERT_PREFS,
   isAlertPref,
   LINK_CODE_TTL_MS,
+  esc,
   marketButton,
+  marketUrlButton,
   newMarketText,
   notificationText,
   prefForKind,
@@ -133,4 +135,28 @@ export async function deliverTelegram(e: NotificationEvent): Promise<void> {
     [e.recipient],
   );
   for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketButton(e.claimId) });
+}
+
+/** A new Arc market to every chat that wants new markets. */
+export async function broadcastArcMarket(m: { question: string; stakeA: string; deadline: number; url: string }): Promise<void> {
+  if (!isDbEnabled()) return;
+  const chats = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE new_markets AND NOT blocked");
+  const usdc = (Number(BigInt(m.stakeA) / 10_000_000_000_000n) / 100_000).toFixed(2);
+  const text = [
+    "🆕 <b>New market</b>",
+    esc(m.question),
+    "",
+    `Opening stake: ${usdc} USDC · closes ${new Date(m.deadline * 1000).toUTCString().replace(":00 GMT", " UTC")}`,
+  ].join("\n");
+  for (const c of chats) {
+    await sendTo(Number(c.chat_id), text, { reply_markup: marketUrlButton(m.url) });
+    await new Promise((r) => setTimeout(r, BROADCAST_GAP_MS));
+  }
+}
+
+/** A personal Arc message to every chat following `wallet` (Solana) that wants this kind. */
+export async function deliverArc(wallet: string, text: string, pref: AlertPref, url: string): Promise<void> {
+  if (!isDbEnabled()) return;
+  const chats = await query<{ chat_id: string }>(`SELECT chat_id FROM telegram_chats WHERE wallet = $1 AND NOT blocked AND ${pref}`, [wallet]);
+  for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketUrlButton(url) });
 }
