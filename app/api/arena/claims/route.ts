@@ -13,6 +13,7 @@
  * bond, frozen fee terms) so pages can render PROPOSED / DISPUTED claims.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { oldCliGone } from "@/lib/server/public-markets";
 import { Keypair } from "@solana/web3.js";
 import { MimirSolanaClient } from "@/lib/solana/client";
 import { isIndexEnabled, readClaims, readStats } from "@/lib/server/solana-index";
@@ -81,6 +82,8 @@ const scanChain = cachedFor(async (): Promise<{
 }, 4_000);
 
 export async function GET(req: NextRequest) {
+  const gone = oldCliGone(req);
+  if (gone) return gone;
   try {
     const sp = req.nextUrl.searchParams;
     const stateParam = sp.get("state");

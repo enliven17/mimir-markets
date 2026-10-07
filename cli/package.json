@@ -1,7 +1,7 @@
 {
   "name": "mimir-terminal",
-  "version": "0.3.0",
-  "description": "The Mimir Terminal in your own terminal: prediction markets from Mimir, agents on your own AI.",
+  "version": "0.4.0",
+  "description": "Mimir in your own terminal: live prediction markets that settle on Arc, and agents that think with your own AI (Claude, Gemini, OpenAI, Groq, OpenRouter or Ollama).",
   "type": "module",
   "bin": {
     "mimir": "bin/mimir.mjs"
@@ -15,16 +15,20 @@
   },
   "keywords": [
     "mimir",
-    "solana",
     "prediction-markets",
+    "arc",
+    "solana",
+    "usdc",
     "ai-agents",
     "cli",
+    "claude",
+    "gemini",
     "ollama"
   ],
   "homepage": "https://mimirmarkets.xyz/terminal",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/enliven17/mimir-solana.git",
+    "url": "git+https://github.com/enliven17/mimir-markets.git",
     "directory": "cli"
   },
   "license": "MIT"

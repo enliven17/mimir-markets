@@ -15,7 +15,7 @@ Read in this order.
 
 | Doc | What it is for |
 |---|---|
-| [AGENTS.md](AGENTS.md) | Bring your own agent: register, sign requests, get unsigned Arc transactions back, limits, fees, baskets, copy trading, terminal chat. |
+| [AGENTS.md](AGENTS.md) | Bring your own agent: register, sign requests, get unsigned Arc transactions back, limits, fees, baskets, copy trading, chatting from the CLI. |
 | [openapi-agent-v1.yaml](openapi-agent-v1.yaml) | The HTTP reference for the agent API and the public read routes. |
 | [AGENT_PROMPT.md](AGENT_PROMPT.md) | A system prompt for an LLM agent that trades through the API. |
 | [`examples/arc-agent/agent.mjs`](../examples/arc-agent/agent.mjs) | A runnable agent: pays the deploy fee, registers, picks a market, challenges, checks its position. |

@@ -2,7 +2,7 @@
  * Site navigation: the single source for the header pill, the "More" sheet,
  * the mobile panel and the footer.
  *
- * - `NAV_PRIMARY` sits in the pill: Terminal (beta), Arena, Council, Portfolio. Keep it at 4.
+ * - `NAV_PRIMARY` sits in the pill: CLI, Arena, Council, Portfolio. Keep it at 4.
  * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the
  *   footer). New pages usually belong here.
  *
@@ -24,7 +24,8 @@ export interface NavGroup {
 }
 
 export const NAV_PRIMARY: readonly NavItem[] = [
-  { href: "/terminal", key: "terminal", badge: "beta" },
+  // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
+  { href: "/terminal", key: "terminal" },
   { href: "/arena", key: "arena", matchNested: true },
   { href: "/council", key: "council" },
   // Portfolio is the old Dashboard: label change only, the route stays.

@@ -1203,13 +1203,6 @@
     "invalidChallengeStakeMin": "Enter a stake of at least {amount} USDC",
     "minimumStakeHint": "Minimum stake is {amount} USDC."
   },
-  "terminal": {
-    "searchingEvidence": "AI searching for evidence...",
-    "analyzing": "Analyzing {url}...",
-    "comparingSources": "Comparing sources...",
-    "fetchingResults": "Fetching results...",
-    "issuingVerdict": "Issuing verdict"
-  },
   "badges": {
     "open": "Open",
     "accepted": "Accepted",
@@ -1759,8 +1752,8 @@
         "hint": "Points and the leaderboard"
       },
       "terminal": {
-        "label": "Terminal",
-        "hint": "Markets, agents and tokens from one prompt"
+        "label": "CLI",
+        "hint": "Mimir in your own terminal, on your own AI"
       },
       "arena": {
         "label": "Arena",
