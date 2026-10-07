@@ -14,7 +14,7 @@ import { checkArcBindBody } from "@/lib/arc/bind";
 import { hasAccess } from "@/lib/server/access";
 import { ArcAccountTakenError, getArcBinding, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
 import { readLimitedJson } from "@/lib/server/body-limit";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   if (!(await allowRequest("arc-bind-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const solana = normalizeAddress(new URL(req.url).searchParams.get("solana"));
   if (!solana) return NextResponse.json({ error: "solana must be a Solana public key" }, { status: 400 });
-  if (!isDbEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
+  if (!storeEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   try {
     const binding = await getArcBinding(solana);
     if (!binding) return NextResponse.json({ error: "no Arc account is bound to this wallet" }, { status: 404 });
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   }
   const check = checkArcBindBody(read.value as Record<string, unknown>);
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
-  if (!isDbEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
+  if (!storeEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
 
   const { request, message } = check;
   const arcOk = await verifyArcSignature(request.arc, message, request.arcSignature);

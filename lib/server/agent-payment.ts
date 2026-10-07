@@ -3,7 +3,7 @@
  * (lib/arc/fee-tiers.ts), the tier read from the owner's Solana wallet. The
  * owner pays by sending native USDC on Arc to the market contracts' fee
  * recipient; the registration names that transaction, and each one pays for
- * one agent only (agent_payments.tx_hash is unique).
+ * one agent only (an agent_payments row per tx hash).
  */
 import { parseAbi, parseEther, parseEventLogs, type Hex } from "viem";
 
@@ -14,7 +14,7 @@ import { ARC, ARC_USDC as USDC } from "@/lib/arc/config";
 const ARC_USDC = USDC.toLowerCase();
 const TRANSFER_ABI = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
 import { AGENT_DEPLOY_USD, feeTierFor, type FeeTier } from "@/lib/arc/fee-tiers";
-import { query } from "./db";
+import { insert, store } from "./store";
 import { walletBalances } from "./holder";
 
 export async function deployPriceFor(ownerWallet: string): Promise<{ tier: FeeTier; wei: bigint }> {
@@ -41,8 +41,7 @@ export async function verifyDeployPayment(txHash: unknown, minWei: bigint, payer
     throw new AgentEnvelopeError("paymentTx (the Arc transaction that paid the deploy fee) is required", 402, "payment_required");
   }
   const hash = txHash.toLowerCase() as Hex;
-  const used = await query("SELECT 1 FROM agent_payments WHERE tx_hash = $1", [hash]);
-  if (used.length) throw new AgentEnvelopeError("that payment already paid for another agent", 409, "payment_used");
+  if (await store().get("agent_payments", hash)) throw new AgentEnvelopeError("that payment already paid for another agent", 409, "payment_used");
   const allowed = new Set(payers.filter(Boolean).map((a) => a.toLowerCase()));
   const client = arcPublicClient();
   const [tx, receipt, to] = await Promise.all([
@@ -62,12 +61,9 @@ export async function verifyDeployPayment(txHash: unknown, minWei: bigint, payer
   return hash;
 }
 
+/** Records the payment; throws when the same tx was recorded for another agent in the meantime (it pays once). */
 export async function recordDeployPayment(hash: Hex, agentId: string, ownerWallet: string, amountWei: bigint): Promise<void> {
-  await query("INSERT INTO agent_payments (tx_hash, agent_id, owner_wallet, amount_wei, paid_at) VALUES ($1, $2, $3, $4, $5)", [
-    hash,
-    agentId,
-    ownerWallet,
-    amountWei.toString(),
-    Date.now(),
-  ]);
+  const now = Date.now();
+  const fresh = await insert("agent_payments", hash, { tx_hash: hash, agent_id: agentId, owner_wallet: ownerWallet, amount_wei: amountWei.toString(), paid_at: now }, { i1: agentId, at: now });
+  if (!fresh) throw new AgentEnvelopeError("that payment already paid for another agent", 409, "payment_used");
 }

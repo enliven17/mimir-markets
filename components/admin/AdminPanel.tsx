@@ -225,7 +225,7 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="People on Solana" note="app database">
+        <Card title="People on Solana" note="app records">
           {db ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="Wallets linked to Arc" value={db.arcAccounts} />
@@ -301,7 +301,7 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
             head={["Service", "State", "Detail"]}
             rows={[
               ["Backend", d.backend.ok ? "up" : "down", d.backend.ok ? `${d.backend.ms} ms` : d.backend.error],
-              ["App database", d.database.ok ? "up" : "down", d.database.ok ? `${d.database.ms} ms` : d.database.error],
+              ["App records", d.database.ok ? "up" : "down", d.database.ok ? `${d.database.ms} ms` : d.database.error],
               ["Arc RPC", d.chain.head.ok ? "up" : "down", d.chain.head.ok ? `block ${d.chain.head.data} · ${d.chain.head.ms} ms` : d.chain.head.error],
               ["Solana devnet RPC", d.solana.devnet.ok ? "up" : "down", d.solana.devnet.ok ? `slot ${d.solana.devnet.data}` : d.solana.devnet.error],
               ["Solana mainnet RPC", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],

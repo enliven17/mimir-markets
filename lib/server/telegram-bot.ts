@@ -15,9 +15,12 @@ import path from "node:path";
 
 import { fetchDexStats } from "./dex-prices";
 import { mimirMint, mimirSymbol } from "../token-config";
-import { getMeta, isDbEnabled, query, setMeta } from "./db";
+
 import {
   chatWallet,
+  getBotMeta,
+  groupChatIds,
+  setBotMeta,
   getAlertPrefs,
   newLinkCode,
   sendTo,
@@ -112,7 +115,7 @@ async function linkButtons(chatId: number) {
 
 /** The launch video: uploaded once, then re-sent by file_id. */
 async function sendLaunchVideo(chatId: number): Promise<void> {
-  const cached = await getMeta(VIDEO_META_KEY).catch(() => null);
+  const cached = await getBotMeta(VIDEO_META_KEY).catch(() => null);
   if (cached) {
     await tg("sendVideo", { chat_id: chatId, video: cached, supports_streaming: true, ...VIDEO_DIMS });
     return;
@@ -124,7 +127,7 @@ async function sendLaunchVideo(chatId: number): Promise<void> {
   form.append("video", new Blob([await readFile(VIDEO_PATH)], { type: "video/mp4" }), "mimir.mp4");
   form.append("thumbnail", new Blob([await readFile(THUMB_PATH)], { type: "image/jpeg" }), "thumb.jpg");
   const sent = await tg<{ video?: { file_id: string } }>("sendVideo", form, 120_000);
-  if (sent.video?.file_id) await setMeta(VIDEO_META_KEY, sent.video.file_id).catch(() => undefined);
+  if (sent.video?.file_id) await setBotMeta(VIDEO_META_KEY, sent.video.file_id).catch(() => undefined);
 }
 
 async function onStart(chatId: number): Promise<void> {
@@ -186,9 +189,9 @@ async function onAnnounce(chatId: number, fromId: number | undefined, raw: strin
     return true;
   }
   // Groups and supergroups have negative chat ids; private chats never get announcements.
-  const groups = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE chat_id < 0 AND NOT blocked");
+  const groups = await groupChatIds();
   for (const g of groups) {
-    await sendTo(Number(g.chat_id), esc(body), { disable_web_page_preview: false });
+    await sendTo(g, esc(body), { disable_web_page_preview: false });
     await new Promise((r) => setTimeout(r, 50));
   }
   await sendTo(chatId, `Sent to ${groups.length} group${groups.length === 1 ? "" : "s"}.`);

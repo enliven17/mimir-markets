@@ -1,5 +1,6 @@
 /**
- * Solana wallet ↔ Arc account bindings (table `arc_accounts`, lib/server/db.ts).
+ * Solana wallet ↔ Arc account bindings (backend table `arc_accounts`, lib/server/store.ts): one row per wallet,
+ * plus an `arc_owners` row per Arc account so an account can only ever belong to one wallet.
  *
  * A Solana wallet maps to one Arc account and an Arc account to one wallet.
  * Rebinding a wallet to a new account needs a fresh pair of signatures (the
@@ -9,7 +10,7 @@
 import { createPublicClient, http, type Hex } from "viem";
 
 import { ARC, type ArcConfig } from "@/lib/arc/config";
-import { query } from "./db";
+import { store, StoreConflict, type Step } from "./store";
 
 export interface ArcBindingRow {
   solana: string;
@@ -23,23 +24,20 @@ export class ArcAccountTakenError extends Error {
   }
 }
 
+type Row = { solana: string; arc: string; credential_id: string | null; bound_at: number | null };
+const toBinding = (r: Row | null): ArcBindingRow | null =>
+  r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
+
 export async function getArcBinding(solana: string): Promise<ArcBindingRow | null> {
-  const rows = await query<{ solana: string; arc: string; bound_at: string | null }>(
-    "SELECT solana, arc, bound_at FROM arc_accounts WHERE solana = $1",
-    [solana],
-  );
-  const r = rows[0];
-  return r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
+  return toBinding(await store().get<Row>("arc_accounts", solana));
 }
 
 /** The Solana wallet an Arc account is bound to. `arc` must be checksummed (getAddress), as it is stored. */
 export async function getArcBindingByArc(arc: string): Promise<ArcBindingRow | null> {
-  const rows = await query<{ solana: string; arc: string; bound_at: string | null }>(
-    "SELECT solana, arc, bound_at FROM arc_accounts WHERE arc = $1",
-    [arc],
-  );
-  const r = rows[0];
-  return r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
+  const owner = await store().get<{ solana: string }>("arc_owners", arc);
+  if (!owner) return null;
+  const b = toBinding(await store().get<Row>("arc_accounts", owner.solana));
+  return b && b.arc === arc ? b : null;
 }
 
 export async function upsertArcBinding(args: {
@@ -49,15 +47,20 @@ export async function upsertArcBinding(args: {
   now?: number;
 }): Promise<ArcBindingRow> {
   const boundAt = args.now ?? Date.now();
+  const s = store();
+  const previous = await s.get<Row>("arc_accounts", args.solana);
+  const steps: Step[] = [];
+  // The account must be free, or already this wallet's; a wallet moving to a new account frees its old one.
+  if (previous && previous.arc !== args.arc) steps.push({ op: "remove", t: "arc_owners", k: previous.arc });
+  steps.push(
+    { op: "insert", t: "arc_owners", k: args.arc, d: { arc: args.arc, solana: args.solana }, at: boundAt },
+    { op: "update", t: "arc_owners", k: args.arc, d: {}, when: { solana: args.solana }, must: true },
+    { op: "put", t: "arc_accounts", k: args.solana, d: { solana: args.solana, arc: args.arc, credential_id: args.credentialId, bound_at: boundAt }, i1: args.arc, at: boundAt },
+  );
   try {
-    await query(
-      `INSERT INTO arc_accounts (solana, arc, credential_id, bound_at) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (solana) DO UPDATE SET arc = excluded.arc, credential_id = excluded.credential_id, bound_at = excluded.bound_at`,
-      [args.solana, args.arc, args.credentialId, boundAt],
-    );
+    await s.tx(steps);
   } catch (err) {
-    // 23505 unique_violation: only `arc` can collide here (solana is the conflict target).
-    if ((err as { code?: string })?.code === "23505") throw new ArcAccountTakenError();
+    if (err instanceof StoreConflict) throw new ArcAccountTakenError();
     throw err;
   }
   return { solana: args.solana, arc: args.arc, boundAt };

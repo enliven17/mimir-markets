@@ -39,7 +39,7 @@ import { resolveAgentWallets } from "@/lib/baskets-performance";
 import { getAgent } from "@/lib/agents/store";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { isFeatureEnabled } from "@/lib/ops/flags";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail as fail, basketJson as json, readJsonBody } from "@/lib/server/basket-http";
 
@@ -50,7 +50,7 @@ function disabled(): Response {
 }
 
 function unavailable(): Response {
-  return fail(503, "store_unavailable", "copy trading needs a database on this deploy");
+  return fail(503, "store_unavailable", "copy trading needs the backend on this deploy");
 }
 
 /** The follower signed this action within the skew window. Null when fine. */
@@ -91,7 +91,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!follower) return fail(400, "bad_wallet", "follower must be a Solana public key");
   const proof = followerProofError(url, "list", follower);
   if ("error" in proof) return proof.error;
-  if (!isDbEnabled()) return json({ ok: true, permissions: [] });
+  if (!storeEnabled()) return json({ ok: true, permissions: [] });
 
   const permissions = await listPermissions(follower).catch(() => []);
   const withAudit = await Promise.all(
@@ -106,7 +106,7 @@ export async function GET(req: Request): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   if (!isFeatureEnabled("copy_trading")) return disabled();
   if (!(await allowRequest("copy-grant", clientIp(req), 10, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return unavailable();
+  if (!storeEnabled()) return unavailable();
 
   const body = await readJsonBody(req);
   if (!body) return fail(400, "malformed_json", "body is not a JSON object");
@@ -190,7 +190,7 @@ export async function POST(req: Request): Promise<Response> {
 export async function DELETE(req: Request): Promise<Response> {
   if (!isFeatureEnabled("copy_trading")) return disabled();
   if (!(await allowRequest("copy-revoke", clientIp(req), 20, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return unavailable();
+  if (!storeEnabled()) return unavailable();
 
   const url = new URL(req.url);
   const id = String(url.searchParams.get("id") ?? "").trim();

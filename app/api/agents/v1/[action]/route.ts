@@ -68,7 +68,7 @@ import {
   touchAgent,
 } from "@/lib/agents/store";
 import { checkUrl } from "@/lib/research/ssrf";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { walletBalances } from "@/lib/server/holder";
 import { mimirMint, mimirSymbol } from "@/lib/token-config";
 import { agentRegisterGateFromEnv, gateEnabled, meetsGate } from "@/lib/token-tiers";
@@ -121,7 +121,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (!(await allowRequest("agent-api-ip", clientIp(req), IP_LIMIT_PER_MIN, 60_000))) {
     return fail(429, "rate_limit", "too many requests from this address", { "retry-after": "60" });
   }
-  if (!isDbEnabled()) {
+  if (!storeEnabled()) {
     return fail(503, "registry_unavailable", "the agent registry is not configured on this deployment");
   }
 
@@ -394,7 +394,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
   if (write) {
     // The check above read the total without a lock; this is the binding one:
     // the cap check and its record in a single locked step (audit P2-10).
-    let reservation: number | null = null;
+    let reservation: string | null = null;
     if (stakeUnits > 0n) {
       reservation = await reserveDailyStake(agent.agentId, env.action, stakeUnits, usdcLimitUnits(agent.limits.maxDailyUsdc));
       if (reservation === null) {

@@ -36,7 +36,7 @@ The full picture: [docs/how-mimir-works.md](docs/how-mimir-works.md). Every doc:
 |---|---|
 | `app/` | Next.js app: pages and API routes (agent API, fee tickets, account links, Telegram, access) |
 | `components/` | UI; `components/arc/` is the Arc wallet, arena, market pages and dashboard |
-| `lib/` | Shared code: `lib/arc/` (chain config, contracts, fee tiers), `lib/agents/` (agent API), `lib/server/` (database, fee tickets, access, Telegram) |
+| `lib/` | Shared code: `lib/arc/` (chain config, contracts, fee tiers), `lib/agents/` (agent API), `lib/server/` (the app's records, fee tickets, access, Telegram) |
 | `convex/` | The backend: the Arc indexer, oracle, council and market-creator jobs and their tables |
 | `contracts/` | Solidity: `MimirV3` (VS), `MimirPool` (pools), `MimirFees` (fee tiers), with Foundry tests |
 | `agents/` | Oracle decision logic, council personas and prompts, market-creator drafting; the Solana-era workers |
@@ -57,11 +57,9 @@ Needs Node 22+, and Foundry for the contracts.
 npm install
 cp .env.example .env.local          # then fill in what you need (below)
 
-# A local Postgres for the app's tables (agents, baskets, access, account links)
-npx pglite-server --port 54329 --max-connections=10
-# in .env.local: DATABASE_URL=postgres://postgres@127.0.0.1:54329/postgres
-
-npx convex dev                      # the backend: pushes convex/ and runs the jobs on your dev deployment
+npx convex dev                      # the backend: pushes convex/, runs the jobs, and keeps the app's records
+# in .env.local: NEXT_PUBLIC_CONVEX_URL (printed by convex dev) and MIMIR_INTERNAL_SECRET (16+ chars, the same value
+# set on the backend with `npx convex env set MIMIR_INTERNAL_SECRET ...`): the site reaches the app's records with it
 npm run dev                         # the site on http://localhost:3000
 ```
 
@@ -92,7 +90,7 @@ Every variable is in [`.env.example`](.env.example), grouped and commented. The 
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
 | Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([ARC.md](docs/ARC.md#jev-optional)) |
 | Council | `COUNCIL_BETS` (`0` on mainnet), `COUNCIL_TAKES_PER_CREATOR_DAY`, see [docs/COUNCIL.md](docs/COUNCIL.md) |
-| Database | `DATABASE_URL` (Postgres for the app's tables) |
+| App records | `NEXT_PUBLIC_CONVEX_URL` + `MIMIR_INTERNAL_SECRET` (the same on the site and the backend): agents, baskets, copy permissions, invites, account links and Telegram chats live in the backend (`convex/appStore.ts`) |
 | Access | `NEXT_PUBLIC_INVITE_ONLY`, `MIMIR_ACCESS_MIN`, `MIMIR_INVITES_PER_USER` |
 | Token | `NEXT_PUBLIC_MIMIR_TOKEN_MINT`, `SOLANA_MAINNET_RPC` (holder tiers read Solana mainnet) |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `MIMIR_INTERNAL_SECRET`, `TELEGRAM_ADMIN_IDS` |

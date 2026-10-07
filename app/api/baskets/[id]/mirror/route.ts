@@ -14,7 +14,7 @@ import { loadMirrorSignals } from "@/lib/baskets-performance";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { AgentEnvelopeError } from "@/lib/agents/api";
 import { prepareWrite } from "@/lib/agents/chain";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
 import { PublicKey } from "@solana/web3.js";
@@ -32,7 +32,7 @@ interface Ctx {
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   // Each call reads the chain and fetches a blockhash.
   if (!(await allowRequest("baskets-mirror", clientIp(req), 10, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return basketFail(503, "store_unavailable", "baskets need a database on this deploy");
+  if (!storeEnabled()) return basketFail(503, "store_unavailable", "baskets need the backend on this deploy");
   const { id } = await ctx.params;
 
   const body = await readJsonBody(req);

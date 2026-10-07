@@ -7,8 +7,8 @@ import "server-only";
  * persona's Circle wallet, an agent's Arc operator. Addresses are lowercase.
  */
 import type { IndexedClaim } from "@/lib/baskets";
-import { query } from "./db";
-import { arcChallengedBy, arcCouncilWallets } from "./arc-index";
+import { store } from "./store";
+import { arcChallengedBy, arcCouncilWallets, arcMarketList } from "./arc-index";
 
 // Same numbering as MimirV3 and the Solana program: 0 open, 1 active, 2 resolved, 3 cancelled, 4 proposed, 5 disputed.
 const STATUS_OF: Record<number, string> = { 0: "open", 1: "active", 2: "resolved", 3: "cancelled", 4: "proposed", 5: "disputed" };
@@ -23,11 +23,8 @@ export async function resolveArcAgentWallets(agentIds: string[]): Promise<Map<st
   }
   const missing = agentIds.filter((id) => !map.has(id));
   if (missing.length) {
-    const rows = await query(
-      "SELECT agent_id, arc_operator FROM agent_registry WHERE agent_id = ANY($1) AND status <> 'revoked' AND arc_operator IS NOT NULL",
-      [missing],
-    ).catch(() => []);
-    for (const r of rows) map.set(String(r.agent_id), String(r.arc_operator).toLowerCase());
+    const rows = await store().getMany<{ agent_id: string; arc_operator: string | null; status: string }>("agent_registry", missing).catch(() => []);
+    for (const r of rows) if (r.status !== "revoked" && r.arc_operator) map.set(r.agent_id, r.arc_operator.toLowerCase());
   }
   return map;
 }
@@ -57,4 +54,14 @@ export async function arcClaimsChallengedBy(wallets: string[], states: number[],
     resolution_url: m.resolutionUrl,
     created_at: m.createdAt,
   }));
+}
+
+/** State and winner of VS markets by id, from the index (copy trading's realized loss and open exposure). */
+export async function arcClaimStates(ids: number[]): Promise<Map<number, { state: number; winnerSide: number }>> {
+  if (!ids.length) return new Map();
+  const wanted = new Set(ids);
+  const markets = await arcMarketList("vs");
+  return new Map(
+    markets.filter((m) => wanted.has(m.marketId)).map((m) => [m.marketId, { state: STATE_OF[m.status] ?? 0, winnerSide: m.winner }] as const),
+  );
 }

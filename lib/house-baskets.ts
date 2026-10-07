@@ -9,7 +9,7 @@
  */
 import { validateBasket, type BasketMember } from "@/lib/baskets";
 import { followerCounts, getBasket, listBaskets, type BasketRow } from "@/lib/baskets-store";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 
 /** Fixed so the ordering and "composed" dates never move between deploys. */
 const HOUSE_CREATED_AT = Date.UTC(2026, 8, 1);
@@ -106,7 +106,7 @@ export function isHouseBasketId(id: string): boolean {
 
 /** House baskets with their follower counts when a database is there to count them. */
 async function withFollowers(rows: BasketRow[]): Promise<BasketRow[]> {
-  if (!isDbEnabled()) return rows;
+  if (!storeEnabled()) return rows;
   const counts = await followerCounts(rows.map((b) => b.id)).catch(() => new Map<string, number>());
   return rows.map((b) => ({ ...b, followers: counts.get(b.id) ?? 0 }));
 }
@@ -114,7 +114,7 @@ async function withFollowers(rows: BasketRow[]): Promise<BasketRow[]> {
 /** The directory: composed baskets ranked by followers, then the house baskets. */
 export async function basketDirectory(): Promise<BasketRow[]> {
   const [stored, house] = await Promise.all([
-    isDbEnabled() ? listBaskets().catch(() => [] as BasketRow[]) : Promise.resolve([] as BasketRow[]),
+    storeEnabled() ? listBaskets().catch(() => [] as BasketRow[]) : Promise.resolve([] as BasketRow[]),
     withFollowers(HOUSE_BASKETS),
   ]);
   return [...stored.filter((b) => !isHouseBasketId(b.id)), ...house];

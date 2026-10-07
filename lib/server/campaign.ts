@@ -21,11 +21,10 @@ import {
   INVITED_MULTIPLIER,
   type CampaignMetrics,
 } from "../campaign";
-import { MIMIR_PROGRAM_ID } from "../solana/config";
 import type { TokenTier } from "../token-tiers";
 import { councilRoster } from "./council-roster";
 import { walletTier } from "./holder";
-import { query } from "./db";
+import { store, StoreConflict } from "./store";
 
 export interface CampaignRow extends CampaignMetrics {
   wallet: string;
@@ -50,15 +49,14 @@ function onArc(): boolean {
  * the agent's owner. House addresses (council, market creator) map to nothing and never score.
  */
 async function arcVolume(): Promise<Array<{ wallet: string; usdc: string }>> {
-  const [rows, bindings, operators] = await Promise.all([
+  const [rows, bindings, agents] = await Promise.all([
     arcVolumeByUser(),
-    query<{ solana: string; arc: string }>("SELECT solana, arc FROM arc_accounts"),
-    query<{ arc_operator: string; owner_wallet: string }>(
-      "SELECT arc_operator, owner_wallet FROM agent_registry WHERE arc_operator IS NOT NULL AND status <> 'revoked'",
-    ),
+    store().list<{ solana: string; arc: string }>("arc_accounts", { limit: 5000 }),
+    store().list<{ arc_operator: string | null; owner_wallet: string; status: string }>("agent_registry", { limit: 5000 }),
   ]);
+  const operators = agents.filter((r) => r.arc_operator && r.status !== "revoked");
   const owner = new Map<string, string>([
-    ...operators.map((r) => [r.arc_operator.toLowerCase(), r.owner_wallet] as const),
+    ...operators.map((r) => [String(r.arc_operator).toLowerCase(), r.owner_wallet] as const),
     ...bindings.map((r) => [r.arc.toLowerCase(), r.solana] as const),
   ]);
   const totals = new Map<string, number>();
@@ -76,35 +74,33 @@ function excluded(): Set<string> {
 
 /** Every scoring wallet, best first. ponytail: recomputed per request (cached 60s by the route); a nightly snapshot table if it gets slow. */
 export async function campaignBoard(): Promise<CampaignRow[]> {
-  const program = MIMIR_PROGRAM_ID.toBase58();
-  const [volume, agents, baskets, follows, copies, invites] = await Promise.all([
-    // On Arc: stakes from the index, credited to the Solana wallet behind each Arc address.
-    onArc() ? arcVolume() :
-    // An agent's operator stakes count for the agent's owner.
-    query<{ wallet: string; usdc: string }>(
-      `WITH stakes AS (
-         SELECT creator AS wallet, creator_stake::numeric AS units FROM solana_claims WHERE program = $1
-         UNION ALL
-         SELECT ch->>'addr', (ch->>'stake')::numeric FROM solana_claims c, jsonb_array_elements(c.challengers) ch WHERE c.program = $1
-       ), owners AS (
-         SELECT DISTINCT ON (operator_wallet) operator_wallet, owner_wallet
-           FROM agent_registry WHERE status <> 'revoked' ORDER BY operator_wallet, created_at
-       )
-       SELECT COALESCE(o.owner_wallet, s.wallet) AS wallet, SUM(s.units) / 1e6 AS usdc
-         FROM stakes s LEFT JOIN owners o ON o.operator_wallet = s.wallet
-        GROUP BY 1`,
-      [program],
-    ),
-    query<{ wallet: string; n: string }>(`SELECT owner_wallet AS wallet, COUNT(*) AS n FROM agent_registry WHERE status = 'active' GROUP BY 1`),
-    query<{ wallet: string; n: string }>(`SELECT creator_wallet AS wallet, COUNT(*) AS n FROM baskets GROUP BY 1`),
-    query<{ wallet: string; n: string }>(`SELECT follower AS wallet, COUNT(*) AS n FROM basket_subscriptions GROUP BY 1`),
-    query<{ wallet: string; n: string }>(
-      `SELECT p.follower AS wallet, COUNT(*) AS n
-         FROM copy_executions e JOIN copy_permissions p ON p.id = e.permission_id
-        WHERE e.executed GROUP BY 1`,
-    ),
-    query<{ wallet: string; referrer: string | null }>(`SELECT wallet, referrer FROM campaign_invites ORDER BY created_at, wallet`),
+  type Count = { wallet: string; n: number };
+  const countBy = <T,>(rows: T[], key: (r: T) => string): Count[] => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(key(r), (m.get(key(r)) ?? 0) + 1);
+    return [...m].map(([wallet, n]) => ({ wallet, n }));
+  };
+  const s = store();
+  const [volume, agentRows, basketRows, subRows, execRows, permRows, inviteRows] = await Promise.all([
+    // Stakes from the Arc index, credited to the Solana wallet behind each Arc address. The Solana program's
+    // volume went with its read index.
+    onArc() ? arcVolume() : Promise.resolve([] as Array<{ wallet: string; usdc: string }>),
+    s.list<{ owner_wallet: string; status: string }>("agent_registry", { limit: 5000 }),
+    s.list<{ creator_wallet: string }>("baskets", { limit: 5000 }),
+    s.list<{ follower: string }>("basket_subscriptions", { limit: 5000 }),
+    s.list<{ permission_id: string; executed: boolean }>("copy_executions", { limit: 5000 }),
+    s.list<{ id: string; follower: string }>("copy_permissions", { limit: 5000 }),
+    s.list<{ wallet: string; referrer: string | null; created_at: number }>("campaign_invites", { limit: 5000 }),
   ]);
+  const agents = countBy(agentRows.filter((r) => r.status === "active"), (r) => r.owner_wallet);
+  const baskets = countBy(basketRows, (r) => r.creator_wallet);
+  const follows = countBy(subRows, (r) => r.follower);
+  const followerOf = new Map(permRows.map((p) => [p.id, p.follower]));
+  const copies = countBy(
+    execRows.filter((e) => e.executed && followerOf.has(e.permission_id)),
+    (e) => followerOf.get(e.permission_id) as string,
+  );
+  const invites = inviteRows.sort((a, b) => a.created_at - b.created_at || (a.wallet < b.wallet ? -1 : 1));
 
   const skip = excluded();
   const metrics = new Map<string, CampaignMetrics>();
@@ -163,10 +159,11 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
     .sort((a, b) => b.score - a.score);
 }
 
+type Invite = { wallet: string; code: string; referrer: string | null; created_at: number };
+
 /** The wallet's invite code, or null when it has not joined. */
 export async function inviteCodeOf(wallet: string): Promise<string | null> {
-  const rows = await query<{ code: string }>("SELECT code FROM campaign_invites WHERE wallet = $1", [wallet]);
-  return rows[0]?.code ?? null;
+  return (await store().get<Invite>("campaign_invites", wallet))?.code ?? null;
 }
 
 /**
@@ -175,32 +172,29 @@ export async function inviteCodeOf(wallet: string): Promise<string | null> {
  * code and never changes the referrer.
  */
 export async function joinCampaign(wallet: string, inviteCode: string | null): Promise<{ code: string; referrer: string | null }> {
-  const existing = await query<{ code: string; referrer: string | null }>(
-    "SELECT code, referrer FROM campaign_invites WHERE wallet = $1",
-    [wallet],
-  );
-  if (existing[0]) return existing[0];
+  const existing = await store().get<Invite>("campaign_invites", wallet);
+  if (existing) return { code: existing.code, referrer: existing.referrer };
 
-  const ref = inviteCode
-    ? (await query<{ wallet: string }>("SELECT wallet FROM campaign_invites WHERE code = $1", [inviteCode]))[0]?.wallet ?? null
-    : null;
+  const ref = inviteCode ? (await store().get<{ wallet: string }>("campaign_codes", inviteCode))?.wallet ?? null : null;
   const referrer = ref && ref !== wallet ? ref : null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     // 8 chars of A-Z0-9 from random bytes: ~41 bits, retried on the rare clash.
     const code = Array.from(randomBytes(8), (b) => "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[b % 36]).join("");
-    const rows = await query<{ code: string; referrer: string | null }>(
-      `INSERT INTO campaign_invites (wallet, code, referrer, created_at) VALUES ($1, $2, $3, $4)
-       ON CONFLICT DO NOTHING RETURNING code, referrer`,
-      [wallet, code, referrer, Date.now()],
-    );
-    if (rows[0]) return rows[0];
-    // Lost a race with this wallet's own other request: return what it wrote.
-    const again = await query<{ code: string; referrer: string | null }>(
-      "SELECT code, referrer FROM campaign_invites WHERE wallet = $1",
-      [wallet],
-    );
-    if (again[0]) return again[0];
+    const now = Date.now();
+    try {
+      // The code and the wallet's row go in together, each only if new.
+      await store().tx([
+        { op: "insert", t: "campaign_codes", k: code, d: { code, wallet }, at: now, must: true },
+        { op: "insert", t: "campaign_invites", k: wallet, d: { wallet, code, referrer, created_at: now }, i1: code, i2: referrer ?? undefined, at: now, must: true },
+      ]);
+      return { code, referrer };
+    } catch (err) {
+      if (!(err instanceof StoreConflict)) throw err;
+      // Lost a race with this wallet's own other request: return what it wrote.
+      const again = await store().get<Invite>("campaign_invites", wallet);
+      if (again) return { code: again.code, referrer: again.referrer };
+    }
   }
   throw new Error("could not allocate an invite code");
 }

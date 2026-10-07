@@ -10,7 +10,7 @@
  * plain), under a random 128-bit op id. First write wins, one read deletes it, and nothing older than TTL_MS is
  * ever returned.
  */
-import { isDbEnabled, query } from "./db";
+import { insert, storeEnabled, take } from "./store";
 
 export const TTL_MS = 10 * 60_000;
 /** A signAllTransactions answer for a CCTP burn is a few KB; anything far beyond that is not a wallet answer. */
@@ -34,8 +34,8 @@ export function pickParams(search: URLSearchParams): RelayParams | null {
   return Buffer.byteLength(JSON.stringify(out), "utf8") > MAX_PARAMS_BYTES ? null : out;
 }
 
-// ponytail: per-instance memory when there is no database; a serverless deploy without DATABASE_URL could park an
-// answer on one instance and be polled on another. Every deploy here has a database.
+// ponytail: per-instance memory when the backend is not configured; a serverless deploy without it could park an
+// answer on one instance and be polled on another. Every deploy here has the backend.
 const memory = new Map<string, { params: string; at: number }>();
 function sweep(now: number) {
   for (const [k, v] of memory) if (v.at < now - TTL_MS) memory.delete(k);
@@ -46,28 +46,26 @@ export async function putRelay(op: string, params: RelayParams, now = Date.now()
   if (!isOp(op)) return false;
   const body = JSON.stringify(params);
   if (Buffer.byteLength(body, "utf8") > MAX_PARAMS_BYTES) return false;
-  if (!isDbEnabled()) {
+  if (!storeEnabled()) {
     sweep(now);
     if (memory.has(op)) return false;
     memory.set(op, { params: body, at: now });
     return true;
   }
-  await query(`DELETE FROM wallet_relay WHERE created_at < $1`, [now - TTL_MS]);
-  const rows = await query(`INSERT INTO wallet_relay (op, params, created_at) VALUES ($1, $2, $3) ON CONFLICT (op) DO NOTHING RETURNING op`, [op, body, now]);
-  return rows.length > 0;
+  // Expired answers are swept by the backend (convex/appStore.ts sweep).
+  return insert("wallet_relay", op, { op, params: body, created_at: now }, { at: now });
 }
 
 /** Collect and delete a parked answer; null while the wallet has not answered (or it expired). */
 export async function takeRelay(op: string, now = Date.now()): Promise<RelayParams | null> {
   if (!isOp(op)) return null;
-  if (!isDbEnabled()) {
+  if (!storeEnabled()) {
     sweep(now);
     const hit = memory.get(op);
     memory.delete(op);
     return hit ? (JSON.parse(hit.params) as RelayParams) : null;
   }
-  const rows = await query<{ params: string; created_at: string | number }>(`DELETE FROM wallet_relay WHERE op = $1 RETURNING params, created_at`, [op]);
-  const row = rows[0];
+  const row = await take<{ params: string; created_at: number }>("wallet_relay", op);
   if (!row || Number(row.created_at) < now - TTL_MS) return null;
   return JSON.parse(row.params) as RelayParams;
 }

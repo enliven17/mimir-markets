@@ -1,13 +1,13 @@
 /**
  * Invite-only access on the server (lib/access.ts is the rule). Grants and
- * invite codes live in Neon (access_grants, access_invites). Redeeming is one
- * atomic UPDATE on an unused code, so a code is never spent twice.
+ * invite codes live in the backend (access_grants, access_invites; lib/server/store.ts). Redeeming spends the code
+ * and grants the wallet in one transaction that only applies to an unused code, so a code is never spent twice.
  */
 import { randomInt } from "node:crypto";
 
 import { ARC } from "@/lib/arc/config";
 import { accessMinMimir, INVITE_ALPHABET, invitesPerUser, inviteOnly, type AccessStatus } from "@/lib/access";
-import { query } from "./db";
+import { insert, store, StoreConflict } from "./store";
 import { walletBalances } from "./holder";
 
 export const isInviteOnly = () => inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
@@ -18,8 +18,8 @@ function newCode(): string {
 }
 
 async function grantOf(wallet: string): Promise<{ via: "holder" | "invite" } | null> {
-  const rows = await query<{ via: string }>("SELECT via FROM access_grants WHERE wallet = $1", [wallet]);
-  return rows[0] ? { via: rows[0].via === "invite" ? "invite" : "holder" } : null;
+  const row = await store().get<{ via: string }>("access_grants", wallet);
+  return row ? { via: row.via === "invite" ? "invite" : "holder" } : null;
 }
 
 /**
@@ -29,14 +29,17 @@ async function grantOf(wallet: string): Promise<{ via: "holder" | "invite" } | n
 async function memberInvites(wallet: string): Promise<AccessStatus["invites"]> {
   const allowance = invitesPerUser();
   const now = Date.now();
-  let rows = await query<{ code: string; used_by: string | null }>("SELECT code, used_by FROM access_invites WHERE owner = $1 ORDER BY created_at", [wallet]);
+  type Invite = { code: string; used_by: string | null; created_at: number };
+  const mine = async () => (await store().list<Invite>("access_invites", { i1: wallet })).sort((a, b) => a.created_at - b.created_at);
+  let rows = await mine();
   if (rows.length < allowance) {
     for (let i = rows.length; i < allowance; i++) {
-      await query("INSERT INTO access_invites (code, owner, created_at) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING", [newCode(), wallet, now + i]);
+      const code = newCode();
+      await insert("access_invites", code, { code, owner: wallet, created_at: now + i, used_by: null, used_at: null }, { i1: wallet, at: now + i });
     }
-    rows = await query("SELECT code, used_by FROM access_invites WHERE owner = $1 ORDER BY created_at", [wallet]);
+    rows = await mine();
   }
-  return rows.map((r) => ({ code: r.code, used: r.used_by !== null }));
+  return rows.map((r) => ({ code: r.code, used: r.used_by != null }));
 }
 
 /** Where `wallet` stands. A holder at or above the minimum is granted on the spot and gets its codes. */
@@ -47,7 +50,8 @@ export async function accessStatus(wallet: string): Promise<AccessStatus> {
   const isHolder = mimir >= minMimir;
   let grant = await grantOf(wallet);
   if (!grant && isHolder) {
-    await query("INSERT INTO access_grants (wallet, via, granted_at) VALUES ($1, 'holder', $2) ON CONFLICT (wallet) DO NOTHING", [wallet, Date.now()]);
+    const now = Date.now();
+    await insert("access_grants", wallet, { wallet, via: "holder", code: null, granted_at: now }, { i1: "holder", at: now });
     grant = { via: "holder" };
   }
   // Everyone who is in can bring others: holders and invitees alike.
@@ -59,16 +63,21 @@ export type RedeemResult = "ok" | "already" | "invalid" | "own";
 
 export async function redeemInvite(wallet: string, code: string): Promise<RedeemResult> {
   if (await grantOf(wallet)) return "already";
-  // One statement: only an unused code that is not the caller's own flips to used.
-  const claimed = await query<{ owner: string }>(
-    "UPDATE access_invites SET used_by = $2, used_at = $3 WHERE code = $1 AND used_by IS NULL AND owner <> $2 RETURNING owner",
-    [code, wallet, Date.now()],
-  );
-  if (!claimed.length) {
-    const own = await query("SELECT 1 FROM access_invites WHERE code = $1 AND owner = $2", [code, wallet]);
-    return own.length ? "own" : "invalid";
+  const invite = await store().get<{ owner: string; used_by: string | null }>("access_invites", code);
+  if (!invite) return "invalid";
+  if (invite.owner === wallet) return "own";
+  if (invite.used_by != null) return "invalid";
+  // One transaction: the code flips to used only while it is still unused, and the grant goes in with it.
+  const now = Date.now();
+  try {
+    await store().tx([
+      { op: "update", t: "access_invites", k: code, d: { used_by: wallet, used_at: now }, when: { used_by: null }, must: true },
+      { op: "insert", t: "access_grants", k: wallet, d: { wallet, via: "invite", code, granted_at: now }, i1: "invite", at: now },
+    ]);
+  } catch (err) {
+    if (err instanceof StoreConflict) return "invalid";
+    throw err;
   }
-  await query("INSERT INTO access_grants (wallet, via, code, granted_at) VALUES ($1, 'invite', $2, $3) ON CONFLICT (wallet) DO NOTHING", [wallet, code, Date.now()]);
   return "ok";
 }
 

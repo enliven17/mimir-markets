@@ -23,7 +23,7 @@ import { loadMemberSettlements } from "@/lib/baskets-performance";
 import { unitsToUsdc } from "@/lib/money";
 import { basketDirectory, isHouseBasketId } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { walletTier } from "@/lib/server/holder";
 import { mimirMint, mimirSymbol } from "@/lib/token-config";
 import { basketMinTierFromEnv, tierAtLeast } from "@/lib/token-tiers";
@@ -62,7 +62,7 @@ export async function GET(): Promise<Response> {
 
 export async function POST(req: Request): Promise<Response> {
   if (!(await allowRequest("baskets-create", clientIp(req), 10, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return basketFail(503, "store_unavailable", "baskets need a database on this deploy");
+  if (!storeEnabled()) return basketFail(503, "store_unavailable", "baskets need the backend on this deploy");
 
   const body = await readJsonBody(req);
   if (!body) return basketFail(400, "malformed_json", "body is not a JSON object");

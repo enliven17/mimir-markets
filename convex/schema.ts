@@ -146,4 +146,24 @@ export default defineSchema({
 
   /** Admin panel (convex/arcAdmin.ts): when each scheduled job last started, one row per job. */
   arcHeartbeats: defineTable({ name: v.string(), at: v.number() }).index("by_name", ["name"]),
+
+  /**
+   * The app's own records, once Postgres tables (convex/appStore.ts, lib/server/store.ts): agents and their API
+   * keys, nonces and replies, baskets, copy permissions, invites, Arc account bindings, Telegram chats, the campaign,
+   * rate-limit counters and the wallet relay. One row per record: `t` is the old table name, `k` its primary key,
+   * `d` the row with the old column names, `i1`/`i2` the one or two columns a table is looked up by (an owner, a
+   * follower, a status). Every write goes through a secret-checked mutation; conditional writes are atomic there.
+   */
+  appStore: defineTable({
+    t: v.string(),
+    k: v.string(),
+    i1: v.optional(v.string()),
+    i2: v.optional(v.string()),
+    d: v.any(),
+    at: v.number(),
+  })
+    .index("by_key", ["t", "k"])
+    .index("by_i1", ["t", "i1"])
+    .index("by_i2", ["t", "i2"])
+    .index("by_at", ["t", "at"]),
 });

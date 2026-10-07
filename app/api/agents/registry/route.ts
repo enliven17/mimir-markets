@@ -6,13 +6,13 @@
  * anyway (base58 Solana keys); nothing here is a credential.
  */
 import { listAgents } from "@/lib/agents/store";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   try {
-    const agents = isDbEnabled() ? await listAgents(100) : [];
+    const agents = storeEnabled() ? await listAgents(100) : [];
     return new Response(
       JSON.stringify({
         agents: agents.map((a) => ({

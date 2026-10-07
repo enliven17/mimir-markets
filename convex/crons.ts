@@ -10,4 +10,6 @@ crons.interval("arc oracle", { minutes: 1 }, internal.arcOracle.tick, {});
 crons.interval("arc council", { minutes: 5 }, internal.arcCouncil.tick, {});
 // The house market creator: drafts and opens VS markets hourly (convex/arcCreator.ts).
 crons.interval("arc market creator", { hours: 1 }, internal.arcCreator.tick, {});
+// The app store's housekeeping: expired relay answers, old rate-limit windows, nonces and replies (convex/appStore.ts).
+crons.interval("app store sweep", { minutes: 10 }, internal.appStore.sweep, {});
 export default crons;

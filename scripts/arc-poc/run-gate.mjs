@@ -1,7 +1,7 @@
 // End-to-end test of the invite-only gate (components/access/AccessGate.tsx) in a browser, desktop and phone width.
 //
 // Needs a dev server started with the gate on and a local database:
-//   NEXT_PUBLIC_INVITE_ONLY=1 DATABASE_URL=postgres://postgres@127.0.0.1:54329/postgres npx next dev -p 3123
+//   NEXT_PUBLIC_INVITE_ONLY=1 npx next dev -p 3123      (NEXT_PUBLIC_CONVEX_URL and MIMIR_INTERNAL_SECRET in .env.local)
 //   node scripts/arc-poc/run-gate.mjs          (from the repo root; SHOTS=<dir> for screenshots)
 //
 // Steps: a gated page shows the gate and a public one does not → sign in with the injected Solana wallet (it holds
@@ -11,7 +11,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Keypair } from '@solana/web3.js'
 import nacl from 'tweetnacl'
-import pg from 'pg'
+import { ConvexHttpClient } from 'convex/browser'
+import { anyApi } from 'convex/server'
 import puppeteer from 'puppeteer-core'
 import { injectWallet } from './inject-wallet.mjs'
 
@@ -22,12 +23,19 @@ const SOLANA = keypair.publicKey.toBase58()
 const CODE = 'MIMIR-E2EK-GATE'
 mkdirSync(SHOTS, { recursive: true })
 
-const db = new pg.Client({ connectionString: process.env.DATABASE_URL ?? 'postgres://postgres@127.0.0.1:54329/postgres' })
-await db.connect()
+// The app's records live in the backend (convex/appStore.ts); the test talks to it with the internal secret.
+const env = Object.fromEntries(readFileSync('.env.local', 'utf8').split(String.fromCharCode(10)).map((l) => l.trim()).filter((l) => /^[A-Z_]+=/.test(l)).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).replace(/^"|"$/g, '')]))
+const secret = process.env.MIMIR_INTERNAL_SECRET ?? env.MIMIR_INTERNAL_SECRET
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? env.NEXT_PUBLIC_CONVEX_URL)
+const tx = (steps) => convex.mutation(anyApi.appStore.tx, { secret, steps })
+const get = (t, k) => convex.query(anyApi.appStore.get, { secret, t, k })
 // A clean start: this wallet is not in yet, and one unused code from someone who is.
-await db.query('DELETE FROM access_grants WHERE wallet = $1', [SOLANA])
-await db.query('DELETE FROM access_invites WHERE owner = $1 OR used_by = $1 OR code = $2', [SOLANA, CODE])
-await db.query('INSERT INTO access_invites (code, owner, created_at) VALUES ($1, $2, $3)', [CODE, 'E2EInviter1111111111111111111111111111111111', Date.now()])
+const mine = await convex.query(anyApi.appStore.list, { secret, t: 'access_invites', i1: SOLANA })
+await tx([
+  { op: 'remove', t: 'access_grants', k: SOLANA },
+  ...mine.map((r) => ({ op: 'remove', t: 'access_invites', k: r.code })),
+  { op: 'put', t: 'access_invites', k: CODE, d: { code: CODE, owner: 'E2EInviter1111111111111111111111111111111111', created_at: Date.now(), used_by: null, used_at: null }, i1: 'E2EInviter1111111111111111111111111111111111' },
+])
 
 const results = []
 const check = (name, ok, detail = '') => (results.push({ name, ok }), console.log(ok ? 'PASS' : 'FAIL', name, detail))
@@ -86,7 +94,7 @@ try {
   check('a valid code lets the wallet in', true)
   await tab.screenshot({ path: join(SHOTS, 'gate-in.png') })
 
-  const used = (await db.query('SELECT used_by FROM access_invites WHERE code = $1', [CODE])).rows[0]?.used_by
+  const used = (await get('access_invites', CODE))?.used_by
   check('the code is spent on this wallet', used === SOLANA)
 
   await tab.goto(`${BASE}/en/dashboard`, { waitUntil: 'networkidle2', timeout: 300_000 })
@@ -99,7 +107,6 @@ try {
   check('run', false, e.message)
 } finally {
   await browser.close()
-  await db.end()
 }
 const failed = results.filter((r) => !r.ok).length
 console.log(`${results.length - failed}/${results.length} passed; screenshots in ${SHOTS}`)

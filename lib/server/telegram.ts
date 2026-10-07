@@ -1,11 +1,12 @@
 /**
  * Telegram chats: who to message, and which wallet each chat follows.
- * Used by the bot (agents/telegram/bot.ts), the indexer (new markets, bet
- * results) and POST /api/telegram/link. No-ops without DATABASE_URL.
+ * Used by the bot (the webhook, lib/server/telegram-bot.ts), the Arc events route and POST /api/telegram/link.
+ * Kept in the backend (lib/server/store.ts) as `telegram_chats`: key chat id, i1 the linked wallet, i2 the
+ * pending link code. No-ops without the backend.
  */
 import { randomBytes } from "node:crypto";
 
-import { isDbEnabled, query } from "./db";
+import { store, storeEnabled, update } from "./store";
 import {
   ALERT_PREFS,
   isAlertPref,
@@ -22,72 +23,113 @@ import {
 } from "../telegram";
 import type { NotificationEvent } from "../notifications";
 
+type Chat = {
+  chat_id: number;
+  wallet: string | null;
+  new_markets: boolean;
+  link_code: string | null;
+  link_expires_at: number;
+  blocked: boolean;
+  created_at: number;
+} & Partial<Record<AlertPref, boolean>>;
+
+const key = (chatId: number) => String(chatId);
+const getChat = (chatId: number) => store().get<Chat>("telegram_chats", key(chatId));
+const idx = (c: Pick<Chat, "wallet" | "link_code">) => ({ i1: c.wallet ?? undefined, i2: c.link_code ?? undefined });
+
 export async function upsertChat(chatId: number, now = Date.now()): Promise<void> {
-  await query(
-    `INSERT INTO telegram_chats (chat_id, created_at) VALUES ($1, $2)
-     ON CONFLICT (chat_id) DO UPDATE SET blocked = FALSE`,
-    [chatId, now],
-  );
+  const prev = await getChat(chatId);
+  if (prev) {
+    if (prev.blocked) await update("telegram_chats", key(chatId), { blocked: false }, undefined, idx(prev));
+    return;
+  }
+  const chat: Chat = { chat_id: chatId, wallet: null, new_markets: true, link_code: null, link_expires_at: 0, blocked: false, created_at: now };
+  for (const p of ALERT_PREFS) chat[p.key] = true;
+  await store().tx([{ op: "insert", t: "telegram_chats", k: key(chatId), d: chat, at: now }]);
+}
+
+async function patchChat(chatId: number, set: Partial<Chat>): Promise<void> {
+  const prev = await getChat(chatId);
+  if (!prev) return;
+  await update("telegram_chats", key(chatId), set, undefined, idx({ ...prev, ...set }));
 }
 
 /** A fresh link code for this chat (replaces any older one). */
 export async function newLinkCode(chatId: number, now = Date.now()): Promise<string> {
   const code = randomBytes(18).toString("base64url");
   await upsertChat(chatId, now);
-  await query("UPDATE telegram_chats SET link_code = $2, link_expires_at = $3 WHERE chat_id = $1", [
-    chatId,
-    code,
-    now + LINK_CODE_TTL_MS,
-  ]);
+  await patchChat(chatId, { link_code: code, link_expires_at: now + LINK_CODE_TTL_MS });
   return code;
 }
 
 /** Redeem a code for a wallet (signature already verified). The chat id, or null when the code is unknown or expired. */
 export async function redeemLinkCode(code: string, wallet: string, now = Date.now()): Promise<number | null> {
-  const rows = await query<{ chat_id: string }>(
-    `UPDATE telegram_chats SET wallet = $2, link_code = NULL, link_expires_at = 0
-      WHERE link_code = $1 AND link_expires_at > $3
-      RETURNING chat_id`,
-    [code, wallet, now],
+  const [chat] = await store().list<Chat>("telegram_chats", { i2: code, limit: 1 });
+  if (!chat || chat.link_code !== code || chat.link_expires_at <= now) return null;
+  // Only while the code is still the one on file: a code is redeemed once.
+  const ok = await update(
+    "telegram_chats",
+    key(chat.chat_id),
+    { wallet, link_code: null, link_expires_at: 0 },
+    { link_code: code },
+    { i1: wallet, i2: "" },
   );
-  return rows[0] ? Number(rows[0].chat_id) : null;
+  return ok ? Number(chat.chat_id) : null;
 }
 
 export async function chatWallet(chatId: number): Promise<string | null> {
-  const rows = await query<{ wallet: string | null }>("SELECT wallet FROM telegram_chats WHERE chat_id = $1", [chatId]);
-  return rows[0]?.wallet ?? null;
+  return (await getChat(chatId))?.wallet ?? null;
 }
 
 export async function unlinkChat(chatId: number): Promise<void> {
-  await query("UPDATE telegram_chats SET wallet = NULL WHERE chat_id = $1", [chatId]);
+  await patchChat(chatId, { wallet: null });
 }
 
-// Column names below only ever come from ALERT_PREFS (checked by isAlertPref), never from user input.
-const PREF_COLUMNS = ALERT_PREFS.map((p) => p.key).join(", ");
+const prefsOf = (chat: Chat | null): AlertPrefs =>
+  Object.fromEntries(ALERT_PREFS.map((p) => [p.key, chat ? chat[p.key] !== false : true])) as AlertPrefs;
 
 /** A chat's alert switches (every one on for a chat with no row yet). */
 export async function getAlertPrefs(chatId: number): Promise<AlertPrefs> {
-  const rows = await query<Record<AlertPref, boolean>>(`SELECT ${PREF_COLUMNS} FROM telegram_chats WHERE chat_id = $1`, [chatId]);
-  const row = rows[0];
-  return Object.fromEntries(ALERT_PREFS.map((p) => [p.key, row ? row[p.key] !== false : true])) as AlertPrefs;
+  return prefsOf(await getChat(chatId));
 }
 
 /** Flip one switch; the chat's switches after the change. */
 export async function toggleAlertPref(chatId: number, key: string): Promise<AlertPrefs> {
   if (!isAlertPref(key)) throw new Error(`unknown alert ${key}`);
   await upsertChat(chatId);
-  await query(`UPDATE telegram_chats SET ${key} = NOT ${key} WHERE chat_id = $1`, [chatId]);
+  const prefs = await getAlertPrefs(chatId);
+  await patchChat(chatId, { [key]: !prefs[key] });
   return getAlertPrefs(chatId);
 }
 
 /** Every switch on or off at once (/alerts on, /alerts off). */
 export async function setAllAlerts(chatId: number, on: boolean): Promise<void> {
   await upsertChat(chatId);
-  await query(`UPDATE telegram_chats SET ${ALERT_PREFS.map((p) => `${p.key} = $2`).join(", ")} WHERE chat_id = $1`, [chatId, on]);
+  await patchChat(chatId, Object.fromEntries(ALERT_PREFS.map((p) => [p.key, on])) as Partial<Chat>);
 }
 
 async function markBlocked(chatId: number): Promise<void> {
-  await query("UPDATE telegram_chats SET blocked = TRUE WHERE chat_id = $1", [chatId]);
+  await patchChat(chatId, { blocked: true });
+}
+
+/** Groups and supergroups (negative chat ids) the bot is still in: where /announce goes. */
+export async function groupChatIds(): Promise<number[]> {
+  return (await liveChats()).map((c) => Number(c.chat_id)).filter((id) => id < 0);
+}
+
+/** Small values the bot keeps (e.g. Telegram's file id of the welcome video). */
+export async function getBotMeta(key: string): Promise<string | null> {
+  return (await store().get<{ value: string }>("app_meta", key))?.value ?? null;
+}
+
+export async function setBotMeta(key: string, value: string, now = Date.now()): Promise<void> {
+  await store().tx([{ op: "put", t: "app_meta", k: key, d: { key, value, updated_at: now }, at: now }]);
+}
+
+/** Chats that are not blocked, optionally only those following `wallet`. */
+async function liveChats(wallet?: string): Promise<Chat[]> {
+  const rows = await store().list<Chat>("telegram_chats", wallet !== undefined ? { i1: wallet, limit: 5000 } : { limit: 5000 });
+  return rows.filter((c) => !c.blocked && (wallet === undefined || c.wallet === wallet));
 }
 
 /** Send, honouring 429 once; a chat that blocked the bot is marked and skipped from then on. */
@@ -115,8 +157,8 @@ const BROADCAST_GAP_MS = 50;
 export async function broadcastNewMarkets(
   markets: Array<{ id: number; question: string; creatorStake: string; deadline: number }>,
 ): Promise<void> {
-  if (!isDbEnabled() || markets.length === 0) return;
-  const chats = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE new_markets AND NOT blocked");
+  if (!storeEnabled() || markets.length === 0) return;
+  const chats = (await liveChats()).filter((c) => c.new_markets !== false);
   for (const m of markets) {
     for (const c of chats) {
       await sendTo(Number(c.chat_id), newMarketText(m), { reply_markup: marketButton(m.id) });
@@ -129,18 +171,15 @@ export async function broadcastNewMarkets(
 export async function deliverTelegram(e: NotificationEvent): Promise<void> {
   const text = notificationText(e);
   const pref = prefForKind(e.kind);
-  if (!text || !pref || !isDbEnabled()) return;
-  const chats = await query<{ chat_id: string }>(
-    `SELECT chat_id FROM telegram_chats WHERE wallet = $1 AND NOT blocked AND ${pref}`,
-    [e.recipient],
-  );
+  if (!text || !pref || !storeEnabled()) return;
+  const chats = (await liveChats(e.recipient)).filter((c) => c[pref] !== false);
   for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketButton(e.claimId) });
 }
 
 /** A new Arc market to every chat that wants new markets. */
 export async function broadcastArcMarket(m: { question: string; stakeA: string; deadline: number; url: string }): Promise<void> {
-  if (!isDbEnabled()) return;
-  const chats = await query<{ chat_id: string }>("SELECT chat_id FROM telegram_chats WHERE new_markets AND NOT blocked");
+  if (!storeEnabled()) return;
+  const chats = (await liveChats()).filter((c) => c.new_markets !== false);
   const usdc = (Number(BigInt(m.stakeA) / 10_000_000_000_000n) / 100_000).toFixed(2);
   const text = [
     "🆕 <b>New market</b>",
@@ -156,7 +195,7 @@ export async function broadcastArcMarket(m: { question: string; stakeA: string; 
 
 /** A personal Arc message to every chat following `wallet` (Solana) that wants this kind. */
 export async function deliverArc(wallet: string, text: string, pref: AlertPref, url: string): Promise<void> {
-  if (!isDbEnabled()) return;
-  const chats = await query<{ chat_id: string }>(`SELECT chat_id FROM telegram_chats WHERE wallet = $1 AND NOT blocked AND ${pref}`, [wallet]);
+  if (!storeEnabled()) return;
+  const chats = (await liveChats(wallet)).filter((c) => c[pref] !== false);
   for (const c of chats) await sendTo(Number(c.chat_id), text, { reply_markup: marketUrlButton(url) });
 }

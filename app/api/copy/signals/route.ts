@@ -49,7 +49,7 @@ import type { CopyInstruction } from "@/lib/copy-signals";
 import { permissionsForExecutor, recordExecution, releaseCopy, reserveCopy } from "@/lib/copy-trading-store";
 import { buildCopyInstructions } from "@/lib/server/copy-signals";
 import { isFeatureEnabled } from "@/lib/ops/flags";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail as fail, basketJson as json } from "@/lib/server/basket-http";
 import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
@@ -93,7 +93,7 @@ export async function POST(req: Request): Promise<Response> {
     return fail(404, "feature_disabled", "copy trading is not enabled on this deployment");
   }
   if (!(await allowRequest("copy-signals-ip", clientIp(req), 60, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return fail(503, "registry_unavailable", "copy trading needs a database on this deploy");
+  if (!storeEnabled()) return fail(503, "registry_unavailable", "copy trading needs the backend on this deploy");
 
   const read = await readLimitedJson(req);
   if (!read.ok) {

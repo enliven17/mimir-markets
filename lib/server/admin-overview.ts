@@ -1,6 +1,6 @@
 /**
  * Everything the admin panel shows, gathered on the server in one pass: the backend's own read (convex/arcAdmin.ts),
- * the Arc chain (contracts, balances, solvency), the app database, Telegram and the RPCs. Each probe is timed and
+ * the Arc chain (contracts, balances, solvency), the app records in the backend, Telegram and the RPCs. Each probe is timed and
  * fails on its own, so one dead service shows as red instead of blanking the page. Read-only; no secret values leave
  * this module, only whether they are set.
  */
@@ -11,7 +11,7 @@ import { api } from "@/convex/_generated/api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { isInviteOnly } from "@/lib/server/access";
-import { isDbEnabled, query } from "@/lib/server/db";
+import { store, storeEnabled } from "@/lib/server/store";
 import { SOLANA_RPC } from "@/lib/solana/config";
 
 export type Health = "ok" | "warn" | "down";
@@ -82,32 +82,47 @@ async function balances(wallets: Array<{ label: string; address: string }>) {
   );
 }
 
-async function count(sql: string): Promise<number> {
-  const rows = await query<{ n: string }>(sql);
-  return Number(rows[0]?.n ?? 0);
-}
-
+/** The app's records in the backend (lib/server/store.ts), counted. */
 async function database() {
-  if (!isDbEnabled()) throw new Error("DATABASE_URL is not set");
-  const grouped = async (sql: string) => Object.fromEntries((await query<{ k: string; n: string }>(sql)).map((r) => [r.k ?? "none", Number(r.n)]));
-  const [arcAccounts, grants, invitesUsed, invitesFree, telegram, telegramLinked, agents, agentsArc, agentPayments, baskets, subscribers, copyFollowers, campaign, legacyClaims] =
-    await Promise.all([
-      count("SELECT count(*) AS n FROM arc_accounts"),
-      grouped("SELECT via AS k, count(*) AS n FROM access_grants GROUP BY via"),
-      count("SELECT count(*) AS n FROM access_invites WHERE used_by IS NOT NULL"),
-      count("SELECT count(*) AS n FROM access_invites WHERE used_by IS NULL"),
-      count("SELECT count(*) AS n FROM telegram_chats WHERE NOT blocked"),
-      count("SELECT count(*) AS n FROM telegram_chats WHERE wallet IS NOT NULL AND NOT blocked"),
-      grouped("SELECT status AS k, count(*) AS n FROM agent_registry GROUP BY status"),
-      count("SELECT count(*) AS n FROM agent_registry WHERE arc_operator IS NOT NULL"),
-      query<{ n: string; wei: string | null }>("SELECT count(*) AS n, sum(amount_wei::numeric)::text AS wei FROM agent_payments").then((r) => ({ count: Number(r[0]?.n ?? 0), wei: r[0]?.wei ?? "0" })),
-      count("SELECT count(*) AS n FROM baskets"),
-      count("SELECT count(DISTINCT follower) AS n FROM basket_subscriptions"),
-      count("SELECT count(DISTINCT follower) AS n FROM copy_permissions WHERE active AND revoked_at IS NULL"),
-      count("SELECT count(*) AS n FROM campaign_invites"),
-      count("SELECT count(*) AS n FROM solana_claims"),
-    ]);
-  return { arcAccounts, grants, invitesUsed, invitesFree, telegram, telegramLinked, agents, agentsArc, agentPayments, baskets, subscribers, copyFollowers, campaign, legacyClaims };
+  if (!storeEnabled()) throw new Error("the backend is not configured (NEXT_PUBLIC_CONVEX_URL, MIMIR_INTERNAL_SECRET)");
+  type R = Record<string, unknown>;
+  const s = store();
+  const all = (t: string) => s.list<R>(t, { limit: 5000 });
+  const [accounts, grantRows, invites, chats, agentRows, payments, basketCount, subs, perms, campaign] = await Promise.all([
+    s.count("arc_accounts"),
+    all("access_grants"),
+    all("access_invites"),
+    all("telegram_chats"),
+    all("agent_registry"),
+    all("agent_payments"),
+    s.count("baskets"),
+    all("basket_subscriptions"),
+    all("copy_permissions"),
+    s.count("campaign_invites"),
+  ]);
+  const groupBy = (rows: R[], f: string) => {
+    const out: Record<string, number> = {};
+    for (const r of rows) out[String(r[f] ?? "none")] = (out[String(r[f] ?? "none")] ?? 0) + 1;
+    return out;
+  };
+  const live = chats.filter((c) => !c.blocked);
+  return {
+    arcAccounts: accounts,
+    grants: groupBy(grantRows, "via"),
+    invitesUsed: invites.filter((r) => r.used_by != null).length,
+    invitesFree: invites.filter((r) => r.used_by == null).length,
+    telegram: live.length,
+    telegramLinked: live.filter((c) => c.wallet != null).length,
+    agents: groupBy(agentRows, "status"),
+    agentsArc: agentRows.filter((r) => r.arc_operator != null).length,
+    agentPayments: { count: payments.length, wei: payments.reduce((n, p) => n + BigInt(String(p.amount_wei ?? "0")), 0n).toString() },
+    baskets: basketCount,
+    subscribers: new Set(subs.map((r) => r.follower)).size,
+    copyFollowers: new Set(perms.filter((p) => p.active && p.revoked_at == null).map((p) => p.follower)).size,
+    campaign,
+    // The Solana program's read index went with Postgres.
+    legacyClaims: 0,
+  };
 }
 
 async function telegram() {
@@ -143,7 +158,7 @@ async function solanaSlot(url: string) {
 /** Which of the site's own secrets are set (yes/no), never their values. */
 function siteKeys() {
   const names = [
-    "DATABASE_URL", "MIMIR_INTERNAL_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "ARC_FEE_SIGNER_KEY",
+    "MIMIR_INTERNAL_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "ARC_FEE_SIGNER_KEY",
     "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY", "CMC_API_KEY",
     "SOLANA_MAINNET_RPC", "NEXT_PUBLIC_CIRCLE_CLIENT_KEY", "NEXT_PUBLIC_POSTHOG_KEY",
   ];
