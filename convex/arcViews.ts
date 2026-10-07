@@ -80,3 +80,14 @@ export const challengedBy = query({
     return out.slice(0, Math.min(limit ?? 200, 1000));
   },
 });
+
+/** Total staked per Arc address (gross of nothing: the net stakes the index holds), for the campaign board. */
+export const volumeByUser = query({
+  args: {},
+  handler: async (ctx) => {
+    // ponytail: full scan of positions per board refresh (the route caches 60s); an aggregate table past ~100k positions.
+    const totals = new Map<string, number>();
+    for (const p of await ctx.db.query("arcPositions").collect()) totals.set(p.user, (totals.get(p.user) ?? 0) + p.amountUsd);
+    return [...totals].map(([user, usdc]) => ({ user, usdc }));
+  },
+});

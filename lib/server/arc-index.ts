@@ -37,3 +37,9 @@ export async function arcCouncilWallets(): Promise<Map<string, string>> {
   const rows = await c.query(api.arcViews.council, {});
   return new Map(rows.map((r) => [r.slug, r.address.toLowerCase()]));
 }
+
+export async function arcVolumeByUser(): Promise<Array<{ user: string; usdc: number }>> {
+  const c = convex();
+  if (!c) return [];
+  return c.query(api.arcViews.volumeByUser, {});
+}

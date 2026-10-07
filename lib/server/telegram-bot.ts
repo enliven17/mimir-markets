@@ -254,7 +254,7 @@ async function onLeaderboard(chatId: number): Promise<void> {
   );
   await sendTo(
     chatId,
-    ["<b>Testnet campaign · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on devnet to be first."])].join("\n"),
+    ["<b>Testnet campaign · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on Arc testnet to be first."])].join("\n"),
     button,
   );
 }

@@ -7,6 +7,8 @@ import "server-only";
  * House wallets (council personas and CAMPAIGN_EXCLUDE_WALLETS, e.g. the
  * market creator) are left out, or they would top every column.
  */
+import { ARC } from "@/lib/arc/config";
+import { arcVolumeByUser } from "./arc-index";
 import { randomBytes } from "node:crypto";
 
 import {
@@ -38,6 +40,35 @@ export interface CampaignRow extends CampaignMetrics {
 
 const EMPTY: CampaignMetrics = { volumeUsdc: 0, agents: 0, baskets: 0, follows: 0, copies: 0 };
 
+/** The campaign restarts on Arc once its contracts are configured; points stay keyed by Solana address. */
+function onArc(): boolean {
+  return Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
+}
+
+/**
+ * Arc volume per Solana wallet: a passkey account counts for the wallet it is bound to, an agent's Arc operator for
+ * the agent's owner. House addresses (council, market creator) map to nothing and never score.
+ */
+async function arcVolume(): Promise<Array<{ wallet: string; usdc: string }>> {
+  const [rows, bindings, operators] = await Promise.all([
+    arcVolumeByUser(),
+    query<{ solana: string; arc: string }>("SELECT solana, arc FROM arc_accounts"),
+    query<{ arc_operator: string; owner_wallet: string }>(
+      "SELECT arc_operator, owner_wallet FROM agent_registry WHERE arc_operator IS NOT NULL AND status <> 'revoked'",
+    ),
+  ]);
+  const owner = new Map<string, string>([
+    ...operators.map((r) => [r.arc_operator.toLowerCase(), r.owner_wallet] as const),
+    ...bindings.map((r) => [r.arc.toLowerCase(), r.solana] as const),
+  ]);
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    const wallet = owner.get(r.user);
+    if (wallet) totals.set(wallet, (totals.get(wallet) ?? 0) + r.usdc);
+  }
+  return [...totals].map(([wallet, usdc]) => ({ wallet, usdc: String(usdc) }));
+}
+
 function excluded(): Set<string> {
   const env = (process.env.CAMPAIGN_EXCLUDE_WALLETS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   return new Set([...env, ...councilRoster().map((p) => p.address).filter(Boolean)]);
@@ -47,6 +78,8 @@ function excluded(): Set<string> {
 export async function campaignBoard(): Promise<CampaignRow[]> {
   const program = MIMIR_PROGRAM_ID.toBase58();
   const [volume, agents, baskets, follows, copies, invites] = await Promise.all([
+    // On Arc: stakes from the index, credited to the Solana wallet behind each Arc address.
+    onArc() ? arcVolume() :
     // An agent's operator stakes count for the agent's owner.
     query<{ wallet: string; usdc: string }>(
       `WITH stakes AS (
