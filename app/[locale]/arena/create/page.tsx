@@ -21,8 +21,14 @@ import StakeStep from "@/components/create/StakeStep";
 import DeadlineSourceStep from "@/components/create/DeadlineSourceStep";
 import ReviewStep from "@/components/create/ReviewStep";
 import CreateSuccess from "@/components/create/CreateSuccess";
+import ArcCreateForm from "@/components/arc/arena/ArcCreateForm";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 
 export default function CreateClaimPage() {
+  return arcArenaEnabled ? <ArcCreateForm /> : <SolanaCreateClaimPage />;
+}
+
+function SolanaCreateClaimPage() {
   const t = useTranslations("arena.create");
   const tc = useTranslations("create");
   const td = useTranslations("arena.detail");

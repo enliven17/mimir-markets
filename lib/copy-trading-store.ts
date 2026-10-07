@@ -1,17 +1,23 @@
 /**
- * Persistence for copy permissions and the execution audit trail (Postgres,
- * lib/server/db.ts).
+ * Persistence for copy permissions and the execution audit trail (the backend,
+ * lib/server/store.ts): copy_permissions (key id; i1 follower, i2 executor),
+ * copy_executions (i1 permission; an executed copy is keyed permission:claim so
+ * it is recorded once), copy_reservations (key permission:claim; i1 permission)
+ * and copy_locks (one per permission, the compare-and-set that serialises cap
+ * checks).
  *
  * Refused copies are recorded alongside executed ones: a log that only shows
  * what happened cannot answer the question a follower actually asks, which is
  * why their agent did not copy something. Wallets are base58 and stored
  * exactly as given.
  *
- * No "server-only" guard, matching lib/baskets-store.ts. Without DATABASE_URL
+ * No "server-only" guard, matching lib/baskets-store.ts. Without the backend
  * every call throws; routes catch and degrade.
  */
-import { getDb, query } from "@/lib/server/db";
-import { MIMIR_PROGRAM_ID, SIDE_CREATOR, ST_CANCELLED, ST_RESOLVED } from "@/lib/solana/config";
+import { randomBytes } from "node:crypto";
+
+import { insert, remove, store, StoreConflict, update } from "@/lib/server/store";
+import { SIDE_CREATOR, ST_CANCELLED, ST_RESOLVED } from "@/lib/solana/config";
 import type { CopyPermission, CopySkipReason, CopyUsage } from "@/lib/copy-trading";
 
 type PolicyFields = Pick<
@@ -72,49 +78,39 @@ export async function savePermission(p: CopyPermission): Promise<boolean> {
     minClaimQuality: p.minClaimQuality,
     minPayoutRatio: p.minPayoutRatio,
   };
-  const rows = await query(
-    `INSERT INTO copy_permissions
-       (id, follower, signal_agent_id, execution_agent_id, active, expires_at, policy_json, signature, signed_at, created_at)
-     VALUES ($1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9)
-     ON CONFLICT (id) DO UPDATE SET
-       active = TRUE,
-       revoked_at = NULL,
-       signal_agent_id = EXCLUDED.signal_agent_id,
-       execution_agent_id = EXCLUDED.execution_agent_id,
-       expires_at = EXCLUDED.expires_at,
-       policy_json = EXCLUDED.policy_json,
-       signature = EXCLUDED.signature,
-       signed_at = EXCLUDED.signed_at
-     WHERE copy_permissions.follower = EXCLUDED.follower
-       AND copy_permissions.signed_at < EXCLUDED.signed_at
-       AND (copy_permissions.revoked_at IS NULL OR copy_permissions.revoked_at < EXCLUDED.signed_at)
-     RETURNING id`,
-    [
-      p.id,
-      p.follower,
-      p.signalAgentId,
-      p.executionAgentId,
-      p.expiresAt,
-      JSON.stringify(policy),
-      p.signature,
-      p.signedAt,
-      p.createdAt,
-    ],
-  );
-  return rows.length > 0;
+  const row = {
+    id: p.id,
+    follower: p.follower,
+    signal_agent_id: p.signalAgentId,
+    execution_agent_id: p.executionAgentId,
+    active: true,
+    expires_at: p.expiresAt,
+    policy_json: JSON.stringify(policy),
+    signature: p.signature,
+    signed_at: p.signedAt,
+    created_at: p.createdAt,
+    revoked_at: null,
+  };
+  const idx = { i1: p.follower, i2: p.executionAgentId, at: p.createdAt };
+  const prev = await store().get<Record<string, unknown>>("copy_permissions", p.id);
+  if (!prev) return insert("copy_permissions", p.id, row, idx);
+  const prevRevoked = prev.revoked_at == null ? null : Number(prev.revoked_at);
+  if (prev.follower !== p.follower || Number(prev.signed_at) >= p.signedAt || (prevRevoked !== null && prevRevoked >= p.signedAt)) return false;
+  const { created_at: _keep, ...changes } = row;
+  // Compare-and-set on what was checked: a grant or revoke that landed in between makes this a no-op.
+  return update("copy_permissions", p.id, changes, { signed_at: prev.signed_at, revoked_at: prevRevoked }, idx);
 }
 
+type PermRow = Record<string, unknown>;
+
 export async function listPermissions(follower: string): Promise<CopyPermission[]> {
-  const rows = await query(
-    "SELECT * FROM copy_permissions WHERE follower = $1 ORDER BY created_at DESC LIMIT 100",
-    [follower],
-  );
-  return rows.map(toPermission);
+  const rows = await store().list<PermRow>("copy_permissions", { i1: follower, limit: 100 });
+  return rows.sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0)).map(toPermission);
 }
 
 export async function getPermission(id: string): Promise<CopyPermission | null> {
-  const rows = await query("SELECT * FROM copy_permissions WHERE id = $1", [id]);
-  return rows[0] ? toPermission(rows[0]) : null;
+  const row = await store().get<PermRow>("copy_permissions", id);
+  return row ? toPermission(row) : null;
 }
 
 /**
@@ -123,13 +119,9 @@ export async function getPermission(id: string): Promise<CopyPermission | null> 
  * it, so an old revoke proof cannot be replayed against fresh terms.
  */
 export async function revokePermission(id: string, follower: string, at: number): Promise<number> {
-  const rows = await query(
-    `UPDATE copy_permissions SET active = FALSE, revoked_at = $3
-      WHERE id = $1 AND follower = $2 AND revoked_at IS NULL AND signed_at < $3
-      RETURNING id`,
-    [id, follower, at],
-  );
-  return rows.length;
+  const prev = await store().get<PermRow>("copy_permissions", id);
+  if (!prev || prev.follower !== follower || prev.revoked_at != null || Number(prev.signed_at) >= at) return 0;
+  return (await update("copy_permissions", id, { active: false, revoked_at: at }, { revoked_at: null, signed_at: prev.signed_at })) ? 1 : 0;
 }
 
 /**
@@ -139,21 +131,34 @@ export async function revokePermission(id: string, follower: string, at: number)
  */
 export const COPY_RESERVATION_TTL_MS = 7 * 86_400_000;
 
-/** Spend counted against a permission since `$since`: executed copies plus live, unreported reservations. */
-const SPENT_SINCE = (since: string) => `(
-  (SELECT COALESCE(SUM(e.stake_usdc), 0) FROM copy_executions e
-    WHERE e.permission_id = $1 AND e.executed AND e.at > ${since})
-  + (SELECT COALESCE(SUM(r.stake_usdc), 0) FROM copy_reservations r
-    WHERE r.permission_id = $1 AND r.expires_at > $4 AND r.at > ${since}
-      AND NOT EXISTS (SELECT 1 FROM copy_executions e2
-                       WHERE e2.permission_id = r.permission_id AND e2.claim_id = r.claim_id AND e2.executed))
-)`;
+type ExecRow = { permission_id: string; claim_id: number; executed: boolean; skip_reason: string | null; stake_usdc: number; tx_signature: string | null; at: number };
+type ResRow = { permission_id: string; claim_id: number; stake_usdc: number; at: number; expires_at: number };
+
+/** Executed copies plus live reservations whose copy has not been reported executed. */
+async function ledger(permissionId: string, now: number): Promise<Array<{ claimId: number; stakeUsdc: number; at: number }>> {
+  const [execs, reservations] = await Promise.all([
+    store().list<ExecRow>("copy_executions", { i1: permissionId, limit: 5000 }),
+    store().list<ResRow>("copy_reservations", { i1: permissionId, limit: 5000 }),
+  ]);
+  const executed = execs.filter((e) => e.executed);
+  const done = new Set(executed.map((e) => Number(e.claim_id)));
+  return [
+    ...executed.map((e) => ({ claimId: Number(e.claim_id), stakeUsdc: Number(e.stake_usdc ?? 0), at: Number(e.at) })),
+    ...reservations
+      .filter((r) => r.expires_at > now && !done.has(Number(r.claim_id)))
+      .map((r) => ({ claimId: Number(r.claim_id), stakeUsdc: Number(r.stake_usdc ?? 0), at: Number(r.at) })),
+  ];
+}
+
+const spentSince = (rows: Array<{ stakeUsdc: number; at: number }>, since: number) =>
+  rows.filter((r) => r.at > since).reduce((s, r) => s + r.stakeUsdc, 0);
 
 /**
  * Provisional spend written when a copy transaction is prepared (audit
  * P2-11): until the executor reports, the follower's caps count it. The cap
- * check and the insert run under a per-permission lock, so two concurrent
- * prepares (even for different claims) cannot both fit under the same room.
+ * check and the write are a compare-and-set on the permission's lock row, so
+ * two concurrent prepares (even for different claims) cannot both fit under
+ * the same room: the second sees the lock moved and checks again.
  * "duplicate": a live reservation for this claim already exists.
  */
 export async function reserveCopy(
@@ -163,45 +168,40 @@ export async function reserveCopy(
   caps: Pick<CopyPermission, "maxDailyUsdc" | "maxWeeklyUsdc">,
   now = Date.now(),
 ): Promise<"ok" | "duplicate" | "over_cap"> {
-  const pool = await getDb();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`copy-permission:${permissionId}`]);
-    const live = await client.query(
-      "SELECT 1 FROM copy_reservations WHERE permission_id = $1 AND claim_id = $2 AND expires_at > $3",
-      [permissionId, claimId, now],
-    );
-    if (live.rows.length > 0) {
-      await client.query("COMMIT");
-      return "duplicate";
+  const key = `${permissionId}:${claimId}`;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const lock = await store().get<{ version: number }>("copy_locks", permissionId);
+    const existing = await store().get<ResRow>("copy_reservations", key);
+    if (existing && existing.expires_at > now) return "duplicate";
+    const rows = await ledger(permissionId, now);
+    if (spentSince(rows, now - 86_400_000) + stakeUsdc > caps.maxDailyUsdc) return "over_cap";
+    if (spentSince(rows, now - 7 * 86_400_000) + stakeUsdc > caps.maxWeeklyUsdc) return "over_cap";
+    const version = lock?.version ?? 0;
+    try {
+      await store().tx([
+        lock
+          ? { op: "update", t: "copy_locks", k: permissionId, d: { version: version + 1 }, when: { version }, must: true }
+          : { op: "insert", t: "copy_locks", k: permissionId, d: { version: 1 }, must: true },
+        {
+          op: "put",
+          t: "copy_reservations",
+          k: key,
+          d: { permission_id: permissionId, claim_id: claimId, stake_usdc: stakeUsdc, at: now, expires_at: now + COPY_RESERVATION_TTL_MS },
+          i1: permissionId,
+          at: now,
+        },
+      ]);
+      return "ok";
+    } catch (err) {
+      if (!(err instanceof StoreConflict)) throw err;
     }
-    const res = await client.query(
-      `INSERT INTO copy_reservations(permission_id, claim_id, stake_usdc, at, expires_at)
-       SELECT $1, $2, $3, $4, $5
-        WHERE ${SPENT_SINCE("$6")} + $3 <= $7
-          AND ${SPENT_SINCE("$8")} + $3 <= $9
-       ON CONFLICT (permission_id, claim_id) DO UPDATE SET
-         stake_usdc = EXCLUDED.stake_usdc, at = EXCLUDED.at, expires_at = EXCLUDED.expires_at
-       RETURNING permission_id`,
-      [
-        permissionId, claimId, stakeUsdc, now, now + COPY_RESERVATION_TTL_MS,
-        now - 86_400_000, caps.maxDailyUsdc, now - 7 * 86_400_000, caps.maxWeeklyUsdc,
-      ],
-    );
-    await client.query("COMMIT");
-    return res.rows.length > 0 ? "ok" : "over_cap";
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
   }
+  throw new Error("the copy permission is busy; try again");
 }
 
 /** Drop a reservation once its copy is reported (either way) or never handed out. */
 export async function releaseCopy(permissionId: string, claimId: number): Promise<void> {
-  await query("DELETE FROM copy_reservations WHERE permission_id = $1 AND claim_id = $2", [permissionId, claimId]);
+  await remove("copy_reservations", `${permissionId}:${claimId}`);
 }
 
 /** Records one copy outcome. Returns false when an executed copy was already on file. */
@@ -213,22 +213,18 @@ export async function recordExecution(args: {
   stakeUsdc?: number;
   txSignature?: string | null;
 }, now = Date.now()): Promise<boolean> {
-  const rows = await query(
-    `INSERT INTO copy_executions(permission_id, claim_id, executed, skip_reason, stake_usdc, tx_signature, at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT DO NOTHING
-     RETURNING id`,
-    [
-      args.permissionId,
-      args.claimId,
-      args.executed,
-      args.skipReason ?? null,
-      args.stakeUsdc ?? 0,
-      args.txSignature ?? null,
-      now,
-    ],
-  );
-  return rows.length > 0;
+  const row: ExecRow = {
+    permission_id: args.permissionId,
+    claim_id: args.claimId,
+    executed: args.executed,
+    skip_reason: args.skipReason ?? null,
+    stake_usdc: args.stakeUsdc ?? 0,
+    tx_signature: args.txSignature ?? null,
+    at: now,
+  };
+  // One executed copy per claim per permission: a repeated report cannot double-count spend.
+  const key = args.executed ? `${args.permissionId}:${args.claimId}:executed` : `${args.permissionId}:${args.claimId}:${randomBytes(6).toString("base64url")}`;
+  return insert("copy_executions", key, row, { i1: args.permissionId, at: now });
 }
 
 export interface CopyExecutionRow {
@@ -241,19 +237,18 @@ export interface CopyExecutionRow {
 }
 
 export async function listExecutions(permissionId: string, limit = 50): Promise<CopyExecutionRow[]> {
-  const rows = await query(
-    `SELECT claim_id, executed, skip_reason, stake_usdc, tx_signature, at
-       FROM copy_executions WHERE permission_id = $1 ORDER BY at DESC LIMIT $2`,
-    [permissionId, limit],
-  );
-  return rows.map((r) => ({
-    claimId: Number(r.claim_id ?? 0),
-    executed: Boolean(r.executed),
-    skipReason: r.skip_reason === null || r.skip_reason === undefined ? null : String(r.skip_reason),
-    stakeUsdc: Number(r.stake_usdc ?? 0),
-    txSignature: r.tx_signature === null || r.tx_signature === undefined ? null : String(r.tx_signature),
-    at: Number(r.at ?? 0),
-  }));
+  const rows = await store().list<ExecRow>("copy_executions", { i1: permissionId, limit: 5000 });
+  return rows
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit)
+    .map((r) => ({
+      claimId: Number(r.claim_id ?? 0),
+      executed: Boolean(r.executed),
+      skipReason: r.skip_reason ?? null,
+      stakeUsdc: Number(r.stake_usdc ?? 0),
+      txSignature: r.tx_signature ?? null,
+      at: Number(r.at ?? 0),
+    }));
 }
 
 /** One executed copy with the indexed state of the claim it went into. */
@@ -301,42 +296,30 @@ export function usageFromPositions(positions: CopiedPosition[], now = Date.now()
  * ledger rather than a running total: a counter that drifts out of sync with
  * the rows silently raises somebody's ceiling.
  */
-export async function loadUsage(permissionId: string, now = Date.now()): Promise<CopyUsage> {
+export async function loadUsage(
+  permissionId: string,
+  now = Date.now(),
+  /** The state and winner of the markets copied into (the Arc index); unknown markets count as still at risk. */
+  stateOf: (claimIds: number[]) => Promise<Map<number, { state: number; winnerSide: number }>> = async () => new Map(),
+): Promise<CopyUsage> {
   // Executed copies plus prepared ones not yet reported (and not expired).
-  const rows = await query(
-    `SELECT x.claim_id, x.stake_usdc, x.at, c.state, c.winner_side
-       FROM (
-         SELECT e.claim_id, e.stake_usdc, e.at FROM copy_executions e
-          WHERE e.permission_id = $1 AND e.executed
-         UNION ALL
-         SELECT r.claim_id, r.stake_usdc, r.at FROM copy_reservations r
-          WHERE r.permission_id = $1 AND r.expires_at > $3
-            AND NOT EXISTS (SELECT 1 FROM copy_executions e2
-                             WHERE e2.permission_id = r.permission_id AND e2.claim_id = r.claim_id AND e2.executed)
-       ) x
-       LEFT JOIN solana_claims c ON c.program = $2 AND c.id = x.claim_id`,
-    [permissionId, MIMIR_PROGRAM_ID.toBase58(), now],
-  );
+  const rows = await ledger(permissionId, now);
+  const states = await stateOf([...new Set(rows.map((r) => r.claimId))]).catch(() => new Map<number, { state: number; winnerSide: number }>());
   return usageFromPositions(
-    rows.map((r) => ({
-      claimId: Number(r.claim_id ?? 0),
-      stakeUsdc: Number(r.stake_usdc ?? 0),
-      at: Number(r.at ?? 0),
-      state: r.state === null || r.state === undefined ? null : Number(r.state),
-      winnerSide: Number(r.winner_side ?? 0),
-    })),
+    rows.map((r) => {
+      const s = states.get(r.claimId);
+      return { ...r, state: s ? s.state : null, winnerSide: s?.winnerSide ?? 0 };
+    }),
     now,
   );
 }
 
 /** Active, unexpired permissions naming this agent as the executor. */
 export async function permissionsForExecutor(executionAgentId: string, now = Date.now()): Promise<CopyPermission[]> {
-  const rows = await query(
-    `SELECT * FROM copy_permissions
-      WHERE execution_agent_id = $1 AND active AND revoked_at IS NULL AND expires_at > $2
-      ORDER BY created_at DESC
-      LIMIT 50`,
-    [executionAgentId, now],
-  );
-  return rows.map(toPermission);
+  const rows = await store().list<PermRow>("copy_permissions", { i2: executionAgentId, limit: 500 });
+  return rows
+    .filter((r) => r.active && r.revoked_at == null && Number(r.expires_at) > now)
+    .sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0))
+    .slice(0, 50)
+    .map(toPermission);
 }

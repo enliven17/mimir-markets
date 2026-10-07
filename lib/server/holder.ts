@@ -50,16 +50,18 @@ export async function walletTier(wallet: string): Promise<{ tier: TokenTier; bal
  * The tier a request proves via x-mimir-wallet + x-mimir-proof, or "none".
  * Never throws: a bad proof or an unreachable RPC just means no perk.
  */
-export async function provenTier(req: Request): Promise<TokenTier> {
+/** The wallet a request proves it controls (the signed holder proof headers), or null. Reads no balance. */
+export function provenWallet(req: Request): string | null {
   const wallet = normalizeAddress(req.headers.get(HOLDER_WALLET_HEADER));
   const proof = parseProofHeader(req.headers.get(HOLDER_PROOF_HEADER));
-  if (!wallet || !proof) return "none";
-  const ok = verifyAgentSignature({
-    address: wallet,
-    message: holderProofMessage(wallet, proof.signedAt),
-    signature: proof.signature,
-  });
-  if (!ok) return "none";
+  if (!wallet || !proof) return null;
+  const ok = verifyAgentSignature({ address: wallet, message: holderProofMessage(wallet, proof.signedAt), signature: proof.signature });
+  return ok ? wallet : null;
+}
+
+export async function provenTier(req: Request): Promise<TokenTier> {
+  const wallet = provenWallet(req);
+  if (!wallet) return "none";
   // Every new wallet costs mainnet RPC reads: cap them per IP before the
   // first call, so fresh wallets cannot burn the RPC credit. A wallet read in
   // the last minute is served from the balance cache and is not counted.

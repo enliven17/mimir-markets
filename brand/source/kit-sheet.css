@@ -1,0 +1,11 @@
+/* Shared by the brand kit sheets (kit-*.html): 1600×900, the site's tokens. */
+.canvas { width: 1600px; height: 900px; }
+.head { position: absolute; left: 90px; top: 70px; right: 90px; }
+.eyebrow { display: flex; align-items: center; gap: 14px; font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+.eyebrow .sq { width: 10px; height: 10px; background: var(--red); box-shadow: 0 0 14px rgb(255 43 43 / 0.8); }
+h1 { margin-top: 20px; font-size: 64px; }
+.body { position: absolute; left: 90px; right: 90px; top: 250px; bottom: 100px; }
+.foot { position: absolute; left: 90px; right: 90px; bottom: 44px; display: flex; justify-content: space-between; font-size: 16px; letter-spacing: 0.14em; color: var(--muted); }
+.foot b { color: var(--cream); font-weight: 400; }
+.lbl { font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--coral); }
+.note { font-size: 17px; line-height: 1.5; color: var(--muted); }

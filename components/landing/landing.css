@@ -139,6 +139,19 @@
   height: 100%;
   image-rendering: pixelated;
 }
+.l-hero-networks {
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #a89d93;
+  opacity: 0.9;
+}
+
 .l-hero-sub {
   margin: 8px 0 0;
   max-width: 60ch;

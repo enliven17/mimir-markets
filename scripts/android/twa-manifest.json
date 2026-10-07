@@ -1,0 +1,39 @@
+{
+  "packageId": "xyz.mimirmarkets.app",
+  "host": "mimirmarkets.xyz",
+  "name": "Mimir Markets",
+  "launcherName": "Mimir Markets",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#110F0E",
+  "themeColorDark": "#110F0E",
+  "navigationColor": "#110F0E",
+  "navigationColorDark": "#110F0E",
+  "navigationDividerColor": "#110F0E",
+  "navigationDividerColorDark": "#110F0E",
+  "backgroundColor": "#110F0E",
+  "enableNotifications": false,
+  "startUrl": "/en/arena?app=1",
+  "iconUrl": "http://localhost:3123/app/icon-512.png",
+  "maskableIconUrl": "http://localhost:3123/app/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "~/.mimir-android/mimir-release.jks",
+    "alias": "mimir"
+  },
+  "appVersion": "1.1.0",
+  "appVersionCode": 3,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://mimirmarkets.xyz/",
+  "minSdkVersion": 21,
+  "fingerprints": []
+}

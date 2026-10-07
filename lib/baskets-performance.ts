@@ -10,7 +10,19 @@ import "server-only";
  * functions in lib/baskets.ts realized outcomes. Nothing here invents a
  * return: an agent that never settled anything contributes nothing.
  */
-import { query } from "@/lib/server/db";
+import { store } from "@/lib/server/store";
+import { ARC } from "@/lib/arc/config";
+import { getArcBinding } from "@/lib/server/arc-accounts";
+import { arcClaimsChallengedBy, resolveArcAgentWallets } from "@/lib/server/arc-baskets";
+
+/** Baskets read Arc once its contracts are configured. */
+export const onArc = () => Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
+
+/** The address a follower stakes from: their Solana wallet, or on Arc the passkey account bound to it. */
+export async function stakingAddressOf(follower: string | null): Promise<string | null> {
+  if (!follower || !onArc()) return follower;
+  return (await getArcBinding(follower).catch(() => null))?.arc.toLowerCase() ?? null;
+}
 import { councilRoster } from "@/lib/server/council-roster";
 import { MIMIR_PROGRAM_ID, ST_ACTIVE, ST_OPEN, ST_RESOLVED } from "@/lib/solana/config";
 import {
@@ -28,6 +40,7 @@ import {
  * An id that resolves to neither is dropped rather than guessed at.
  */
 export async function resolveAgentWallets(agentIds: string[]): Promise<Map<string, string>> {
+  if (onArc()) return resolveArcAgentWallets(agentIds);
   const wanted = new Set(agentIds);
   const map = new Map<string, string>();
 
@@ -37,11 +50,8 @@ export async function resolveAgentWallets(agentIds: string[]): Promise<Map<strin
 
   const missing = agentIds.filter((id) => !map.has(id));
   if (missing.length > 0) {
-    const rows = await query(
-      "SELECT agent_id, operator_wallet FROM agent_registry WHERE agent_id = ANY($1) AND status <> 'revoked'",
-      [missing],
-    ).catch(() => []);
-    for (const r of rows) map.set(String(r.agent_id), String(r.operator_wallet));
+    const rows = await store().getMany<{ agent_id: string; operator_wallet: string; status: string }>("agent_registry", missing).catch(() => []);
+    for (const r of rows) if (r.status !== "revoked") map.set(r.agent_id, r.operator_wallet);
   }
   return map;
 }
@@ -55,41 +65,8 @@ function invert(wallets: Map<string, string>): Map<string, string> {
 /** Claims of this program where any of `wallets` is a challenger, in `states`. Shared with copy trading. */
 export async function claimsChallengedBy(wallets: string[], states: number[], limit: number): Promise<IndexedClaim[]> {
   if (wallets.length === 0) return [];
-  const rows = await query(
-    `SELECT id, creator, state, winner_side, creator_stake, total_challenger_stake, deadline,
-            resolved_at, max_challengers, delegated, platform_fee_bps, agent_fee_bps, challengers,
-            question, category, creator_position, counter_position, resolution_url, created_at
-       FROM solana_claims c
-      WHERE c.program = $1
-        AND c.state = ANY($2)
-        AND EXISTS (
-          SELECT 1 FROM jsonb_array_elements(c.challengers) ch WHERE ch->>'addr' = ANY($3)
-        )
-      ORDER BY c.id DESC
-      LIMIT $4`,
-    [MIMIR_PROGRAM_ID.toBase58(), states, wallets, limit],
-  );
-  return rows.map((r) => ({
-    id: Number(r.id),
-    creator: String(r.creator ?? ""),
-    state: Number(r.state),
-    winner_side: Number(r.winner_side ?? 0),
-    creator_stake: String(r.creator_stake ?? "0"),
-    total_challenger_stake: String(r.total_challenger_stake ?? "0"),
-    deadline: Number(r.deadline ?? 0),
-    resolved_at: Number(r.resolved_at ?? 0),
-    max_challengers: Number(r.max_challengers ?? 0),
-    delegated: Boolean(r.delegated),
-    platform_fee_bps: Number(r.platform_fee_bps ?? 0),
-    agent_fee_bps: Number(r.agent_fee_bps ?? 0),
-    challengers: (typeof r.challengers === "string" ? JSON.parse(r.challengers) : r.challengers) ?? [],
-    question: String(r.question ?? ""),
-    category: String(r.category ?? ""),
-    creator_position: String(r.creator_position ?? ""),
-    counter_position: String(r.counter_position ?? ""),
-    resolution_url: String(r.resolution_url ?? ""),
-    created_at: Number(r.created_at ?? 0),
-  }));
+  // The Solana program's read index went with Postgres; markets are on Arc.
+  return onArc() ? arcClaimsChallengedBy(wallets, states, limit) : [];
 }
 
 /** Realized, after-fee outcomes for a basket's members (RESOLVED claims only). */
@@ -116,7 +93,7 @@ export async function loadMirrorSignals(args: {
   return mirrorSignals({
     claims,
     agentByWallet: byWallet,
-    follower: args.follower,
+    follower: await stakingAddressOf(args.follower),
     perMarketCapUsdc: args.perMarketCapUsdc,
   });
 }

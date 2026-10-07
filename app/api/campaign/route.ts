@@ -12,7 +12,7 @@ import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { campaignJoinMessage, INVITE_CODE_PATTERN } from "@/lib/campaign";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { campaignBoard, inviteCodeOf, joinCampaign } from "@/lib/server/campaign";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ const TOP = 100;
 
 export async function GET(req: Request) {
   if (!(await allowRequest("campaign-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return NextResponse.json({ rows: [], total: 0, me: null });
+  if (!storeEnabled()) return NextResponse.json({ rows: [], total: 0, me: null });
   const wallet = normalizeAddress(new URL(req.url).searchParams.get("wallet"));
   try {
     const board = await campaignBoard();
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   if (!verifyAgentSignature({ address: wallet, message: campaignJoinMessage(wallet, inviteCode), signature: String(body.signature ?? "") })) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
-  if (!isDbEnabled()) return NextResponse.json({ error: "the campaign is not configured" }, { status: 503 });
+  if (!storeEnabled()) return NextResponse.json({ error: "the campaign is not configured" }, { status: 503 });
   try {
     const joined = await joinCampaign(wallet, inviteCode);
     return NextResponse.json({ ok: true, code: joined.code, invited: joined.referrer !== null });

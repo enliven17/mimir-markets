@@ -5,13 +5,15 @@ import "server-only";
  *
  * Signal agents resolve to staking wallets exactly as basket members do
  * (persona roster, then the registry's operator wallet), and their live
- * positions come from the same `solana_claims` query mirror signals use. The
+ * positions come from the same index query mirror signals use. The
  * gate itself is pure (lib/copy-signals.ts, lib/copy-trading.ts).
  */
 import { claimsChallengedBy, resolveAgentWallets } from "@/lib/baskets-performance";
 import { candidateSignals, claimsHeldBy, planCopies, type CopyInstruction } from "@/lib/copy-signals";
 import type { CopyPermission } from "@/lib/copy-trading";
 import { loadUsage } from "@/lib/copy-trading-store";
+import { onArc } from "@/lib/baskets-performance";
+import { arcClaimStates } from "@/lib/server/arc-baskets";
 import { isPaused } from "@/lib/ops/flags";
 import { ST_ACTIVE, ST_OPEN } from "@/lib/solana/config";
 
@@ -37,7 +39,7 @@ export async function buildCopyInstructions(
       claimsChallengedBy([signalWallet], [ST_OPEN, ST_ACTIVE], 100).catch(() => []),
       // Without the ledger there is no way to know what was spent: refuse to
       // size anything rather than assume nothing was.
-      loadUsage(permission.id, now).catch(() => null),
+      loadUsage(permission.id, now, onArc() ? arcClaimStates : undefined).catch(() => null),
     ]);
     if (!usage) continue;
 

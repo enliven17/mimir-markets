@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { readLimitedJson } from "@/lib/server/body-limit";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { redeemLinkCode, sendTo } from "@/lib/server/telegram";
 import { esc, LINK_CODE_PATTERN, telegramLinkMessage, telegramToken } from "@/lib/telegram";
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   if (!verifyAgentSignature({ address: wallet, message: telegramLinkMessage(wallet, code), signature: String(body.signature ?? "") })) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
-  if (!isDbEnabled()) return NextResponse.json({ error: "telegram linking is not configured" }, { status: 503 });
+  if (!storeEnabled()) return NextResponse.json({ error: "telegram linking is not configured" }, { status: 503 });
 
   try {
     const chatId = await redeemLinkCode(code, wallet);

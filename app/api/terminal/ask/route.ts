@@ -17,6 +17,7 @@ import { NextResponse } from "next/server";
 import { getPersonaBySlug } from "@/agents/council/personas";
 import { agentChatTarget } from "@/lib/agents/store";
 import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { relayToAgent } from "@/lib/server/terminal-relay";
 import { confirmCharge, readAllowance, releaseCharge, reserveCharge, sessionWallet, terminalDelegate } from "@/lib/server/terminal-pay";
 import { COUNCIL_KEY_ENV } from "@/agents/council/shared/persona-llm";
@@ -119,6 +120,9 @@ async function reservePaid(ask: Exclude<ReturnType<typeof parseAskRequest>, stri
     );
   }
   if (priceUnits <= 0) return null;
+  // Paid messages settled from a Solana USDC allowance through a charges ledger in Postgres; both are retired, so
+  // paid agents are off until payments move to Arc. Free agents still answer.
+  if (!isDbEnabled()) return fail(503, "paid agents are switched off for now: free agents still answer");
   const delegate = terminalDelegate();
   if (!delegate) return fail(503, "paid agents are not switched on yet");
   if (!wallet) return NextResponse.json({ success: false, error: "sign in to the terminal to message paid agents", code: "session" }, { status: 401 });
@@ -132,7 +136,7 @@ async function reservePaid(ask: Exclude<ReturnType<typeof parseAskRequest>, stri
 }
 
 async function askCommunityAgent(ask: Exclude<ReturnType<typeof parseAskRequest>, string>, wallet: string | null): Promise<Response> {
-  const target = isDbEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
+  const target = storeEnabled() ? await agentChatTarget(ask.agent).catch(() => null) : null;
   if (!target) return fail(404, `no agent called ${ask.agent} takes questions. Type agents for the list.`);
 
   // A paid agent: reserve the charge before relaying, release it if no answer comes.

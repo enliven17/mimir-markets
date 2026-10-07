@@ -15,8 +15,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
-import { useMimirConnection } from "@/hooks/useMimirWallet";
-import { MIMIR_PROGRAM_ID, explorerUrl } from "@/lib/solana/config";
+import { arcPublicClient } from "@/lib/arc/chain";
+import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { gsap, useGSAP } from "@/lib/motion";
 import dynamic from "next/dynamic";
 import Magnetic from "@/components/motion/Magnetic";
@@ -30,12 +30,14 @@ const SplitReveal = dynamic(() => import("@/components/motion/SplitReveal"));
 
 const REPO_URL = "https://github.com/enliven17/mimir-solana";
 const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;
-const MAGICBLOCK_URL = "https://www.magicblock.xyz";
-const PROGRAM_ID = MIMIR_PROGRAM_ID.toBase58();
-const PROGRAM_SHORT = `${PROGRAM_ID.slice(0, 4)}…${PROGRAM_ID.slice(-4)}`;
-const PROGRAM_EXPLORER_URL = explorerUrl("address", PROGRAM_ID);
+const CCTP_URL = "https://developers.circle.com/cctp";
+// The VS market contract stands for "the program": every contract is listed on /docs.
+const PROGRAM_ID = ARC.contracts.mimirV3 ?? "";
+const PROGRAM_SHORT = PROGRAM_ID ? `${PROGRAM_ID.slice(0, 6)}…${PROGRAM_ID.slice(-4)}` : "-";
+const PROGRAM_EXPLORER_URL = PROGRAM_ID ? arcExplorerUrl("address", PROGRAM_ID) : ARC.chain.explorer;
 const MARK = "Mimir";
 const SLOT_POLL_MS = 8_000;
+const ARC_CLIENT = arcPublicClient();
 
 const groupItems = (key: string) => NAV_MORE_GROUPS.find((g) => g.key === key)?.items ?? [];
 
@@ -45,9 +47,8 @@ const BUILD: readonly NavItem[] = [...groupItems("agents"), ...groupItems("docs"
 
 const formatSlot = (n: number) => Math.round(n).toLocaleString("en-US");
 
-/** Latest devnet slot, polled only while the footer is on screen. */
+/** Latest Arc block, polled only while the footer is on screen. */
 function useLiveSlot(target: React.RefObject<HTMLElement | null>): number | null {
-  const { connection } = useMimirConnection();
   const [slot, setSlot] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -65,9 +66,9 @@ function useLiveSlot(target: React.RefObject<HTMLElement | null>): number | null
     const read = () =>
       // A background tab needs no live slot.
       !document.hidden &&
-      connection
-        .getSlot("confirmed")
-        .then((s) => !cancelled && setSlot(s))
+      ARC_CLIENT
+        .getBlockNumber()
+        .then((b) => !cancelled && setSlot(Number(b)))
         .catch(() => undefined);
     void read();
     const timer = setInterval(read, SLOT_POLL_MS);
@@ -75,7 +76,7 @@ function useLiveSlot(target: React.RefObject<HTMLElement | null>): number | null
       cancelled = true;
       clearInterval(timer);
     };
-  }, [visible, connection]);
+  }, [visible]);
 
   return slot;
 }
@@ -197,9 +198,17 @@ export default function Footer() {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted">{t("token")}</dt>
+                <dd>
+                  <Link href="/token" className="footer-link">
+                    {t("tokenValue")}
+                  </Link>
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted">{t("rollup")}</dt>
                 <dd>
-                  <a href={MAGICBLOCK_URL} target="_blank" rel="noreferrer" className="footer-link">
+                  <a href={CCTP_URL} target="_blank" rel="noreferrer" className="footer-link">
                     {t("rollupValue")}
                     <span aria-hidden className="ml-1 text-dim">↗</span>
                   </a>

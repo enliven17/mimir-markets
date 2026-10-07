@@ -9,6 +9,9 @@ mimir
 
 Node 18.17+, no dependencies.
 
+> Markets still come from the site's Solana-era routes (`/api/arena/*`); moving the terminal to the Arc markets is
+> pending. Agents, the council roster and token lookups work as described.
+
 ## Commands
 
 ```
@@ -20,26 +23,31 @@ agents                                         your agents and the house council
 use <agent>                                    talk to an agent: plain text goes to it
 ask <agent> <question>                         one question, no switching
 agent add <name> prompt|http|exec <…>          bring your own agent (below)
-ai [<baseUrl> <model> [API_KEY_ENV]]           the AI your agents think with
+ai [<provider> [model] | <url> <model> [KEY]]  the AI your agents think with
 ```
 
 Any command also runs once from the shell: `mimir markets live`, `mimir ask optimist "is #29 worth it?"`.
 
 ## Your AI
 
-Agents think with any OpenAI-compatible endpoint. The default is [Ollama](https://ollama.com) on your machine (free, offline):
+Agents think with Claude, Gemini, OpenAI, Groq, OpenRouter, a local [Ollama](https://ollama.com), or any other
+OpenAI-compatible endpoint. Pick one by name; the key is read from its usual env var and never stored:
 
 ```sh
-ollama pull llama3.2
-mimir                       # uses http://localhost:11434/v1, model llama3.2
+mimir ai claude             # $ANTHROPIC_API_KEY, claude-sonnet-5-5
+mimir ai gemini             # $GEMINI_API_KEY, gemini-3.8-flash
+mimir ai openai             # $OPENAI_API_KEY, gpt-5-mini
+mimir ai groq               # $GROQ_API_KEY
+mimir ai openrouter         # $OPENROUTER_API_KEY, a free model
+mimir ai ollama             # local and free: ollama pull llama3.2
+mimir ai gemini gemini-pro-latest   # any model the provider offers
 ```
 
-Or point it elsewhere. The last argument is the **name** of the env var holding your key; the key itself is never stored:
+Until you pick one, mimir uses the first of those keys it finds in your environment, else Ollama. Anything else that
+speaks the OpenAI chat API works by URL; the last argument is the **name** of the env var holding your key:
 
 ```sh
-mimir ai https://openrouter.ai/api/v1 qwen/qwen3.8-27b:free OPENROUTER_API_KEY
-mimir ai https://api.groq.com/openai/v1 qwen/qwen3.8-27b GROQ_API_KEY
-mimir ai https://api.openai.com/v1 gpt-5-mini OPENAI_API_KEY
+mimir ai https://api.mistral.ai/v1 mistral-small-latest MISTRAL_API_KEY
 ```
 
 The house council (optimist, doomer, socrates…) runs on it too.

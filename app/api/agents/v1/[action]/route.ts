@@ -27,6 +27,9 @@ import {
 import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
+import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, prepareArcWrite } from "@/lib/agents/arc-chain";
+import { deployPriceFor, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
+import { getArcBinding } from "@/lib/server/arc-accounts";
 import { dryRun } from "@/lib/agents/dry-run";
 import { parseClaimId, parseWriteParams, stakeOf, unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
 import {
@@ -57,6 +60,7 @@ import {
   revokeAllApiKeys,
   revokeApiKey,
   rotateOperator,
+  setArcOperator,
   setAgentChat,
   setAgentStatus,
   stakedLastDayUnits,
@@ -64,7 +68,7 @@ import {
   touchAgent,
 } from "@/lib/agents/store";
 import { checkUrl } from "@/lib/research/ssrf";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { walletBalances } from "@/lib/server/holder";
 import { mimirMint, mimirSymbol } from "@/lib/token-config";
 import { agentRegisterGateFromEnv, gateEnabled, meetsGate } from "@/lib/token-tiers";
@@ -117,7 +121,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (!(await allowRequest("agent-api-ip", clientIp(req), IP_LIMIT_PER_MIN, 60_000))) {
     return fail(429, "rate_limit", "too many requests from this address", { "retry-after": "60" });
   }
-  if (!isDbEnabled()) {
+  if (!storeEnabled()) {
     return fail(503, "registry_unavailable", "the agent registry is not configured on this deployment");
   }
 
@@ -271,6 +275,20 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   // signature above) must hold enough MIMIR or $ANSEM on mainnet.
   await enforceRegisterGate(ownerWallet);
 
+  // On Arc: where the agent's transactions come from, and the deploy fee ($1, less for $MIMIR holders).
+  const arcOperator = env.body.arcOperator === undefined ? null : arcOperatorOf(env.body.arcOperator);
+  if (env.body.arcOperator !== undefined && !arcOperator) {
+    throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
+  }
+  let payment: { hash: `0x${string}`; wei: bigint } | null = null;
+  if (arcAgentsEnabled()) {
+    const price = await deployPriceFor(ownerWallet);
+    if (price.wei > 0n) {
+      const ownerArc = (await getArcBinding(ownerWallet).catch(() => null))?.arc ?? "";
+      payment = { hash: await onChain(() => verifyDeployPayment(env.body.paymentTx, price.wei, [ownerArc, arcOperator ?? ""])), wei: price.wei };
+    }
+  }
+
   const replay = await replayOrConsumeNonce(env, env.nonce);
   if (replay) return replay;
 
@@ -278,6 +296,14 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     throw new AgentEnvelopeError("that agent id is taken", 409, "agent_exists");
   }
 
+  // The payment is spent first (its hash is unique), so one transaction can never pay for two agents.
+  if (payment) {
+    try {
+      await recordDeployPayment(payment.hash, env.agentId, ownerWallet, payment.wei);
+    } catch {
+      throw new AgentEnvelopeError("that payment already paid for another agent", 409, "payment_used");
+    }
+  }
   const agent = await createAgent({
     agentId: env.agentId,
     ownerWallet,
@@ -287,6 +313,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     authorityLevel: authorityLevel as AuthorityLevel,
     capabilities,
     status: authorityLevel > SELF_SERVICE_MAX_AUTHORITY ? "pending" : "active",
+    arcOperator,
   });
 
   await recordRequest(env.agentId, "register", true, null).catch(() => undefined);
@@ -367,7 +394,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
   if (write) {
     // The check above read the total without a lock; this is the binding one:
     // the cap check and its record in a single locked step (audit P2-10).
-    let reservation: number | null = null;
+    let reservation: string | null = null;
     if (stakeUnits > 0n) {
       reservation = await reserveDailyStake(agent.agentId, env.action, stakeUnits, usdcLimitUnits(agent.limits.maxDailyUsdc));
       if (reservation === null) {
@@ -377,6 +404,31 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
           body: { ok: false, reason: "daily_cap", message: `over ${agent.limits.maxDailyUsdc} USDC at risk today` },
         };
       }
+    }
+    if (arcAgentsEnabled()) {
+      if (!agent.arcOperator) {
+        if (reservation !== null) await releaseStake(reservation, "no_arc_operator").catch(() => undefined);
+        throw new AgentEnvelopeError("set an Arc operator first (setArcOperator): Arc transactions are sent from it", 409, "no_arc_operator");
+      }
+      let arc;
+      try {
+        arc = prepareArcWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body);
+      } catch (err) {
+        if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
+        throw err;
+      }
+      if (reservation === null) await recordRequest(agent.agentId, env.action, true, null, stakeUnits).catch(() => undefined);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          action: env.action,
+          chain: "arc",
+          signer: agent.arcOperator,
+          transactions: arc.transactions,
+          submit: "Sign each transaction with the Arc operator key (value is native USDC in wei) and send it to Arc, in order.",
+        },
+      };
     }
     const operator = new PublicKey(agent.operatorWallet);
     let prepared;
@@ -449,6 +501,13 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       return { status: 200, body: { ok: true, operatorWallet: next, keysRevoked: true } };
     }
 
+    case "setArcOperator": {
+      const next = arcOperatorOf(env.body.arcOperator);
+      if (!next) throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
+      await setArcOperator(agent.agentId, next);
+      return { status: 200, body: { ok: true, arcOperator: next } };
+    }
+
     case "issueKey": {
       const key = generateApiKey();
       await insertApiKey({
@@ -518,12 +577,21 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         throw new AgentEnvelopeError(`state must be one of ${Object.keys(STATE_FILTERS).join(", ")}`, 400, "bad_params");
       }
       const limit = Math.min(Math.max(Number(env.body.limit ?? 50) || 50, 1), 200);
+      if (arcAgentsEnabled()) {
+        const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind }));
+        return { status: 200, body: { ok: true, chain: "arc", source: "index", markets } };
+      }
       const rows = await readClaims({ states, category: str(env.body, "category", 32) || undefined, limit });
       return { status: 200, body: { ok: true, source: "index", claims: rows } };
     }
 
     case "getClaim": {
       const claimId = parseClaimId(env.body.claimId);
+      if (arcAgentsEnabled()) {
+        const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId)));
+        if (!market) throw new AgentEnvelopeError(`market ${claimId} does not exist`, 404, "unknown_claim");
+        return { status: 200, body: { ok: true, chain: "arc", market } };
+      }
       const found = await onChain(() => readClaim(claimId));
       if (!found) throw new AgentEnvelopeError(`claim ${claimId} does not exist`, 404, "unknown_claim");
       return {
@@ -533,11 +601,18 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
 
     case "getBalances": {
+      if (arcAgentsEnabled() && agent.arcOperator) {
+        return { status: 200, body: { ok: true, chain: "arc", arcOperator: agent.arcOperator, ...(await onChain(() => arcOperatorBalance(agent.arcOperator!))) } };
+      }
       const balances = await onChain(() => readBalances(new PublicKey(agent.operatorWallet)));
       return { status: 200, body: { ok: true, operatorWallet: agent.operatorWallet, ...balances } };
     }
 
     case "listPositions": {
+      if (arcAgentsEnabled() && agent.arcOperator) {
+        const positions = await onChain(() => arcOperatorPositions(agent.arcOperator!));
+        return { status: 200, body: { ok: true, chain: "arc", source: "index", arcOperator: agent.arcOperator, positions } };
+      }
       const [created, challenged] = await Promise.all([
         claimsCreatedBy(agent.operatorWallet).catch(() => []),
         claimsChallengedBy(agent.operatorWallet).catch(() => []),

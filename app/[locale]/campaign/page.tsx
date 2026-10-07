@@ -6,7 +6,7 @@ import CampaignClient from "./CampaignClient";
 
 export const metadata: Metadata = {
   title: "Testnet campaign · Mimir",
-  description: "Stake on devnet, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
+  description: "Stake on Arc testnet, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
 };
 
 /** /campaign[?ref=CODE]: the testnet campaign leaderboard. */

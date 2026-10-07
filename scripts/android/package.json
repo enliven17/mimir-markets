@@ -1,0 +1,8 @@
+{
+  "name": "mimir-android",
+  "private": true,
+  "description": "Builds the Android app (a Trusted Web Activity around mimirmarkets.xyz) with Bubblewrap.",
+  "type": "module",
+  "scripts": { "build": "node build-apk.mjs" },
+  "devDependencies": { "@bubblewrap/cli": "^1.24.1" }
+}

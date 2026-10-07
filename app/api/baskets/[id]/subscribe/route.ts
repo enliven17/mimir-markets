@@ -21,7 +21,7 @@ import {
 import { getSubscription, setSubscription } from "@/lib/baskets-store";
 import { findBasket } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
 
@@ -33,7 +33,7 @@ interface Ctx {
 
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (!(await allowRequest("baskets-follow", clientIp(req), 20, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return basketFail(503, "store_unavailable", "baskets need a database on this deploy");
+  if (!storeEnabled()) return basketFail(503, "store_unavailable", "baskets need the backend on this deploy");
   const { id } = await ctx.params;
 
   const body = await readJsonBody(req);

@@ -9,6 +9,12 @@
  * itself. Wallets that are not installed, and the iOS "open in wallet" deep
  * links, are handled by our own connect sheet (components/wallet).
  *
+ * Phones also get Phantom and Solflare over their deeplink protocol
+ * (lib/solana/deeplink-adapter.ts): the wallet app opens to approve and the
+ * answer comes back to this page through our relay, so nobody ends up in a
+ * wallet's own browser. Where the wallet is injected (its in-app browser, a
+ * desktop extension) the Wallet Standard entry of the same name wins.
+ *
  * WalletConnect (mobile QR) is added only when
  * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set, and only on demand: it pulls
  * Reown AppKit (over 1MB of script), so it loads just after the connect sheet
@@ -23,6 +29,8 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletAdapterNetwork, type Adapter, type WalletError } from "@solana/wallet-adapter-base";
 import { SOLANA_RPC } from "./config";
+import { deeplinkAdapters } from "./deeplink-adapter";
+import type { DeeplinkCluster } from "./deeplink-protocol";
 import { emitWalletError } from "./wallet-events";
 
 const NETWORK = WalletAdapterNetwork.Devnet;
@@ -99,9 +107,19 @@ function useWalletConnectAdapter(): Adapter | null {
 
 const onError = (error: WalletError, adapter?: Adapter) => emitWalletError(error, adapter);
 
+/** Phantom and Solflare deeplink adapters, on phones only (decided after mount, so the server render matches). */
+function usePhoneWallets(): Adapter[] {
+  const [adapters, setAdapters] = useState<Adapter[]>([]);
+  useEffect(() => {
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) setAdapters(deeplinkAdapters(NETWORK as DeeplinkCluster));
+  }, []);
+  return adapters;
+}
+
 export function SolanaWalletProviders({ children }: { children: ReactNode }) {
   const walletConnect = useWalletConnectAdapter();
-  const wallets = useMemo<Adapter[]>(() => (walletConnect ? [walletConnect] : []), [walletConnect]);
+  const phone = usePhoneWallets();
+  const wallets = useMemo<Adapter[]>(() => [...phone, ...(walletConnect ? [walletConnect] : [])], [phone, walletConnect]);
 
   return (
     <ConnectionProvider endpoint={SOLANA_RPC} config={{ commitment: "confirmed" }}>

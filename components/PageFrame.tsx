@@ -19,7 +19,7 @@ export default function PageFrame({
   if (isHome) return <div className="w-full min-w-0">{children}</div>;
   return (
     <div
-      className={`mx-auto w-full min-w-0 px-[var(--gut)] pb-10 pt-[calc(92px+env(safe-area-inset-top))] ${
+      className={`mx-auto w-full min-w-0 px-[var(--gut)] pb-10 pt-[calc(92px+env(safe-area-inset-top)+var(--top-banner))] ${
         width === "narrow" ? "max-w-[calc(var(--wrap-narrow)+2*var(--gut))]" : "max-w-[calc(var(--wrap)+2*var(--gut))]"
       }`}
     >

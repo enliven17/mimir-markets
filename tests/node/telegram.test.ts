@@ -62,36 +62,47 @@ test("each wallet alert answers to its own switch; new markets have theirs", asy
   assert.equal(kb.inline_keyboard[1][0].callback_data, "alert:alert_results");
 });
 
-async function withFakeDb<T>(rows: (sql: string) => unknown[], fn: (log: Array<{ sql: string; args: unknown[] }>) => Promise<T>): Promise<T> {
-  const log: Array<{ sql: string; args: unknown[] }> = [];
-  const pool = { async query(sql: string, args: unknown[] = []) { const flat = sql.replace(/\s+/g, " ").trim(); log.push({ sql: flat, args }); return { rows: rows(flat) }; } };
-  const g = globalThis as Record<string, unknown>;
-  const prev = { url: process.env.DATABASE_URL, pool: g.__mimirSolanaPool, ready: g.__mimirSolanaDbReady, tok: process.env.TELEGRAM_BOT_TOKEN };
-  process.env.DATABASE_URL = "postgres://fake";
-  g.__mimirSolanaPool = pool;
-  g.__mimirSolanaDbReady = Promise.resolve(pool);
+/** The memory store and a fake Telegram API; returns the chat ids messages went to. */
+async function withChats<T>(fn: (sent: number[]) => Promise<T>): Promise<T> {
+  const { useMemoryStore } = await import("../../lib/server/store");
+  useMemoryStore();
+  const sent: number[] = [];
+  const prev = { fetch: globalThis.fetch, tok: process.env.TELEGRAM_BOT_TOKEN };
+  process.env.TELEGRAM_BOT_TOKEN = "1:test";
+  globalThis.fetch = (async (_url: string, init?: { body?: string }) => {
+    const body = JSON.parse(init?.body ?? "{}") as { chat_id?: number };
+    if (body.chat_id !== undefined) sent.push(body.chat_id);
+    return new Response(JSON.stringify({ ok: true, result: {} }), { status: 200 });
+  }) as typeof fetch;
   try {
-    return await fn(log);
+    return await fn(sent);
   } finally {
-    if (prev.url === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = prev.url;
-    g.__mimirSolanaPool = prev.pool;
-    g.__mimirSolanaDbReady = prev.ready;
+    globalThis.fetch = prev.fetch;
+    if (prev.tok === undefined) delete process.env.TELEGRAM_BOT_TOKEN; else process.env.TELEGRAM_BOT_TOKEN = prev.tok;
+    useMemoryStore(null);
   }
 }
 
 test("a settlement alert only reaches chats that keep results on, whatever their new-market switch", async () => {
-  const { deliverTelegram } = await import("../../lib/server/telegram");
-  await withFakeDb(() => [], async (log) => {
-    await deliverTelegram({ recipient: "W", claimId: 1, kind: "resolved", dedupe: "r", payload: { question: "q", winnerSide: 1, youWon: true } } as never);
-    assert.match(log[0].sql, /WHERE wallet = \$1 AND NOT blocked AND alert_results$/);
-    assert.doesNotMatch(log[0].sql, /new_markets/);
+  const t = await import("../../lib/server/telegram");
+  await withChats(async (sent) => {
+    // Chat 1: results on, new markets off. Chat 2: results off. Chat 3: another wallet. All linked by code.
+    for (const [chat, wallet] of [[1, "W"], [2, "W"], [3, "X"]] as const) {
+      const code = await t.newLinkCode(chat);
+      assert.equal(await t.redeemLinkCode(code, wallet), chat);
+      assert.equal(await t.redeemLinkCode(code, wallet), null, "a code is redeemed once");
+    }
+    await t.toggleAlertPref(1, "new_markets");
+    await t.toggleAlertPref(2, "alert_results");
+    await t.deliverTelegram({ recipient: "W", claimId: 1, kind: "resolved", dedupe: "r", payload: { question: "q", winnerSide: 1, youWon: true } } as never);
+    assert.deepEqual(sent, [1]);
   });
 });
 
-test("an unknown alert key never reaches SQL", async () => {
-  const { toggleAlertPref } = await import("../../lib/server/telegram");
-  await withFakeDb(() => [], async (log) => {
-    await assert.rejects(() => toggleAlertPref(1, "wallet = 'x'; --"), /unknown alert/);
-    assert.equal(log.length, 0);
+test("an unknown alert key is refused before anything is written", async () => {
+  const t = await import("../../lib/server/telegram");
+  await withChats(async () => {
+    await assert.rejects(() => t.toggleAlertPref(1, "wallet = 'x'; --"), /unknown alert/);
+    assert.equal(await t.chatWallet(1), null);
   });
 });

@@ -1,0 +1,7 @@
+{
+  "name": "mimir-migrate",
+  "private": true,
+  "description": "One-off: copies the retired Postgres tables into the backend's appStore (see neon-to-convex.mjs).",
+  "type": "module",
+  "dependencies": { "pg": "^8.23.1" }
+}

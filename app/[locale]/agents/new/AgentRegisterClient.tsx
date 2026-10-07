@@ -25,6 +25,12 @@ import Button from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Card";
 import Progress from "@/components/ui/Progress";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
+import { useArcAccount } from "@/components/arc/arena/useArcAccount";
+import { arcPublicClient } from "@/lib/arc/chain";
+import { ARC, ARC_USDC } from "@/lib/arc/config";
+import { AGENT_DEPLOY_USD, FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
+import { encodeFunctionData, isAddress, parseAbi } from "viem";
 import { Link } from "@/i18n/navigation";
 import {
   agentRequestMessage,
@@ -85,6 +91,12 @@ export default function AgentRegisterClient() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Registered | null>(null);
   const [copied, setCopied] = useState(false);
+  // On Arc: the EVM address the agent signs with, and the deploy fee paid from the passkey account.
+  const arc = useArcAccount();
+  const onArc = arcArenaEnabled;
+  const [arcOperator, setArcOperator] = useState("");
+  const [paymentTx, setPaymentTx] = useState<string | null>(null);
+  const deployUsd = AGENT_DEPLOY_USD[arc.tier];
   const headingRef = useRef<HTMLHeadingElement>(null);
   const moved = useRef(false);
 
@@ -157,8 +169,25 @@ export default function AgentRegisterClient() {
       // 1. Operator proof: this wallet controls itself.
       const operatorSignature = await sign(operatorProofMessage(agentId, wallet));
 
+      // On Arc: pay the deploy fee first (a USDC transfer from the passkey account to the fee recipient), once;
+      // a retry after a failed registration reuses the same payment.
+      let paid = paymentTx;
+      if (onArc && deployUsd > 0 && !paid) {
+        if (!arc.session) throw new Error("Set up your Arc account on /wallet first: the deploy fee is paid from it.");
+        const v3 = ARC.contracts.mimirV3!;
+        const treasury = await arcPublicClient().readContract({ address: v3, abi: parseAbi(["function feeRecipient() view returns (address)"]), functionName: "feeRecipient" });
+        const amount = BigInt(Math.round(deployUsd * 1e6));
+        const receipt = await arc.session.sendCalls([
+          { to: ARC_USDC, data: encodeFunctionData({ abi: parseAbi(["function transfer(address to, uint256 value) returns (bool)"]), functionName: "transfer", args: [treasury, amount] }) },
+        ]);
+        paid = receipt.txHash;
+        setPaymentTx(paid);
+      }
+
       // 2. Owner envelope: this wallet authorizes the record.
       const reg = envelope("register", {
+        ...(onArc && isAddress(arcOperator.trim()) ? { arcOperator: arcOperator.trim() } : {}),
+        ...(paid ? { paymentTx: paid } : {}),
         ownerWallet: wallet,
         operatorWallet: wallet,
         payoutWallet: wallet,
@@ -335,6 +364,27 @@ export default function AgentRegisterClient() {
           <dt>{t("capabilities")}</dt>
           <dd>{effectiveCapabilities.length ? effectiveCapabilities.join(", ") : "-"}</dd>
         </dl>
+        {onArc ? (
+          <div className="grid gap-3 rounded-xl bg-cream/[0.035] px-4 py-3">
+            <label className="grid gap-1.5 text-[13px] text-muted">
+              Arc operator (optional now, settable later with setArcOperator)
+              <input
+                value={arcOperator}
+                onChange={(e) => setArcOperator(e.target.value)}
+                placeholder="0x… the EVM address your agent signs its Arc transactions with"
+                spellCheck={false}
+                className="rounded-xl bg-ink-deep px-3 py-2.5 font-mono text-[13px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]"
+              />
+            </label>
+            {arcOperator.trim() && !isAddress(arcOperator.trim()) ? <p className="m-0 text-[12px] text-pending">That is not an EVM address.</p> : null}
+            <p className="m-0 text-[13px] text-cream">
+              Deploy fee: {deployUsd === 0 ? "free" : `$${deployUsd.toFixed(2)} USDC`}
+              {arc.tier ? <span className="ml-1 text-win">({FEE_TIER_LABEL[arc.tier]})</span> : null}
+              {paymentTx ? <span className="ml-2 text-win">paid ✓</span> : null}
+            </p>
+            <p className="m-0 text-[12px] text-dim">$1, $0.50 with 5M+ $MIMIR, free with 10M+. Paid from your Arc account with your passkey when you register.</p>
+          </div>
+        ) : null}
         {connected && publicKey ? (
           <div className="grid gap-1 rounded-xl bg-cream/[0.035] px-4 py-3">
             <p className="m-0 font-mono text-[13px] text-cream">{t("wallets", { address: shortKey(publicKey.toBase58()) })}</p>

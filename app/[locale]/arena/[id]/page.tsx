@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Link } from "@/i18n/navigation";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { useBrowserMimir, depositUsdc, delegateBalance, challengeInER, getVirtualBalance } from "@/lib/solana/browser-client-lazy";
 import type { ApiClaim } from "@/lib/server/arena-claim";
 import { isLiveState } from "@/lib/claim-status";
@@ -39,7 +40,26 @@ import BalanceSheet from "@/components/arena/detail/BalanceSheet";
 
 const POLL_MS = 4000;
 
+/** On Arc the old Solana devnet claims are gone: old links (posts, Telegram) land on a short note instead. */
 export default function ArenaClaimPage() {
+  return arcArenaEnabled ? <OldSolanaClaim /> : <SolanaClaimPage />;
+}
+
+function OldSolanaClaim() {
+  return (
+    <div className="mx-auto grid max-w-[560px] gap-4 py-16 text-center">
+      <h1 className="m-0 font-display text-[1.8rem] text-cream">This market was on Solana devnet</h1>
+      <p className="m-0 text-[14px] leading-relaxed text-muted">
+        Mimir now runs on Arc testnet. Markets from the Solana devnet beta are no longer shown; the Arena has the live ones.
+      </p>
+      <Link href="/arena" className="text-coral hover:underline">
+        Go to the Arena
+      </Link>
+    </div>
+  );
+}
+
+function SolanaClaimPage() {
   const t = useTranslations("arena.detail");
   const params = useParams<{ id: string; locale: string }>();
   const wallet = useWallet();

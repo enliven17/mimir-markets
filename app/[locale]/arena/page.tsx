@@ -32,6 +32,8 @@ import {
 } from "@/lib/arena-feed";
 import { formatUsdcBare } from "@/lib/money";
 import { cachedJson, fetchBody } from "@/lib/json-cache";
+import ArcArena from "@/components/arc/arena/ArcArena";
+import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 
 const POLL_MS = 4000;
 const FEED_URL = "/api/arena/claims";
@@ -71,7 +73,12 @@ const EMPTY_HREF: Record<ArenaView, string> = {
   resolved: "/docs",
 };
 
+/** Arc once its contracts and Convex are configured (docs/ARC.md), the Solana feed until then. */
 export default function ArenaPage() {
+  return arcArenaEnabled ? <ArcArena /> : <SolanaArenaPage />;
+}
+
+function SolanaArenaPage() {
   const t = useTranslations("arena.feed");
   const [claims, setClaims] = useState<SolanaClaim[] | null>(cachedClaims);
   const [failed, setFailed] = useState(false);

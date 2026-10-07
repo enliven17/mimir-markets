@@ -9,12 +9,14 @@
  * - "Not installed": Phantom, Solflare and Backpack install links for the
  *   ones this browser does not have. Shown open until a wallet is installed,
  *   behind "I don't have a wallet" otherwise.
- * - Android (Chrome and the Mimir app): the Mobile Wallet Adapter comes first,
- *   named for what it does. It hands the request to Phantom, Solflare or any
- *   wallet app on the phone and comes back here, so the user never leaves.
- * - iPhone (no Mobile Wallet Adapter) without an injected wallet: "Open in
- *   Phantom / Solflare" browse deep links that reopen this page inside the
- *   wallet's browser, where autoConnect picks the wallet up.
+ * - Phones: Phantom and Solflare first, over their deeplink protocol
+ *   (lib/solana/deeplink-adapter.ts): the wallet app opens to approve and
+ *   the answer comes back to this page, so nobody lands in a wallet's own
+ *   browser. On Android the Mobile Wallet Adapter follows, named for what it
+ *   does ("a wallet on this phone").
+ * - Only when no deeplink wallet is available (it is registered on every
+ *   phone, so in practice never): "Open in Phantom / Solflare" browse links
+ *   that reopen this page inside the wallet's browser.
  * - Per-row connecting state, error state with retry, a shake on rejection;
  *   the sheet closes once the wallet is connected.
  *
@@ -38,6 +40,11 @@ type RowError = { name: string; kind: "rejected" | "notReady" | "failed" };
 
 /** @solana-mobile/wallet-adapter-mobile's adapter name (wallet-adapter-react adds it on Android). */
 const MWA_NAME = "Mobile Wallet Adapter";
+/** Phantom / Solflare over deeplinks (lib/solana/deeplink-adapter.ts sets the flag). */
+const isDeeplink = (option: MimirWalletOption) => (option.adapter as { deeplink?: boolean }).deeplink === true;
+/** Phone rows in order: deeplink wallets, then the Mobile Wallet Adapter, then the rest. */
+const rank = (option: MimirWalletOption) =>
+  option.readyState === WalletReadyState.Installed ? 0 : isDeeplink(option) ? 1 : option.adapter.name === MWA_NAME ? 2 : 3;
 
 interface KnownWallet {
   name: string;
@@ -165,19 +172,15 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
     () =>
       wallets
         .filter(isReady)
-        .sort(
-          (a, b) =>
-            Number(b.adapter.name === MWA_NAME) - Number(a.adapter.name === MWA_NAME) ||
-            Number(b.readyState === WalletReadyState.Installed) - Number(a.readyState === WalletReadyState.Installed),
-        ),
+        .sort((a, b) => rank(a) - rank(b)),
     [wallets],
   );
   const hasInstalled = detected.some((w) => w.readyState === WalletReadyState.Installed);
   const detectedNames = new Set(detected.map((w) => w.adapter.name.toLowerCase()));
   const missing = KNOWN_WALLETS.filter((w) => !detectedNames.has(w.name.toLowerCase()));
-  const hasMwa = detected.some((w) => w.adapter.name === MWA_NAME);
-  // With the Mobile Wallet Adapter there is no reason to leave for a wallet's browser.
-  const browseable = platform.mobile && !hasInstalled && !hasMwa ? KNOWN_WALLETS.filter((w) => w.browse) : [];
+  const inApp = detected.some((w) => isDeeplink(w) || w.adapter.name === MWA_NAME);
+  // With the deeplink wallets (or the Mobile Wallet Adapter) there is no reason to leave for a wallet's browser.
+  const browseable = platform.mobile && !hasInstalled && !inApp ? KNOWN_WALLETS.filter((w) => w.browse) : [];
   // Loadable-only options (WalletConnect, Mobile Wallet Adapter) do not count
   // as having a wallet: keep the install links in view until one is installed.
   const installOpen = showInstall || !hasInstalled;
@@ -259,7 +262,9 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
                             ? t(rowError.kind, { wallet: name })
                             : name === MWA_NAME
                               ? t("mwaHint")
-                              : statusLabel(option)}
+                              : isDeeplink(option)
+                                ? t("deeplinkHint", { wallet: name })
+                                : statusLabel(option)}
                       </span>
                     </span>
                     {isPending ? (

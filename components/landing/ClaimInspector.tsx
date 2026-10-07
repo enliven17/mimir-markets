@@ -73,8 +73,8 @@ function Inspector({ claim, now }: { claim: LandingClaim; now: number }) {
         <dd>{claim.delegated ? t("marketEr") : t("marketBase")}</dd>
       </dl>
       <div className="l-insp-foot">
-        <span className="font-mono text-[12px] text-dim">#{claim.id}</span>
-        <Link href={`/arena/${claim.id}`} className="l-link">
+        <span className="font-mono text-[12px] text-dim">{claim.label ?? `#${claim.id}`}</span>
+        <Link href={claim.href ?? `/arena/${claim.id}`} className="l-link">
           {t("open")}
           <PixelArrow size={14} />
         </Link>

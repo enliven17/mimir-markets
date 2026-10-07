@@ -59,8 +59,9 @@ export function isMimirTokenDraft(d: Pick<DraftClaim, "question" | "creatorPosit
 export function draftProblem(d: DraftClaim, nowSec = Math.floor(Date.now() / 1000)): string | null {
   if (!d.question.trim() || !d.creatorPosition.trim() || !d.counterPosition.trim()) return "empty field";
   if (isMimirTokenDraft(d)) return "a $MIMIR claim (the house never makes markets on its own token)";
-  if (mentionsPastDay(`${d.question} ${d.creatorPosition} ${d.counterPosition}`, nowSec * 1000)) {
-    return "names today or a past day (its outcome may already be known)";
+  // The house drafts from schedules (a close tonight, a fixture later today), so today is fine; yesterday is not.
+  if (mentionsPastDay(`${d.question} ${d.creatorPosition} ${d.counterPosition}`, nowSec * 1000, { includeToday: false })) {
+    return "names a past day (its outcome is public)";
   }
   if (bytes(d.question) > MAX_QUESTION_BYTES) return `question over ${MAX_QUESTION_BYTES} bytes`;
   if (bytes(d.creatorPosition) > MAX_POSITION_BYTES || bytes(d.counterPosition) > MAX_POSITION_BYTES) {

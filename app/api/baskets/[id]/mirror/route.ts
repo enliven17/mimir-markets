@@ -14,10 +14,14 @@ import { loadMirrorSignals } from "@/lib/baskets-performance";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { AgentEnvelopeError } from "@/lib/agents/api";
 import { prepareWrite } from "@/lib/agents/chain";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
 import { PublicKey } from "@solana/web3.js";
+import { zeroAddress } from "viem";
+import { ARC } from "@/lib/arc/config";
+import { stakeCall } from "@/lib/arc/markets";
+import { getArcBinding } from "@/lib/server/arc-accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +32,7 @@ interface Ctx {
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   // Each call reads the chain and fetches a blockhash.
   if (!(await allowRequest("baskets-mirror", clientIp(req), 10, 60_000))) return tooManyRequests(60);
-  if (!isDbEnabled()) return basketFail(503, "store_unavailable", "baskets need a database on this deploy");
+  if (!storeEnabled()) return basketFail(503, "store_unavailable", "baskets need the backend on this deploy");
   const { id } = await ctx.params;
 
   const body = await readJsonBody(req);
@@ -55,6 +59,15 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const signal = signals.find((s) => s.claimId === claimId);
   if (!signal) {
     return basketFail(409, "no_signal", "no basket member holds an open position you can copy on that claim");
+  }
+
+  // Arc: the copy is one stake from the follower's passkey account, with the basket's creator as referrer (1% of a
+  // winning copy's profit to them, 1% to Mimir, taken by the contract at payout).
+  const mimirV3 = ARC.contracts.mimirV3;
+  if (mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL) {
+    const referrer = (await getArcBinding(basket.creatorWallet).catch(() => null))?.arc ?? zeroAddress;
+    const call = stakeCall(mimirV3, "vs", claimId, BigInt(signal.suggestedStakeUnits) * 1_000_000_000_000n, 2, referrer);
+    return basketJson({ ok: true, signal, chain: "arc", call: { to: call.to, data: call.data, value: String(call.value ?? 0n) }, referrer });
   }
 
   try {

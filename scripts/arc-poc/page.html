@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Arc modular wallet POC</title></head>
+<body>
+<pre id="log"></pre>
+<script type="module">
+  // Proof of concept for docs/ARC.md: a passkey smart account on Arc testnet that sends a gas-sponsored user
+  // operation. Driven by run.mjs (a headless browser with a virtual WebAuthn authenticator); the client key arrives
+  // in the URL hash so it never lands in a file served from here.
+  import { createPublicClient, encodeFunctionData, erc20Abi } from 'https://esm.sh/viem@2';
+  import { createBundlerClient, toWebAuthnAccount } from 'https://esm.sh/viem@2/account-abstraction';
+  import {
+    toCircleSmartAccount, toModularTransport, toPasskeyTransport, toWebAuthnCredential, WebAuthnMode,
+  } from 'https://esm.sh/@circle-fin/modular-wallets-core';
+
+  const log = (...a) => { document.getElementById('log').textContent += a.join(' ') + '\n'; console.log(...a); };
+  const params = new URLSearchParams(location.hash.slice(1));
+  const clientKey = params.get('key'), clientUrl = 'https://modular-sdk.circle.com/v1/rpc/w3s/buidl';
+  const arcTestnet = {
+    id: 5042002, name: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://rpc.testnet.arc.network'] } },
+  };
+  const USDC = '0x3600000000000000000000000000000000000000';
+
+  window.poc = async () => {
+    try {
+      // 1. a passkey (the virtual authenticator answers the WebAuthn prompt)
+      const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
+      const credential = await toWebAuthnCredential({ transport: passkeyTransport, mode: WebAuthnMode.Register, username: `mimir-poc-${Date.now()}` });
+      log('passkey', credential.id);
+
+      // 2. the smart account it controls on Arc testnet
+      const modularTransport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+      const client = createPublicClient({ chain: arcTestnet, transport: modularTransport });
+      const account = await toCircleSmartAccount({ client, owner: toWebAuthnAccount({ credential }) });
+      log('account', account.address);
+
+      // 3. a sponsored user operation: a 0 USDC transfer to itself, so it needs no balance
+      const bundler = createBundlerClient({ account, chain: arcTestnet, transport: modularTransport });
+      const hash = await bundler.sendUserOperation({
+        calls: [{ to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [account.address, 0n] }) }],
+        paymaster: true,
+      });
+      log('userOp', hash);
+      const { receipt } = await bundler.waitForUserOperationReceipt({ hash });
+      log('tx', receipt.transactionHash, 'status', receipt.status);
+      return { ok: true, account: account.address, tx: receipt.transactionHash, status: receipt.status };
+    } catch (e) {
+      log('ERROR', e?.shortMessage ?? e?.message ?? String(e));
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
+  // ── step 2 (run-cctp.mjs): one account kept for the session, a gasless CCTP receive, balances
+  const MESSAGE_TRANSMITTER_V2 = '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275';
+  const receiveAbi = [{ type: 'function', name: 'receiveMessage', stateMutability: 'nonpayable',
+    inputs: [{ name: 'message', type: 'bytes' }, { name: 'attestation', type: 'bytes' }], outputs: [{ type: 'bool' }] }];
+  let S;
+  window.createAccount = async () => {
+    const credential = await toWebAuthnCredential({ transport: toPasskeyTransport(clientUrl, clientKey), mode: WebAuthnMode.Register, username: `mimir-cctp-${Date.now()}` });
+    const transport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+    const client = createPublicClient({ chain: arcTestnet, transport });
+    const account = await toCircleSmartAccount({ client, owner: toWebAuthnAccount({ credential }) });
+    S = { account, bundler: createBundlerClient({ account, chain: arcTestnet, transport }) };
+    log('account', account.address);
+    return account.address;
+  };
+  window.receive = async (message, attestation) => {
+    try {
+      const hash = await S.bundler.sendUserOperation({
+        calls: [{ to: MESSAGE_TRANSMITTER_V2, data: encodeFunctionData({ abi: receiveAbi, functionName: 'receiveMessage', args: [message, attestation] }) }],
+        paymaster: true,
+      });
+      const { receipt } = await S.bundler.waitForUserOperationReceipt({ hash });
+      log('receive tx', receipt.transactionHash, receipt.status);
+      return { ok: receipt.status === 'success', tx: receipt.transactionHash };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
+  // ── the way back: approve + burn in one sponsored user operation, to a fixed Solana token account
+  const TOKEN_MESSENGER_V2 = '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA';
+  const burnAbi = [{ type: 'function', name: 'depositForBurn', stateMutability: 'nonpayable', inputs: [
+    { name: 'amount', type: 'uint256' }, { name: 'destinationDomain', type: 'uint32' }, { name: 'mintRecipient', type: 'bytes32' },
+    { name: 'burnToken', type: 'address' }, { name: 'destinationCaller', type: 'bytes32' }, { name: 'maxFee', type: 'uint256' },
+    { name: 'minFinalityThreshold', type: 'uint32' }], outputs: [] }];
+  const ZERO32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  window.withdrawToSolana = async (amount, mintRecipient) => {
+    try {
+      const value = BigInt(amount);
+      const hash = await S.bundler.sendUserOperation({
+        calls: [
+          { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [TOKEN_MESSENGER_V2, value] }) },
+          { to: TOKEN_MESSENGER_V2, data: encodeFunctionData({ abi: burnAbi, functionName: 'depositForBurn',
+            args: [value, 5, mintRecipient, USDC, ZERO32, 0n, 2000] }) },
+        ],
+        paymaster: true,
+      });
+      const { receipt } = await S.bundler.waitForUserOperationReceipt({ hash });
+      log('burn on arc', receipt.transactionHash, receipt.status);
+      return { ok: receipt.status === 'success', tx: receipt.transactionHash };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
+  // ── step 3 (run-mimir.mjs): several named accounts, each sending any batch of calls gasless
+  const named = {};
+  window.createNamed = async (name) => {
+    const credential = await toWebAuthnCredential({ transport: toPasskeyTransport(clientUrl, clientKey), mode: WebAuthnMode.Register, username: `mimir-${name}-${Date.now()}` });
+    const transport = toModularTransport(`${clientUrl}/arcTestnet`, clientKey);
+    const account = await toCircleSmartAccount({ client: createPublicClient({ chain: arcTestnet, transport }), owner: toWebAuthnAccount({ credential }) });
+    named[name] = createBundlerClient({ account, chain: arcTestnet, transport });
+    log(name, account.address);
+    return account.address;
+  };
+  /** calls: [{ to, data, value? (decimal string, wei) }] */
+  window.sendCalls = async (name, calls) => {
+    try {
+      const hash = await named[name].sendUserOperation({
+        calls: calls.map((c) => ({ to: c.to, data: c.data, value: c.value ? BigInt(c.value) : 0n })),
+        paymaster: true,
+      });
+      const { receipt, success, reason } = await named[name].waitForUserOperationReceipt({ hash });
+      return { ok: success && receipt.status === 'success', tx: receipt.transactionHash, reason: reason ?? null };
+    } catch (e) {
+      return { ok: false, error: e?.details ?? e?.shortMessage ?? e?.message ?? String(e) };
+    }
+  };
+  window.pocReady = true;
+</script>
+</body>
+</html>

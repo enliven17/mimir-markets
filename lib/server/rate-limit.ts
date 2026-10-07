@@ -1,11 +1,11 @@
-import { isDbEnabled, query } from "./db";
+import { store, storeEnabled } from "./store";
 
 /**
  * Fixed-window per-key request counter.
  *
- * With DATABASE_URL set the count lives in Postgres, shared across instances:
- * one statement per check, the upsert both counts and reads. Without it (or
- * when the database errors) the count falls back to this process's memory,
+ * With the backend configured the count lives there, shared across instances:
+ * one atomic increment per check that both counts and reads. Without it (or
+ * when the backend errors) the count falls back to this process's memory,
  * which still caps a single flooding client on a single instance.
  */
 
@@ -62,17 +62,14 @@ export async function allowRequest(
 ): Promise<boolean> {
   const windowStart = Math.floor(now / windowMs) * windowMs;
   const bucketKey = `${bucket}:${key}`;
-  if (!isDbEnabled()) return allowInMemory(bucketKey, windowStart, limit, now);
+  if (!storeEnabled()) return allowInMemory(bucketKey, windowStart, limit, now);
   try {
-    const rows = await query<{ hits: number }>(
-      `INSERT INTO rate_limits (bucket_key, window_start, hits) VALUES ($1, $2, 1)
-       ON CONFLICT (bucket_key, window_start) DO UPDATE SET hits = rate_limits.hits + 1
-       RETURNING hits`,
-      [bucketKey, windowStart],
-    );
-    return Number(rows[0]?.hits ?? 0) <= limit;
+    const [hits] = await store().tx([
+      { op: "incr", t: "rate_limits", k: `${bucketKey}@${windowStart}`, field: "hits", d: { bucket_key: bucketKey, window_start: windowStart, hits: 0 }, at: windowStart },
+    ]);
+    return Number(hits ?? 0) <= limit;
   } catch (err) {
-    console.warn(`[rate-limit] ${bucket} db check failed, counting in memory:`, err);
+    console.warn(`[rate-limit] ${bucket} backend check failed, counting in memory:`, err);
     return allowInMemory(bucketKey, windowStart, limit, now);
   }
 }
@@ -80,8 +77,9 @@ export async function allowRequest(
 /** Old windows only matter to whatever job deletes them. */
 export async function pruneRateLimits(olderThanMs = 86_400_000, now = Date.now()): Promise<void> {
   sweepMemory(now);
-  if (!isDbEnabled()) return;
-  await query("DELETE FROM rate_limits WHERE window_start < $1", [now - olderThanMs]);
+  // The backend sweeps its own old windows (convex/appStore.ts sweep); this is for an explicit cleanup.
+  if (!storeEnabled()) return;
+  await store().prune("rate_limits", now - olderThanMs);
 }
 
 /**

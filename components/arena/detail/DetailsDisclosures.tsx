@@ -57,7 +57,7 @@ export default function DetailsDisclosures({
           <dt>{t("seats")}</dt>
           <dd>{t("seatsValue", { count: claim.challengers.length, max: seats })}</dd>
           <dt>{t("deadline")}</dt>
-          <dd>{new Date(claim.deadline * 1000).toLocaleString()}</dd>
+          <dd>{new Date(claim.deadline * 1000).toLocaleString("en-US")}</dd>
           <dt>{t("settlement")}</dt>
           <dd className="!font-sans">{host}</dd>
         </dl>

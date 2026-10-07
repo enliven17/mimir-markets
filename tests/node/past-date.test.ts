@@ -16,6 +16,11 @@ test("today counts as decided: the match can finish before the deadline", () => 
   assert.ok(mentionsPastDay("Will City beat Arsenal on October 5, 2026?", OCT5_NOON));
 });
 
+test("schedule-built drafts may name today, never yesterday", () => {
+  assert.ok(!mentionsPastDay("NVDA close on October 5, 2026?", OCT5_NOON, { includeToday: false }));
+  assert.ok(mentionsPastDay("NVDA close on October 4, 2026?", OCT5_NOON, { includeToday: false }));
+});
+
 test("later days and undated claims pass", () => {
   assert.ok(!mentionsPastDay("Will City beat Arsenal on October 6, 2026?", OCT5_NOON));
   assert.ok(!mentionsPastDay("Will BTC be above $120k on December 31, 2026?", OCT5_NOON));

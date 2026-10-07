@@ -72,45 +72,16 @@ test("a wallet cannot owe more than the unpaid cap before it settles", () => {
   assert.equal(canAfford({ ...base, owedUnits: 0n, priceUnits: 1_000_000n }), "ok", "one message at the max price always fits");
 });
 
-test("a charge is reserved under a per-wallet lock and refused when the limit is used up", async () => {
+test("paid terminal charges are retired with Postgres: reserving one fails loudly, never silently succeeds", async () => {
   const { reserveCharge } = await import("../../lib/server/terminal-pay");
-  const run = async (owed: string) => {
-    const log: string[] = [];
-    const client = {
-      async query(sql: string) {
-        const flat = sql.replace(/\s+/g, " ").trim();
-        log.push(flat);
-        if (flat.startsWith("SELECT COALESCE")) return { rows: [{ owed }] };
-        if (flat.startsWith("INSERT")) return { rows: [{ id: 7 }] };
-        return { rows: [] };
-      },
-      release() {},
-    };
-    const g = globalThis as Record<string, unknown>;
-    const prev = { url: process.env.DATABASE_URL, pool: g.__mimirSolanaPool, ready: g.__mimirSolanaDbReady };
-    const pool = { connect: async () => client, query: client.query };
-    process.env.DATABASE_URL = "postgres://fake";
-    g.__mimirSolanaPool = pool;
-    g.__mimirSolanaDbReady = Promise.resolve(pool);
-    try {
-      const out = await reserveCharge({
+  await assert.rejects(
+    () =>
+      reserveCharge({
         wallet: "U", agentId: "a", payoutWallet: "P", priceUnits: 20_000n, delegate: "D",
         allowance: { delegate: "D", delegatedUnits: 100_000n, balanceUnits: 1_000_000n },
-      });
-      return { out, log };
-    } finally {
-      if (prev.url === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = prev.url;
-      g.__mimirSolanaPool = prev.pool;
-      g.__mimirSolanaDbReady = prev.ready;
-    }
-  };
-  const ok = await run("0");
-  assert.deepEqual(ok.out, { id: 7 });
-  assert.match(ok.log[1], /pg_advisory_xact_lock/);
-  assert.ok(ok.log.some((l) => l.startsWith("INSERT INTO terminal_charges")));
-  const full = await run("90000");
-  assert.deepEqual(full.out, { reason: "limit_too_low" });
-  assert.ok(!full.log.some((l) => l.startsWith("INSERT")), "nothing is reserved past the limit");
+      }),
+    /Postgres is retired/,
+  );
 });
 
 test("house personas: thinking ones charge 0.01 USDC once paid chat is on, rule ones never", async () => {

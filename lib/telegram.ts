@@ -157,8 +157,15 @@ export function notificationText(e: NotificationEvent): string | null {
 
 /** Inline keyboard: open the market (as a Mini App inside Telegram). */
 export function marketButton(id: number) {
-  return { inline_keyboard: [[{ text: "Open market", web_app: { url: claimUrl(id) } }]] };
+  return marketUrlButton(claimUrl(id));
 }
+
+export function marketUrlButton(url: string) {
+  return { inline_keyboard: [[{ text: "Open market", web_app: { url } }]] };
+}
+
+/** An Arc market page. */
+export const arcMarketUrl = (kind: "vs" | "pool", id: number) => `${SITE_URL}/en/arena/arc/${kind}/${id}`;
 
 const compactUsd = (n: number | null) =>
   n === null ? "n/a" : `$${n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 })}`;

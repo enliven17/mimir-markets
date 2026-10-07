@@ -5,66 +5,115 @@
   <title>Mimir banner</title>
   <link rel="stylesheet" href="base.css" />
   <style>
-    /* 1500×500. X puts the avatar over the lower-left corner (roughly x<380,
-       y>320) and crops the sides on phones, so the copy sits upper right and the
-       lower left holds only the wave field. */
-    .canvas { width: 1500px; height: 500px; }
-    .glow {
-      position: absolute; inset: 0;
-      background:
-        radial-gradient(ellipse 520px 360px at 380px 250px, rgb(255 43 43 / 0.26), rgb(143 14 23 / 0.12) 45%, rgb(17 15 14 / 0) 75%);
-    }
-    .copy { position: absolute; right: 112px; top: 64px; text-align: right; }
-    .eyebrow {
-      display: flex; align-items: center; justify-content: flex-end; gap: 12px;
-      font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted);
-    }
-    .eyebrow .sq { width: 9px; height: 9px; background: var(--red); box-shadow: 0 0 12px rgb(255 43 43 / 0.8); }
-    h1 { margin-top: 22px; font-size: 96px; color: var(--cream); white-space: nowrap; }
-    h1 .line { display: inline; }
+    /* 1500×500 (rendered at 2×). X lays the avatar over the lower-left corner (about x<380, y>320) and trims the sides
+       on phones. The idea comes from the myth: Mimir's horn, drawn from the well of knowledge. Here it pours a river of
+       the markets' own words and numbers (sides, odds, verdicts, hashes) that runs right to left across the banner and
+       sinks into the corner behind the avatar. The line sits upper left, clear of both. */
+    .canvas { width: 1500px; height: 500px; background: radial-gradient(ellipse 900px 520px at 1180px 210px, #1d1312 0%, #110f0e 55%, #0a0808 100%); }
+    #river { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .horn { position: absolute; right: 70px; top: 46px; width: 330px; transform: rotate(-18deg); filter: drop-shadow(0 0 40px rgb(255 43 43 / 0.25)); }
+    .copy { position: absolute; left: 92px; top: 66px; }
+    .eyebrow { display: flex; align-items: center; gap: 12px; font-size: 14px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+    .eyebrow .sq { width: 8px; height: 8px; background: var(--red); box-shadow: 0 0 12px rgb(255 43 43 / 0.8); }
+    h1 { margin-top: 18px; font-size: 84px; line-height: 0.95; color: var(--cream); }
     h1 .settle { position: relative; display: inline-block; color: var(--red); text-shadow: 0 0 30px rgb(255 43 43 / 0.35); }
-    .scribble { position: absolute; left: -4px; right: -10px; bottom: -14px; height: 24px; width: calc(100% + 14px); image-rendering: pixelated; }
-    .sub { margin-top: 30px; font-size: 22px; color: var(--muted); }
+    .scribble { position: absolute; left: -4px; bottom: -14px; height: 22px; width: calc(100% + 12px); image-rendering: pixelated; }
+    .sub { margin-top: 30px; font-size: 19px; color: var(--muted); }
     .sub b { color: var(--cream); font-weight: 400; }
-    .pills { position: absolute; right: 112px; bottom: 48px; display: flex; gap: 10px; }
-    .pill {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 16px; border-radius: 999px;
-      background: rgb(28 24 23 / 0.92); box-shadow: inset 0 0 0 1px rgb(243 234 214 / 0.08);
-      font-size: 14px; letter-spacing: 0.08em; color: var(--cream);
-    }
-    .pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+    .nets { position: absolute; right: 96px; bottom: 40px; display: flex; gap: 22px; align-items: center; opacity: 0.85; }
+    .nets img { height: 20px; width: auto; }
+    .nets .sep { width: 1px; height: 14px; background: rgb(243 234 214 / 0.25); }
   </style>
 </head>
 <body>
   <div class="canvas">
-    <canvas class="field" id="field"></canvas>
+    <canvas id="river" width="3000" height="1000"></canvas>
     <div class="dots"></div>
-    <div class="glow"></div>
-
+    <img class="horn" src="kit-assets/mimir-horn.svg" alt="" />
     <div class="copy">
-      <div class="eyebrow mono"><span class="sq"></span>AI-settled claims on Solana</div>
-      <h1 class="display">
-        <span class="line">Don't argue. </span><span class="line"><span class="settle">Settle.<canvas class="scribble" id="scribble"></canvas></span></span>
-      </h1>
-      <p class="sub pixel">Stake a side. <b>20 AI agents</b> and an oracle settle it on-chain.</p>
+      <div class="eyebrow mono"><span class="sq"></span>Claims, settled by AI</div>
+      <h1 class="display">Don't argue.<br /><span class="settle">Settle.<canvas class="scribble" id="scribble"></canvas></span></h1>
+      <p class="sub pixel">Any question becomes a market. <b>An AI oracle</b> settles it, with receipts.</p>
     </div>
-
-    <div class="pills mono">
-      <span class="pill"><i></i>Solana</span>
-      <span class="pill">MagicBlock ER</span>
-      <span class="pill">Zero-fee bets</span>
+    <div class="nets">
+      <img src="networks/arc.svg" alt="Arc" />
+      <span class="sep"></span>
+      <img src="networks/solana.svg" alt="Solana" style="height: 13px" />
     </div>
   </div>
   <script type="module">
-    import { drawField, drawScribble } from './parts.js'
+    import { drawScribble } from './parts.js'
+
+    // A seeded generator, so every render draws the same river.
+    let seed = 7
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+
+    // What flows out of the horn: the vocabulary of a market's life.
+    const WORDS = ['YES', 'NO', 'VS #12', 'POOL #4', '0.5%', '72%', '91%', 'FIRM', 'CONTESTED', 'REFUND', 'SETTLED',
+      'PROPOSED', '2 USDC', '$83,254', 'ETH > 2,567', 'sha256 9f2c', 'CCTP', 'ARC', 'SOLANA', 'PAID', '✓', '0x9f2c…ab41',
+      'DISPUTE', 'VERDICT', 'EVIDENCE', '+3.00', '+0.10', 'BTC', 'odds 3:1', 'DEADLINE', 'COUNCIL', 'ORACLE']
+
+    const cv = document.getElementById('river')
+    const ctx = cv.getContext('2d')
+    ctx.scale(2, 2)
     await document.fonts.ready
-    // Wave rings on the left, behind the avatar; faded out before the copy.
-    drawField(document.getElementById('field'), {
-      cell: 14, frame: 40, cx: 0.22, cy: 0.5, spread: 12,
-      mask: (x) => Math.max(0, Math.min(1, (0.46 - x) / 0.2)),
-    })
-    drawScribble(document.getElementById("scribble"), 3)
+
+    // The river's spine: from the horn's mouth (upper right) sweeping left and down into the lower-left corner.
+    const P = [[1118, 232], [930, 300], [760, 470], [420, 400], [-80, 520]]
+    const at = (t) => {
+      // De Casteljau on the five control points.
+      let pts = P.map((p) => [...p])
+      while (pts.length > 1) pts = pts.slice(1).map((p, i) => [pts[i][0] + (p[0] - pts[i][0]) * t, pts[i][1] + (p[1] - pts[i][1]) * t])
+      return pts[0]
+    }
+    const normal = (t) => {
+      const [x1, y1] = at(Math.max(0, t - 0.002)), [x2, y2] = at(Math.min(1, t + 0.002))
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1
+      return [-(y2 - y1) / len, (x2 - x1) / len]
+    }
+
+    // Strands of text along the spine; the river widens as it falls and cools from cream to red.
+    const STRANDS = 18
+    for (let s = 0; s < STRANDS; s++) {
+      const lane = (s / (STRANDS - 1) - 0.5) * 2
+      let t = rand() * 0.02
+      while (t < 1) {
+        const word = WORDS[Math.floor(rand() * WORDS.length)]
+        const width = 10 + t * 120
+        const wave = Math.sin(t * 9 + s * 0.7) * (6 + t * 18)
+        const [x, y] = at(t)
+        const [nx, ny] = normal(t)
+        const px = x + nx * (lane * width + wave)
+        const py = y + ny * (lane * width + wave)
+        const size = 7 + t * 9 + rand() * 3
+        const edge = Math.abs(lane)
+        // Brightest just out of the horn, fading as it widens; dimmer at the edges of the stream.
+        const a = Math.max(0, (0.9 - edge * 0.6) * (1 - t * 0.55))
+        const hot = rand() < 0.08 + t * 0.12
+        ctx.font = `${hot ? 500 : 400} ${size}px Mono, monospace`
+        ctx.fillStyle = hot ? `rgba(255, 43, 43, ${Math.min(1, a + 0.15)})` : `rgba(${243 - t * 40}, ${234 - t * 120}, ${214 - t * 140}, ${a})`
+        ctx.save()
+        ctx.translate(px, py)
+        const [tx, ty] = at(Math.min(1, t + 0.003))
+        // The river runs right to left: turn each word half a circle so it still reads left to right.
+        let angle = Math.atan2(ty - y, tx - x)
+        if (Math.cos(angle) < 0) angle += Math.PI
+        ctx.rotate(angle + (rand() - 0.5) * 0.12)
+        ctx.fillText(word, 0, 0)
+        ctx.restore()
+        t += (ctx.measureText(word).width + 10 + rand() * 18) / 1900
+      }
+    }
+
+    // A few drops spilling over the horn's lip.
+    for (let i = 0; i < 70; i++) {
+      const x = 1085 + rand() * 70, y = 200 + rand() * 70
+      ctx.fillStyle = `rgba(255, 81, 72, ${0.2 + rand() * 0.5})`
+      ctx.fillRect(Math.round(x / 3) * 3, Math.round(y / 3) * 3, 3, 3)
+    }
+
+    drawScribble(document.getElementById('scribble'), 3)
+    await Promise.all([...document.images].map((i) => i.decode().catch(() => {})))
     document.body.dataset.ready = '1'
   </script>
 </body>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mimir logo export</title>
+<style>
+  /* One logo, centred on a transparent 512×512 canvas (rendered at 2×), for the brand kit PNGs.
+     ?horn | ?horn-red | ?mark | ?mark-mono-ink */
+  html, body { margin: 0; background: transparent; }
+  .c { width: 512px; height: 512px; display: grid; place-items: center; }
+  img { max-width: 78%; max-height: 78%; }
+</style></head>
+<body><div class="c"><img id="logo" alt=""></div>
+<script>
+  const v = location.search.slice(1) || 'horn'
+  const src = { horn: 'kit-assets/mimir-horn.svg', 'horn-red': 'kit-assets/mimir-horn-red.svg', mark: 'kit-assets/mimir-mark.svg', 'mark-mono-ink': 'kit-assets/mimir-mark-ink.svg' }[v]
+  const img = document.getElementById('logo')
+  img.onload = () => { document.body.dataset.ready = '1' }
+  img.src = src
+</script></body></html>

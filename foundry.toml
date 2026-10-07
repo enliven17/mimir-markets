@@ -1,0 +1,24 @@
+[profile.default]
+src = "contracts"
+test = "contracts/test"
+out = "forge-out"
+cache_path = "forge-cache"
+test_failures_file = "forge-cache/test-failures"
+libs = []
+solc = "0.8.28"
+# The claim struct and the 17-argument createClaim put the legacy pipeline over
+# its stack limit, so the contract is compiled the same way it is deployed.
+via_ir = true
+optimizer = true
+# 1, not 200: the review fixes put the runtime near the EIP-170 limit (24,576 bytes).
+optimizer_runs = 1
+
+[fmt]
+line_length = 100
+
+# Keep fuzz/invariant failure replays with the other ignored build output.
+[fuzz]
+failure_persist_dir = "forge-cache/fuzz"
+
+[invariant]
+failure_persist_dir = "forge-cache/invariant"

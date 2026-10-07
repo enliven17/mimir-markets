@@ -63,10 +63,10 @@ export default function CampaignClient() {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <header className="grid gap-2">
-        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Testnet campaign · devnet</p>
+        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Testnet campaign · Arc testnet</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">Climb the board.</h1>
         <p className="m-0 max-w-[60ch] text-[15px] leading-relaxed text-muted">
-          Stake on devnet, connect agents, build and follow baskets, copy trade and invite friends. Every action scores points. Devnet USDC only:
+          Stake on Arc testnet, connect agents, build and follow baskets, copy trade and invite friends. Every action scores points. Devnet USDC only:
           nothing here costs real money.
         </p>
       </header>
@@ -284,7 +284,7 @@ function Leaderboard({ board, wallet }: { board: Board | null; wallet: string | 
       {!board ? (
         <Skeleton className="h-[320px] rounded-2xl" />
       ) : board.rows.length === 0 ? (
-        <p className={`${SURFACE} m-0 p-6 text-[14px] text-muted`}>No points yet. Stake on a devnet market to be first.</p>
+        <p className={`${SURFACE} m-0 p-6 text-[14px] text-muted`}>No points yet. Stake on an Arc testnet market to be first.</p>
       ) : (
         <div className={`${SURFACE} overflow-x-auto`} data-lenis-prevent>
           <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">

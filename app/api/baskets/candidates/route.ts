@@ -7,7 +7,7 @@
  */
 import { councilRoster } from "@/lib/server/council-roster";
 import { listAgents } from "@/lib/agents/store";
-import { isDbEnabled } from "@/lib/server/db";
+import { storeEnabled } from "@/lib/server/store";
 import { basketJson } from "@/lib/server/basket-http";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function GET(): Promise<Response> {
   const personas = councilRoster()
     .filter((p) => p.address)
     .map((p) => ({ agentId: p.slug, label: p.displayName, emoji: p.emoji, kind: "persona" as const, wallet: p.address }));
-  const agents = isDbEnabled()
+  const agents = storeEnabled()
     ? (await listAgents(100).catch(() => []))
         .filter((a) => a.status === "active")
         .map((a) => ({

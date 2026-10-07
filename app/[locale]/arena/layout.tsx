@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+
 // The Solana wallet context now lives in the root layout, so this group
 // only needs to set its metadata.
 export const metadata = {

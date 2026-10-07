@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#110f0e" />
+  <title>Mimir: offline</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #110f0e; color: #f3ead6; font: 16px/1.5 system-ui, sans-serif; }
+    main { min-height: 100%; display: grid; place-content: center; gap: 18px; padding: 24px; text-align: center; }
+    img { width: 88px; height: 88px; margin: 0 auto; border-radius: 22%; }
+    h1 { margin: 0; font-size: 22px; font-weight: 500; }
+    p { margin: 0; color: #a89d93; max-width: 300px; }
+    button { justify-self: center; border: 0; border-radius: 999px; background: #ff5148; color: #160909; padding: 10px 22px; font: inherit; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/app/icon-192.png" alt="" />
+    <h1>You're offline</h1>
+    <p>Mimir needs a connection to show live markets. Your positions are safe on chain.</p>
+    <button onclick="location.reload()">Try again</button>
+  </main>
+</body>
+</html>

@@ -57,6 +57,16 @@ type PromptClaim = Pick<
   "question" | "creatorPosition" | "counterPosition" | "category" | "resolutionUrl" | "deadline" | "creatorStake" | "totalChallengerStake"
 >;
 
+const JUDGE_RULES = "- UNRESOLVABLE only if the evidence is missing, ambiguous, or lacks the data needed.";
+// A forecast is about an event that has not happened yet: "not yet played" or "the price can still move" is the
+// normal case, not a reason to abstain. Pick the likelier side from what is known now and say how likely it is.
+const FORECAST_RULES = `- The outcome is in the future; that is expected. Forecast it from what is known now: the current price against the
+  threshold and the time left, form, standings, schedule, base rates. Do not answer UNRESOLVABLE because it has not
+  happened yet.
+- UNRESOLVABLE only if the question itself cannot be settled (no usable source, or terms too vague to judge).
+- confidence is your probability (50-95) that the side you pick wins. Stay under 90 while there is real time or
+  uncertainty left; go higher only when the outcome is effectively locked.`;
+
 export function buildPersonaPrompt(
   persona: PersonaSpec,
   claim: PromptClaim,
@@ -107,7 +117,7 @@ ${task}
 Return JSON only:
 { "verdict": "CREATOR_WINS" | "CHALLENGERS_WIN" | "DRAW" | "UNRESOLVABLE", "confidence": <0-100>, "explanation": "<one or two sentences in your voice>" }
 
-- UNRESOLVABLE only if the evidence is missing, ambiguous, or lacks the data needed.
+${mode === "judge" ? JUDGE_RULES : FORECAST_RULES}
 - Never invent evidence. Cite what you actually saw above.`;
 }
 

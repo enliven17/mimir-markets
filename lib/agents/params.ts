@@ -6,6 +6,7 @@
  * (onchain/programs/mimir/src/constants.rs): strings are measured in UTF-8
  * bytes because that is what the account space is sized in.
  */
+import { ARC } from "../arc/config";
 import { AgentEnvelopeError, type AgentWriteAction } from "./api";
 import { CATEGORIES } from "../constants";
 import { DISPUTE_BOND_UNITS } from "../solana/config";
@@ -15,7 +16,8 @@ export const MAX_POSITION_BYTES = 100;
 export const MAX_URL_BYTES = 200;
 export const MAX_CHALLENGERS = 16;
 /** Minimum stake the program accepts, in USDC. */
-export const MIN_STAKE_USDC = 2;
+/** On Arc the contracts' own stake minimum (a deploy parameter); 2 USDC for the Solana program. */
+export const MIN_STAKE_USDC = ARC.contracts.mimirV3 ? Number(ARC.contracts.minStakeWei) / 1e18 : 2;
 /** A claim must run at least this long, so it cannot be settled before anyone sees it. */
 export const MIN_CLAIM_DURATION_SEC = 15 * 60;
 export const MAX_CLAIM_DURATION_SEC = 90 * 86_400;
