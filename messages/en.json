@@ -427,7 +427,7 @@
       "usdc": "USDC",
       "network": "Network",
       "networkValue": "Arc testnet · Solana",
-      "networkArc": "Arc testnet",
+      "networkArc": "Live on Arc · Solana",
       "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
