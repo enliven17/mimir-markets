@@ -1218,6 +1218,8 @@
     "connect": "Connect",
     "connectWallet": "Connect wallet",
     "connecting": "Connecting…",
+    "mwaName": "A wallet on this phone",
+    "mwaHint": "Phantom, Solflare or any Solana wallet app. You come straight back here.",
     "sheetTitle": "Connect a wallet",
     "sheetLead": "Mimir runs on Solana devnet. Connecting shares your public address, nothing else.",
     "close": "Close",
