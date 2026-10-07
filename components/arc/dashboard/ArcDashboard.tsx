@@ -7,6 +7,7 @@
  * Payouts are pushed to the account at settlement (VS) or by the oracle
  * (pools), so there is nothing to claim here except a parked one.
  */
+import { InvitesPanel } from "@/components/access/AccessGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { encodeFunctionData, parseAbi, type Address } from "viem";
@@ -85,6 +86,7 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
 
   return (
     <>
+      <InvitesPanel />
       <section aria-label="Balances" className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
         <div className="min-w-0">
           <p className="m-0 text-[13px] text-muted">Arc balance · {ARC.network}</p>

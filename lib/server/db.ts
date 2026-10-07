@@ -324,6 +324,22 @@ const SCHEMA_STATEMENTS: readonly string[] = [
     credential_id TEXT,
     bound_at      BIGINT
   )`,
+  // ── Invite-only access (lib/server/access.ts) ───────────────────────────────
+  // Who may use the app while it is invite-only, and the codes holders hand out.
+  `CREATE TABLE IF NOT EXISTS access_grants (
+    wallet     TEXT PRIMARY KEY,
+    via        TEXT NOT NULL,
+    code       TEXT,
+    granted_at BIGINT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS access_invites (
+    code       TEXT PRIMARY KEY,
+    owner      TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    used_by    TEXT UNIQUE,
+    used_at    BIGINT
+  )`,
+  `CREATE INDEX IF NOT EXISTS access_invites_owner_idx ON access_invites (owner)`,
 ];
 
 /** Changes whenever a schema statement does, so a deploy that edits DDL re-runs it. */
