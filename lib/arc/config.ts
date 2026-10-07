@@ -32,6 +32,15 @@ export interface ArcConfig {
     tokenMessengerMinter: string;
     messageTransmitter: string;
   };
+  /** Mimir's own contracts on this Arc network (scripts/arc/deploy.mjs prints these); null until deployed. */
+  contracts: {
+    /** VS (duel) markets. */
+    mimirV3: `0x${string}` | null;
+    /** Two-sided pool markets. */
+    mimirPool: `0x${string}` | null;
+    /** The first block worth indexing (the deploy block). */
+    fromBlock: bigint;
+  };
   circle: {
     /** Public browser key from Circle Console (allowed domain = the site's exact host). */
     clientKey: string;
@@ -61,6 +70,20 @@ export interface ArcEnv {
   rpcUrl?: string;
   explorer?: string;
   clientKey?: string;
+  mimirV3?: string;
+  mimirPool?: string;
+  fromBlock?: string;
+}
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const addressOrNull = (v: string | undefined) => (v && ADDRESS.test(v.trim()) ? (v.trim() as `0x${string}`) : null);
+function contractsFrom(env: ArcEnv): ArcConfig["contracts"] {
+  const block = env.fromBlock?.trim();
+  return {
+    mimirV3: addressOrNull(env.mimirV3),
+    mimirPool: addressOrNull(env.mimirPool),
+    fromBlock: block && /^\d+$/.test(block) ? BigInt(block) : 0n,
+  };
 }
 
 export function parseArcNetwork(value: string | undefined): ArcNetwork {
@@ -87,6 +110,7 @@ export function arcConfig(env: ArcEnv): ArcConfig {
         domains: { solana: SOLANA_DOMAIN, arc: ARC_DOMAIN },
       },
       solana: { cluster: "devnet", usdcMint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", ...CCTP_SOLANA_PROGRAMS },
+      contracts: contractsFrom(env),
       circle: { clientKey, passkeyUrl: CIRCLE_MODULAR_BASE, modularUrl: `${CIRCLE_MODULAR_BASE}/arcTestnet` },
     };
   }
@@ -106,6 +130,7 @@ export function arcConfig(env: ArcEnv): ArcConfig {
       domains: { solana: SOLANA_DOMAIN, arc: ARC_DOMAIN },
     },
     solana: { cluster: "mainnet-beta", usdcMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", ...CCTP_SOLANA_PROGRAMS },
+    contracts: contractsFrom(env),
     // TODO(arc-mainnet): the SDK and docs do not name the mainnet path; `/arc` follows the viem chain name like `/arcTestnet`.
     circle: { clientKey, passkeyUrl: CIRCLE_MODULAR_BASE, modularUrl: `${CIRCLE_MODULAR_BASE}/arc` },
   };
@@ -117,6 +142,9 @@ export const ARC: ArcConfig = arcConfig({
   rpcUrl: process.env.NEXT_PUBLIC_ARC_RPC,
   explorer: process.env.NEXT_PUBLIC_ARC_EXPLORER,
   clientKey: process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY,
+  mimirV3: process.env.NEXT_PUBLIC_MIMIR_V3_ADDRESS,
+  mimirPool: process.env.NEXT_PUBLIC_MIMIR_POOL_ADDRESS,
+  fromBlock: process.env.NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK,
 });
 
 export function arcExplorerUrl(kind: "tx" | "address", id: string, config: ArcConfig = ARC): string {
