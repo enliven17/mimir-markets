@@ -1,4 +1,0 @@
-Who decides who was right? An AI oracle, with receipts.
-Rules and two price sources first, an LLM only when there is no rule. Every verdict is sealed, hashed on chain and checkable at /verify.
-It only proposes: 24h to dispute with a 2 USDC bond, then payouts.
-mimirmarkets.xyz

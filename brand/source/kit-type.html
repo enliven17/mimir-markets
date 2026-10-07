@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mimir kit type</title><link rel="stylesheet" href="base.css"><link rel="stylesheet" href="kit-sheet.css">
+<style>
+  .cols { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 26px; height: 100%; }
+  .face { border-radius: 18px; padding: 26px; display: grid; align-content: space-between; box-shadow: inset 0 0 0 1px rgb(243 234 214 / 0.12); background: rgb(28 24 23 / 0.7); }
+  .big { font-size: 88px; line-height: 0.95; color: var(--cream); }
+  .mid { font-size: 30px; line-height: 1.25; color: var(--cream); }
+  .small { font-size: 22px; line-height: 1.5; color: var(--cream); letter-spacing: 0.04em; }
+  .meta { display: grid; gap: 6px; }
+</style></head>
+<body><div class="canvas"><div class="dots"></div>
+<div class="head"><div class="eyebrow mono"><span class="sq"></span>Brand kit · Type</div><h1 class="display">Three faces, three jobs.</h1></div>
+<div class="body"><div class="cols">
+  <div class="face"><div class="big display">Don't argue. Settle.</div><div class="meta"><div class="lbl mono">Display · Terminal Grotesque</div><div class="note pixel">Headlines and the wordmark. Short lines, sentence case.</div></div></div>
+  <div class="face"><div class="mid pixel">Stake USDC on a claim. The AI oracle settles it.</div><div class="meta"><div class="lbl mono">Body · Geist Pixel Square</div><div class="note pixel">Sub-lines and body copy in posts and images.</div></div></div>
+  <div class="face"><div class="small mono">VS #12 · 0.5% fee<br>CCTP ~15 s<br>sha256 0x9f2c…</div><div class="meta"><div class="lbl mono">Labels · Geist Mono</div><div class="note pixel">Numbers, labels, addresses. Uppercase labels get wide tracking.</div></div></div>
+</div></div>
+<div class="foot mono"><span>Don't argue. <b>Settle.</b></span><span>mimirmarkets.xyz</span></div>
+</div><script>document.fonts.ready.then(() => { document.body.dataset.ready = '1' })</script></body></html>

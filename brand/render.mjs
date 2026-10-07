@@ -1,6 +1,7 @@
 // npm run render → x-profile.png (800×800) and x-banner.png (3000×1000), both at 2× for crisp uploads.
 // Uses the installed Edge (or CHROME_PATH). Sources are plain HTML in source/, so they can be opened and edited directly.
 import { createServer } from 'node:http'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,13 +39,26 @@ for (const [page, out, w, h] of [
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],
   ['article-oracle.html', 'article-oracle.png', 1600, 900],
   ['article-fees.html', 'article-fees.png', 1600, 900],
+  // The brand kit: three sheets and transparent logo PNGs (512x512 at 2x).
+  ['kit-logo.html', 'kit/mimir-kit-logo.png', 1600, 900],
+  ['kit-color.html', 'kit/mimir-kit-colour.png', 1600, 900],
+  ['kit-type.html', 'kit/mimir-kit-type.png', 1600, 900],
+  ['kit-logo-export.html?horn', 'kit/logo/mimir-horn.png', 512, 512],
+  ['kit-logo-export.html?horn-red', 'kit/logo/mimir-horn-red.png', 512, 512],
+  ['kit-logo-export.html?mark', 'kit/logo/mimir-mark.png', 512, 512],
+  ['kit-logo-export.html?mark-mono-ink', 'kit/logo/mimir-mark-ink.png', 512, 512],
   // `node render.mjs roadmap` renders only the pages whose name contains the argument.
 ].filter(([page]) => page.includes(process.argv[2] ?? ''))) {
+  // Post images and their sources stay local (see .gitignore): skip a page this checkout does not have.
+  if (!existsSync(join(root, page.split('?')[0]))) {
+    console.log('skip', page, '(source not in this checkout)')
+    continue
+  }
   const tab = await browser.newPage()
   await tab.setViewport({ width: w, height: h, deviceScaleFactor: 2 })
   await tab.goto(`http://localhost:${port}/${page}`, { waitUntil: 'networkidle0' })
   await tab.waitForSelector('body[data-ready="1"]')
-  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h }, omitBackground: page === 'icon.html' })
+  await tab.screenshot({ path: fileURLToPath(new URL(`./${out}`, import.meta.url)), clip: { x: 0, y: 0, width: w, height: h }, omitBackground: page === 'icon.html' || page.startsWith('kit-logo-export') })
   console.log('wrote', out)
 }
 await browser.close()

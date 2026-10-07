@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mimir kit colour</title><link rel="stylesheet" href="base.css"><link rel="stylesheet" href="kit-sheet.css">
+<style>
+  .rows { display: grid; gap: 18px; height: 100%; grid-template-rows: 1.25fr 1fr; }
+  .row { display: grid; gap: 16px; }
+  .main { grid-template-columns: repeat(4, 1fr); }
+  .support { grid-template-columns: repeat(6, 1fr); }
+  .sw { border-radius: 16px; padding: 18px; display: grid; align-content: end; gap: 4px; box-shadow: inset 0 0 0 1px rgb(243 234 214 / 0.14); }
+  .sw .n { font-size: 20px; } .sw .h { font-size: 14px; letter-spacing: 0.08em; } .sw .u { font-size: 13px; opacity: 0.8; }
+  .lt { color: var(--cream); } .dk { color: #160909; }
+</style></head>
+<body><div class="canvas"><div class="dots"></div>
+<div class="head"><div class="eyebrow mono"><span class="sq"></span>Brand kit · Colour</div><h1 class="display">Ink, cream and one red.</h1></div>
+<div class="body"><div class="rows">
+  <div class="row main">
+    <div class="sw lt" style="background:#110f0e"><div class="n display">Ink</div><div class="h mono">#110F0E</div><div class="u pixel">the ground</div></div>
+    <div class="sw dk" style="background:#f3ead6"><div class="n display">Cream</div><div class="h mono">#F3EAD6</div><div class="u pixel">text, the horn</div></div>
+    <div class="sw dk" style="background:#ff2b2b"><div class="n display">Signal red</div><div class="h mono">#FF2B2B</div><div class="u pixel">the accent, once per screen</div></div>
+    <div class="sw dk" style="background:#ff5148"><div class="n display">Coral</div><div class="h mono">#FF5148</div><div class="u pixel">buttons, labels, links</div></div>
+  </div>
+  <div class="row support">
+    <div class="sw lt" style="background:#0a0808"><div class="n display">Ink deep</div><div class="h mono">#0A0808</div><div class="u pixel">wells, code</div></div>
+    <div class="sw lt" style="background:#1c1817"><div class="n display">Panel</div><div class="h mono">#1C1817</div><div class="u pixel">cards</div></div>
+    <div class="sw lt" style="background:#4a2322"><div class="n display">Maroon</div><div class="h mono">#4A2322</div><div class="u pixel">selected</div></div>
+    <div class="sw dk" style="background:#a89d93"><div class="n display">Muted</div><div class="h mono">#A89D93</div><div class="u pixel">secondary text</div></div>
+    <div class="sw dk" style="background:#9fd6a8"><div class="n display">Win</div><div class="h mono">#9FD6A8</div><div class="u pixel">payouts, settled</div></div>
+    <div class="sw dk" style="background:#ffb3ad"><div class="n display">Pending</div><div class="h mono">#FFB3AD</div><div class="u pixel">awaiting a result</div></div>
+  </div>
+</div></div>
+<div class="foot mono"><span>Don't argue. <b>Settle.</b></span><span>mimirmarkets.xyz</span></div>
+</div><script>document.fonts.ready.then(() => { document.body.dataset.ready = '1' })</script></body></html>

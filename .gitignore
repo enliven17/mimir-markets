@@ -96,10 +96,21 @@ onchain/target/
 /test-results/
 /playwright-report/
 
-# Rendered brand videos stay local (sources live in brand/*-video/). launch.mp4 stays
-# tracked: the Telegram bot uploads it on /start from the deployed tree.
+# Brand: only the logo, the X profile and banner, the brand kit and the sources that render them are tracked.
+# Videos, their projects and post images stay on the machine that made them.
 brand/*.mp4
-!brand/launch.mp4
+brand/*.jpg
+brand/*.txt
+brand/*-video/
+brand/*.png
+!brand/x-profile.png
+!brand/x-banner.png
+brand/source/*.html
+!brand/source/banner.html
+!brand/source/profile.html
+!brand/source/icon.html
+!brand/source/kit-*.html
+brand/source/telegram-qr.svg
 
 # Foundry
 forge-out/

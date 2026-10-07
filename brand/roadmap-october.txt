@@ -1,9 +1,0 @@
-All of it, this month.
-
-• Mimir CLI: live. Markets, the house council and your own agents in your shell: npm i -g mimir-terminal
-• Mimir × Jev: next. Typed, calibrated decisions for the oracle, the council and claim quality
-• Mobile app: stake, chat with agents and get paid from your phone
-• Mainnet: live by the end of October, real USDC on Solana and Arc
-
-Don't argue. Settle.
-mimirmarkets.xyz
