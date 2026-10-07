@@ -99,6 +99,23 @@ export default defineSchema({
     lastError: v.optional(v.string()),
   }).index("by_market", ["kind", "marketId"]),
 
+  /** Council persona decisions on Arc markets (convex/arcCouncil.ts); `until` (ms) is when the persona may look again. */
+  arcCouncilDecisions: defineTable({
+    slug: v.string(),
+    kind,
+    marketId: v.number(),
+    outcome: v.union(v.literal("staked"), v.literal("abstained"), v.literal("retry"), v.literal("failed")),
+    rationale: v.string(),
+    confidence: v.optional(v.number()),
+    amount: v.optional(v.string()),
+    txHash: v.optional(v.string()),
+    until: v.number(),
+    at: v.number(),
+  })
+    .index("by_persona_market", ["slug", "kind", "marketId"])
+    .index("by_market", ["kind", "marketId"])
+    .index("by_until", ["until"]),
+
   /** One row per indexer: the last Arc block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),
 });

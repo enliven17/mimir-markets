@@ -179,3 +179,13 @@ export const marketWithPositions = internalQuery({
     return { ...m, positions };
   },
 });
+
+/** Markets still taking positions after `closesAfter` (unix seconds): VS open or active, pools open. */
+export const openMarkets = internalQuery({
+  args: { closesAfter: v.number() },
+  handler: async (ctx, { closesAfter }) =>
+    // ponytail: scans by deadline from closesAfter on; fine until there are thousands of future markets.
+    (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).collect()).filter(
+      (m) => !m.isPrivate && (m.status === "open" || m.status === "active"),
+    ),
+});

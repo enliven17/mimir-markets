@@ -9,6 +9,8 @@
  */
 
 import type * as arc from "../arc.js";
+import type * as arcCouncil from "../arcCouncil.js";
+import type * as arcCouncilDb from "../arcCouncilDb.js";
 import type * as arcOracle from "../arcOracle.js";
 import type * as arcSync from "../arcSync.js";
 import type * as crons from "../crons.js";
@@ -21,6 +23,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   arc: typeof arc;
+  arcCouncil: typeof arcCouncil;
+  arcCouncilDb: typeof arcCouncilDb;
   arcOracle: typeof arcOracle;
   arcSync: typeof arcSync;
   crons: typeof crons;

@@ -6,4 +6,6 @@ const crons = cronJobs();
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});
 // Settles, finalizes, refunds and pays (convex/arcOracle.ts); a run that overlaps the next tick is skipped by Convex.
 crons.interval("arc oracle", { minutes: 1 }, internal.arcOracle.tick, {});
+// The council: a few persona decisions per tick, each at most one throttled LLM call (convex/arcCouncil.ts).
+crons.interval("arc council", { minutes: 5 }, internal.arcCouncil.tick, {});
 export default crons;
