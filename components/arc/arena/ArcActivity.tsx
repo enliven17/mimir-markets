@@ -11,7 +11,7 @@ import { useState } from "react";
 
 import type { Doc } from "@/convex/_generated/dataModel";
 import { arcExplorerUrl } from "@/lib/arc/config";
-import { usd, type ArcMarket } from "./shared";
+import { usdFine, type ArcMarket } from "./shared";
 
 type Event = Doc<"arcEvents">;
 type Verdict = Doc<"arcVerdicts">;
@@ -108,7 +108,7 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
                   {short(e.user)}
                 </a>
               ) : null}
-              {e.amount && e.amount !== "0" ? <span className="ml-2 text-cream">{usd(e.amount)}</span> : null}
+              {e.amount && e.amount !== "0" ? <span className="ml-2 text-cream">{usdFine(e.amount)}</span> : null}
             </span>
             <span className="text-right text-[12px] text-dim">{when(e.at)}</span>
           </li>

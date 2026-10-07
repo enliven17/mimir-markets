@@ -8,6 +8,7 @@ import { gsap, MOTION_OK_QUERY, useGSAP } from "@/lib/motion";
 import { Magnetic, useDitherReveal } from "@/components/motion";
 import Scribble from "./Scribble";
 import { PixelArrow, PixelPlus } from "./icons";
+import { NetworkLogos } from "@/components/arc/NetworkLogos";
 
 // Canvas only exists in the browser; the headline never waits for it.
 const HeroAscii = dynamic(() => import("@/components/HeroAscii"), { ssr: false });
@@ -72,6 +73,10 @@ export default function Hero() {
             </Link>
           </Magnetic>
         </div>
+        <p className="l-hero-networks" data-dither data-d="1400">
+          <span>{t("networks")}</span>
+          <NetworkLogos className="h-6" />
+        </p>
       </div>
     </section>
   );

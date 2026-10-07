@@ -412,7 +412,8 @@
     "hero": {
       "titleLead": "Don't argue.",
       "titleAccent": "Settle.",
-      "sub": "Stake USDC on a claim. The AI oracle settles it on Solana.",
+      "sub": "Stake USDC on a claim. The AI oracle settles it on Arc, funded straight from your Solana wallet.",
+      "networks": "Runs on",
       "enter": "Enter the arena",
       "create": "Create a claim"
     },
@@ -2071,5 +2072,13 @@
       "delegating": "Delegating to the rollup…",
       "successTitle": "Claim published"
     }
+  },
+  "arcLaunch": {
+    "eyebrow": "New · Arc testnet",
+    "title": "Mimir now runs on Arc",
+    "body": "Markets settle on Arc, Circle's stablecoin chain, and you fund them from your Solana wallet over Circle CCTP. Your Mimir account opens with a passkey: Face ID or a fingerprint, no seed phrase, gas paid for you.",
+    "points": ["Live on Arc testnet today", "USDC in from Solana in about 15 seconds", "$MIMIR holders pay lower fees"],
+    "cta": "Try it on testnet",
+    "later": "Later"
   }
 }

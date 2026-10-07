@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
+import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
 import SkipToContentLink from "@/components/SkipToContentLink";
 import { SITE_URL } from "@/lib/site";
 
@@ -64,6 +65,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           <PageFrame>{children}</PageFrame>
         </main>
         <Footer />
+        <ArcLaunchModal />
       </WalletSheetProvider>
     </NextIntlClientProvider>
   );
