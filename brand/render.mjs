@@ -29,8 +29,8 @@ for (const [page, out, w, h] of [
   ['icon.html', '../app/icon.png', 128, 128],
   ['icon.html?flat', '../app/apple-icon.png', 90, 90],
   // The installable app (app/manifest.ts, the Android APK): 192 and 512 px, plus a maskable 512.
-  ['icon.html?flat', '../public/app/icon-192.png', 96, 96],
-  ['icon.html?flat', '../public/app/icon-512.png', 256, 256],
+  ['icon.html?app', '../public/app/icon-192.png', 96, 96],
+  ['icon.html?app', '../public/app/icon-512.png', 256, 256],
   ['icon.html?maskable', '../public/app/icon-maskable-512.png', 256, 256],
   ['roadmap.html', 'roadmap.png', 1920, 1080],
   ['community.html', 'community.png', 1080, 1080],

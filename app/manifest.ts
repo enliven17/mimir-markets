@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Mimir: claims, settled by AI",
-    short_name: "Mimir",
+    name: "Mimir Markets",
+    short_name: "Mimir Markets",
     description: "Stake USDC on any claim. An AI oracle settles it in the open. Markets settle on Arc; your wallet lives on Solana.",
     start_url: "/en/arena",
     scope: "/",

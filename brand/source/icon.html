@@ -6,19 +6,21 @@
   <link rel="stylesheet" href="base.css" />
   <style>
     /* Tab icon: the horn on a rounded ink square. `?flat` drops the rounding
-       (iOS rounds home-screen icons itself). `?maskable` also shrinks the horn into Android's safe zone (the
+       (iOS rounds home-screen icons itself). `?app` (the installable app's icons) sets the horn smaller, and `?maskable` shrinks the horn into Android's safe zone (the
        launcher may crop the icon to a circle). */
     html, body { background: transparent; }
     .tile { width: 100vw; height: 100vh; display: grid; place-items: center; border-radius: 22%; background: var(--ink); }
     .flat .tile { border-radius: 0; }
     .tile img { width: 76%; height: auto; transform: translateX(-2%); }
-    .maskable .tile img { width: 58%; }
+    .app .tile img { width: 60%; }
+    .maskable .tile img { width: 46%; }
   </style>
 </head>
 <body>
   <div class="tile"><img src="horn.svg" alt="" /></div>
   <script type="module">
     if (location.search.includes('flat')) document.documentElement.classList.add('flat')
+    if (location.search.includes('app')) document.documentElement.classList.add('flat', 'app')
     if (location.search.includes('maskable')) document.documentElement.classList.add('flat', 'maskable')
     await document.querySelector('.tile img').decode()
     document.body.dataset.ready = '1'

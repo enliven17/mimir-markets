@@ -1,8 +1,8 @@
 {
   "packageId": "xyz.mimirmarkets.app",
   "host": "mimirmarkets.xyz",
-  "name": "Mimir: claims, settled by AI",
-  "launcherName": "Mimir",
+  "name": "Mimir Markets",
+  "launcherName": "Mimir Markets",
   "display": "standalone",
   "orientation": "portrait",
   "themeColor": "#110F0E",
@@ -21,8 +21,8 @@
     "path": "~/.mimir-android/mimir-release.jks",
     "alias": "mimir"
   },
-  "appVersion": "1.0.0",
-  "appVersionCode": 1,
+  "appVersion": "1.0.1",
+  "appVersionCode": 2,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "fallbackType": "customtabs",
