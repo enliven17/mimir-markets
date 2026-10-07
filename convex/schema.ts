@@ -37,6 +37,10 @@ export default defineSchema({
     isPrivate: v.boolean(),
     /** Fee on profit this market settles with (VS: the platform share; an attributed agent may add its own). */
     feeBps: v.number(),
+    /** Unix seconds the proposed result can be disputed until; 0 = no proposal yet. */
+    disputableUntil: v.number(),
+    /** Unix seconds refundExpired opens (7 days after the deadline, or after a dispute). */
+    refundAt: v.number(),
     updatedBlock: v.number(),
   })
     .index("by_market", ["kind", "marketId"])
@@ -51,6 +55,8 @@ export default defineSchema({
     side: v.number(),
     amount: v.string(),
     amountUsd: v.number(),
+    /** Pool: the payout was collected (a Claimed event). VS pays at settlement, so it stays unset. */
+    claimed: v.optional(v.boolean()),
   })
     .index("by_market", ["kind", "marketId"])
     .index("by_user", ["user"])
@@ -69,6 +75,27 @@ export default defineSchema({
     .index("by_log", ["txHash", "logIndex"])
     .index("by_market", ["kind", "marketId"])
     .index("by_user", ["user"]),
+
+  /** The oracle's verdicts: the audit bundle whose sha256 went on chain as evidenceHash. */
+  arcVerdicts: defineTable({
+    kind,
+    marketId: v.number(),
+    side: v.number(),
+    confidence: v.number(),
+    summary: v.string(),
+    evidenceHash: v.string(),
+    bundle: v.string(),
+    txHash: v.string(),
+  }).index("by_market", ["kind", "marketId"]),
+
+  /** Oracle backoff: a market whose decision was deferred (or failed) is not retried before `notBefore` (ms). */
+  arcOracleTries: defineTable({
+    kind,
+    marketId: v.number(),
+    notBefore: v.number(),
+    attempts: v.number(),
+    lastError: v.optional(v.string()),
+  }).index("by_market", ["kind", "marketId"]),
 
   /** One row per indexer: the last Arc block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),

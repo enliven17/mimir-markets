@@ -19,6 +19,8 @@ const V3_ABI = parseAbi([
   "function getClaim(uint256) view returns (address creator, string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 creatorStake, uint256 totalChallengerStake, uint256 reservedCreatorLiability, uint256 deadline, uint8 state, uint8 winnerSide, string resolutionSummary, uint8 confidence, string category, uint256 parentId, uint256 challengerCount, uint256 createdAt, bytes32 evidenceHash)",
   "function getClaimMarketConfig(uint256) view returns (string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, uint256 reservedCreatorLiability)",
   "function getChallengerList(uint256) view returns (address[] addrs, uint256[] stakes)",
+  "function disputeWindow() view returns (uint256)",
+  "function proposals(uint256) view returns (uint8 winnerSide, uint8 confidence, uint64 proposedAt, uint64 disputedAt, address disputer, uint256 bond, bytes32 evidenceHash, string summary)",
   "function getClaimFees(uint256) view returns (uint16 platformFeeBps, uint16 agentOwnerFeeBps, address platformRecipient, address agentOwnerRecipient)",
 ]);
 const POOL_ABI = parseAbi([
@@ -33,6 +35,8 @@ const POOL_ABI = parseAbi([
   "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB, uint16 marketFeeBps, address marketFeeRecipient)",
   "function getMarketText(uint256) view returns (string question, string labelA, string labelB, string resolutionUrl, string category, string summary)",
   "function stakeOf(uint256, address) view returns (uint256 onA, uint256 onB)",
+  "function disputeWindow() view returns (uint256)",
+  "function getProposal(uint256) view returns (uint8 proposed, uint256 proposedAt, uint256 disputedAt, address disputer, uint256 bond, bytes32 evidenceHash)",
 ]);
 
 const V3_STATUS = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
@@ -41,6 +45,15 @@ const POOL_STATUS = ["open", "proposed", "disputed", "resolved"] as const;
 const CHUNK = 10_000n;
 const MAX_CHUNKS = 20;
 const usd = (wei: bigint) => Number(wei) / 1e18;
+/** Both contracts: refundExpired opens this long after the deadline (or the dispute). */
+const RESOLUTION_GRACE_SECONDS = 7 * 86_400;
+/** Proposal timing: when the dispute window closes (0 = no proposal) and when the refund escape hatch opens. */
+function timing(deadline: bigint, proposedAt: bigint, disputedAt: bigint, window: bigint) {
+  return {
+    disputableUntil: proposedAt > 0n ? Number(proposedAt + window) : 0,
+    refundAt: Number((disputedAt > deadline ? disputedAt : deadline) + BigInt(RESOLUTION_GRACE_SECONDS)),
+  };
+}
 const lower = (a: string) => a.toLowerCase();
 
 type Kind = "vs" | "pool";
@@ -68,6 +81,10 @@ export const sync = internalAction({
     const cursor = await ctx.runQuery(internal.arc.cursor, {});
     let from = cursor === null ? fromBlock : BigInt(cursor) + 1n;
     const head = await client.getBlockNumber();
+    const [v3Window, poolWindow] = await Promise.all([
+      client.readContract({ address: mimirV3, abi: V3_ABI, functionName: "disputeWindow" }),
+      client.readContract({ address: mimirPool, abi: POOL_ABI, functionName: "disputeWindow" }),
+    ]);
     for (let i = 0; i < MAX_CHUNKS && from <= head; i++) {
       const to = from + CHUNK - 1n < head ? from + CHUNK - 1n : head;
       const [v3Logs, poolLogs] = await Promise.all([
@@ -92,8 +109,8 @@ export const sync = internalAction({
       const positions = [];
       for (const t of touched.values()) {
         const snap = t.kind === "vs"
-          ? await readVs(client, mimirV3, t.id, Number(to))
-          : await readPool(client, mimirPool, t.id, [...t.users], Number(to));
+          ? await readVs(client, mimirV3, t.id, Number(to), v3Window)
+          : await readPool(client, mimirPool, t.id, [...t.users], Number(to), poolWindow);
         markets.push(snap.market);
         positions.push(...snap.positions);
       }
@@ -112,12 +129,13 @@ export const sync = internalAction({
 
 type Client = ReturnType<typeof createPublicClient>;
 
-async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number) {
-  const [c, cfg, list, fees] = await Promise.all([
+async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number, window: bigint) {
+  const [c, cfg, list, fees, proposal] = await Promise.all([
     client.readContract({ address, abi: V3_ABI, functionName: "getClaim", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimMarketConfig", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getChallengerList", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimFees", args: [id] }),
+    client.readContract({ address, abi: V3_ABI, functionName: "proposals", args: [id] }),
   ]);
   const [creator, question, creatorPosition, counterPosition, resolutionUrl, creatorStake, totalChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
   const byUser = new Map<string, bigint>();
@@ -147,16 +165,18 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
       participants: 1 + byUser.size,
       isPrivate: cfg[6],
       feeBps: fees[0],
+      ...timing(deadline, BigInt(proposal[2]), BigInt(proposal[3]), window),
       updatedBlock: block,
     },
     positions,
   };
 }
 
-async function readPool(client: Client, address: `0x${string}`, id: bigint, users: string[], block: number) {
-  const [m, text] = await Promise.all([
+async function readPool(client: Client, address: `0x${string}`, id: bigint, users: string[], block: number, window: bigint) {
+  const [m, text, proposal] = await Promise.all([
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarket", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args: [id] }),
+    client.readContract({ address, abi: POOL_ABI, functionName: "getProposal", args: [id] }),
   ]);
   const [creator, deadline, createdAt, state, outcome, totalA, totalB, feeBps] = m;
   const [question, labelA, labelB, resolutionUrl, category, summary] = text;
@@ -190,6 +210,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
       participants: 0,
       isPrivate: false,
       feeBps,
+      ...timing(deadline, proposal[1], proposal[2], window),
       updatedBlock: block,
     },
     positions,

@@ -41,7 +41,13 @@ export const apply = internalMutation({
     }
     for (const e of events) {
       const seen = await ctx.db.query("arcEvents").withIndex("by_log", (q) => q.eq("txHash", e.txHash).eq("logIndex", e.logIndex)).unique();
-      if (!seen) await ctx.db.insert("arcEvents", e);
+      if (seen) continue;
+      await ctx.db.insert("arcEvents", e);
+      // A pool payout collected (by the user or pushed by the oracle): mark that user's legs paid.
+      if (e.kind === "pool" && e.name === "Claimed" && e.user) {
+        const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "pool").eq("marketId", e.marketId)).collect();
+        for (const p of legs) if (p.user === e.user) await ctx.db.patch(p._id, { claimed: true });
+      }
     }
     const c = await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name)).unique();
     if (!c) await ctx.db.insert("arcCursor", { name, block });
@@ -97,5 +103,74 @@ export const poke = mutation({
   args: {},
   handler: async (ctx) => {
     await ctx.scheduler.runAfter(0, internal.arcSync.sync, {});
+  },
+});
+
+// ── Oracle bookkeeping (convex/arcOracle.ts) ────────────────────────────────
+
+const RETRY_MS = 10 * 60_000;
+
+/** Everything the oracle may do right now, from the index. `now` in unix seconds. */
+export const oracleWork = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, { now }) => {
+    // ponytail: full scan of the markets table each tick; add status/deadline indexes past a few thousand markets.
+    const markets = await ctx.db.query("arcMarkets").collect();
+    const tries = await ctx.db.query("arcOracleTries").collect();
+    const waitUntil = new Map(tries.map((t) => [`${t.kind}:${t.marketId}`, t.notBefore]));
+    const ready = (m: { kind: string; marketId: number }) => (waitUntil.get(`${m.kind}:${m.marketId}`) ?? 0) <= now * 1000;
+    // VS needs a challenger to be decided ("active"); a pool is decided as soon as it has its creator's stake.
+    const undecided = (m: (typeof markets)[number]) => (m.kind === "vs" ? m.status === "active" : m.status === "open");
+
+    const decide = markets.filter((m) => undecided(m) && m.deadline <= now && m.refundAt > now && ready(m));
+    const finalize = markets.filter((m) => m.status === "proposed" && m.disputableUntil > 0 && m.disputableUntil <= now);
+    const refund = markets.filter((m) => (undecided(m) || m.status === "disputed") && m.refundAt <= now);
+    const pay: Array<{ marketId: number; users: string[] }> = [];
+    for (const m of markets) {
+      if (m.kind !== "pool" || (m.status !== "resolved" && m.status !== "cancelled")) continue;
+      const contested = BigInt(m.stakeA) > 0n && BigInt(m.stakeB) > 0n;
+      const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "pool").eq("marketId", m.marketId)).collect();
+      // Winners only on a contested A/B outcome (losers have nothing to claim); everyone on a refund.
+      const owed = legs.filter((p) => !p.claimed && (!contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
+      const users = [...new Set(owed.map((p) => p.user))];
+      if (users.length) pay.push({ marketId: m.marketId, users });
+    }
+    const pick = ({ kind, marketId }: { kind: "vs" | "pool"; marketId: number }) => ({ kind, marketId });
+    return { decide, finalize: finalize.map(pick), refund: refund.map(pick), pay };
+  },
+});
+
+/** A deferred or failed decision: try this market again in RETRY_MS. */
+export const deferMarket = internalMutation({
+  args: { kind, marketId: v.number(), error: v.optional(v.string()) },
+  handler: async (ctx, { kind, marketId, error }) => {
+    const row = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).unique();
+    const next = { notBefore: Date.now() + RETRY_MS, lastError: error?.slice(0, 500) };
+    if (row) await ctx.db.patch(row._id, { ...next, attempts: row.attempts + 1 });
+    else await ctx.db.insert("arcOracleTries", { kind, marketId, attempts: 1, ...next });
+  },
+});
+
+export const saveVerdict = internalMutation({
+  args: schema.tables.arcVerdicts.validator,
+  handler: async (ctx, verdict) => {
+    await ctx.db.insert("arcVerdicts", verdict);
+  },
+});
+
+/** The oracle's audit bundle for a market: what anyone can hash to check the on-chain evidenceHash. */
+export const verdict = query({
+  args: { kind, marketId: v.number() },
+  handler: async (ctx, { kind, marketId }) =>
+    (await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).order("desc").first()) ?? null,
+});
+
+export const marketWithPositions = internalQuery({
+  args: { kind, marketId: v.number() },
+  handler: async (ctx, { kind, marketId }) => {
+    const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).unique();
+    if (!m) return null;
+    const positions = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).collect();
+    return { ...m, positions };
   },
 });
