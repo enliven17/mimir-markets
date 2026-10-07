@@ -101,6 +101,7 @@ const errText = (e: unknown) => {
 export const tick = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-oracle" });
     if (process.env.MIMIR_PAUSE_ORACLE_SETTLEMENT === "1") return;
     const s = setup();
     const now = Math.floor(Date.now() / 1000);

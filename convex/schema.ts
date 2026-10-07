@@ -132,4 +132,18 @@ export default defineSchema({
 
   /** One row per indexer: the last Arc block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),
+
+  /** Jev's triage of a new market (lib/jev-triage.ts, convex/arcTriage.ts); empty while TYPESAFE_API_KEY is unset. */
+  arcTriage: defineTable({
+    kind,
+    marketId: v.number(),
+    resolvable: v.number(),
+    spam: v.number(),
+    category: v.string(),
+    categoryConfidence: v.number(),
+    at: v.number(),
+  }).index("by_market", ["kind", "marketId"]),
+
+  /** Admin panel (convex/arcAdmin.ts): when each scheduled job last started, one row per job. */
+  arcHeartbeats: defineTable({ name: v.string(), at: v.number() }).index("by_name", ["name"]),
 });

@@ -93,6 +93,7 @@ async function vetDrafts(drafts: DraftClaim[]): Promise<DraftClaim[]> {
 export const tick = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
+    await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-creator" });
     const e = process.env;
     const wallet = creatorWallet();
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS });

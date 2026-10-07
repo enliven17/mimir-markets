@@ -14,6 +14,7 @@ import {
   type GeminiModerationPayload,
 } from "@/lib/moderation/sanitize-moderation-result";
 import { webGeminiKey } from "@/lib/llm";
+import { jevModeration } from "@/lib/moderation/jev-moderation";
 
 export type {
   ClaimModerationDecision,
@@ -259,6 +260,10 @@ export async function moderateClaim(args: {
   }
 
   const { policy, policyVersion } = await readPolicyMarkdown();
+  // Jev first (only with TYPESAFE_API_KEY): a confident clean or confident violation skips the model call;
+  // anything in between goes to the model as before.
+  const quick = await jevModeration(args.input, policyVersion);
+  if (quick) return quick;
   const prompt = buildPrompt({
     policy,
     policyVersion,

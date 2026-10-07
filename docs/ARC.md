@@ -101,6 +101,23 @@ Model keys are split by role so the oracle's quota is never spent by anything el
 `ORACLE_GEMINI_API_KEY` (a list is allowed), others never touch those keys. The web app's tables (agents, baskets,
 campaign, Telegram, access, Arc account links, agent payments) stay in Postgres (`lib/server/db.ts`).
 
+### Jev (optional)
+
+[Jev](https://typesafe.ai) answers typed questions (yes/no, one of a list, a point on a scale) with probabilities in
+about 100 ms. Mimir uses it as the cheap first step before a full model, and only when `TYPESAFE_API_KEY` is set
+(backend and web). Without the key nothing calls it and nothing changes.
+
+- **Market triage** (`lib/jev-triage.ts`, `convex/arcTriage.ts`): the indexer asks, for each new market, whether it
+  can be settled from its source, whether it is spam, and its category. The council skips a take when spam ≥ 0.85
+  or settleable ≤ 0.15, and uses Jev's category for persona choice when the creator chose "custom" (≥ 0.8).
+- **Claim moderation** (`lib/moderation/jev-moderation.ts`): after the local rules, Jev picks a policy category or
+  "none". "none" at ≥ 0.97 allows and a violation at ≥ 0.95 blocks without the model; anything else goes to the
+  model as before.
+- **Never for settlement.** Verdicts need written, audited reasoning, which Jev does not give.
+
+`JEV_MODEL` pins the version (default `jev-latest`) so a model upgrade cannot shift the thresholds silently. Calls
+time out after 2 s and retry once on 429/529; any failure falls back to the path without Jev.
+
 ## Security
 
 Contracts: `forge test` (136 tests, including smart-account callers, reentrancy attempts, fee tickets and invariant

@@ -90,6 +90,7 @@ Every variable is in [`.env.example`](.env.example), grouped and commented. The 
 | Wallets | `NEXT_PUBLIC_CIRCLE_CLIENT_KEY` (public browser key), `ARC_FEE_SIGNER_KEY` (signs holder fee tickets) |
 | Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ARC_ORACLE_KEY`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
+| Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([ARC.md](docs/ARC.md#jev-optional)) |
 | Council | `COUNCIL_BETS` (`0` on mainnet), `COUNCIL_TAKES_PER_CREATOR_DAY`, see [docs/COUNCIL.md](docs/COUNCIL.md) |
 | Database | `DATABASE_URL` (Postgres for the app's tables) |
 | Access | `NEXT_PUBLIC_INVITE_ONLY`, `MIMIR_ACCESS_MIN`, `MIMIR_INVITES_PER_USER` |

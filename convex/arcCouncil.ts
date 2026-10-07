@@ -24,6 +24,8 @@ import { sizeStakeUnits } from "../agents/council/shared/persona-rules";
 import type { CouncilClaim, EvidenceCacheEntry } from "../agents/council/shared/types";
 import { arcPublicClient } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
+import { jevEnabled } from "../lib/jev";
+import { skipTake } from "../lib/jev-triage";
 import { ENTRY_FEE_BPS } from "../lib/arc/fee-tiers";
 import { LOCK_SECONDS, maxGrossFor, vsRoom } from "../lib/arc/markets";
 import { councilWalletsFromEnv, executeContract } from "../lib/server/circle-w3s";
@@ -75,6 +77,7 @@ const usdcString = (u: bigint) => (Number(u) / 1e6).toFixed(6).replace(/\.?0+$/,
 export const tick = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-council" });
     if (process.env.MIMIR_PAUSE_COUNCIL === "1") return;
     const e = process.env;
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE });
@@ -171,6 +174,8 @@ export const tick = internalAction({
 const TAKES_PER_TICK = Number(process.env.COUNCIL_TAKES_PER_TICK ?? 3);
 // Anyone can open markets cheaply; a creator gets this many takes a day so a bot cannot spend the backend's model quota.
 const TAKES_PER_CREATOR_DAY = Number(process.env.COUNCIL_TAKES_PER_CREATOR_DAY ?? 3);
+// Jev's category replaces a "custom" one for persona choice only when it is at least this sure.
+const JEV_CATEGORY_AT = 0.8;
 const LEAN = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 0, UNRESOLVABLE: 0 } as const;
 
 /**
@@ -196,13 +201,18 @@ async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<
   const today = new Map<string, number>();
   for (const t of takes) if (t.at > Date.now() - 86_400_000) today.set(t.creator, (today.get(t.creator) ?? 0) + 1);
   const house = (JSON.parse(process.env.ARC_CREATOR_WALLET ?? "null") as { address?: string } | null)?.address?.toLowerCase();
+  // Jev's triage (only with TYPESAFE_API_KEY): no take on a market it is sure is spam or cannot be settled, and a
+  // better category for persona choice when the creator left it as "custom".
+  const triage = new Map(jevEnabled() ? (await ctx.runQuery(internal.arcTriage.all, {})).map((t) => [t.key, t]) : []);
   let written = 0;
   for (const m of markets.sort((a, b) => b.createdAt - a.createdAt)) {
     if (written >= TAKES_PER_TICK) break;
     if (taken.has(`${m.kind}:${m.marketId}`)) continue;
     const creator = m.creator.toLowerCase();
     if (creator !== house && (today.get(creator) ?? 0) >= TAKES_PER_CREATOR_DAY) continue;
-    const persona = bestPersonaFor(m.category);
+    const t = triage.get(`${m.kind}:${m.marketId}`);
+    if (skipTake(t)) continue;
+    const persona = bestPersonaFor(m.category === "custom" && t && t.categoryConfidence >= JEV_CATEGORY_AT ? t.category : m.category);
     if (!persona) return;
     try {
       const claim = asCouncilClaim(m, []);

@@ -5,6 +5,8 @@ import { createPublicClient, http, parseAbi, parseEventLogs, type Log } from "vi
 import { internal } from "./_generated/api";
 import { internalAction, type ActionCtx } from "./_generated/server";
 import { arcConfig } from "../lib/arc/config";
+import { jevEnabled } from "../lib/jev";
+import { triageMarket } from "../lib/jev-triage";
 
 const V3_ABI = parseAbi([
   "event ClaimCreated(uint256 indexed id, address indexed creator, string category)",
@@ -77,6 +79,7 @@ function config() {
 export const sync = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-sync" });
     const cfg = config();
     const { mimirV3, mimirPool, fromBlock } = cfg.contracts;
     if (!mimirV3 || !mimirPool) throw new Error("MIMIR_V3_ADDRESS and MIMIR_POOL_ADDRESS must be set in the Convex env");
@@ -136,6 +139,7 @@ export const sync = internalAction({
         events: logs.map(({ kind, log }) => ({ ...eventRow(kind, log), at: times.get(log.blockNumber) })),
       });
       await notifyTelegram(ctx, changes);
+      await triageNew(ctx, changes);
       from = to + 1n;
     }
   },
@@ -247,6 +251,18 @@ function eventRow(kind: Kind, log: DecodedLog) {
 }
 
 type Change = { type: "new" | "proposed" | "resolved" | "cancelled"; kind: Kind; marketId: number };
+
+/** Jev's triage of each new market (lib/jev-triage.ts). Off without TYPESAFE_API_KEY: no call, no row. */
+async function triageNew(ctx: ActionCtx, changes: Change[]): Promise<void> {
+  if (!jevEnabled()) return;
+  for (const c of changes) {
+    if (c.type !== "new") continue;
+    const m = await ctx.runQuery(internal.arc.marketWithPositions, { kind: c.kind, marketId: c.marketId });
+    if (!m) continue;
+    const t = await triageMarket(m);
+    if (t) await ctx.runMutation(internal.arcTriage.save, { kind: c.kind, marketId: c.marketId, ...t });
+  }
+}
 
 /**
  * Post what changed to the site's Telegram route (app/api/telegram/arc-events), which messages the chats. Off unless

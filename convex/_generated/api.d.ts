@@ -9,11 +9,13 @@
  */
 
 import type * as arc from "../arc.js";
+import type * as arcAdmin from "../arcAdmin.js";
 import type * as arcCouncil from "../arcCouncil.js";
 import type * as arcCouncilDb from "../arcCouncilDb.js";
 import type * as arcCreator from "../arcCreator.js";
 import type * as arcOracle from "../arcOracle.js";
 import type * as arcSync from "../arcSync.js";
+import type * as arcTriage from "../arcTriage.js";
 import type * as arcViews from "../arcViews.js";
 import type * as crons from "../crons.js";
 
@@ -25,11 +27,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   arc: typeof arc;
+  arcAdmin: typeof arcAdmin;
   arcCouncil: typeof arcCouncil;
   arcCouncilDb: typeof arcCouncilDb;
   arcCreator: typeof arcCreator;
   arcOracle: typeof arcOracle;
   arcSync: typeof arcSync;
+  arcTriage: typeof arcTriage;
   arcViews: typeof arcViews;
   crons: typeof crons;
 }>;
