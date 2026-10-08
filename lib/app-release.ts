@@ -5,12 +5,12 @@
  */
 export const APP_RELEASE = {
   packageId: "xyz.mimirmarkets.app",
-  versionCode: 8,
-  versionName: "2.2.1",
+  versionCode: 9,
+  versionName: "2.3.0",
   /** Served from /public, so the download is the site's own. */
   apkPath: "/app/mimir.apk",
-  sizeBytes: 1161216,
-  sha256: "8808ab46a7903d2540d9377366e7a9f2bd03d120fbfd3e8306b977a45ec8c8e9",
+  sizeBytes: 1161324,
+  sha256: "e3a0e0565c1d16d766417f9b4a84491ce21ed9045fd2b0bc7bf8a039117c2f39",
 } as const;
 
 /** The APK launches the site with ?app=<versionCode>, so the site knows it runs inside the app and which build. */

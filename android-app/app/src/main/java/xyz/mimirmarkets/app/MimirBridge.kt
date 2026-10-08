@@ -8,6 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Base64
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import java.io.File
@@ -50,6 +53,27 @@ class MimirBridge(
     @JavascriptInterface
     fun update(url: String) {
         main.post { onUpdate(url) }
+    }
+
+    /**
+     * Opens one of our own pages in the phone's browser rather than in the app. A plain link to mimirmarkets.xyz is an
+     * app link, so Android would hand it straight back to us: target the default browser by package instead. Used for
+     * the update ("open /app in your browser and download there").
+     */
+    @JavascriptInterface
+    fun openInBrowser(url: String) {
+        val uri = Uri.parse(url)
+        if (uri.scheme != "https") return
+        main.post {
+            val pm = context.packageManager
+            val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+            val default = pm.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            val browser = default?.takeIf { it != context.packageName && it != "android" }
+                ?: pm.queryIntentActivities(probe, PackageManager.MATCH_ALL).map { it.activityInfo.packageName }.firstOrNull { it != context.packageName }
+            val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (browser != null) intent.setPackage(browser)
+            runCatching { context.startActivity(intent) }
+        }
     }
 
     @JavascriptInterface

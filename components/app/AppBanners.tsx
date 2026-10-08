@@ -88,17 +88,18 @@ export default function AppBanners() {
       {strip === "update" ? (
         <span>
           A new version of the app is ready ({APP_RELEASE.versionName}).{" "}
-          {/* App 2.2+ updates itself (window.MimirApp.update: download, signature check, installer). Older builds hand
-              downloads to a browser tab, and a browser hands any mimirmarkets.xyz link straight back to the app (a
-              loop that also kept reopening the app); the Vercel host is not an app link, so the browser downloads. */}
+          {/* The update is downloaded in the phone's browser from /app, never inside the app. Our own links are app
+              links (Android hands them straight back), so app 2.3+ opens the browser by package
+              (window.MimirApp.openInBrowser); older builds get the same page on the Vercel host, which is not an app link. */}
           <a
-            href={`${LEGACY_APK_ORIGIN}${APP_RELEASE.apkPath}`}
-            download
+            href={`${LEGACY_APK_ORIGIN}/en/app`}
+            target="_blank"
+            rel="noreferrer"
             onClick={(e) => {
-              const app = (window as { MimirApp?: { update?: (url: string) => void } }).MimirApp;
-              if (typeof app?.update !== "function") return;
+              const app = (window as { MimirApp?: { openInBrowser?: (url: string) => void } }).MimirApp;
+              if (typeof app?.openInBrowser !== "function") return;
               e.preventDefault();
-              app.update(new URL(APP_RELEASE.apkPath, window.location.origin).href);
+              app.openInBrowser(`${window.location.origin}/en/app`);
             }}
             className="font-medium text-coral underline-offset-2 hover:underline"
           >
