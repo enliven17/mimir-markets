@@ -1268,7 +1268,8 @@ html.lenis.lenis-stopped {
   /* Exactly --tabbar-h tall above the safe area, so what sits on it can rely on the variable. */
   height: var(--tab-bar);
   padding: 0 max(6px, env(safe-area-inset-right)) var(--safe-bottom) max(6px, env(safe-area-inset-left));
-  background: rgb(14 7 9 / 0.94);
+  /* The ink of the phone's own navigation bar (the app paints it ink too), so the bar and the gesture area read as one. */
+  background: rgb(17 15 14 / 0.97);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow: inset 0 1px 0 rgb(243 234 214 / 0.07);
