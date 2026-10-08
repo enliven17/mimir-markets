@@ -53,12 +53,13 @@ export default function ArcWalletClient() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <section aria-labelledby="arc-step-solana" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
+        {/* The wallet chip's menu opens below the button: let it out of the card instead of clipping it. */}
+        <section aria-labelledby="arc-step-solana" className={`${SURFACE} !overflow-visible z-10 grid content-start gap-3 p-5 sm:p-6`}>
           <h2 id="arc-step-solana" className="m-0 text-[1.2rem] leading-none text-cream">
             1. Solana wallet
           </h2>
           <p className="m-0 text-[14px] text-muted">Who you are on Mimir, and where your USDC comes from.</p>
-          <div className="justify-self-start">
+          <div className="wallet-anchor-start justify-self-start">
             <ConnectWalletButton />
           </div>
         </section>

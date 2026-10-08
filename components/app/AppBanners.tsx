@@ -85,7 +85,7 @@ export default function AppBanners() {
       {strip === "update" ? (
         <span>
           A new version of the app is ready ({APP_RELEASE.versionName}).{" "}
-          <a href={APP_RELEASE.apkPath} className="font-medium text-coral underline-offset-2 hover:underline">
+          <a href={APP_RELEASE.apkPath} download className="font-medium text-coral underline-offset-2 hover:underline">
             Update
           </a>
         </span>

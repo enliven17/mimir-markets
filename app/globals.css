@@ -1005,6 +1005,13 @@ html.lenis.lenis-stopped {
 .wallet-chip[aria-expanded="true"] .wallet-chip-chevron {
   transform: rotate(180deg);
 }
+/* A chip on the left of its card (the /wallet page): the menu opens rightwards and stays on screen. */
+.wallet-anchor-start .wallet-menu {
+  left: 0;
+  right: auto;
+  max-width: calc(100vw - 2 * var(--gut, 16px));
+}
+
 .wallet-menu {
   position: absolute;
   z-index: 60;
