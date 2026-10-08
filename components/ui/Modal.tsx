@@ -52,7 +52,7 @@ export default function Modal({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const titleId = useId();
-  const drag = useRef<{ y: number; dy: number } | null>(null);
+  const drag = useRef<{ y: number; dy: number; t: number } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -127,7 +127,7 @@ export default function Modal({
   const swipe = isSheet
     ? {
         onTouchStart: (e: React.TouchEvent) => {
-          drag.current = dialogRef.current && dialogRef.current.scrollTop <= 0 ? { y: e.touches[0].clientY, dy: 0 } : null;
+          drag.current = dialogRef.current && dialogRef.current.scrollTop <= 0 ? { y: e.touches[0].clientY, dy: 0, t: performance.now() } : null;
         },
         onTouchMove: (e: React.TouchEvent) => {
           if (!drag.current) return;
@@ -135,10 +135,16 @@ export default function Modal({
           setY(drag.current.dy, false);
         },
         onTouchEnd: () => {
-          const dy = drag.current?.dy ?? 0;
+          const d = drag.current;
           drag.current = null;
-          if (dy > SWIPE_CLOSE_PX) onClose();
-          else setY(0, true);
+          if (!d) return;
+          // Far enough, or a quick flick: slide the rest of the way down, then close; otherwise spring back.
+          const flick = d.dy > 30 && d.dy / Math.max(1, performance.now() - d.t) > 0.6;
+          if (d.dy > SWIPE_CLOSE_PX || flick) {
+            const el = dialogRef.current;
+            setY(el ? el.offsetHeight + 40 : 600, true);
+            window.setTimeout(onClose, 220);
+          } else setY(0, true);
         },
       }
     : {};
