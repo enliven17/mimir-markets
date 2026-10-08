@@ -15,8 +15,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Above every TWA build (1-4), so this installs over it.
-        versionCode = 5
-        versionName = "2.0.0"
+        versionCode = 6
+        versionName = "2.1.0"
     }
 
     signingConfigs {
@@ -54,6 +54,7 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     // WebView passkeys go through Credential Manager (developer.android.com/identity/sign-in/credential-manager-webview).
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")

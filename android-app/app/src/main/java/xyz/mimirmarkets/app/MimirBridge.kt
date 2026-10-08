@@ -21,12 +21,28 @@ class MimirBridge(
     private val context: Context,
     private val onReady: () -> Unit,
     private val onRetry: () -> Unit,
+    /** The system bars' heights in CSS px, as JSON {"top":n,"bottom":n}; the head script reads it before paint. */
+    private val insets: () -> String,
+    /** False while a sheet or dialog is open in the page, so a downward drag inside it is not a refresh. */
+    private val onRefreshAllowed: (Boolean) -> Unit,
 ) {
     private val main = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
     fun ready() {
         main.post { onReady() }
+    }
+
+    @JavascriptInterface
+    fun insets(): String = insets.invoke()
+
+    /** The app refreshes natively (SwipeRefreshLayout): the page's own pull-to-refresh stays off. */
+    @JavascriptInterface
+    fun nativeRefresh(): Boolean = true
+
+    @JavascriptInterface
+    fun setRefreshAllowed(allowed: Boolean) {
+        main.post { onRefreshAllowed(allowed) }
     }
 
     @JavascriptInterface

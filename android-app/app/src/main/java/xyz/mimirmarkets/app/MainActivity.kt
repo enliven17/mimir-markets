@@ -30,6 +30,7 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -38,6 +39,9 @@ import androidx.webkit.WebViewFeature
  * Mimir Markets as an app: one WebView on the site, no browser UI. The site runs in app mode (the user agent ends in
  * " MimirApp/<versionCode>"; app/layout.tsx and components/app/AppBanners.tsx read it).
  *
+ * - Edge to edge: the page draws behind the status and navigation bars (they are transparent, icons light) and pads
+ *   itself; the bars' heights reach it as --app-inset-top/--app-inset-bottom (WebView may report env() as 0).
+ * - Pull down at the top of the page to reload (SwipeRefreshLayout; off while a sheet is open in the page).
  * - Launch: Android's splash (the horn on ink) hands over to our launch screen, which stays until the page calls
  *   window.MimirApp.ready() (or finishes loading, or 8 s pass), then fades.
  * - mimirmarkets.xyz stays in the WebView; any other link opens in a Custom Tab or its own app (wallets, X).
@@ -49,6 +53,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var web: WebView
     private lateinit var launch: View
+    private lateinit var refresh: SwipeRefreshLayout
+    /** The system bars in CSS px (the page's own units), kept for the head script and pushed on change. */
+    @Volatile private var insetTop = 0
+    @Volatile private var insetBottom = 0
+    private var refreshAllowed = true
     private val main = Handler(Looper.getMainLooper())
     private var launchDone = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
@@ -63,24 +72,38 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Light icons on our ink bars, whatever the phone's light/dark setting.
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
+        // No grey scrim behind 3-button navigation: the page's own ink shows through.
+        if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         // Android's splash only bridges to our own launch screen, which is drawn in the first frame.
         splash.setKeepOnScreenCondition { false }
 
         web = WebView(this)
         launch = launchScreen()
+        // Pull to refresh, natively: a drag down only counts when the page is at its top and no sheet is open.
+        refresh = SwipeRefreshLayout(this).apply {
+            setColorSchemeColors(CORAL)
+            setProgressBackgroundColorSchemeColor(PANEL)
+            setOnChildScrollUpCallback { _, _ -> !refreshAllowed || web.scrollY > 0 }
+            setOnRefreshListener { web.reload() }
+            addView(web, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
         val root = FrameLayout(this).apply {
             setBackgroundColor(INK)
-            addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(refresh, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             addView(launch, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
         setContentView(root)
-        // Edge to edge, but the page sits between the bars: WebView does not report env(safe-area-inset-*) on every
-        // version, so the bars are padded natively and drawn in ink (the site's insets then read 0, which it handles).
-        // WebView ignores its own padding, so the container is padded and the WebView sits inside it.
+        // Edge to edge: the page draws behind the transparent status and navigation bars and pads itself (its app
+        // bar and tab bar), using the heights handed in as CSS variables. Only the side insets (cutouts in
+        // landscape) and the keyboard are padded natively.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+            v.setPadding(bars.left, 0, bars.right, ime.bottom)
+            insetTop = px(bars.top)
+            insetBottom = if (ime.bottom > 0) 0 else px(bars.bottom)
+            pushInsets()
+            refresh.setProgressViewOffset(false, bars.top, bars.top + dp(64))
             WindowInsetsCompat.CONSUMED
         }
 
@@ -118,6 +141,9 @@ class MainActivity : ComponentActivity() {
     private fun configure(w: WebView) {
         w.setBackgroundColor(INK)
         w.overScrollMode = View.OVER_SCROLL_NEVER
+        // An app, not a page: no scrollbars on the edge.
+        w.isVerticalScrollBarEnabled = false
+        w.isHorizontalScrollBarEnabled = false
         with(w.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -134,7 +160,10 @@ class MainActivity : ComponentActivity() {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
             WebSettingsCompat.setWebAuthenticationSupport(w.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP)
         }
-        w.addJavascriptInterface(MimirBridge(this, ::hideLaunch, ::retry), "MimirApp")
+        w.addJavascriptInterface(
+            MimirBridge(this, ::hideLaunch, ::retry, { """{"top":$insetTop,"bottom":$insetBottom}""" }, { refreshAllowed = it }),
+            "MimirApp",
+        )
         // Before any page script: route blob/data downloads (the recovery file) to the bridge.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             WebViewCompat.addDocumentStartJavaScript(w, DOWNLOAD_SHIM, setOf("https://$HOST"))
@@ -149,6 +178,9 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                refresh.isRefreshing = false
+                refreshAllowed = true
+                pushInsets()
                 if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) view.evaluateJavascript(DOWNLOAD_SHIM, null)
                 // A page that never calls ready() (an error page, an old deploy) still lets the app in.
                 main.postDelayed({ hideLaunch() }, 1_500)
@@ -233,6 +265,17 @@ class MainActivity : ComponentActivity() {
         hideLaunch()
     }
 
+    /** The bars' heights as CSS variables on the page (also read synchronously by the head script on load). */
+    private fun pushInsets() {
+        if (!::web.isInitialized) return
+        web.evaluateJavascript(
+            "(function(s){s.setProperty('--app-inset-top','${insetTop}px');s.setProperty('--app-inset-bottom','${insetBottom}px')})(document.documentElement.style)",
+            null,
+        )
+    }
+
+    private fun px(raw: Int) = Math.round(raw / resources.displayMetrics.density)
+
     private fun retry() = main.post { web.loadUrl(withApp(Uri.parse(START_URL)).toString()) }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -241,6 +284,8 @@ class MainActivity : ComponentActivity() {
         const val HOST = "mimirmarkets.xyz"
         const val START_URL = "https://$HOST/en/arena"
         val INK = Color.parseColor("#110F0E")
+        val CORAL = Color.parseColor("#FF5148")
+        val PANEL = Color.parseColor("#1C1817")
 
         /** Anchors with `download` and a blob:/data: href (clicked in the page or programmatically) go to the bridge. */
         private val DOWNLOAD_SHIM = """
