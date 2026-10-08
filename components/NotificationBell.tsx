@@ -12,6 +12,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Bell } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
+import Modal from "@/components/ui/Modal";
 import { formatUsdcUnits } from "@/lib/money";
 
 interface Item {
@@ -40,7 +41,17 @@ export default function NotificationBell() {
   const [items, setItems] = useState<Item[]>([]);
   const [seen, setSeen] = useState(0);
   const [open, setOpen] = useState(false);
+  // Phones get the list as a bottom sheet (like every other sheet there); wider screens keep the dropdown.
+  const [phone, setPhone] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setPhone(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const load = useCallback(async () => {
     if (!address) return;
@@ -64,7 +75,7 @@ export default function NotificationBell() {
   }, [address, connected, load]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || phone) return;
     const onDoc = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -77,7 +88,7 @@ export default function NotificationBell() {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, phone]);
 
   if (!connected || !address) return null;
   const unread = items.filter((i) => i.createdAt > seen).length;
@@ -124,6 +135,33 @@ export default function NotificationBell() {
     }
   };
 
+  const list = (
+    <>
+{items.length === 0 ? (
+              <p className="px-2.5 py-5 text-[13px] leading-snug text-muted">{t("empty")}</p>
+            ) : (
+              <ul className="grid max-h-80 gap-[3px] overflow-y-auto" data-lenis-prevent>
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={`/arena/${item.claimId}`}
+                      onClick={() => setOpen(false)}
+                      className={`block rounded-sm px-2.5 py-2.5 text-[13px] leading-snug transition-colors hover:bg-panel-raised ${
+                        item.createdAt > seen ? "text-cream" : "text-muted"
+                      }`}
+                    >
+                      {describe(item)}
+                      <span className="mt-1 block font-mono text-[11px] text-muted">
+                        {new Date(item.createdAt).toLocaleString("en-US")}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+    </>
+  );
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -141,34 +179,18 @@ export default function NotificationBell() {
           </span>
         ) : null}
       </button>
-      {open ? (
+      {open && !phone ? (
         <div className="absolute right-0 z-[60] mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-md bg-panel p-[5px] shadow-menu motion-safe:animate-[wallet-menu-in_140ms_ease-out_both]">
           <p className="px-2.5 pb-1.5 pt-2 text-[11px] uppercase tracking-[0.06em] text-muted">
             {t("title")}
           </p>
-          {items.length === 0 ? (
-            <p className="px-2.5 py-5 text-[13px] leading-snug text-muted">{t("empty")}</p>
-          ) : (
-            <ul className="grid max-h-80 gap-[3px] overflow-y-auto" data-lenis-prevent>
-              {items.map((item) => (
-                <li key={item.id}>
-                  <Link
-                    href={`/arena/${item.claimId}`}
-                    onClick={() => setOpen(false)}
-                    className={`block rounded-sm px-2.5 py-2.5 text-[13px] leading-snug transition-colors hover:bg-panel-raised ${
-                      item.createdAt > seen ? "text-cream" : "text-muted"
-                    }`}
-                  >
-                    {describe(item)}
-                    <span className="mt-1 block font-mono text-[11px] text-muted">
-                      {new Date(item.createdAt).toLocaleString("en-US")}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          {list}
         </div>
+      ) : null}
+      {phone ? (
+        <Modal open={open} onClose={() => setOpen(false)} title={t("title")} variant="sheet" closeLabel={t("close")}>
+          {list}
+        </Modal>
       ) : null}
     </div>
   );

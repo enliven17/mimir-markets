@@ -41,7 +41,7 @@ export default function MobileTabBar() {
           return (
             <Link key={href} href={href} aria-current={isActive ? "page" : undefined} className={`${TAB} ${isActive ? "text-coral" : "text-muted"}`}>
               <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
-              {label(t)}
+              <span className="max-w-full truncate">{label(t)}</span>
             </Link>
           );
         })}
@@ -53,7 +53,7 @@ export default function MobileTabBar() {
           className={`${TAB} ${moreActive || more ? "text-coral" : "text-muted"}`}
         >
           <Ellipsis size={20} aria-hidden />
-          {t("more")}
+          <span className="max-w-full truncate">{t("more")}</span>
         </button>
       </nav>
       <Modal open={more} onClose={() => setMore(false)} title={t("moreTitle")} variant="sheet" closeLabel={t("closeMore")}>

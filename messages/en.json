@@ -1657,6 +1657,7 @@
     }
   },
   "notifications": {
+    "close": "Close notifications",
     "title": "Notifications",
     "aria": "Notifications",
     "ariaUnread": "Notifications, {count} unread",
@@ -1813,6 +1814,10 @@
         "label": "Create a claim",
         "short": "Create",
         "hint": "Publish a claim and stake a side"
+      },
+      "terms": {
+        "label": "Terms",
+        "hint": "What you accept by using Mimir"
       },
       "app": {
         "label": "Mobile app",

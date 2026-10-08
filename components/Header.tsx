@@ -122,7 +122,7 @@ export default function Header() {
           </li>
         </ul>
 
-        <div className="col-start-3 flex items-center justify-self-end gap-2">
+        <div className="col-start-2 flex items-center justify-self-end gap-2 lg:col-start-3">
           <Link
             href={NAV_CTA.href}
             aria-current={active === NAV_CTA.href ? "page" : undefined}

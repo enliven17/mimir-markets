@@ -13,6 +13,13 @@ import { useRouter } from "@/i18n/navigation";
 
 const PULL_PX = 72;
 
+/** The Android app (android-app/, build 6+) pulls to refresh natively: the page's own gesture stays off there. */
+function nativeRefresh(): boolean {
+  const w = window as Window & { MimirApp?: { nativeRefresh?: () => boolean } };
+  if (w.MimirApp?.nativeRefresh?.()) return true;
+  return Number(/ MimirApp\/(\d+)/.exec(navigator.userAgent)?.[1] ?? 0) >= 6;
+}
+
 export default function PullToRefresh({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [pull, setPull] = useState(0);
@@ -21,7 +28,7 @@ export default function PullToRefresh({ children }: { children: ReactNode }) {
   const start = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!document.documentElement.hasAttribute("data-app")) return;
+    if (!document.documentElement.hasAttribute("data-app") || nativeRefresh()) return;
     const onStart = (e: TouchEvent) => {
       start.current = window.scrollY <= 0 && !document.querySelector('[aria-modal="true"]') ? e.touches[0].clientY : null;
     };
@@ -60,7 +67,7 @@ export default function PullToRefresh({ children }: { children: ReactNode }) {
           role="status"
           aria-label={busy ? "Refreshing" : "Pull to refresh"}
           className="pointer-events-none fixed inset-x-0 z-[56] flex justify-center"
-          style={{ top: `calc(84px + env(safe-area-inset-top) + ${busy ? 12 : pull * 0.5}px)` }}
+          style={{ top: `calc(84px + var(--safe-top) + ${busy ? 12 : pull * 0.5}px)` }}
         >
           <span className="grid h-9 w-9 place-items-center rounded-full bg-panel-raised text-coral shadow-modal">
             <RotateCw size={16} aria-hidden className={busy ? "animate-spin" : ""} style={busy ? undefined : { transform: `rotate(${(pull / PULL_PX) * 300}deg)`, opacity: Math.min(1, pull / PULL_PX) }} />

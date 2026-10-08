@@ -80,7 +80,7 @@ export default function AppBanners() {
     <div
       role="region"
       aria-label={strip === "update" ? "App update" : "Mobile app"}
-      className="fixed inset-x-0 top-0 z-[60] flex h-[var(--top-banner)] items-center justify-center gap-3 bg-maroon px-10 pt-[env(safe-area-inset-top)] text-[13px] text-cream"
+      className="fixed inset-x-0 top-0 z-[60] flex h-[var(--top-banner)] items-center justify-center gap-3 bg-maroon px-10 pt-[var(--safe-top)] text-[13px] text-cream"
     >
       {strip === "update" ? (
         <span>

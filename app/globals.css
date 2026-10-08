@@ -1075,6 +1075,12 @@ html.lenis.lenis-stopped {
    ────────────────────────────────────────────────────────────────────────── */
 /* The app strip above the nav (components/app/AppBanners.tsx) pushes the nav and the page down by its height. */
 :root { --top-banner: 0px; }
+/* Safe areas. The Android app (android-app/) draws behind the system bars and also hands its insets in as
+   --app-inset-top/--app-inset-bottom, for WebViews that report env(safe-area-inset-*) as 0. */
+:root {
+  --safe-top: max(env(safe-area-inset-top), var(--app-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom), var(--app-inset-bottom, 0px));
+}
 :root[data-top-banner] { --top-banner: 34px; }
 
 .nav-shell {
@@ -1082,7 +1088,7 @@ html.lenis.lenis-stopped {
   position: fixed;
   inset: 0 0 auto;
   z-index: 50;
-  padding: calc(env(safe-area-inset-top) + var(--top-banner) + var(--nav-p) * 14px) calc(var(--nav-p) * 16px) 0;
+  padding: calc(var(--safe-top) + var(--top-banner) + var(--nav-p) * 14px) calc(var(--nav-p) * 16px) 0;
   pointer-events: none;
 }
 .nav-shell[data-home] {
@@ -1128,6 +1134,29 @@ html.lenis.lenis-stopped {
 @media (min-width: 1024px) {
   .nav-bar {
     padding-inline: calc(28px - var(--nav-p) * 12px);
+  }
+}
+/* Phones: a plain app bar, not the floating pill. Ink from edge to edge (behind the status bar too), the wordmark
+   on the left, the bell and the wallet on the right; the tab bar carries the navigation. Fixed values override
+   the --nav-p morph the home page scrubs. */
+@media (max-width: 1023px) {
+  .nav-shell {
+    padding: calc(var(--safe-top) + var(--top-banner)) 0 0;
+    background: var(--ink);
+    box-shadow: inset 0 -1px 0 rgb(243 234 214 / 0.06);
+  }
+  .nav-bar {
+    grid-template-columns: auto 1fr;
+    height: 56px;
+    max-width: none;
+    padding: 0 var(--gut);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  .nav-bar .wordmark {
+    font-size: 22px;
   }
 }
 .nav-link {
@@ -1203,11 +1232,17 @@ html.lenis.lenis-stopped {
 @media (max-width: 1023px) {
   :root {
     --tabbar-h: 60px;
-    --tab-bar: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    --tab-bar: calc(var(--tabbar-h) + var(--safe-bottom));
   }
   /* Nothing hides behind the tab bar: the page and the footer end above it. */
   body {
     padding-bottom: var(--tab-bar);
+  }
+  /* A phone screen never scrolls sideways: anything wider is a bug, and clipping keeps the layout viewport (and
+     with it every fixed bar) at the screen's width instead of zooming the page out. */
+  html,
+  body {
+    overflow-x: clip;
   }
 }
 .tab-bar {
@@ -1217,9 +1252,15 @@ html.lenis.lenis-stopped {
   display: flex;
   align-items: center;
   gap: 2px;
+  /* Pinned to the screen's width whatever the page does: a wide child or a zoomed-out page must not stretch it,
+     and in landscape the side insets (notch, gesture bar) pad it in. */
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow: hidden;
   /* Exactly --tabbar-h tall above the safe area, so what sits on it can rely on the variable. */
   height: var(--tab-bar);
-  padding: 0 6px env(safe-area-inset-bottom);
+  padding: 0 max(6px, env(safe-area-inset-right)) var(--safe-bottom) max(6px, env(safe-area-inset-left));
   background: rgb(14 7 9 / 0.94);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
@@ -1229,6 +1270,10 @@ html.lenis.lenis-stopped {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   background: rgb(14 7 9 / 0.99);
+}
+/* Five tabs share the row: each may shrink below its label's width (the label truncates) instead of pushing out. */
+.tab-bar > * {
+  min-width: 0;
 }
 .tab-bar [aria-current="page"] {
   background: rgb(255 81 72 / 0.08);
@@ -1253,7 +1298,32 @@ html {
   }
 }
 
-/* The installed app is a product, not a website: no marketing footer. */
+/* Touch screens and the app: no scrollbar on the right (the page and every inner scroller still scroll).
+   Desktop keeps its scrollbar. */
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body,
+  * {
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+html[data-app],
+html[data-app] body,
+html[data-app] * {
+  scrollbar-width: none;
+}
+html[data-app]::-webkit-scrollbar,
+html[data-app] *::-webkit-scrollbar {
+  display: none;
+}
+
+/* The installed app is a product, not a website: no marketing footer, nothing that offers the app itself. */
+html[data-app] [data-web-only],
 html[data-app] .site-footer,
 html[data-app] .footer-closer {
   display: none;

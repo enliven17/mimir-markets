@@ -20,7 +20,11 @@ export function NavMoreLinks({ onNavigate, compact = false }: { onNavigate?: () 
   return (
     <div className={`grid gap-x-4 sm:grid-cols-2 ${compact ? "grid-cols-2 gap-y-4" : "gap-y-5"}`}>
       {NAV_MORE_GROUPS.map((group) => (
-        <section key={group.key} aria-labelledby={`nav-group-${group.key}`}>
+        <section
+          key={group.key}
+          aria-labelledby={`nav-group-${group.key}`}
+          data-web-only={group.items.every((i) => i.webOnly) || undefined}
+        >
           <h3 id={`nav-group-${group.key}`} className="mb-1.5 px-3 text-[11px] uppercase tracking-[0.06em] text-muted">
             {t(`groups.${group.key}`)}
           </h3>
@@ -28,7 +32,7 @@ export function NavMoreLinks({ onNavigate, compact = false }: { onNavigate?: () 
             {group.items.map((item) => {
               const isActive = active === item.href;
               return (
-                <li key={item.href}>
+                <li key={item.href} data-web-only={item.webOnly || undefined}>
                   <Link
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}

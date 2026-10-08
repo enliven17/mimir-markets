@@ -73,22 +73,22 @@ export default function ArcArena() {
 
       <ArcOnboarding />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="Markets" className="flex gap-1 rounded-full bg-panel p-1">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+        <div role="tablist" aria-label="Markets" className="grid grid-cols-3 gap-1 rounded-full bg-panel p-1 sm:flex">
           {VIEWS.map(([v, label]) => (
             <button
               key={v}
               role="tab"
               aria-selected={view === v}
               onClick={() => setView(v)}
-              className={`rounded-full px-4 py-1.5 text-[14px] ${view === v ? "bg-panel-raised text-cream" : "text-muted"}`}
+              className={`press min-w-0 truncate rounded-full px-2 py-2 text-[14px] sm:px-4 sm:py-1.5 ${view === v ? "bg-panel-raised text-cream" : "text-muted"}`}
             >
               {label}
               <span className="ml-1.5 text-dim">{markets ? byView[v].length : ""}</span>
             </button>
           ))}
         </div>
-        <div aria-label="Market type" className="flex gap-1 text-[13px]">
+        <div aria-label="Market type" className="flex justify-center gap-1 text-[13px] sm:justify-start">
           {(["all", "vs", "pool"] as const).map((k) => (
             <button
               key={k}

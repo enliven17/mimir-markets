@@ -16,6 +16,8 @@ export interface NavItem {
   matchNested?: boolean;
   /** A small tag after the label, e.g. "beta". */
   badge?: string;
+  /** Website only: hidden inside the installed app (html[data-app]), e.g. the page that offers the app. */
+  webOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -58,8 +60,15 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
       { href: "/calibration", key: "calibration" },
     ],
   },
-  { key: "mobile", items: [{ href: "/app", key: "app", badge: "new" }] },
-  { key: "docs", items: [{ href: "/docs", key: "docs" }] },
+  { key: "mobile", items: [{ href: "/app", key: "app", badge: "new", webOnly: true }] },
+  {
+    key: "docs",
+    items: [
+      { href: "/docs", key: "docs" },
+      // The footer is hidden in the app, so the terms live here too.
+      { href: "/terms", key: "terms" },
+    ],
+  },
 ];
 
 export const NAV_MORE: readonly NavItem[] = NAV_MORE_GROUPS.flatMap((g) => g.items);

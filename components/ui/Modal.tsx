@@ -56,6 +56,14 @@ export default function Modal({
 
   useEffect(() => setMounted(true), []);
 
+  // In the Android app a drag down inside an open sheet must not reload the page (android-app pull to refresh).
+  useEffect(() => {
+    const app = (window as Window & { MimirApp?: { setRefreshAllowed?: (allowed: boolean) => void } }).MimirApp;
+    if (!open || !app?.setRefreshAllowed) return;
+    app.setRefreshAllowed(false);
+    return () => app.setRefreshAllowed?.(true);
+  }, [open]);
+
   useEffect(() => {
     // Wait for the portal: a Modal first mounted with open=true renders nothing
     // on its first pass, and without this the dialog would never get focus or a trap.
@@ -154,7 +162,7 @@ export default function Modal({
         {...swipe}
         className={`glass-deep w-full overflow-y-auto bg-[rgb(14_7_9/.91)] p-[26px] shadow-modal outline-none motion-safe:animate-[sheet-in_200ms_cubic-bezier(0.22,1,0.36,1)_both] ${
           isSheet
-            ? "max-h-[min(88dvh,720px)] rounded-t-3xl pb-[calc(26px+env(safe-area-inset-bottom))] sm:max-w-[520px] sm:rounded-3xl sm:pb-[26px]"
+            ? "max-h-[min(88dvh,720px)] rounded-t-3xl pb-[calc(26px+var(--safe-bottom))] sm:max-w-[520px] sm:rounded-3xl sm:pb-[26px]"
             : "max-h-[min(620px,calc(100dvh-40px))] max-w-[460px] rounded-3xl"
         } ${className}`}
       >

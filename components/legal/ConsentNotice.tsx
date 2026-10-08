@@ -48,7 +48,7 @@ export default function ConsentNotice() {
     <section
       role="region"
       aria-label="Terms of use"
-      className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom)+var(--tabbar-h,0px))] z-[70] grid gap-3 rounded-2xl border border-cream/10 bg-[#141110]/95 p-4 text-[13px] leading-snug text-muted shadow-[0_20px_60px_rgb(0_0_0/.5)] backdrop-blur-md sm:inset-x-auto sm:left-5 sm:bottom-5 sm:w-[360px]"
+      className="fixed inset-x-3 bottom-[calc(12px+var(--safe-bottom)+var(--tabbar-h,0px))] z-[70] grid gap-3 rounded-2xl border border-cream/10 bg-[#141110]/95 p-4 text-[13px] leading-snug text-muted shadow-[0_20px_60px_rgb(0_0_0/.5)] backdrop-blur-md sm:inset-x-auto sm:left-5 sm:bottom-5 sm:w-[360px]"
     >
       <p className="m-0 text-[14px] text-cream">By using Mimir you confirm that:</p>
       <ul className="m-0 grid gap-1.5 pl-4 marker:text-coral">

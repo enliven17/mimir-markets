@@ -34,7 +34,7 @@ export default function PageFrame({
   return (
     <div
       ref={ref}
-      className={`mx-auto w-full min-w-0 px-[var(--gut)] pb-10 pt-[calc(92px+env(safe-area-inset-top)+var(--top-banner))] ${
+      className={`mx-auto w-full min-w-0 px-[var(--gut)] pb-10 pt-[calc(76px+var(--safe-top)+var(--top-banner))] lg:pt-[calc(92px+var(--safe-top)+var(--top-banner))] ${
         width === "narrow" ? "max-w-[calc(var(--wrap-narrow)+2*var(--gut))]" : "max-w-[calc(var(--wrap)+2*var(--gut))]"
       }`}
     >

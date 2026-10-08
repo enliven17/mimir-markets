@@ -21,7 +21,7 @@ import { BTN_PRIMARY, KIND_LABEL, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
 
-const FIELD = "rounded-xl bg-ink-deep px-4 py-3 text-[15px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]";
+const FIELD = "w-full min-w-0 rounded-xl bg-ink-deep px-4 py-3 text-[15px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]";
 // Leave the deadline at least this far out, so the tx and the betting lock both fit.
 const MIN_LEAD_SECONDS = 10 * 60;
 
@@ -125,29 +125,29 @@ export default function ArcCreateForm() {
           ))}
         </div>
 
-        <label className="grid gap-1.5 text-[13px] text-muted">
+        <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
           Question
           <textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={280} className={FIELD} placeholder="Will BTC close above $120k on Oct 31?" />
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-[13px] text-muted">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             {kind === "vs" ? "Your side" : "Side A"}
             <input value={labelA} onChange={(e) => setLabelA(e.target.value)} maxLength={60} className={FIELD} />
           </label>
-          <label className="grid gap-1.5 text-[13px] text-muted">
+          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             {kind === "vs" ? "Challengers' side" : "Side B"}
             <input value={labelB} onChange={(e) => setLabelB(e.target.value)} maxLength={60} className={FIELD} />
           </label>
         </div>
 
-        <label className="grid gap-1.5 text-[13px] text-muted">
+        <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
           Resolution source
           <input value={url} onChange={(e) => setUrl(e.target.value)} inputMode="url" className={FIELD} placeholder="https://www.coingecko.com/en/coins/bitcoin" />
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-[13px] text-muted">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             Category
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={FIELD}>
               {CATEGORIES.map((c) => (
@@ -157,19 +157,19 @@ export default function ArcCreateForm() {
               ))}
             </select>
           </label>
-          <label className="grid gap-1.5 text-[13px] text-muted">
+          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             Deadline
             <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={FIELD} />
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-[13px] text-muted">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             Your stake (USDC)
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${FIELD} font-mono`} />
           </label>
           {kind === "pool" ? (
-            <label className="grid gap-1.5 text-[13px] text-muted">
+            <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
               Your stake backs
               <select value={side} onChange={(e) => setSide(Number(e.target.value) as 1 | 2)} className={FIELD}>
                 <option value={1}>{labelA || "Side A"}</option>
