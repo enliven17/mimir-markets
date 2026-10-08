@@ -13,6 +13,9 @@ import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { APP_RELEASE, APP_VERSION_PARAM, appReleased } from "@/lib/app-release";
 
+/** The same deployment on a host the app does not claim as a link (see the update link below). */
+const LEGACY_APK_ORIGIN = "https://mimirclaw.vercel.app";
+
 const DISMISS_KEY = "mimir-app-banner-dismissed";
 const BUILD_KEY = "mimir-app-build";
 
@@ -85,7 +88,20 @@ export default function AppBanners() {
       {strip === "update" ? (
         <span>
           A new version of the app is ready ({APP_RELEASE.versionName}).{" "}
-          <a href={APP_RELEASE.apkPath} download className="font-medium text-coral underline-offset-2 hover:underline">
+          {/* App 2.2+ updates itself (window.MimirApp.update: download, signature check, installer). Older builds hand
+              downloads to a browser tab, and a browser hands any mimirmarkets.xyz link straight back to the app (a
+              loop that also kept reopening the app); the Vercel host is not an app link, so the browser downloads. */}
+          <a
+            href={`${LEGACY_APK_ORIGIN}${APP_RELEASE.apkPath}`}
+            download
+            onClick={(e) => {
+              const app = (window as { MimirApp?: { update?: (url: string) => void } }).MimirApp;
+              if (typeof app?.update !== "function") return;
+              e.preventDefault();
+              app.update(new URL(APP_RELEASE.apkPath, window.location.origin).href);
+            }}
+            className="font-medium text-coral underline-offset-2 hover:underline"
+          >
             Update
           </a>
         </span>

@@ -25,6 +25,8 @@ class MimirBridge(
     private val insets: () -> String,
     /** False while a sheet or dialog is open in the page, so a downward drag inside it is not a refresh. */
     private val onRefreshAllowed: (Boolean) -> Unit,
+    /** The in-app update: our own APK URL (Updater.kt checks the host and the signature). */
+    private val onUpdate: (String) -> Unit,
 ) {
     private val main = Handler(Looper.getMainLooper())
 
@@ -43,6 +45,11 @@ class MimirBridge(
     @JavascriptInterface
     fun setRefreshAllowed(allowed: Boolean) {
         main.post { onRefreshAllowed(allowed) }
+    }
+
+    @JavascriptInterface
+    fun update(url: String) {
+        main.post { onUpdate(url) }
     }
 
     @JavascriptInterface

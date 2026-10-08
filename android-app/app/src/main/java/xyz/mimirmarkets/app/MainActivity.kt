@@ -20,6 +20,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
     private lateinit var launch: View
     private lateinit var refresh: SwipeRefreshLayout
+    private lateinit var updater: Updater
     /** The system bars in CSS px (the page's own units), kept for the head script and pushed on change. */
     @Volatile private var insetTop = 0
     @Volatile private var insetBottom = 0
@@ -87,10 +89,13 @@ class MainActivity : ComponentActivity() {
             setOnRefreshListener { web.reload() }
             addView(web, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        val pill = updatePill()
+        updater = Updater(this, pill)
         val root = FrameLayout(this).apply {
             setBackgroundColor(INK)
             addView(refresh, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             addView(launch, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(pill, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))
         }
         setContentView(root)
         // Edge to edge: the page draws behind the transparent status and navigation bars and pads itself (its app
@@ -104,6 +109,8 @@ class MainActivity : ComponentActivity() {
             insetBottom = if (ime.bottom > 0) 0 else px(bars.bottom)
             pushInsets()
             refresh.setProgressViewOffset(false, bars.top, bars.top + dp(64))
+            (pill.layoutParams as FrameLayout.LayoutParams).topMargin = bars.top + dp(64)
+            pill.requestLayout()
             WindowInsetsCompat.CONSUMED
         }
 
@@ -120,8 +127,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // An App Link while the app runs: open it here (wallet answers go to WalletReturnActivity instead).
-        intent.data?.takeIf { isSite(it) }?.let { web.loadUrl(withApp(it).toString()) }
+        // An App Link while the app runs: open it here (wallet answers go to WalletReturnActivity instead). Only
+        // pages: a file or an API URL handed back by a browser would bounce between us and it.
+        val uri = intent.data?.takeIf { isSite(it) } ?: return
+        if (Updater.isOurApk(uri)) updater.start(uri.toString()) else if (isPage(uri)) web.loadUrl(withApp(uri).toString())
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updater.resume()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -130,6 +144,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        updater.release()
         main.removeCallbacksAndMessages(null)
         web.destroy()
         super.onDestroy()
@@ -161,7 +176,9 @@ class MainActivity : ComponentActivity() {
             WebSettingsCompat.setWebAuthenticationSupport(w.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP)
         }
         w.addJavascriptInterface(
-            MimirBridge(this, ::hideLaunch, ::retry, { """{"top":$insetTop,"bottom":$insetBottom}""" }, { refreshAllowed = it }),
+            MimirBridge(this, ::hideLaunch, ::retry, { """{"top":$insetTop,"bottom":$insetBottom}""" }, { refreshAllowed = it }) { url ->
+                Uri.parse(url).takeIf { Updater.isOurApk(it) }?.let { updater.start(it.toString()) }
+            },
             "MimirApp",
         )
         // Before any page script: route blob/data downloads (the recovery file) to the bridge.
@@ -200,14 +217,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Plain (non-blob) downloads: hand them to the browser's download handling.
+        // Our APK is the in-app update. Other files from our own site never go to a browser (it hands our verified
+        // link straight back to the app, in a loop that kept reopening the app); files from elsewhere still do.
         w.setDownloadListener { url, _, _, _, _ ->
-            if (url.startsWith("http")) openOutside(Uri.parse(url))
+            val uri = Uri.parse(url)
+            when {
+                Updater.isOurApk(uri) -> updater.start(url)
+                isSite(uri) -> Unit
+                url.startsWith("http") -> openOutside(uri)
+            }
         }
     }
 
     private fun startUrl(intent: Intent?): String {
-        val link = intent?.data?.takeIf { isSite(it) }
+        val link = intent?.data?.takeIf { isSite(it) && isPage(it) }
         return withApp(link ?: Uri.parse(START_URL)).toString()
     }
 
@@ -217,6 +240,12 @@ class MainActivity : ComponentActivity() {
         else uri.buildUpon().appendQueryParameter("app", BuildConfig.VERSION_CODE.toString()).build()
 
     private fun isSite(uri: Uri) = uri.scheme == "https" && (uri.host == HOST || uri.host == "www.$HOST")
+
+    /** A page of the site, not a file or an API call. */
+    private fun isPage(uri: Uri): Boolean {
+        val path = uri.path.orEmpty()
+        return !path.startsWith("/api/") && !FILE_PATH.containsMatchIn(path)
+    }
 
     /** Wallet links open the wallet app; other https links open a Custom Tab in our colours; the rest by intent. */
     private fun openOutside(uri: Uri) {
@@ -249,6 +278,19 @@ class MainActivity : ComponentActivity() {
             },
             FrameLayout.LayoutParams(dp(300), dp(300), android.view.Gravity.CENTER),
         )
+    }
+
+    /** The update's progress, a small pill under the status bar (Updater.kt). */
+    private fun updatePill(): TextView = TextView(this).apply {
+        setTextColor(Color.parseColor("#F3EAD6"))
+        textSize = 13f
+        setPadding(dp(14), dp(8), dp(14), dp(8))
+        background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(20).toFloat()
+            setColor(PANEL)
+        }
+        alpha = 0f
+        elevation = dp(6).toFloat()
     }
 
     private fun hideLaunch() {
@@ -286,6 +328,7 @@ class MainActivity : ComponentActivity() {
         val INK = Color.parseColor("#110F0E")
         val CORAL = Color.parseColor("#FF5148")
         val PANEL = Color.parseColor("#1C1817")
+        private val FILE_PATH = Regex("\\.[a-z0-9]{2,5}$", RegexOption.IGNORE_CASE)
 
         /** Anchors with `download` and a blob:/data: href (clicked in the page or programmatically) go to the bridge. */
         private val DOWNLOAD_SHIM = """
