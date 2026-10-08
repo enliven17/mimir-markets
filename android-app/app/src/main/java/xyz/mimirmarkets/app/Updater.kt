@@ -75,19 +75,25 @@ class Updater(private val activity: Activity, private val pill: TextView) {
         ContextCompat.registerReceiver(activity, receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), ContextCompat.RECEIVER_EXPORTED)
     }
 
+    /** Progress, and the end of the download: some phones (Samsung) deliver DOWNLOAD_COMPLETE late or never, so the
+     *  status column is the source of truth and the broadcast only a shortcut. */
     private fun poll() {
         if (downloadId == -1L) return
+        var status = -1
         dm.query(DownloadManager.Query().setFilterById(downloadId))?.use { c ->
             if (c.moveToFirst()) {
+                status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                 val done = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
                 val total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                 if (total > 0) show("Downloading update… ${(done * 100 / total).coerceIn(0, 100)}%")
             }
         }
+        if (status == DownloadManager.STATUS_SUCCESSFUL || status == DownloadManager.STATUS_FAILED) return finished()
         main.postDelayed(::poll, 400)
     }
 
     private fun finished() {
+        if (downloadId == -1L) return
         val id = downloadId
         downloadId = -1L
         main.removeCallbacksAndMessages(null)
