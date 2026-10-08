@@ -7,6 +7,9 @@
  */
 import { useState } from "react";
 
+import Modal from "@/components/ui/Modal";
+import { betCardUrl, betIntentUrl } from "@/lib/bet-share";
+
 import { Link } from "@/i18n/navigation";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
@@ -31,6 +34,8 @@ export default function ArcStakePanel({
   const { send, busy, error, last } = useArcSend(account.session);
   const [amount, setAmount] = useState("1");
   const [side, setSide] = useState<1 | 2>(m.kind === "vs" ? 2 : 1);
+  // After a stake goes through: the share sheet (lib/bet-share.ts), with the side and amount just staked.
+  const [shared, setShared] = useState<{ side: 1 | 2; amount: string } | null>(null);
 
   const contract = m.kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
   const stake = parseUsdc(amount);
@@ -60,7 +65,10 @@ export default function ArcStakePanel({
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;
-    if (await send(account.withTicket([stakeCall(contract, m.kind, m.marketId, stake, side)]))) void account.reload();
+    if (await send(account.withTicket([stakeCall(contract, m.kind, m.marketId, stake, side)]))) {
+      void account.reload();
+      setShared({ side, amount: usd(stake) });
+    }
   };
 
   return (
@@ -134,6 +142,36 @@ export default function ArcStakePanel({
           </a>
         ) : null}
       </AccountGate>
+      {shared ? (
+        <Modal open onClose={() => setShared(null)} title="You're in" variant="sheet">
+          <div className="mt-4 grid gap-4">
+            <p className="m-0 text-[14px] leading-relaxed text-muted">
+              {shared.amount} on <span className="text-cream">&ldquo;{shared.side === 1 ? m.labelA : m.labelB}&rdquo;</span>. Tell people, and let them take the other side.
+            </p>
+            {/* The card X will show under the post. */}
+            <img
+              src={betCardUrl(m.kind, m.marketId, shared.side)}
+              alt=""
+              width={1200}
+              height={630}
+              className="aspect-[1200/630] w-full rounded-xl bg-ink-deep object-cover"
+            />
+            <div className="flex flex-wrap gap-3">
+              <a
+                href={betIntentUrl(m.kind, m.marketId, shared.side, m.question, shared.side === 1 ? m.labelA : m.labelB, shared.amount)}
+                target="_blank"
+                rel="noreferrer"
+                className={`${BTN_PRIMARY} flex-1 text-center`}
+              >
+                Share on X
+              </a>
+              <button type="button" onClick={() => setShared(null)} className="rounded-full bg-cream/[0.07] px-5 py-2.5 text-[14px] text-cream">
+                Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }
