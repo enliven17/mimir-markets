@@ -22,6 +22,8 @@ import { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
 
 const FIELD = "w-full min-w-0 rounded-xl bg-ink-deep px-4 py-3 text-[15px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]";
+// Selects draw their own chevron inside the box: the platform arrow lands outside the rounded field on some phones.
+const SELECT = `${FIELD} appearance-none bg-no-repeat bg-[length:12px_12px] bg-[position:right_16px_center] pr-11 bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23A89D93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")]`;
 // Leave the deadline at least this far out, so the tx and the betting lock both fit.
 const MIN_LEAD_SECONDS = 10 * 60;
 
@@ -149,7 +151,7 @@ export default function ArcCreateForm() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
             Category
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={FIELD}>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT}>
               {CATEGORIES.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
@@ -171,7 +173,7 @@ export default function ArcCreateForm() {
           {kind === "pool" ? (
             <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
               Your stake backs
-              <select value={side} onChange={(e) => setSide(Number(e.target.value) as 1 | 2)} className={FIELD}>
+              <select value={side} onChange={(e) => setSide(Number(e.target.value) as 1 | 2)} className={SELECT}>
                 <option value={1}>{labelA || "Side A"}</option>
                 <option value={2}>{labelB || "Side B"}</option>
               </select>

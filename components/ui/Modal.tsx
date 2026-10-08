@@ -145,8 +145,9 @@ export default function Modal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[90] grid bg-[rgb(3_1_2/.42)] p-5 motion-safe:animate-[modal-in_160ms_ease-out_both] ${
-        isSheet ? "place-items-end pb-0 sm:place-items-center sm:pb-5" : "place-items-center"
+      className={`fixed inset-0 z-[90] grid bg-[rgb(3_1_2/.42)] motion-safe:animate-[modal-in_160ms_ease-out_both] ${
+        // Phones: a sheet runs edge to edge, like the system's own; wider screens centre it with a margin.
+        isSheet ? "place-items-end p-0 sm:place-items-center sm:p-5" : "place-items-center p-5"
       }`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
