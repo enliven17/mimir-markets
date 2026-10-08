@@ -33,7 +33,7 @@ contract MimirFeesTest {
     function setUp() public {
         vm.warp(T0);
         signer = vm.addr(SIGNER_KEY);
-        fees = new MimirFees(signer);
+        fees = new MimirFees(address(this), signer);
     }
 
     function _sig(uint256 key, address account, uint8 tier, uint64 expires) internal returns (bytes memory) {
@@ -132,18 +132,20 @@ contract MimirFeesTest {
     // ── Signer rotation and ownership ───────────────────────────────────────
 
     function test_rotatingTheSignerRetiresItsTickets() public {
-        uint64 exp = uint64(T0 + 1 days);
-        bytes memory old = _sig(SIGNER_KEY, alice, 2, exp);
+        // A new signer is timelocked (queueSigner / executeSigner); the old one's tickets stop verifying.
         address next = vm.addr(OTHER_KEY);
-        fees.setSigner(next);
-        (bool stale,) = _apply(alice, 2, exp, old);
+        fees.queueSigner(next);
+        vm.warp(T0 + 2 days);
+        fees.executeSigner();
+        uint64 exp = uint64(T0 + 3 days);
+        (bool stale,) = _apply(alice, 2, exp, _sig(SIGNER_KEY, alice, 2, exp));
         (bool fresh,) = _apply(alice, 2, exp, _sig(OTHER_KEY, alice, 2, exp));
         assert(!stale && fresh);
     }
 
     function test_onlyTheOwnerSetsTheSigner() public {
         vm.prank(alice);
-        (bool ok,) = address(fees).call(abi.encodeWithSelector(MimirFees.setSigner.selector, alice));
+        (bool ok,) = address(fees).call(abi.encodeWithSelector(MimirFees.queueSigner.selector, alice));
         assert(!ok);
     }
 
@@ -162,8 +164,8 @@ contract MimirFeesTest {
 
     function test_aWhaleTicketLowersTheEntryFeeOnBothMarkets() public {
         address platform = address(0xFEE);
-        MimirV3 v3 = new MimirV3(address(0x0417ac1e), platform, IMimirFees(address(fees)), 0, 2e18);
-        MimirPool pool = new MimirPool(address(0x0417ac1e), platform, IPoolFees(address(fees)), 0, 2e18);
+        MimirV3 v3 = new MimirV3(address(this), address(this), address(0x0417ac1e), platform, IMimirFees(address(fees)), 0, 2e18);
+        MimirPool pool = new MimirPool(address(this), address(this), address(0x0417ac1e), platform, IPoolFees(address(fees)), 0, 2e18);
         uint64 exp = uint64(T0 + 1 days);
         _apply(alice, 2, exp, _sig(SIGNER_KEY, alice, 2, exp));
         vm.deal(alice, 100 * ONE);

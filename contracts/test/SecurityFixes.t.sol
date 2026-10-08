@@ -79,7 +79,7 @@ contract SecurityFixesTest is Base {
 
     function setUp() public {
         vm.warp(T0);
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 1e16);
+        mimir = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 1e16);
         vm.deal(creator, 10_000 * ONE);
         vm.deal(alice, 10_000 * ONE);
         vm.deal(carol, 10_000 * ONE);
@@ -176,7 +176,7 @@ contract SecurityFixesTest is Base {
     }
 
     function test_anEntryFeeAboveOnePercentIsRefused() public {
-        MimirV3 m = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(101))), WINDOW, 1e16);
+        MimirV3 m = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(101))), WINDOW, 1e16);
         vm.prank(creator);
         vm.expectRevert(bytes("Mimir: entry fee too high"));
         m.createClaim{value: ONE}(
@@ -187,7 +187,7 @@ contract SecurityFixesTest is Base {
 
     function test_theInviteKeyIsCheckedBeforeTheFeeContract() public {
         SwitchFees sw = new SwitchFees();
-        MimirV3 m = new MimirV3(oracle, platform, IMimirFees(address(sw)), WINDOW, 1e16);
+        MimirV3 m = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(sw)), WINDOW, 1e16);
         vm.prank(creator);
         uint256 id = m.createClaim{value: ONE}(
             "Will it?", "yes", "no", "https://example.com", T0 + GAP, ONE,
@@ -258,7 +258,7 @@ contract PoolSecurityFixesTest is Base {
     function setUp() public {
         vm.warp(T0);
         deadline = T0 + 1 days;
-        pool = new MimirPool(oracle, platform, IPoolFees(address(new FlatFees(0))), WINDOW, 2e18);
+        pool = new MimirPool(address(this), address(this), oracle, platform, IPoolFees(address(new FlatFees(0))), WINDOW, 2e18);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(carol, 1_000 * ONE);
     }
@@ -313,7 +313,7 @@ contract PoolSecurityFixesTest is Base {
     }
 
     function test_aPoolEntryFeeAboveOnePercentIsRefused() public {
-        MimirPool p = new MimirPool(oracle, platform, IPoolFees(address(new FlatFees(101))), WINDOW, 2e18);
+        MimirPool p = new MimirPool(address(this), address(this), oracle, platform, IPoolFees(address(new FlatFees(101))), WINDOW, 2e18);
         vm.prank(alice);
         vm.expectRevert(MimirPool.EntryFeeTooHigh.selector);
         p.createMarket{value: 10 * ONE}("q", "Y", "N", "u", "c", deadline, 1, address(0));
@@ -329,11 +329,15 @@ contract FeesSecurityFixesTest is Base {
 
     function setUp() public {
         vm.warp(T0);
-        fees = new MimirFees(vm.addr(OLD_KEY));
+        fees = new MimirFees(address(this), vm.addr(OLD_KEY));
     }
 
     function _apply(uint256 key, uint8 tier) internal {
-        uint64 expires = uint64(T0 + 1 days);
+        _apply(key, tier, uint64(T0 + 1 days));
+    }
+
+    // via-IR may reuse a block.timestamp read across a vm.warp, so callers after a warp pass the expiry.
+    function _apply(uint256 key, uint8 tier, uint64 expires) internal {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, fees.ticketDigest(user, tier, expires));
         vm.prank(user);
         fees.applyTicket(tier, expires, abi.encodePacked(r, s, v));
@@ -342,9 +346,11 @@ contract FeesSecurityFixesTest is Base {
     function test_rotatingTheSignerRetiresItsTickets() public {
         _apply(OLD_KEY, 2);
         assertEq(fees.entryBps(user), fees.WHALE_BPS());
-        fees.setSigner(vm.addr(NEW_KEY));
+        fees.queueSigner(vm.addr(NEW_KEY));
+        vm.warp(T0 + 2 days);
+        fees.executeSigner();
         assertEq(fees.entryBps(user), fees.BASE_BPS());
-        _apply(NEW_KEY, 2);
+        _apply(NEW_KEY, 2, uint64(T0 + 3 days));
         assertEq(fees.entryBps(user), fees.WHALE_BPS());
     }
 

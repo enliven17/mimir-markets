@@ -71,7 +71,7 @@ contract MimirV3SmartAccountTest {
 
     function setUp() public {
         vm.warp(T0);
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(uint16(FEE_BPS)))), WINDOW, 2e18);
+        mimir = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(uint16(FEE_BPS)))), WINDOW, 2e18);
         vm.warp(T0 + 2 days);
 
         maker = new MiniAccount(address(this));

@@ -35,8 +35,8 @@ contract MimirMinStakeTest {
     function setUp() public {
         vm.warp(1_000_000);
         IMimirFees fees = IMimirFees(address(new FlatFees(50)));
-        mimir = new MimirV3(oracle, platform, fees, 0, MIN);
-        pool = new MimirPool(oracle, platform, IPoolFees(address(fees)), 0, MIN);
+        mimir = new MimirV3(address(this), address(this), oracle, platform, fees, 0, MIN);
+        pool = new MimirPool(address(this), address(this), oracle, platform, IPoolFees(address(fees)), 0, MIN);
         vm.deal(creator, 100e18);
         vm.deal(alice, 100e18);
     }
@@ -52,11 +52,11 @@ contract MimirMinStakeTest {
     function test_constructorRefusesAMinimumOutOfRange() public {
         IMimirFees fees = IMimirFees(address(new FlatFees(0)));
         vm.expectRevert(bytes("Mimir: min stake out of range"));
-        new MimirV3(oracle, platform, fees, 0, 1e15);
+        new MimirV3(address(this), address(this), oracle, platform, fees, 0, 1e15);
         vm.expectRevert(bytes("Mimir: min stake out of range"));
-        new MimirV3(oracle, platform, fees, 0, 101e18);
+        new MimirV3(address(this), address(this), oracle, platform, fees, 0, 101e18);
         vm.expectRevert(MimirPool.BadMinStake.selector);
-        new MimirPool(oracle, platform, IPoolFees(address(fees)), 0, 1e15);
+        new MimirPool(address(this), address(this), oracle, platform, IPoolFees(address(fees)), 0, 1e15);
     }
 
     function test_vsTakesTenCentStakesAndRefusesLess() public {
@@ -89,7 +89,7 @@ contract MimirMinStakeTest {
 
     function test_disputeBondStaysTwoUsdcWhateverTheMinimum() public {
         IMimirFees fees = IMimirFees(address(new FlatFees(0)));
-        MimirV3 windowed = new MimirV3(oracle, platform, fees, 1 hours, MIN);
+        MimirV3 windowed = new MimirV3(address(this), address(this), oracle, platform, fees, 1 hours, MIN);
         vm.prank(creator);
         uint256 id = windowed.createClaim{value: MIN}(
             "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, MIN, "custom", 0, "binary",

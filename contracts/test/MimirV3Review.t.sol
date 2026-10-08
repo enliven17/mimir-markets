@@ -75,7 +75,7 @@ contract MimirV3ReviewTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
+        mimir = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
@@ -279,7 +279,7 @@ contract MimirV3ReviewTest {
     // -- #8 (reworked): the fees contract must have code -------------------
 
     function deployWithFees(address fees) external returns (MimirV3) {
-        return new MimirV3(oracle, platform, IMimirFees(fees), 0, 2e18);
+        return new MimirV3(address(this), address(this), oracle, platform, IMimirFees(fees), 0, 2e18);
     }
 
     function test_aFeesAddressWithoutCodeIsRefusedAtDeploy() public {

@@ -263,7 +263,7 @@ contract MimirPoolInvariantTest {
     function setUp() public {
         uint256 t = 1_000_000;
         vm.warp(t);
-        pool = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 1 hours, 2e18);
+        pool = new MimirPool(address(this), address(this), oracle, platform, IMimirFees(address(new MimirFees(address(this), address(0x5161)))), 1 hours, 2e18);
 
         PoolRefuser refuser = new PoolRefuser();
         address[] memory actors = new address[](5);

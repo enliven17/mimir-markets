@@ -41,8 +41,14 @@ interface IMimirFees {
  *     claim(id), or by anyone through claimFor(id, user) (the app pushing to
  *     smart accounts). Pushes carry PUSH_GAS; a refused push is parked for
  *     withdraw(). Implied odds come from sideTotals(id).
- *   - Ownership, oracle and fee-recipient changes are timelocked. Pause stops new markets
- *     and stakes, never settlement, refunds, claims or withdrawals.
+ *   - Separate roles set at deploy: owner (a multisig), arbiter (rules disputes),
+ *     oracle (a hot key that may never also be owner, arbiter or fee recipient),
+ *     fee recipient. Ownership, oracle and fee-recipient changes are timelocked;
+ *     the owner can revoke the oracle at once, veto a proposal to the arbiter,
+ *     cap stakes and set an early lock.
+ *   - Pause stops new markets and stakes AND settlement (propose, finalize,
+ *     rulings) and winners' payouts; refunds are still paid, and refundExpired
+ *     while paused refunds instead of honouring a proposal.
  */
 contract MimirPool {
     // ── Constants ─────────────────────────────────────────────────────────────
@@ -76,6 +82,8 @@ contract MimirPool {
     uint256 public constant RESOLUTION_GRACE_SECONDS = 7 days;
     uint256 public constant PUSH_GAS = 50_000;
     uint256 public constant MAX_DISPUTE_WINDOW = 7 days;
+    /// Off testnet a proposal stays disputable at least this long.
+    uint256 public constant MIN_LIVE_DISPUTE_WINDOW = 1 days;
 
     // ── Storage ───────────────────────────────────────────────────────────────
     struct Market {
@@ -119,12 +127,19 @@ contract MimirPool {
     uint256 public lifetimeFeesClaimed;
 
     address public owner;
+    /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
+    address public arbiter;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
     address public oracle;
     address public pendingOracle;
     uint256 public pendingOracleEta;
     bool    public paused;
+    /// Guarded launch: the most one account may hold in a market (both sides) and a market may hold (net, 0 = no cap).
+    uint256 public maxAccountStake;
+    uint256 public maxMarketStake;
+    /// Optional early close (e.g. kickoff): stakes stop at lockAt instead of LOCK_SECONDS before the deadline.
+    mapping(uint256 => uint256) public lockAt;
 
     /// Entry-fee rates per account.
     IMimirFees public immutable fees;
@@ -163,6 +178,9 @@ contract MimirPool {
     event FeeRecipientCancelled(address indexed next);
     event FeeRecipientChanged(address indexed previous, address indexed next);
     event Paused(bool paused);
+    event ArbiterChanged(address indexed previous, address indexed next);
+    event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
+    event LockSet(uint256 indexed id, uint256 lockAt);
 
     // ── Errors ────────────────────────────────────────────────────────────────
     error BadMinStake();
@@ -199,6 +217,11 @@ contract MimirPool {
     error NothingToWithdraw();
     error TransferFailed();
     error DirectTransfer();
+    error RoleCollision();
+    error WindowTooShort();
+    error NotArbiter();
+    error CapExceeded();
+    error BadLock();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -219,18 +242,35 @@ contract MimirPool {
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow, uint256 _minStake) {
-        if (_oracle == address(0) || _feeRecipient == address(0)) revert ZeroAddress();
+    constructor(
+        address _owner,
+        address _arbiter,
+        address _oracle,
+        address _feeRecipient,
+        IMimirFees _fees,
+        uint256 _disputeWindow,
+        uint256 _minStake
+    ) {
+        if (_owner == address(0) || _arbiter == address(0) || _oracle == address(0) || _feeRecipient == address(0)) {
+            revert ZeroAddress();
+        }
+        if (_oracle == _owner || _oracle == _arbiter || _oracle == _feeRecipient) revert RoleCollision();
         if (_minStake < MIN_STAKE_FLOOR || _minStake > MIN_STAKE_CEILING) revert BadMinStake();
         MIN_STAKE = _minStake;
         if (address(_fees).code.length == 0) revert NoCode();
         if (_disputeWindow > MAX_DISPUTE_WINDOW) revert DisputeWindowTooLong();
+        // Arc testnet (5042002) and a local chain may test short windows; anywhere else a day at least.
+        if (block.chainid != 5042002 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
+            revert WindowTooShort();
+        }
         disputeWindow = _disputeWindow;
-        owner = msg.sender;
+        owner = _owner;
+        arbiter = _arbiter;
         oracle = _oracle;
         fees = _fees;
         feeRecipient = _feeRecipient;
-        emit OwnershipTransferred(address(0), msg.sender);
+        emit OwnershipTransferred(address(0), _owner);
+        emit ArbiterChanged(address(0), _arbiter);
         emit OracleChanged(address(0), _oracle);
         emit FeeRecipientChanged(address(0), _feeRecipient);
     }
@@ -262,9 +302,41 @@ contract MimirPool {
 
     function queueOracle(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
+        if (next == owner || next == arbiter || next == feeRecipient) revert RoleCollision();
         pendingOracle = next;
         pendingOracleEta = block.timestamp + TIMELOCK_SECONDS;
         emit OracleChangeQueued(next, pendingOracleEta);
+    }
+
+    /// Emergency: the oracle loses its power at once. A replacement still waits the timelock.
+    function revokeOracle() external onlyOwner {
+        emit OracleChanged(oracle, address(0));
+        oracle = address(0);
+    }
+
+    function setArbiter(address next) external onlyOwner {
+        if (next == address(0)) revert ZeroAddress();
+        if (next == oracle) revert RoleCollision();
+        emit ArbiterChanged(arbiter, next);
+        arbiter = next;
+    }
+
+    /// Guarded launch caps (net USDC, 0 = none). They only gate new stakes.
+    function setCaps(uint256 market, uint256 account) external onlyOwner {
+        maxMarketStake = market;
+        maxAccountStake = account;
+        emit CapsChanged(market, account);
+    }
+
+    /// Close a market to new stakes early (kickoff), by its creator or the owner. Only ever earlier.
+    function setLockAt(uint256 id, uint256 at) external {
+        Market storage m = _markets[id];
+        if (msg.sender != m.creator && msg.sender != owner) revert BadLock();
+        if (m.state != ST_OPEN || at < block.timestamp || at + LOCK_SECONDS > m.deadline) revert BadLock();
+        uint256 cur = lockAt[id];
+        if (cur != 0 && at > cur) revert BadLock();
+        lockAt[id] = at;
+        emit LockSet(id, at);
     }
 
     function cancelOracle() external onlyOwner {
@@ -348,6 +420,8 @@ contract MimirPool {
         if (m.creator == address(0)) revert NoMarket();
         if (m.state != ST_OPEN) revert NotOpen();
         if (block.timestamp + LOCK_SECONDS > m.deadline) revert BettingClosed();
+        uint256 lock = lockAt[id];
+        if (lock != 0 && block.timestamp >= lock) revert BettingClosed();
         _addStake(id, m, side, referrer);
     }
 
@@ -375,6 +449,10 @@ contract MimirPool {
             referrerOf[id][msg.sender] = referrer;
             emit ReferrerSet(id, msg.sender, referrer);
         }
+        uint256 mine = stakeA[id][msg.sender] + stakeB[id][msg.sender];
+        if ((maxAccountStake != 0 && mine > maxAccountStake) || (maxMarketStake != 0 && m.totalA + m.totalB > maxMarketStake)) {
+            revert CapExceeded();
+        }
         emit Staked(id, msg.sender, side, net);
     }
 
@@ -399,6 +477,7 @@ contract MimirPool {
     /// The oracle's verdict: final at once with no dispute window, else a proposal.
     function resolve(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash)
         external
+        whenNotPaused
         nonReentrant
     {
         if (msg.sender != oracle) revert NotOracle();
@@ -434,8 +513,19 @@ contract MimirPool {
         emit ResolutionDisputed(id, msg.sender, msg.value);
     }
 
+    /// The owner sends a proposal it believes wrong to the arbiter, inside the window. No bond; if the arbiter
+    /// never rules, refundExpired refunds every stake rather than honouring the vetoed proposal.
+    function vetoProposal(uint256 id) external onlyOwner {
+        Market storage m = _markets[id];
+        if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
+        if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
+        m.state = ST_DISPUTED;
+        m.disputedAt = uint64(block.timestamp);
+        emit ResolutionDisputed(id, address(0), 0);
+    }
+
     /// Anyone settles an undisputed proposal once the window has closed.
-    function finalize(uint256 id) external nonReentrant {
+    function finalize(uint256 id) external whenNotPaused nonReentrant {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp < m.proposedAt + disputeWindow) revert WindowOpen();
@@ -445,9 +535,10 @@ contract MimirPool {
     /// The arbiter's final word on a disputed market.
     function resolveDispute(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash)
         external
-        onlyOwner
+        whenNotPaused
         nonReentrant
     {
+        if (msg.sender != arbiter) revert NotArbiter();
         Market storage m = _markets[id];
         if (m.state != ST_DISPUTED) revert NotDisputed();
         if (block.timestamp >= _refundAt(m)) revert GraceOver();
@@ -468,10 +559,15 @@ contract MimirPool {
         bool disputed = m.state == ST_DISPUTED;
         if (!disputed && m.state != ST_OPEN) revert NotOpen();
         if (block.timestamp < _refundAt(m)) revert GraceNotOver();
-        if (disputed) {
+        // A vetoed proposal (no disputer) or an emergency pause refunds instead of honouring the proposal.
+        if (disputed && !paused && m.disputer != address(0)) {
             emit DisputeResolved(id, m.proposed, false);
             _settle(id, m, m.proposed, m.summary, m.evidenceHash);
             _settleBond(id, m, false);
+        } else if (disputed) {
+            emit DisputeResolved(id, UNRESOLVABLE, true);
+            _settle(id, m, UNRESOLVABLE, "Refunded: vetoed or paused", bytes32(0));
+            _settleBond(id, m, true);
         } else {
             emit MarketExpiredRefund(id, msg.sender);
             _settle(id, m, UNRESOLVABLE, "Refunded: not resolved within the grace period", bytes32(0));
@@ -545,6 +641,8 @@ contract MimirPool {
     function claimFor(uint256 id, address user) public nonReentrant {
         Market storage m = _markets[id];
         if (m.state != ST_RESOLVED || m.creator == address(0)) revert NotResolved();
+        // Paused: refunds (an empty side, a draw, unresolvable) still go out; a winner waits for the unpause.
+        if (paused && m.totalA != 0 && m.totalB != 0 && m.outcome < DRAW) revert IsPaused();
         if (claimed[id][user]) revert AlreadyClaimed();
         (uint256 gross, uint256 feeBase) = _owed(id, m, user);
         if (gross == 0) revert NothingToClaim();

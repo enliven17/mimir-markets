@@ -12,9 +12,10 @@ pragma solidity 0.8.28;
  *
  * Trust: the signer can only lower an account's rate (BASE_BPS is the most
  * anyone pays), so a stolen signer key costs the protocol revenue, never a
- * user money. That is why rotating it is immediate, not timelocked, and why a
- * rotation retires every ticket the old signer issued (each ticket carries the
- * signer epoch it was applied under).
+ * user money. The owner (a multisig) revokes it at once (revokeSigner); a new
+ * signer waits SIGNER_TIMELOCK_SECONDS, so a stolen owner key cannot install
+ * one quietly. Both retire every ticket the old signer issued (each ticket
+ * carries the signer epoch it was applied under).
  */
 contract MimirFees {
     uint16 public constant BASE_BPS = 50; // 0.5%
@@ -23,6 +24,7 @@ contract MimirFees {
     /// A ticket may not outlive this, so a sold bag stops discounting within two days.
     uint256 public constant MAX_TICKET_SECONDS = 2 days;
     uint256 public constant OWNERSHIP_TIMELOCK_SECONDS = 2 days;
+    uint256 public constant SIGNER_TIMELOCK_SECONDS = 2 days;
 
     bytes32 public constant TICKET_TYPEHASH = keccak256("FeeTicket(address account,uint8 tier,uint64 expires)");
     bytes32 private constant DOMAIN_TYPEHASH =
@@ -41,11 +43,14 @@ contract MimirFees {
     address public owner;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
-    /// Bumped by setSigner: tickets applied under an earlier epoch pay BASE_BPS.
+    /// Bumped on every signer change or revoke: tickets applied under an earlier epoch pay BASE_BPS.
     uint64 public signerEpoch;
+    address public pendingSigner;
+    uint256 public pendingSignerEta;
 
     event TicketApplied(address indexed account, uint8 tier, uint64 expires);
     event SignerChanged(address indexed previous, address indexed next);
+    event SignerQueued(address indexed next, uint256 eta);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner, uint256 eta);
     event OwnershipTransferCancelled(address indexed pendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -57,12 +62,13 @@ contract MimirFees {
     error BadTier();
     error BadExpiry();
     error BadSignature();
+    error NothingQueued();
 
-    constructor(address _signer) {
-        if (_signer == address(0)) revert ZeroAddress();
-        owner = msg.sender;
+    constructor(address _owner, address _signer) {
+        if (_owner == address(0) || _signer == address(0)) revert ZeroAddress();
+        owner = _owner;
         signer = _signer;
-        emit OwnershipTransferred(address(0), msg.sender);
+        emit OwnershipTransferred(address(0), _owner);
         emit SignerChanged(address(0), _signer);
     }
 
@@ -71,11 +77,29 @@ contract MimirFees {
         _;
     }
 
-    function setSigner(address next) external onlyOwner {
-        if (next == address(0)) revert ZeroAddress();
-        emit SignerChanged(signer, next);
-        signer = next;
+    /// Emergency: no ticket verifies any more, and the ones applied stop counting.
+    function revokeSigner() external onlyOwner {
+        emit SignerChanged(signer, address(0));
+        signer = address(0);
         signerEpoch++;
+    }
+
+    function queueSigner(address next) external onlyOwner {
+        if (next == address(0)) revert ZeroAddress();
+        pendingSigner = next;
+        pendingSignerEta = block.timestamp + SIGNER_TIMELOCK_SECONDS;
+        emit SignerQueued(next, pendingSignerEta);
+    }
+
+    /// Permissionless once due, like the market contracts' queued changes.
+    function executeSigner() external {
+        if (pendingSignerEta == 0) revert NothingQueued();
+        if (block.timestamp < pendingSignerEta) revert Timelocked();
+        emit SignerChanged(signer, pendingSigner);
+        signer = pendingSigner;
+        signerEpoch++;
+        pendingSigner = address(0);
+        pendingSignerEta = 0;
     }
 
     function transferOwnership(address next) external onlyOwner {

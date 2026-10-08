@@ -43,7 +43,7 @@ contract MimirV3SafetyTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        mimir = new MimirV3(oracle, platform, IMimirFees(address(new FlatFees(50))), 0, 2e18);
+        mimir = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(50))), 0, 2e18);
         vm.deal(creator, 1_000 * ONE);
         vm.deal(alice, 1_000 * ONE);
         vm.deal(bob, 1_000 * ONE);
@@ -213,7 +213,9 @@ contract MimirV3SafetyTest {
         assert(!a && !b);
     }
 
-    function test_pauseStopsNewPositionsButNeverSettlement() public {
+    // Since the 2026-10-08 hardening, pause also stops settlement (a stolen oracle key must not pay out);
+    // refunds and fee and parked-payout withdrawals keep working (MainnetHardening.t.sol covers the refunds).
+    function test_pauseStopsNewPositionsAndSettlementButNotFeeClaims() public {
         uint256 id = _create(STAKE, "pool", 0);
         assert(_challenge(alice, id, STAKE));
 
@@ -224,12 +226,19 @@ contract MimirV3SafetyTest {
         assert(!created);
         assert(!_challenge(bob, id, STAKE));
 
-        // Settlement and fee claims keep working while paused.
-        _resolve(id, mimir.SIDE_CREATOR());
+        vm.warp(block.timestamp + GAP + 1);
+        vm.prank(oracle);
+        (bool settled,) = address(mimir).call(
+            abi.encodeWithSelector(MimirV3.resolveClaim.selector, id, mimir.SIDE_CREATOR(), "x", uint8(90), bytes32(0))
+        );
+        assert(!settled);
         vm.prank(platform);
         mimir.claimFees();
 
         mimir.setPaused(false);
+        uint8 side = mimir.SIDE_CREATOR();
+        vm.prank(oracle);
+        mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
         assert(_create(STAKE, "pool", 0) > id);
     }
 

@@ -26,8 +26,15 @@ interface IMimirFees {
  *     cannot burn the resolve transaction's gas; anything it refuses is parked.
  *   - An escape hatch: an ACTIVE claim the oracle has not resolved within
  *     RESOLUTION_GRACE_SECONDS of its deadline can be refunded by anyone.
- *   - Two-step ownership, a timelocked oracle change and a pause switch that
- *     stops new positions but never settlement, refunds or withdrawals.
+ *   - Separate roles, set at deploy: the owner (a multisig), the arbiter that
+ *     rules disputes, the oracle (a hot key that may never also be owner,
+ *     arbiter or fee recipient) and the fee recipient.
+ *   - Two-step ownership and a timelocked oracle change; the owner can revoke
+ *     the oracle instantly, veto a proposal to the arbiter, cap stakes and pause.
+ *   - Pause stops new positions AND settlement (propose, finalize, rulings), so a
+ *     stolen oracle key cannot pay out; refunds stay open, so funds can always
+ *     leave: cancel, withdraw, and refundExpired, which while paused refunds
+ *     every stake instead of honouring a proposal.
  *
  * Known limit: invite keys travel in calldata, so a private claim hides its
  * link from the UI, not from someone reading the chain.
@@ -93,6 +100,8 @@ contract MimirV3 {
     uint256 public constant PUSH_GAS = 50_000;
     /// Upper bound on the dispute window, so a deploy cannot park payouts for weeks.
     uint256 public constant MAX_DISPUTE_WINDOW = 7 days;
+    /// Off testnet a proposal stays disputable at least this long.
+    uint256 public constant MIN_LIVE_DISPUTE_WINDOW = 1 days;
 
     // ── Storage ───────────────────────────────────────────────────────────────
     struct Claim {
@@ -157,6 +166,8 @@ contract MimirV3 {
     uint256 public lifetimeFeesClaimed;
 
     address public owner;
+    /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
+    address public arbiter;
     address public pendingOwner;
     /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
     uint256 public pendingOwnerEta;
@@ -164,8 +175,13 @@ contract MimirV3 {
     address public pendingOracle;
     /// Timestamp from which pendingOracle may be installed. 0 = nothing queued.
     uint256 public pendingOracleEta;
-    /// Stops new claims and challenges. Never stops settlement or withdrawals.
+    /// Stops new positions and settlement; never refunds or withdrawals.
     bool public paused;
+    /// Guarded launch: the most one account may hold in a claim, and the most a claim may hold (net, 0 = no cap).
+    uint256 public maxAccountStake;
+    uint256 public maxMarketStake;
+    /// Optional early close per claim (e.g. kickoff): challenges stop at lockAt instead of near the deadline.
+    mapping(uint256 => uint256) public lockAt;
 
     /// Seconds a proposed verdict stays disputable. 0 settles immediately (v3.0 behaviour).
     uint256 public immutable disputeWindow;
@@ -218,12 +234,25 @@ contract MimirV3 {
     event ResolutionProposed(uint256 indexed id, uint8 winnerSide, uint8 confidence, bytes32 evidenceHash, uint256 disputableUntil);
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
+    event ArbiterChanged(address indexed previous, address indexed next);
+    event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
+    event LockSet(uint256 indexed id, uint256 lockAt);
 
     // Custom errors for reverts added after the 2026-10-06 review (EIP-170 budget).
     error Reentrant();
     error GraceOver();
     /// A pool-odds challenge would take the challenger side past MAX_POOL_MULTIPLE x the creator's stake.
     error PoolFull();
+    error ZeroAddress();
+    /// The oracle may never also be owner, arbiter or fee recipient.
+    error RoleCollision();
+    error WindowTooShort();
+    error NotArbiter();
+    error CapExceeded();
+    error BadLock();
+    error Locked();
+    error NotProposed();
+    error WindowClosed();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -268,18 +297,35 @@ contract MimirV3 {
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(address _oracle, address _feeRecipient, IMimirFees _fees, uint256 _disputeWindow, uint256 _minStake) {
-        require(_oracle != address(0) && _feeRecipient != address(0), "Mimir: zero address");
+    constructor(
+        address _owner,
+        address _arbiter,
+        address _oracle,
+        address _feeRecipient,
+        IMimirFees _fees,
+        uint256 _disputeWindow,
+        uint256 _minStake
+    ) {
+        if (_owner == address(0) || _arbiter == address(0) || _oracle == address(0) || _feeRecipient == address(0)) {
+            revert ZeroAddress();
+        }
+        if (_oracle == _owner || _oracle == _arbiter || _oracle == _feeRecipient) revert RoleCollision();
         require(_minStake >= MIN_STAKE_FLOOR && _minStake <= MIN_STAKE_CEILING, "Mimir: min stake out of range");
         MIN_STAKE = _minStake;
         require(address(_fees).code.length > 0, "Mimir: fees has no code");
         require(_disputeWindow <= MAX_DISPUTE_WINDOW, "Mimir: dispute window too long");
+        // Arc testnet (5042002) and a local chain may test short windows; anywhere else a day at least.
+        if (block.chainid != 5042002 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
+            revert WindowTooShort();
+        }
         disputeWindow = _disputeWindow;
-        owner  = msg.sender;
+        owner  = _owner;
+        arbiter = _arbiter;
         oracle = _oracle;
         fees   = _fees;
         feeRecipient = _feeRecipient;
-        emit OwnershipTransferred(address(0), msg.sender);
+        emit OwnershipTransferred(address(0), _owner);
+        emit ArbiterChanged(address(0), _arbiter);
         emit OracleChanged(address(0), _oracle);
         emit FeeRecipientChanged(address(0), _feeRecipient);
     }
@@ -290,9 +336,32 @@ contract MimirV3 {
     /// markets before anyone notices.
     function queueOracle(address _oracle) external onlyOwner {
         require(_oracle != address(0), "Mimir: zero oracle");
+        if (_oracle == owner || _oracle == arbiter || _oracle == feeRecipient) revert RoleCollision();
         pendingOracle = _oracle;
         pendingOracleEta = block.timestamp + ORACLE_TIMELOCK_SECONDS;
         emit OracleChangeQueued(_oracle, pendingOracleEta);
+    }
+
+    /// Emergency: the oracle loses its power at once (no claim can be proposed). A
+    /// replacement still goes through queueOracle and the timelock.
+    function revokeOracle() external onlyOwner {
+        emit OracleChanged(oracle, address(0));
+        oracle = address(0);
+    }
+
+    /// The arbiter is the owner's choice (often the same multisig), never the oracle.
+    function setArbiter(address next) external onlyOwner {
+        if (next == address(0)) revert ZeroAddress();
+        if (next == oracle) revert RoleCollision();
+        emit ArbiterChanged(arbiter, next);
+        arbiter = next;
+    }
+
+    /// Guarded launch caps (net USDC, 0 = none). They only gate new positions.
+    function setCaps(uint256 market, uint256 account) external onlyOwner {
+        maxMarketStake = market;
+        maxAccountStake = account;
+        emit CapsChanged(market, account);
     }
 
     function cancelOracle() external onlyOwner {
@@ -384,6 +453,12 @@ contract MimirV3 {
             claimEntryFees[claimId] += fee;
         }
         net = amount - fee;
+    }
+
+    function _checkCaps(uint256 mine, uint256 total) private view {
+        if ((maxAccountStake != 0 && mine > maxAccountStake) || (maxMarketStake != 0 && total > maxMarketStake)) {
+            revert CapExceeded();
+        }
     }
 
     function _accrue(uint256 claimId, address to, uint256 amount) internal {
@@ -574,6 +649,7 @@ contract MimirV3 {
         claimCount++;
         id = claimCount;
         uint256 net = _takeEntry(id, a.stakeAmount);
+        _checkCaps(net, net);
 
         claims[id] = Claim({
             creator:                  msg.sender,
@@ -668,6 +744,8 @@ contract MimirV3 {
             block.timestamp + CHALLENGE_LOCK_SECONDS <= claim.deadline,
             "Mimir: challenge window closed"
         );
+        uint256 lock = lockAt[claimId];
+        if (lock != 0 && block.timestamp >= lock) revert Locked();
         // Private claim: verify invite key (before the fee contract is called).
         if (claim.isPrivate && claim.inviteKeyHash != bytes32(0)) {
             require(
@@ -676,6 +754,7 @@ contract MimirV3 {
             );
         }
         uint256 net = _takeEntry(claimId, stakeAmount);
+        _checkCaps(net, claim.creatorStake + claim.totalChallengerStake + net);
 
         // Fixed odds: ensure creator has enough unreserved liquidity
         if (_strEq(claim.oddsMode, "fixed")) {
@@ -705,6 +784,20 @@ contract MimirV3 {
         emit ClaimChallenged(claimId, msg.sender, net);
     }
 
+    /// Close a claim to new challengers early (kickoff, an announcement), by its creator or the owner. Only ever
+    /// earlier: a lock already set cannot be pushed back.
+    function setLockAt(uint256 claimId, uint256 at) external {
+        Claim storage claim = claims[claimId];
+        if (msg.sender != claim.creator && msg.sender != owner) revert BadLock();
+        if (claim.state > ST_ACTIVE || at < block.timestamp || at + CHALLENGE_LOCK_SECONDS > claim.deadline) {
+            revert BadLock();
+        }
+        uint256 cur = lockAt[claimId];
+        if (cur != 0 && at > cur) revert BadLock();
+        lockAt[claimId] = at;
+        emit LockSet(claimId, at);
+    }
+
     // ── Write: resolve (oracle only) ──────────────────────────────────────────
     function resolveClaim(
         uint256 claimId,
@@ -712,7 +805,7 @@ contract MimirV3 {
         string  calldata summary,
         uint8   confidence,
         bytes32 evidenceHash  // keccak256 of evidence text — verifiable on-chain
-    ) external onlyOracle nonReentrant {
+    ) external onlyOracle whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         require(claim.state == ST_ACTIVE, "Mimir: not active");
@@ -766,8 +859,19 @@ contract MimirV3 {
         emit ResolutionDisputed(claimId, msg.sender, DISPUTE_BOND);
     }
 
+    /// The owner sends a proposal it believes wrong to the arbiter, inside the dispute window. No bond; if the
+    /// arbiter never rules, refundExpired refunds every stake rather than honouring the vetoed proposal.
+    function vetoProposal(uint256 claimId) external onlyOwner {
+        Proposal storage p = proposals[claimId];
+        if (claims[claimId].state != ST_PROPOSED) revert NotProposed();
+        if (block.timestamp >= p.proposedAt + disputeWindow) revert WindowClosed();
+        claims[claimId].state = ST_DISPUTED;
+        p.disputedAt = uint64(block.timestamp);
+        emit ResolutionDisputed(claimId, address(0), 0);
+    }
+
     /// Anyone can settle an undisputed proposal once its window has closed.
-    function finalizeResolution(uint256 claimId) external nonReentrant {
+    function finalizeResolution(uint256 claimId) external whenNotPaused nonReentrant {
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_PROPOSED, "Mimir: not proposed");
         require(block.timestamp >= p.proposedAt + disputeWindow, "Mimir: dispute window open");
@@ -781,7 +885,8 @@ contract MimirV3 {
         string  calldata summary,
         uint8   confidence,
         bytes32 evidenceHash
-    ) external onlyOwner nonReentrant {
+    ) external whenNotPaused nonReentrant {
+        if (msg.sender != arbiter) revert NotArbiter();
         Proposal storage p = proposals[claimId];
         require(claims[claimId].state == ST_DISPUTED, "Mimir: not disputed");
         if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
@@ -813,6 +918,9 @@ contract MimirV3 {
      *  - A DISPUTED claim the arbiter never ruled on (grace counted from the
      *    dispute) settles to the oracle's proposal, and the bond is forfeited:
      *    a cheap dispute cannot turn a losing verdict into a free refund.
+     *    Except when the owner vetoed the proposal, or the contract is paused (an
+     *    emergency: the proposal may come from a stolen key): then every stake is
+     *    refunded and a bond goes back to its disputer.
      */
     function refundExpired(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
@@ -820,11 +928,15 @@ contract MimirV3 {
         bool disputed = claim.state == ST_DISPUTED;
         require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
-        if (disputed) {
-            Proposal storage p = proposals[claimId];
+        Proposal storage p = proposals[claimId];
+        if (disputed && !paused && p.disputer != address(0)) {
             emit DisputeResolved(claimId, p.winnerSide, false);
             _settle(claimId, p.winnerSide, p.summary, p.confidence, p.evidenceHash);
             _settleBond(claimId, p, false);
+        } else if (disputed) {
+            emit DisputeResolved(claimId, SIDE_UNRESOLVABLE, true);
+            _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: vetoed or paused", 0, bytes32(0));
+            _settleBond(claimId, p, true);
         } else {
             emit ClaimExpiredRefund(claimId, msg.sender);
             _settle(claimId, SIDE_UNRESOLVABLE, "Refunded: not resolved within the grace period", 0, bytes32(0));

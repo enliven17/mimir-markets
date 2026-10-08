@@ -127,7 +127,7 @@ contract MimirPoolTest {
 
     function setUp() public {
         vm.warp(T0);
-        pool = new MimirPool(oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
+        pool = new MimirPool(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(0))), WINDOW, 2e18);
         maker = new PoolAccount(address(this));
         taker = new PoolAccount(address(this));
         third = new PoolAccount(address(this));
@@ -354,7 +354,8 @@ contract MimirPoolTest {
         (bool ok, bytes memory r) = address(pool).call(
             abi.encodeWithSelector(MimirPool.resolveDispute.selector, id, B, "x", bytes32(0))
         );
-        assert(!ok && keccak256(r) == _err(MimirPool.NotOwner.selector));
+        // Disputes are ruled by the arbiter role (owner and arbiter are separate since the 2026-10-08 hardening).
+        assert(!ok && keccak256(r) == _err(MimirPool.NotArbiter.selector));
     }
 
     // ── Escape hatch and late verdicts ──────────────────────────────────────
@@ -460,7 +461,7 @@ contract MimirPoolTest {
     address ref = address(0x5EF);
 
     function _feePool() internal returns (MimirPool p) {
-        p = new MimirPool(oracle, platform, IMimirFees(address(new MimirFees(address(0x5161)))), 0, 2e18);
+        p = new MimirPool(address(this), address(this), oracle, platform, IMimirFees(address(new MimirFees(address(this), address(0x5161)))), 0, 2e18);
     }
 
     function _net(uint256 amount) internal pure returns (uint256) {
@@ -610,7 +611,9 @@ contract MimirPoolTest {
         assert(!small && !noSide);
     }
 
-    function test_pauseStopsStakesButNeverSettlementOrClaims() public {
+    // Since the 2026-10-08 hardening, pause also stops settlement and winners' payouts; refunds still go out
+    // (MainnetHardening.t.sol). Unpausing lets the decided market pay as before.
+    function test_pauseStopsStakesAndSettlementUntilUnpaused() public {
         uint256 id = _create(alice, 10 * ONE, A);
         _stake(carol, id, 10 * ONE, B);
         pool.setPaused(true);
@@ -620,6 +623,12 @@ contract MimirPoolTest {
             address(pool).call{value: 2 * ONE}(abi.encodeWithSelector(MimirPool.stake.selector, id, B, address(0)));
         assert(!staked);
 
+        vm.warp(AFTER);
+        vm.prank(oracle);
+        (bool proposed,) = address(pool).call(abi.encodeWithSelector(MimirPool.resolve.selector, id, B, "x", bytes32(0)));
+        assert(!proposed);
+
+        pool.setPaused(false);
         _settle(id, B);
         pool.claimFor(id, carol);
         assert(carol.balance > 90 * ONE);

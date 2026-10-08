@@ -120,9 +120,33 @@ time out after 2 s and retry once on 429/529; any failure falls back to the path
 
 ## Security
 
-Contracts: `forge test` (136 tests, including smart-account callers, reentrancy attempts, fee tickets and invariant
-suites: escrow solvency, payouts ≤ pot, no winner below their net stake, copy fees only on profit). Slither: no
-high-severity findings. Sizes: MimirV3 21,887 B (`optimizer_runs = 1`), MimirPool 12,693 B, MimirFees 2,675 B.
+Contracts: `forge test` (161 tests, including smart-account callers, reentrancy attempts, fee tickets, mainnet
+hardening (`MainnetHardening.t.sol`) and invariant suites: escrow solvency, payouts ≤ pot, no winner below their net
+stake, copy fees only on profit). Slither: no high or medium findings. Sizes: MimirV3 24,041 B (`optimizer_runs = 1`,
+535 B under EIP-170), MimirPool 14,488 B, MimirFees 3,113 B.
+
+### Roles and emergency controls
+
+| Role | Holds | Can |
+|---|---|---|
+| Owner | a Safe on mainnet | pause, `revokeOracle()` / `revokeSigner()` at once, queue a new oracle, fee recipient or signer (2-day timelock), `vetoProposal`, `setArbiter`, `setCaps`, `setLockAt` |
+| Arbiter | a Safe (may be the owner's only with `ARC_ARBITER_IS_OWNER=1`) | `resolveDispute`, the only ruling on disputed and vetoed proposals |
+| Oracle | the Convex hot key | propose resolutions; never owner, arbiter or fee recipient (constructor and `queueOracle` revert `RoleCollision`) |
+| Fee recipient | a treasury address | receives entry fees, the platform share and forfeited bonds |
+| Fee signer | the server key | signs $MIMIR holder fee tickets; it can only lower a fee |
+
+All roles are constructor arguments; nothing stays on the deployer. On mainnet `scripts/arc/deploy.mjs` refuses a
+missing role, a role equal to the deployer, colliding roles, and an owner or arbiter without code.
+
+- **Pause** stops new positions, proposals, `finalize`, rulings and winners' pool payouts. Funds can still leave:
+  cancel, `withdraw`, refunds (draws, empty sides, unresolvable), and `refundExpired`, which while paused refunds every
+  stake instead of honouring a proposal and returns any dispute bond.
+- **Veto:** the owner moves a proposal to the arbiter inside the dispute window (`ResolutionDisputed` with a zero
+  disputer). If the arbiter never rules, `refundExpired` refunds the market.
+- **Dispute window:** at least 24 h off Arc testnet (`WindowTooShort`); the mainnet default is 86,400 s.
+- **Caps:** `setCaps(maxMarketStake, maxAccountStake)`, net USDC, 0 = none; they gate only new stakes (`CapExceeded`).
+- **Early lock:** `setLockAt(id, at)`, by the creator or owner, closes a market to new stakes before the usual lock
+  (kickoff). It can only move earlier and must sit at least the lock period before the deadline (`LockSet` event).
 
 ### First review (2026-10-06)
 
@@ -154,10 +178,11 @@ high-severity findings. Sizes: MimirV3 21,887 B (`optimizer_runs = 1`), MimirPoo
 ## Before mainnet
 
 1. External audit of the three contracts.
-2. A multisig as owner and arbiter.
+2. Safes deployed first as owner and arbiter; separate oracle, fee recipient and fee signer keys
+   (deploy.mjs enforces it). Start with caps set.
 3. Arc mainnet and CCTP mainnet addresses checked against Circle's docs; Circle Console entries for the domain.
 4. `COUNCIL_BETS=0`, invite-only on, key management for the oracle, fee signer and Circle entity secret.
-5. Deploy with a non-zero dispute window.
+5. Dispute window 24 h or more (the contracts refuse less off testnet).
 
 ## Proof of concept (2026-10-06, `scripts/arc-poc/`)
 
