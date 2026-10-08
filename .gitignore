@@ -116,3 +116,6 @@ brand/source/telegram-qr.svg
 # Foundry
 forge-out/
 forge-cache/
+
+# Local mainnet runbook (keys, wallets, steps); never committed.
+MAINNET-TODO.md
