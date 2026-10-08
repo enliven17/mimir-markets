@@ -28,7 +28,7 @@ import {
 import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
-import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, prepareArcWrite } from "@/lib/agents/arc-chain";
+import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareArcWrite } from "@/lib/agents/arc-chain";
 import { deployPriceFor, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
 import { getArcBinding } from "@/lib/server/arc-accounts";
 import { dryRun } from "@/lib/agents/dry-run";
@@ -416,6 +416,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       }
       let arc;
       try {
+        await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
         arc = prepareArcWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body);
       } catch (err) {
         if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);

@@ -17,6 +17,9 @@ export function GET() {
       minConfidence: spec?.minConfidence ?? null,
       stakeUsdc: spec?.stakeUsdc ?? null,
       usesLlm: spec?.archetype !== "rule-based",
+      // The persona's full character, so a client (the Mimir CLI) can run it on the user's own AI exactly as the
+      // council plays it here. Public in the repository anyway.
+      prompt: spec?.promptBias ?? null,
     };
   });
   return NextResponse.json(

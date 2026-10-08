@@ -15,7 +15,7 @@ import { encodeFunctionData, getAddress, isAddress, parseAbi, parseEther, type A
 import { AgentEnvelopeError } from "./api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
-import { createMarketCall, MIMIR_POOL_ABI, MIMIR_V3_ABI, stakeCall, type ArcMarketKind } from "@/lib/arc/markets";
+import { createMarketCall, MIMIR_POOL_ABI, MIMIR_V3_ABI, readStakeLimits, stakeCall, stakeLimitBlocker, type ArcMarketKind } from "@/lib/arc/markets";
 import { arcMarketDetail, arcMarketList, arcPositions } from "@/lib/server/arc-index";
 
 export const arcAgentsEnabled = () => Boolean(ARC.contracts.mimirV3 && ARC.contracts.mimirPool);
@@ -105,6 +105,37 @@ export function prepareArcWrite(
 
 export async function arcOperatorBalance(operator: Address): Promise<{ usdcWei: string }> {
   return { usdcWei: (await arcPublicClient().getBalance({ address: operator })).toString() };
+}
+
+/**
+ * The contract's live limits for an agent stake (pause, early lock, launch caps), checked before a transaction is
+ * prepared, so an agent gets the same plain reason the site shows instead of a bare revert. Throws a 409
+ * AgentEnvelopeError("stake_limit"). Agents pay the standard entry fee (no holder ticket), so 50 bps is assumed.
+ */
+export async function assertArcStakeAllowed(
+  write: { action: string; params: Record<string, unknown> },
+  body: Record<string, unknown>,
+  operator: Address,
+): Promise<void> {
+  if (write.action !== "challenge" && write.action !== "createClaim") return;
+  const { mimirV3, mimirPool } = contracts();
+  const kind = kindOf(body);
+  const gross = units6ToWei(write.params.stakeUnits as bigint);
+  const contract = kind === "vs" ? mimirV3 : mimirPool;
+  const id = write.action === "challenge" ? Number(write.params.claimId) : 0;
+  const limits = await readStakeLimits(arcPublicClient(), contract, id);
+  let total = 0n;
+  let mine = 0n;
+  if (write.action === "challenge") {
+    const m = (await arcMarketDetail(kind, id).catch(() => null)) as { stakeA: string; stakeB: string } | null;
+    total = m ? BigInt(m.stakeA) + BigInt(m.stakeB) : 0n;
+    if (kind === "pool") {
+      const legs = (await arcPositions(operator).catch(() => [])) as Array<{ kind: string; marketId: number; amount: string }>;
+      mine = legs.filter((p) => p.kind === "pool" && p.marketId === id).reduce((a, p) => a + BigInt(p.amount), 0n);
+    }
+  } else limits.lockAt = 0;
+  const blocker = stakeLimitBlocker(limits, { kind, gross, entryBps: 50, mine, total, now: Math.floor(Date.now() / 1000) }, (wei) => `${Number(wei / 10n ** 12n) / 1e6} USDC`);
+  if (blocker) throw new AgentEnvelopeError(blocker, 409, "stake_limit");
 }
 
 export async function arcOperatorPositions(operator: Address) {

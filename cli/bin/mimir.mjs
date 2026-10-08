@@ -20,7 +20,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const CONFIG_DIR = join(homedir(), ".mimir");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const DEFAULTS = {
@@ -177,7 +177,8 @@ async function findAgent(cfg, name) {
     name,
     type: "prompt",
     house: true,
-    prompt: `You are ${p.displayName} on the Mimir Council, a panel of AI personas that stake on prediction markets. ${p.bio}${p.usesLlm === false ? " You follow a fixed rule rather than judgement: apply it to the numbers." : ""}`,
+    // The council's own character when the site sends it (roster `prompt`), else the short bio.
+    prompt: `You are ${p.displayName} on the Mimir Council, a panel of AI personas that stake on prediction markets. ${p.prompt || p.bio}${p.usesLlm === false ? " You follow a fixed rule rather than judgement: apply it to the numbers." : ""}`,
   };
 }
 
