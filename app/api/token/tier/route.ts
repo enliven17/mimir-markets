@@ -13,7 +13,8 @@
 import { NextResponse } from "next/server";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { walletTier } from "@/lib/server/holder";
-import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowLlmRequest } from "@/lib/server/llm-route-guard";
 import { mimirMint, mimirSymbol } from "@/lib/token-config";
 import type { TokenTier } from "@/lib/token-tiers";
 
@@ -28,7 +29,8 @@ function bad(error: string) {
 }
 
 async function batchTiers(req: Request, raw: string) {
-  if (!(await allowRequest("token-tier-batch", clientIp(req), 12, 60_000))) return tooManyRequests(60);
+  // Each wallet is two mainnet RPC calls: a per-IP limit, a per-network share and a deploy-wide ceiling.
+  if (!(await allowLlmRequest({ bucket: "token-tier-batch", key: clientIp(req), perKey: 12, globalEnv: "TOKEN_TIER_BATCH_GLOBAL_PER_MIN", globalDefault: 60 }))) return tooManyRequests(60);
   const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length === 0 || parts.length > MAX_BATCH) return bad(`wallets must list 1-${MAX_BATCH} Solana public keys`);
   const wallets: string[] = [];
@@ -57,7 +59,7 @@ export async function GET(req: Request) {
   const batch = params.get("wallets");
   if (batch !== null) return batchTiers(req, batch);
 
-  if (!(await allowRequest("token-tier", clientIp(req), 30, 60_000))) return tooManyRequests(60);
+  if (!(await allowLlmRequest({ bucket: "token-tier", key: clientIp(req), perKey: 30, globalEnv: "TOKEN_TIER_GLOBAL_PER_MIN", globalDefault: 300 }))) return tooManyRequests(60);
   const wallet = normalizeAddress(params.get("wallet"));
   if (!wallet) return bad("wallet must be a Solana public key");
 

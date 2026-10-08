@@ -11,7 +11,7 @@
  * for $MIMIR holders) and is kept on refunds; no fee on winnings, except copy
  * trades, which give 1% of the profit to the basket creator and 1% to Mimir.
  */
-import { encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address } from "viem";
+import { encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address, type PublicClient } from "viem";
 
 import type { ArcCall } from "./cctp-arc";
 import { ARC } from "./config";
@@ -90,6 +90,60 @@ export function stakeCall(contract: Address, kind: ArcMarketKind, marketId: numb
 export function applyTicketCall(fees: Address, t: FeeTicket): ArcCall | null {
   if (!t.signature || t.tier === 0) return null;
   return { to: fees, data: encodeFunctionData({ abi: MIMIR_FEES_ABI, functionName: "applyTicket", args: [t.tier, BigInt(t.expires), t.signature] }) };
+}
+
+/** Both contracts: launch caps, the early lock (setLockAt) and the emergency pause, as the stake UI checks them. */
+export const STAKE_LIMITS_ABI = parseAbi([
+  "function maxMarketStake() view returns (uint256)",
+  "function maxAccountStake() view returns (uint256)",
+  "function lockAt(uint256) view returns (uint256)",
+  "function paused() view returns (bool)",
+]);
+
+export interface StakeLimits {
+  /** Net USDC wei; 0 = no cap. */
+  maxMarket: bigint;
+  maxAccount: bigint;
+  /** Unix seconds betting closed early; 0 = the usual lock. */
+  lockAt: number;
+  paused: boolean;
+}
+
+export async function readStakeLimits(client: PublicClient, contract: Address, marketId: number): Promise<StakeLimits> {
+  const read = <T,>(functionName: "maxMarketStake" | "maxAccountStake" | "paused" | "lockAt", args?: readonly [bigint]) =>
+    client.readContract({ address: contract, abi: STAKE_LIMITS_ABI, functionName, args } as Parameters<PublicClient["readContract"]>[0]) as Promise<T>;
+  const [maxMarket, maxAccount, lockAt, paused] = await Promise.all([
+    read<bigint>("maxMarketStake"),
+    read<bigint>("maxAccountStake"),
+    read<bigint>("lockAt", [BigInt(marketId)]),
+    read<boolean>("paused"),
+  ]);
+  return { maxMarket, maxAccount, lockAt: Number(lockAt), paused };
+}
+
+/**
+ * Why a stake of `gross` would revert on the pause, the early lock or the caps (CapExceeded); null when it fits.
+ * Caps count net stakes. `mine`: your net stake already in this market; a pool caps your total there, VS caps each
+ * challenge (MimirV3 _checkCaps(net, ...)). `total`: both sides' net stakes now.
+ */
+export function stakeLimitBlocker(
+  l: StakeLimits,
+  a: { kind: ArcMarketKind; gross: bigint; entryBps: number; mine: bigint; total: bigint; now: number },
+  fmt: (wei: bigint) => string,
+): string | null {
+  if (l.paused) return "Staking is paused on this contract for now. Your funds are safe; refunds stay open.";
+  if (l.lockAt !== 0 && a.now >= l.lockAt) return "Betting on this market closed early.";
+  const net = a.gross - entryFeeOf(a.gross, a.entryBps);
+  if (l.maxMarket !== 0n && a.total + net > l.maxMarket) {
+    const room = l.maxMarket > a.total ? maxGrossFor(l.maxMarket - a.total, a.entryBps) : 0n;
+    return room > 0n ? `This market is capped during launch: at most ${fmt(room)} more fits.` : "This market has reached its launch cap.";
+  }
+  const mine = a.kind === "pool" ? a.mine : 0n;
+  if (l.maxAccount !== 0n && mine + net > l.maxAccount) {
+    const room = l.maxAccount > mine ? maxGrossFor(l.maxAccount - mine, a.entryBps) : 0n;
+    return room > 0n ? `Stakes are capped at ${fmt(l.maxAccount)} per account during launch: at most ${fmt(room)} more.` : `You have reached the ${fmt(l.maxAccount)} per-account launch cap here.`;
+  }
+  return null;
 }
 
 export const entryFeeOf = (gross: bigint, entryBps: number) => (gross * BigInt(entryBps)) / 10_000n;

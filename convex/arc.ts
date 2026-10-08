@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import schema, { status } from "./schema";
+import { orderDecisions, retryDelayMs } from "../lib/oracle-queue";
 
 const kind = v.union(v.literal("vs"), v.literal("pool"));
 
@@ -66,11 +68,12 @@ export const apply = internalMutation({
 export const markets = query({
   args: { kind: v.optional(kind), status: v.optional(status), limit: v.optional(v.number()) },
   handler: async (ctx, { kind, status, limit }) => {
-    const rows = await ctx.db.query("arcMarkets").order("desc").collect();
-    // ponytail: full scan + filter; add a by_status index once there are thousands of markets.
-    return rows
-      .filter((m) => !m.isPrivate && (!kind || m.kind === kind) && (!status || m.status === status))
-      .slice(0, Math.min(limit ?? 100, 500));
+    const n = Math.min(limit ?? 100, 500);
+    // Bounded reads: by state (newest deadline first) when one is asked for, else the newest markets.
+    const rows = status
+      ? await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", status)).order("desc").take(n * 4)
+      : await ctx.db.query("arcMarkets").order("desc").take(n * 4);
+    return rows.filter((m) => !m.isPrivate && (!kind || m.kind === kind)).slice(0, n);
   },
 });
 
@@ -96,7 +99,7 @@ export const market = query({
 export const positionsOf = query({
   args: { user: v.string() },
   handler: async (ctx, { user }) => {
-    const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user.toLowerCase())).collect();
+    const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user.toLowerCase())).order("desc").take(500);
     return Promise.all(
       rows.map(async (p) => ({
         ...p,
@@ -110,56 +113,82 @@ export const positionsOf = query({
  * Run the indexer now instead of waiting for the next cron tick: the app calls
  * this right after a create or stake lands, so the page catches up in seconds.
  */
-// ponytail: unauthenticated and unthrottled (each call is one indexer run, idempotent); add a per-minute cap if it is abused.
+// Public (the browser calls it), so debounced: at most one extra indexer run per POKE_GAP_MS for everyone together.
+const POKE_GAP_MS = 5_000;
 export const poke = mutation({
   args: {},
   handler: async (ctx) => {
+    const now = Date.now();
+    const last = await ctx.db.query("arcHeartbeats").withIndex("by_name", (q) => q.eq("name", "arc-poke")).unique();
+    if (last && now - last.at < POKE_GAP_MS) return;
+    if (last) await ctx.db.patch(last._id, { at: now });
+    else await ctx.db.insert("arcHeartbeats", { name: "arc-poke", at: now });
     await ctx.scheduler.runAfter(0, internal.arcSync.sync, {});
   },
 });
 
 // ── Oracle bookkeeping (convex/arcOracle.ts) ────────────────────────────────
 
-const RETRY_MS = 10 * 60_000;
+/** How many decisions one oracle tick is offered (arcOracle takes the first few), and how far each scan reads. */
+const DECIDE_BATCH = 12;
+const SCAN = 400;
 
-/** Everything the oracle may do right now, from the index. `now` in unix seconds. */
+/** Everything the oracle may do right now, from the index. `now` in unix seconds. Every read is bounded. */
 export const oracleWork = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
-    // ponytail: full scan of the markets table each tick; add status/deadline indexes past a few thousand markets.
-    const markets = await ctx.db.query("arcMarkets").collect();
-    const tries = await ctx.db.query("arcOracleTries").collect();
-    const waitUntil = new Map(tries.map((t) => [`${t.kind}:${t.marketId}`, t.notBefore]));
-    const ready = (m: { kind: string; marketId: number }) => (waitUntil.get(`${m.kind}:${m.marketId}`) ?? 0) <= now * 1000;
-    // VS needs a challenger to be decided ("active"); a pool is decided as soon as it has its creator's stake.
-    const undecided = (m: (typeof markets)[number]) => (m.kind === "vs" ? m.status === "active" : m.status === "open");
+    type M = Doc<"arcMarkets">;
+    // Past their deadline, by state: VS needs a challenger to be decided ("active"); a pool is decided once open.
+    const due = async (st: M["status"]) =>
+      ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st).lte("deadline", now)).take(SCAN);
+    const [active, open, proposed, disputed] = await Promise.all([due("active"), due("open"), due("proposed"), due("disputed")]);
+    const undecided = [...active.filter((m) => m.kind === "vs"), ...open.filter((m) => m.kind === "pool")];
 
-    const decide = markets.filter((m) => undecided(m) && m.deadline <= now && m.refundAt > now && ready(m));
-    const finalize = markets.filter((m) => m.status === "proposed" && m.disputableUntil > 0 && m.disputableUntil <= now);
-    const refund = markets.filter((m) => (undecided(m) || m.status === "disputed") && m.refundAt <= now);
+    const ready: M[] = [];
+    for (const m of undecided) {
+      if (m.refundAt <= now) continue;
+      const t = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", m.kind).eq("marketId", m.marketId)).unique();
+      if (!t || t.notBefore <= now * 1000) ready.push(m);
+    }
+    const decide = orderDecisions(
+      ready.map((m) => ({ ...m, pot: BigInt(m.stakeA) + BigInt(m.stakeB) })),
+      DECIDE_BATCH,
+      now,
+    ).map(({ pot: _pot, ...m }) => m as M);
+
+    const finalize = proposed.filter((m) => m.disputableUntil > 0 && m.disputableUntil <= now);
+    const refund = [...undecided, ...disputed].filter((m) => m.refundAt <= now).slice(0, 50);
+
+    // Pool payouts still owed: settled in the last 30 days (older ones anyone can claim themselves).
+    const since = now - 30 * 86_400;
+    const settledPools = async (st: M["status"]) =>
+      (await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st).gte("deadline", since)).order("desc").take(200)).filter(
+        (m) => m.kind === "pool",
+      );
     const pay: Array<{ marketId: number; users: string[] }> = [];
-    for (const m of markets) {
-      if (m.kind !== "pool" || (m.status !== "resolved" && m.status !== "cancelled")) continue;
+    for (const m of [...(await settledPools("resolved")), ...(await settledPools("cancelled"))]) {
       const contested = BigInt(m.stakeA) > 0n && BigInt(m.stakeB) > 0n;
-      const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "pool").eq("marketId", m.marketId)).collect();
+      const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "pool").eq("marketId", m.marketId)).take(500);
       // Winners only on a contested A/B outcome (losers have nothing to claim); everyone on a refund.
       const owed = legs.filter((p) => !p.claimed && (!contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
       const users = [...new Set(owed.map((p) => p.user))];
       if (users.length) pay.push({ marketId: m.marketId, users });
+      if (pay.length >= 50) break;
     }
     const pick = ({ kind, marketId }: { kind: "vs" | "pool"; marketId: number }) => ({ kind, marketId });
-    return { decide, finalize: finalize.map(pick), refund: refund.map(pick), pay };
+    return { decide, finalize: finalize.slice(0, 50).map(pick), refund: refund.map(pick), pay };
   },
 });
 
-/** A deferred or failed decision: try this market again in RETRY_MS. */
+/** A deferred or failed decision: try this market again later, backing off exponentially (lib/oracle-queue.ts). */
 export const deferMarket = internalMutation({
   args: { kind, marketId: v.number(), error: v.optional(v.string()) },
   handler: async (ctx, { kind, marketId, error }) => {
     const row = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).unique();
-    const next = { notBefore: Date.now() + RETRY_MS, lastError: error?.slice(0, 500) };
-    if (row) await ctx.db.patch(row._id, { ...next, attempts: row.attempts + 1 });
-    else await ctx.db.insert("arcOracleTries", { kind, marketId, attempts: 1, ...next });
+    const attempts = (row?.attempts ?? 0) + 1;
+    const next = { notBefore: Date.now() + retryDelayMs(attempts), lastError: error?.slice(0, 500) };
+    if (row) await ctx.db.patch(row._id, { ...next, attempts });
+    else await ctx.db.insert("arcOracleTries", { kind, marketId, attempts, ...next });
   },
 });
 
@@ -191,8 +220,8 @@ export const marketWithPositions = internalQuery({
 export const openMarkets = internalQuery({
   args: { closesAfter: v.number() },
   handler: async (ctx, { closesAfter }) =>
-    // ponytail: scans by deadline from closesAfter on; fine until there are thousands of future markets.
-    (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).collect()).filter(
+    // Bounded: the next 2000 markets by deadline.
+    (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).take(2000)).filter(
       (m) => !m.isPrivate && (m.status === "open" || m.status === "active"),
     ),
 });
@@ -200,5 +229,5 @@ export const openMarkets = internalQuery({
 /** Every market one address opened (lowercase), any status. */
 export const marketsBy = internalQuery({
   args: { creator: v.string() },
-  handler: async (ctx, { creator }) => ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).collect(),
+  handler: async (ctx, { creator }) => ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(2000),
 });

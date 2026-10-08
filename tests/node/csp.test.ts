@@ -1,16 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildReportOnlyCsp, newNonce } from "../../lib/server/csp";
+import { buildCsp, newNonce } from "../../lib/server/csp";
 
 const directives = (csp: string) =>
   Object.fromEntries(csp.split(";").map((d) => d.trim()).filter(Boolean).map((d) => [d.split(" ")[0], d.split(" ").slice(1)]));
 
-test("the report-only policy is strict: no unsafe-inline scripts, nonce-based", () => {
-  const d = directives(buildReportOnlyCsp("abc123", false));
+test("the enforced policy is strict: nonce + strict-dynamic, no unsafe-inline scripts", () => {
+  const d = directives(buildCsp("abc123", false));
   assert.deepEqual(d["default-src"], ["'self'"]);
   assert.ok(d["script-src"].includes("'self'"));
   assert.ok(d["script-src"].includes("'nonce-abc123'"));
+  assert.ok(d["script-src"].includes("'strict-dynamic'"));
   assert.ok(!d["script-src"].includes("'unsafe-inline'"));
   assert.ok(!d["script-src"].includes("'unsafe-eval'"));
   assert.deepEqual(d["object-src"], ["'none'"]);
@@ -18,11 +19,11 @@ test("the report-only policy is strict: no unsafe-inline scripts, nonce-based", 
   assert.deepEqual(d["form-action"], ["'self'"]);
   assert.deepEqual(d["frame-ancestors"], ["'self'", "https://web.telegram.org"], "only Telegram's web client may frame the Mini App");
   assert.deepEqual(d["connect-src"], ["'self'", "https:", "wss:"]);
-  assert.deepEqual(d["img-src"], ["'self'", "data:", "https:"]);
+  assert.deepEqual(d["img-src"], ["'self'", "data:", "blob:", "https:"]);
 });
 
 test("dev adds unsafe-eval (React debugging) and nothing else", () => {
-  const d = directives(buildReportOnlyCsp("n", true));
+  const d = directives(buildCsp("n", true));
   assert.ok(d["script-src"].includes("'unsafe-eval'"));
 });
 

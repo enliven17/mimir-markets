@@ -104,9 +104,41 @@ export function clientIp(req: Request, hops = trustedProxyHops()): string {
       .map((s) => s.trim())
       .filter(Boolean);
     const ip = parts.length >= hops ? parts[parts.length - hops] : "";
-    if (ip) return ip;
+    if (ip) return rateKeyForIp(ip);
   }
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+  return rateKeyForIp(req.headers.get("x-real-ip")?.trim() || "unknown");
+}
+
+/** IPv6 hextets of an address, expanded ("::" filled), or null for anything that is not IPv6. */
+function ipv6Hextets(ip: string): string[] | null {
+  const addr = ip.replace(/^\[|\](:\d+)?$/g, "").split("%")[0].toLowerCase();
+  if (!addr.includes(":") || /[^0-9a-f:.]/.test(addr)) return null;
+  const [head, tail = ""] = addr.split("::");
+  const h = head ? head.split(":") : [];
+  const t = addr.includes("::") ? (tail ? tail.split(":") : []) : [];
+  // An embedded IPv4 tail ("::ffff:1.2.3.4") counts as two hextets.
+  const ends = (xs: string[]) => xs.flatMap((x) => (x.includes(".") ? ["0", "0"] : [x]));
+  const filled = addr.includes("::") ? [...ends(h), ...Array(Math.max(0, 8 - ends(h).length - ends(t).length)).fill("0"), ...ends(t)] : ends(h);
+  return filled.length === 8 ? filled.map((x) => (parseInt(x || "0", 16) || 0).toString(16)) : null;
+}
+
+/**
+ * The key an IP is limited by: an IPv4 address as is, an IPv6 address by its /64 (one subscriber gets a whole /64,
+ * so per-address limits would be free to rotate around). IPv4-mapped IPv6 counts as the IPv4 address.
+ */
+export function rateKeyForIp(ip: string): string {
+  const mapped = /^(?:::ffff:)(\d+\.\d+\.\d+\.\d+)$/i.exec(ip.trim());
+  if (mapped) return mapped[1];
+  const hx = ipv6Hextets(ip.trim());
+  return hx ? `${hx.slice(0, 4).join(":")}::/64` : ip.trim();
+}
+
+/** A wider network for shared ceilings: IPv4 /24, IPv6 /48. */
+export function networkOf(key: string): string {
+  const v4 = /^(\d+\.\d+\.\d+)\.\d+$/.exec(key);
+  if (v4) return `${v4[1]}.0/24`;
+  const v6 = /^([0-9a-f]+:[0-9a-f]+:[0-9a-f]+):/.exec(key);
+  return v6 ? `${v6[1]}::/48` : key;
 }
 
 /**

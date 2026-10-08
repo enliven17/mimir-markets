@@ -5,15 +5,16 @@
  * shown as "risk X, win at most Y" since every later challenger shrinks your
  * share. Pool: pick a side, shown as what it would return if it closed now.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal";
 import { betCardUrl, betIntentUrl } from "@/lib/bet-share";
 
 import { Link } from "@/i18n/navigation";
+import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
-import { maxGrossFor, MIN_STAKE_WEI, parseUsdc, poolQuote, stakeCall, vsChallengeQuote, vsRoom } from "@/lib/arc/markets";
+import { maxGrossFor, MIN_STAKE_WEI, parseUsdc, poolQuote, readStakeLimits, stakeCall, stakeLimitBlocker, vsChallengeQuote, vsRoom, type StakeLimits } from "@/lib/arc/markets";
 import AccountGate from "./AccountGate";
 import { BTN_PRIMARY, usd, usdFine, type ArcMarket } from "./shared";
 import type { useArcAccount } from "./useArcAccount";
@@ -38,6 +39,16 @@ export default function ArcStakePanel({
   const [shared, setShared] = useState<{ side: 1 | 2; amount: string } | null>(null);
 
   const contract = m.kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
+  // Launch caps, the early lock and the pause, read live from the contract (the index can lag a block or two).
+  const [limits, setLimits] = useState<StakeLimits | null>(null);
+  useEffect(() => {
+    if (!contract) return;
+    let live = true;
+    readStakeLimits(arcPublicClient(), contract, m.marketId).then((l) => live && setLimits(l), () => {});
+    return () => {
+      live = false;
+    };
+  }, [contract, m.marketId, last]);
   const stake = parseUsdc(amount);
   const a = BigInt(m.stakeA);
   const b = BigInt(m.stakeB);
@@ -61,7 +72,12 @@ export default function ArcStakePanel({
   else if (stake === null) blocker = "Enter an amount in USDC.";
   else if (stake < MIN_STAKE_WEI) blocker = `The minimum stake is ${usd(MIN_STAKE_WEI)}.`;
   else if (room !== null && stake > room) blocker = `At most ${usd(room)} more fits in this market.`;
-  else if (account.balance !== null && stake > account.balance) blocker = "not-enough";
+  else if (limits) {
+    const mineNet = mine.reduce((sum, p) => sum + BigInt(p.amount), 0n);
+    const now = Math.floor(Date.now() / 1000);
+    blocker = stakeLimitBlocker(limits, { kind: m.kind, gross: stake, entryBps: bps, mine: mineNet, total: a + b, now }, usd);
+  }
+  if (!blocker && account.balance !== null && stake !== null && stake > account.balance) blocker = "not-enough";
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;

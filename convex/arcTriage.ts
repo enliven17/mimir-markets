@@ -16,7 +16,7 @@ export const save = internalMutation({
 /** Every triage, keyed "kind:id" (one row per market). */
 export const all = internalQuery({
   args: {},
-  handler: async (ctx) => (await ctx.db.query("arcTriage").collect()).map(({ kind, marketId, resolvable, spam, category, categoryConfidence }) => ({ key: `${kind}:${marketId}`, resolvable, spam, category, categoryConfidence })),
+  handler: async (ctx) => (await ctx.db.query("arcTriage").order("desc").take(5000)).map(({ kind, marketId, resolvable, spam, category, categoryConfidence }) => ({ key: `${kind}:${marketId}`, resolvable, spam, category, categoryConfidence })),
 });
 
 /** One market's triage, or null (Jev off, or not triaged yet). */

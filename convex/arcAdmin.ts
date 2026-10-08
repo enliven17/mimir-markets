@@ -1,6 +1,7 @@
 // The admin panel's backend read (app/api/admin/overview): markets, the oracle queue, users, money owed, job
-// heartbeats and which settings and keys are present. Read-only. Callable only with MIMIR_INTERNAL_SECRET, which the
+// heartbeats and which settings and keys are present. Read-only. Callable only with the admin secret (MIMIR_ADMIN_SECRET), which the
 // site's admin route holds; key values never leave this function, only whether they are set (and how many).
+import { secretMatches } from "../lib/internal-secrets";
 import { privateKeyToAccount } from "viem/accounts";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
@@ -31,22 +32,30 @@ function jsonEnv<T>(name: string): T | null {
 export const overview = query({
   args: { secret: v.string() },
   handler: async (ctx, { secret }) => {
-    const expected = process.env.MIMIR_INTERNAL_SECRET?.trim() ?? "";
-    if (expected.length < 16 || secret !== expected) throw new Error("not allowed");
+    if (!secretMatches("admin", secret)) throw new Error("not allowed");
     const now = Math.floor(Date.now() / 1000);
 
-    // ponytail: full scans of every Arc table; fine at testnet size, add counters or paginate past a few thousand rows.
+    // Every read is bounded (Convex caps one query at ~16k documents): the newest rows of each table, with `capped`
+    // telling the panel when a total is a lower bound. Fees come from FeeAccrued events only (by_name index).
+    const CAP = { markets: 3000, positions: 4000, fees: 3000, verdicts: 1000, tries: 300, takes: 1000, decisions: 1000 };
     const [markets, positions, events, verdicts, tries, takes, decisions, heartbeats, cursor] = await Promise.all([
-      ctx.db.query("arcMarkets").collect(),
-      ctx.db.query("arcPositions").collect(),
-      ctx.db.query("arcEvents").collect(),
-      ctx.db.query("arcVerdicts").collect(),
-      ctx.db.query("arcOracleTries").collect(),
-      ctx.db.query("arcMarketTakes").collect(),
-      ctx.db.query("arcCouncilDecisions").collect(),
-      ctx.db.query("arcHeartbeats").collect(),
+      ctx.db.query("arcMarkets").order("desc").take(CAP.markets),
+      ctx.db.query("arcPositions").order("desc").take(CAP.positions),
+      ctx.db.query("arcEvents").withIndex("by_name", (q) => q.eq("name", "FeeAccrued")).order("desc").take(CAP.fees),
+      ctx.db.query("arcVerdicts").order("desc").take(CAP.verdicts),
+      ctx.db.query("arcOracleTries").order("desc").take(CAP.tries),
+      ctx.db.query("arcMarketTakes").order("desc").take(CAP.takes),
+      ctx.db.query("arcCouncilDecisions").order("desc").take(CAP.decisions),
+      ctx.db.query("arcHeartbeats").take(50),
       ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", "arc")).unique(),
     ]);
+    const capped = {
+      markets: markets.length >= CAP.markets,
+      positions: positions.length >= CAP.positions,
+      fees: events.length >= CAP.fees,
+      verdicts: verdicts.length >= CAP.verdicts,
+      takes: takes.length >= CAP.takes,
+    };
 
     const creatorWallet = jsonEnv<{ address?: string }>("ARC_CREATOR_WALLET");
     const house = creatorWallet?.address?.toLowerCase() ?? null;
@@ -132,8 +141,9 @@ export const overview = query({
 
     return {
       now,
+      capped,
       cursorBlock: cursor?.block ?? null,
-      heartbeats: heartbeats.map((h) => ({ name: h.name, at: h.at })),
+      heartbeats: heartbeats.filter((h) => h.name !== "arc-poke").map((h) => ({ name: h.name, at: h.at })),
       markets: {
         total: markets.length,
         counts,
@@ -167,7 +177,7 @@ export const overview = query({
         [
           "ORACLE_GEMINI_API_KEY", "ORACLE_ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GEMINI_API_KEYS", "COUNCIL_GEMINI_API_KEY",
           "CREATOR_GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GROQ_API_KEYS", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY",
-          "ARC_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_INTERNAL_SECRET",
+          "ARC_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET",
         ].map((k) => [k, keyCount(k)]),
       ),
     };

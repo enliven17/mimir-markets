@@ -5,7 +5,7 @@
  * (audit P1-10).
  */
 import { MAX_URL_BYTES } from "@/lib/agents/params";
-import { allowRequest, envLimit } from "./rate-limit";
+import { allowRequest, envLimit, networkOf } from "./rate-limit";
 
 /**
  * True when the caller is within both its own limit and the deploy-wide one.
@@ -20,7 +20,12 @@ export async function allowLlmRequest(args: {
   pool?: string;
 }): Promise<boolean> {
   if (!(await allowRequest(args.bucket, args.key, args.perKey, 60_000))) return false;
-  return allowRequest(`${args.bucket}-global`, args.pool ?? "all", envLimit(args.globalEnv, args.globalDefault), 60_000);
+  const global = envLimit(args.globalEnv, args.globalDefault);
+  // No single network (IPv4 /24, IPv6 /48) may take more than a fifth of the shared ceiling, so a handful of
+  // addresses cannot lock everyone else out of it.
+  const share = Math.max(args.perKey, Math.ceil(global / 5));
+  if (!(await allowRequest(`${args.bucket}-net`, networkOf(args.key), share, 60_000))) return false;
+  return allowRequest(`${args.bucket}-global`, args.pool ?? "all", global, 60_000);
 }
 
 /** claim-draft body: a source URL (it becomes the on-chain resolution URL) and a locale. */

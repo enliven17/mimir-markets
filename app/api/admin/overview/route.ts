@@ -1,6 +1,6 @@
 /**
- * GET /api/admin/overview: everything the admin panel shows (lib/server/admin-overview.ts). Read-only. Only an
- * ADMIN_WALLETS wallet with a signed holder proof gets an answer; everyone else gets a plain 404.
+ * GET /api/admin/overview: everything the admin panel shows (lib/server/admin-overview.ts). Read-only. Only a
+ * live admin session (Authorization: Bearer, lib/server/admin.ts) gets an answer; everyone else gets a plain 404.
  */
 import { NextResponse } from "next/server";
 
@@ -15,6 +15,6 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
 
 export async function GET(req: Request) {
   if (!(await allowRequest("admin", clientIp(req), 20, 60_000))) return notFound();
-  if (!adminWallet(req)) return notFound();
+  if (!(await adminWallet(req))) return notFound();
   return NextResponse.json(await adminOverview(), { headers: { "cache-control": "no-store" } });
 }

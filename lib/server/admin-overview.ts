@@ -4,6 +4,7 @@
  * fails on its own, so one dead service shows as red instead of blanking the page. Read-only; no secret values leave
  * this module, only whether they are set.
  */
+import { internalSecret } from "@/lib/internal-secrets";
 import { ConvexHttpClient } from "convex/browser";
 import { parseAbi, type Address } from "viem";
 
@@ -41,15 +42,18 @@ const READ_ABI = parseAbi([
   "function oracle() view returns (address)",
   "function feeRecipient() view returns (address)",
   "function paused() view returns (bool)",
+  "function arbiter() view returns (address)",
+  "function maxMarketStake() view returns (uint256)",
+  "function maxAccountStake() view returns (uint256)",
   "function lifetimeFeesAccrued() view returns (uint256)",
   "function lifetimeFeesClaimed() view returns (uint256)",
 ]);
 
 async function backend() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
-  const secret = process.env.MIMIR_INTERNAL_SECRET?.trim();
+  const secret = internalSecret("admin");
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  if (!secret) throw new Error("MIMIR_INTERNAL_SECRET is not set on the site");
+  if (!secret) throw new Error("MIMIR_ADMIN_SECRET is not set on the site");
   return new ConvexHttpClient(url).query(api.arcAdmin.overview, { secret });
 }
 
@@ -58,7 +62,7 @@ async function contract(address: Address | null) {
   const c = arcPublicClient();
   const read = <T>(functionName: (typeof READ_ABI)[number]["name"]) =>
     c.readContract({ address, abi: READ_ABI, functionName }).then((v) => v as T).catch(() => null);
-  const [balance, owner, oracle, feeRecipient, paused, accrued, claimed] = await Promise.all([
+  const [balance, owner, oracle, feeRecipient, paused, accrued, claimed, arbiter, maxMarket, maxAccount] = await Promise.all([
     c.getBalance({ address }),
     read<Address>("owner"),
     read<Address>("oracle"),
@@ -66,9 +70,24 @@ async function contract(address: Address | null) {
     read<boolean>("paused"),
     read<bigint>("lifetimeFeesAccrued"),
     read<bigint>("lifetimeFeesClaimed"),
+    read<Address>("arbiter"),
+    read<bigint>("maxMarketStake"),
+    read<bigint>("maxAccountStake"),
   ]);
   const unclaimedFees = accrued !== null && claimed !== null ? accrued - claimed : null;
-  return { address, balanceWei: balance.toString(), owner, oracle, feeRecipient, paused, unclaimedFeesWei: unclaimedFees?.toString() ?? null };
+  return {
+    address,
+    balanceWei: balance.toString(),
+    owner,
+    oracle,
+    arbiter,
+    feeRecipient,
+    paused,
+    // Net USDC wei, "0" = no cap; null when the contract has no caps (MimirFees) or the read failed.
+    maxMarketStakeWei: maxMarket?.toString() ?? null,
+    maxAccountStakeWei: maxAccount?.toString() ?? null,
+    unclaimedFeesWei: unclaimedFees?.toString() ?? null,
+  };
 }
 
 async function balances(wallets: Array<{ label: string; address: string }>) {
@@ -84,7 +103,7 @@ async function balances(wallets: Array<{ label: string; address: string }>) {
 
 /** The app's records in the backend (lib/server/store.ts), counted. */
 async function database() {
-  if (!storeEnabled()) throw new Error("the backend is not configured (NEXT_PUBLIC_CONVEX_URL, MIMIR_INTERNAL_SECRET)");
+  if (!storeEnabled()) throw new Error("the backend is not configured (NEXT_PUBLIC_CONVEX_URL, MIMIR_STORE_SECRET)");
   type R = Record<string, unknown>;
   const s = store();
   const all = (t: string) => s.list<R>(t, { limit: 5000 });
@@ -158,7 +177,7 @@ async function solanaSlot(url: string) {
 /** Which of the site's own secrets are set (yes/no), never their values. */
 function siteKeys() {
   const names = [
-    "MIMIR_INTERNAL_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "ARC_FEE_SIGNER_KEY",
+    "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "ARC_FEE_SIGNER_KEY",
     "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY", "CMC_API_KEY",
     "SOLANA_MAINNET_RPC", "NEXT_PUBLIC_CIRCLE_CLIENT_KEY", "NEXT_PUBLIC_POSTHOG_KEY",
   ];

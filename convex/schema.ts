@@ -39,11 +39,17 @@ export default defineSchema({
     disputableUntil: v.number(),
     /** Unix seconds refundExpired opens (7 days after the deadline, or after a dispute). */
     refundAt: v.number(),
+    /** Early close (setLockAt, LockSet): no new stakes from this unix second; 0 or absent = the usual lock. */
+    lockAt: v.optional(v.number()),
+    /** Disputed by the owner's veto (ResolutionDisputed with a zero disputer), not a participant's bond. */
+    vetoed: v.optional(v.boolean()),
     updatedBlock: v.number(),
   })
     .index("by_market", ["kind", "marketId"])
     .index("by_deadline", ["deadline"])
-    .index("by_creator", ["creator"]),
+    .index("by_creator", ["creator"])
+    // The oracle and the views read by state, oldest deadline first, instead of scanning every market.
+    .index("by_status_deadline", ["status", "deadline"]),
 
   arcPositions: defineTable({
     kind,
@@ -76,7 +82,8 @@ export default defineSchema({
   })
     .index("by_log", ["txHash", "logIndex"])
     .index("by_market", ["kind", "marketId"])
-    .index("by_user", ["user"]),
+    .index("by_user", ["user"])
+    .index("by_name", ["name"]),
 
   /** The oracle's verdicts: the audit bundle whose sha256 went on chain as evidenceHash. */
   arcVerdicts: defineTable({

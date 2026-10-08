@@ -152,7 +152,17 @@ function Gate({ children }: { children: ReactNode }) {
 export function InvitesPanel() {
   const a = useAccess();
   const [copied, setCopied] = useState<string | null>(null);
-  if (!INVITE_ONLY || !a.status?.invites.length) return null;
+  if (!INVITE_ONLY || !a.status?.allowed) return null;
+  // New members' codes unlock after a few days (lib/access.ts inviteMintAllowance).
+  if (!a.status.invites.length) {
+    const at = a.status.invitesUnlockAt;
+    return at ? (
+      <section aria-label="Your invites" className={`${SURFACE} grid gap-2 p-5`}>
+        <h2 className="m-0 text-[15px] text-cream">Your invite codes</h2>
+        <p className="m-0 text-[13px] text-muted">They unlock on {new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.</p>
+      </section>
+    ) : null;
+  }
   return (
     <section aria-label="Your invites" className={`${SURFACE} grid gap-3 p-5`}>
       <h2 className="m-0 text-[15px] text-cream">Your invite codes</h2>

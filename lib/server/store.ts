@@ -1,12 +1,13 @@
 /**
  * The app's records, kept in the backend (convex/appStore.ts) since the Postgres tables were retired. Server only:
- * every call carries MIMIR_INTERNAL_SECRET. Rows keep their old column names; `t` is the old table name.
+ * every call carries the store secret (MIMIR_STORE_SECRET, lib/internal-secrets.ts). Rows keep their old column names; `t` is the old table name.
  *
  * Writes are batches (`tx`) run as one transaction: a step marked `must` that cannot apply (a key that already
  * exists, a condition that no longer holds) throws StoreConflict and nothing in the batch is written.
  *
  * Tests swap in the in-memory store (`useMemoryStore`), which follows the same rules.
  */
+import { internalSecret } from "../internal-secrets";
 import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "@/convex/_generated/api";
@@ -158,7 +159,7 @@ export function useMemoryStore(s: Store | null = memoryStore()): Store | null {
 /** True when the backend URL and the internal secret are both set. */
 export function storeEnabled(): boolean {
   if (override) return true;
-  const secret = process.env.MIMIR_INTERNAL_SECRET?.trim() ?? "";
+  const secret = internalSecret("store");
   return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL?.trim()) && secret.length >= 16;
 }
 
@@ -167,10 +168,10 @@ export function store(): Store {
   if (override) return override;
   if (cached === undefined) {
     const url = process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
-    const secret = process.env.MIMIR_INTERNAL_SECRET?.trim() ?? "";
+    const secret = internalSecret("store");
     cached = url && secret.length >= 16 ? convexStore(url, secret) : null;
   }
-  if (!cached) throw new Error("the backend is not configured (NEXT_PUBLIC_CONVEX_URL, MIMIR_INTERNAL_SECRET)");
+  if (!cached) throw new Error("the backend is not configured (NEXT_PUBLIC_CONVEX_URL, MIMIR_STORE_SECRET)");
   return cached;
 }
 

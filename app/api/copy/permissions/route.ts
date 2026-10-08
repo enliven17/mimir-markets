@@ -18,6 +18,7 @@
  * Behind `MIMIR_FEATURE_COPY_TRADING`; while it is off every method answers
  * 404 feature_disabled rather than accepting grants nothing will act on.
  */
+import { accessDenied } from "@/lib/server/access";
 import {
   copyPermissionMessage,
   followerProofMessage,
@@ -143,6 +144,8 @@ export async function POST(req: Request): Promise<Response> {
     signature: permission.signature,
   });
   if (!signedOk) return fail(401, "bad_signature", "the follower signature does not match");
+  const denied = await accessDenied(follower);
+  if (denied) return fail(403, "invite_only", denied);
 
   const [executor, wallets, existing] = await Promise.all([
     getAgent(draft.executionAgentId).catch(() => null),

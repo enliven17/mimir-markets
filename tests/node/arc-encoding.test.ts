@@ -99,3 +99,11 @@ test("config: testnet by default, mainnet refuses to guess the RPC", () => {
   assert.equal(m.solana.usdcMint, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
   assert.equal(m.cctp.irisUrl, "https://iris-api.circle.com");
 });
+
+test("config: a comma list of RPCs keeps its order, the first is the primary", () => {
+  const c = arcConfig({ rpcUrl: " https://a.example , https://b.example,," });
+  assert.deepEqual(c.chain.rpcUrls, ["https://a.example", "https://b.example"]);
+  assert.equal(c.chain.rpcUrl, "https://a.example");
+  assert.deepEqual(arcConfig({}).chain.rpcUrls, ["https://rpc.testnet.arc.network"]);
+  assert.throws(() => arcConfig({ network: "mainnet", rpcUrl: " , " }), /NEXT_PUBLIC_ARC_RPC/);
+});

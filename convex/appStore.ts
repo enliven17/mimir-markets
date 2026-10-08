@@ -1,13 +1,15 @@
-// The app's own records (schema.ts `appStore`), reached only from the web server with MIMIR_INTERNAL_SECRET
+// The app's own records (schema.ts `appStore`), reached only from the web server with MIMIR_STORE_SECRET
 // (lib/server/store.ts). Reads are queries; every write is one `tx` mutation, so the checks a table relied on in
 // Postgres (a code used once, a nonce seen once, a payment tx counted once, the first relay answer wins) hold: a
 // conditional step that fails throws and nothing in the batch is written.
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { APP_STORE_TABLES, PRUNABLE_TABLES, secretMatches } from "../lib/internal-secrets";
 
-function allowed(secret: string) {
-  const expected = process.env.MIMIR_INTERNAL_SECRET?.trim() ?? "";
-  if (expected.length < 16 || secret !== expected) throw new Error("not allowed");
+/** The store secret, and a known table: a leaked secret still cannot reach tables the app does not use. */
+function allowed(secret: string, ...tables: string[]) {
+  if (!secretMatches("store", secret)) throw new Error("not allowed");
+  for (const t of tables) if (!APP_STORE_TABLES.has(t)) throw new Error(`unknown table ${t}`);
 }
 
 const row = (ctx: QueryCtx | MutationCtx, t: string, k: string) =>
@@ -22,7 +24,7 @@ const keyArgs = { t: v.string(), k: v.string() };
 export const get = query({
   args: { secret: v.string(), ...keyArgs },
   handler: async (ctx, { secret, t, k }) => {
-    allowed(secret);
+    allowed(secret, t);
     return (await row(ctx, t, k))?.d ?? null;
   },
 });
@@ -30,7 +32,7 @@ export const get = query({
 export const getMany = query({
   args: { secret: v.string(), t: v.string(), ks: v.array(v.string()) },
   handler: async (ctx, { secret, t, ks }) => {
-    allowed(secret);
+    allowed(secret, t);
     const out: Array<unknown> = [];
     for (const k of ks.slice(0, 500)) {
       const r = await row(ctx, t, k);
@@ -51,7 +53,7 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { secret, t, i1, i2, since, limit }) => {
-    allowed(secret);
+    allowed(secret, t);
     const n = Math.min(Math.max(limit ?? 1000, 1), 5000);
     const base =
       i1 !== undefined
@@ -67,13 +69,13 @@ export const list = query({
 export const count = query({
   args: { secret: v.string(), t: v.string(), i1: v.optional(v.string()) },
   handler: async (ctx, { secret, t, i1 }) => {
-    allowed(secret);
+    allowed(secret, t);
     const q =
       i1 !== undefined
         ? ctx.db.query("appStore").withIndex("by_i1", (x) => x.eq("t", t).eq("i1", i1))
         : ctx.db.query("appStore").withIndex("by_key", (x) => x.eq("t", t));
-    // ponytail: counts by reading the rows; fine for the app's tables (hundreds of rows), an aggregate past that.
-    return (await q.collect()).length;
+    // ponytail: counts by reading the rows, capped at 10k (the app's tables hold hundreds); an aggregate past that.
+    return (await q.take(10_000)).length;
   },
 });
 
@@ -103,7 +105,7 @@ const step = v.object({
 export const tx = mutation({
   args: { secret: v.string(), steps: v.array(step) },
   handler: async (ctx, { secret, steps }) => {
-    allowed(secret);
+    allowed(secret, ...new Set(steps.map((s) => s.t)));
     const results: unknown[] = [];
     for (const s of steps) {
       const now = s.at ?? Date.now();
@@ -163,7 +165,8 @@ export const tx = mutation({
 export const prune = mutation({
   args: { secret: v.string(), t: v.string(), before: v.number(), limit: v.optional(v.number()) },
   handler: async (ctx, { secret, t, before, limit }) => {
-    allowed(secret);
+    allowed(secret, t);
+    if (!PRUNABLE_TABLES.has(t)) throw new Error(`${t} is not prunable`);
     const old = await ctx.db
       .query("appStore")
       .withIndex("by_at", (q) => q.eq("t", t).lt("at", before))
@@ -199,6 +202,7 @@ export const sweep = internalMutation({
       ["agent_api_nonces", now - 2 * 86_400_000],
       ["agent_api_responses", now - 2 * 86_400_000],
       ["copy_reservations", now - 86_400_000],
+      ["admin_nonces", now - 86_400_000],
     ];
     let removed = 0;
     for (const [t, before] of cutoffs) {

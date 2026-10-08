@@ -6,9 +6,9 @@
  *   resolved   settled (won / lost / refunded) → each participant's linked chats
  *   cancelled  the creator cancelled → the creator's linked chats
  * Participants are Arc accounts; arc_accounts maps them to the Solana wallet a
- * chat follows. Auth: MIMIR_INTERNAL_SECRET as a bearer token.
+ * chat follows. Auth: the events secret (MIMIR_EVENTS_SECRET) as a bearer token.
  */
-import { timingSafeEqual } from "node:crypto";
+import { secretMatches } from "@/lib/internal-secrets";
 import { NextResponse } from "next/server";
 
 import { getArcBindingByArc } from "@/lib/server/arc-accounts";
@@ -37,9 +37,7 @@ interface ArcEvent {
 }
 
 function authorized(req: Request): boolean {
-  const secret = process.env.MIMIR_INTERNAL_SECRET?.trim() ?? "";
-  const got = (req.headers.get("authorization") ?? "").replace(/^Bearer /, "");
-  return secret.length >= 16 && got.length === secret.length && timingSafeEqual(Buffer.from(got), Buffer.from(secret));
+  return secretMatches("events", (req.headers.get("authorization") ?? "").replace(/^Bearer /, ""));
 }
 
 const sideName = (e: ArcEvent, s: number) => (s === 1 ? e.labelA : s === 2 ? e.labelB : "");

@@ -19,6 +19,7 @@
  * on chain and recorded at the operator's actual stake, so the ledger the caps
  * are derived from cannot be talked down.
  */
+import { accessDenied } from "@/lib/server/access";
 import { zeroAddress } from "viem";
 import { ARC } from "@/lib/arc/config";
 import { stakeCall } from "@/lib/arc/markets";
@@ -118,6 +119,8 @@ export async function POST(req: Request): Promise<Response> {
     return fail(503, "registry_unavailable", "the agent registry could not be read");
   }
   if (!(await allowRequest("copy-signals-agent", agent.agentId, 30, 60_000))) return tooManyRequests(60);
+  const denied = await accessDenied(agent.ownerWallet);
+  if (denied) return fail(403, "invite_only", denied);
 
   const permissions = await permissionsForExecutor(agent.agentId).catch(() => [] as CopyPermission[]);
 

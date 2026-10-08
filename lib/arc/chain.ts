@@ -2,7 +2,7 @@
  * Arc as a viem chain, and a read-only client on its public RPC (balances,
  * receipts). viem core only: no Circle SDK, so balance reads stay light.
  */
-import { createPublicClient, defineChain, http, type Address, type PublicClient } from "viem";
+import { createPublicClient, defineChain, fallback, http, type Address, type HttpTransportConfig, type PublicClient, type Transport } from "viem";
 
 import { ARC, type ArcConfig } from "./config";
 
@@ -11,13 +11,19 @@ export function arcChain(config: ArcConfig = ARC) {
     id: config.chain.id,
     name: config.chain.name,
     nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-    rpcUrls: { default: { http: [config.chain.rpcUrl] } },
+    rpcUrls: { default: { http: config.chain.rpcUrls } },
     blockExplorers: { default: { name: "ArcScan", url: config.chain.explorer } },
   });
 }
 
+/** The configured RPCs in order: the next one takes over when one fails or rate-limits. */
+export function arcTransport(config: ArcConfig = ARC, opts?: HttpTransportConfig): Transport {
+  const urls = config.chain.rpcUrls.length ? config.chain.rpcUrls : [config.chain.rpcUrl];
+  return urls.length === 1 ? http(urls[0], opts) : fallback(urls.map((u) => http(u, opts)));
+}
+
 export function arcPublicClient(config: ArcConfig = ARC): PublicClient {
-  return createPublicClient({ chain: arcChain(config), transport: http(config.chain.rpcUrl) }) as PublicClient;
+  return createPublicClient({ chain: arcChain(config), transport: arcTransport(config) }) as PublicClient;
 }
 
 /**

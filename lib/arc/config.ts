@@ -15,7 +15,8 @@ export type ArcNetwork = "testnet" | "mainnet";
 
 export interface ArcConfig {
   network: ArcNetwork;
-  chain: { id: number; name: string; rpcUrl: string; explorer: string };
+  /** rpcUrl is the first of rpcUrls; reads and writes fall through the list in order (chain.ts arcTransport). */
+  chain: { id: number; name: string; rpcUrl: string; rpcUrls: string[]; explorer: string };
   /** One balance, two views: native (18 dp, what msg.value spends) and this ERC-20 (6 dp). */
   usdc: `0x${string}`;
   cctp: {
@@ -102,6 +103,11 @@ function contractsFrom(env: ArcEnv): ArcConfig["contracts"] {
   };
 }
 
+/** NEXT_PUBLIC_ARC_RPC / ARC_RPC may be a comma list, tried in order (a public RPC can rate-limit or ban an IP). */
+export function parseRpcUrls(value: string | undefined): string[] {
+  return (value ?? "").split(",").map((u) => u.trim()).filter(Boolean);
+}
+
 export function parseArcNetwork(value: string | undefined): ArcNetwork {
   return value?.trim() === "mainnet" ? "mainnet" : "testnet";
 }
@@ -109,13 +115,16 @@ export function parseArcNetwork(value: string | undefined): ArcNetwork {
 export function arcConfig(env: ArcEnv): ArcConfig {
   const network = parseArcNetwork(env.network);
   const clientKey = env.clientKey?.trim() ?? "";
+  const rpcUrls = parseRpcUrls(env.rpcUrl);
   if (network === "testnet") {
+    if (!rpcUrls.length) rpcUrls.push("https://rpc.testnet.arc.network");
     return {
       network,
       chain: {
         id: 5042002,
         name: "Arc Testnet",
-        rpcUrl: env.rpcUrl?.trim() || "https://rpc.testnet.arc.network",
+        rpcUrl: rpcUrls[0],
+        rpcUrls,
         explorer: env.explorer?.trim() || "https://testnet.arcscan.app",
       },
       usdc: ARC_USDC,
@@ -130,12 +139,12 @@ export function arcConfig(env: ArcEnv): ArcConfig {
       circle: { clientKey, passkeyUrl: CIRCLE_MODULAR_BASE, modularUrl: `${CIRCLE_MODULAR_BASE}/arcTestnet` },
     };
   }
-  const rpcUrl = env.rpcUrl?.trim();
+  const rpcUrl = rpcUrls[0];
   if (!rpcUrl) throw new Error("NEXT_PUBLIC_ARC_RPC must be set when NEXT_PUBLIC_ARC_NETWORK=mainnet");
   return {
     network,
     // Chain id 5042 is viem's `arc` definition (viem/chains).
-    chain: { id: 5042, name: "Arc", rpcUrl, explorer: env.explorer?.trim() || "https://arcscan.app" },
+    chain: { id: 5042, name: "Arc", rpcUrl, rpcUrls, explorer: env.explorer?.trim() || "https://arcscan.app" },
     usdc: ARC_USDC,
     cctp: {
       // CCTP V2 uses the same CREATE2 addresses on every EVM mainnet.

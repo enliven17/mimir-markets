@@ -8,6 +8,7 @@
  * fee payer = follower, ER when the claim is delegated, unsigned. Mimir never
  * signs it and never holds a key; the follower signs and sends it themselves.
  */
+import { accessDenied } from "@/lib/server/access";
 import { getSubscription } from "@/lib/baskets-store";
 import { findBasket } from "@/lib/house-baskets";
 import { loadMirrorSignals } from "@/lib/baskets-performance";
@@ -44,6 +45,8 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     return basketFail(400, "bad_claim", "claimId must be a positive integer");
   }
 
+  const denied = await accessDenied(follower);
+  if (denied) return basketFail(403, "invite_only", denied);
   const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");
   const subscription = await getSubscription(id, follower).catch(() => null);

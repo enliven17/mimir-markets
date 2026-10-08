@@ -7,9 +7,10 @@
  * route checks them); an Arc account already bound to another wallet is
  * refused rather than moved.
  */
-import { createPublicClient, http, type Hex } from "viem";
+import { createPublicClient, type Hex } from "viem";
 
-import { ARC, type ArcConfig } from "@/lib/arc/config";
+import { arcTransport } from "@/lib/arc/chain";
+import { ARC, parseRpcUrls, type ArcConfig } from "@/lib/arc/config";
 import { store, StoreConflict, type Step } from "./store";
 
 export interface ArcBindingRow {
@@ -78,7 +79,9 @@ export async function verifyArcSignature(
   signature: Hex,
   config: ArcConfig = ARC,
 ): Promise<boolean | null> {
-  const client = createPublicClient({ transport: http(process.env.ARC_RPC?.trim() || config.chain.rpcUrl, { timeout: 10_000 }) });
+  const urls = parseRpcUrls(process.env.ARC_RPC);
+  const cfg = urls.length ? { ...config, chain: { ...config.chain, rpcUrl: urls[0], rpcUrls: urls } } : config;
+  const client = createPublicClient({ transport: arcTransport(cfg, { timeout: 10_000 }) });
   try {
     return await client.verifyMessage({ address, message, signature });
   } catch (err) {

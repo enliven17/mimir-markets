@@ -131,7 +131,13 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
               {m.feesCollected !== "0" ? <> · fees {usdFine(m.feesCollected)}</> : null}
             </span>
             {phase === "open" ? (
-              <Countdown until={m.deadline} format={(t) => `${t} left`} className="font-mono" />
+              m.lockAt && m.lockAt < m.deadline ? (
+                <Countdown until={m.lockAt} format={(t) => `Betting closes early, ${t} left`} className="font-mono" />
+              ) : (
+                <Countdown until={m.deadline} format={(t) => `${t} left`} className="font-mono" />
+              )
+            ) : m.lockAt && m.lockAt < m.deadline && now < m.deadline ? (
+              <span>Betting closed early {new Date(m.lockAt * 1000).toLocaleString("en-US")} · result after {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
             ) : (
               <span>Closed {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
             )}
@@ -208,7 +214,9 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             <p className="m-0 text-[14px] leading-relaxed text-muted">
               {phase === "resolved" || phase === "cancelled"
                 ? "Payouts go straight to the winners' Arc accounts."
-                : "Betting has closed. The oracle proposes a result, then anyone may dispute it before it settles."}
+                : phase === "disputed" && m.vetoed
+                  ? "The owner vetoed the proposed result; the arbiter rules on it. If no ruling comes, every stake is refunded."
+                  : "Betting has closed. The oracle proposes a result, then anyone may dispute it before it settles."}
             </p>
           </div>
         )}

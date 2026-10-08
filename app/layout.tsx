@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Viewport } from "next";
+import { headers } from "next/headers";
 import { fontVariables } from "@/lib/fonts";
 import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
@@ -26,15 +27,17 @@ export const viewport: Viewport = {
 // anything paints, and so does /app (the page that offers the app); components/app/AppBanners.tsx handles the rest.
 const HEAD_SCRIPT = `(function(){var d=document.documentElement,n=navigator,c=n.connection;d.classList.add('js');if((n.hardwareConcurrency||8)<=4||(n.deviceMemory||8)<=4||(c&&c.saveData))d.classList.add('lite');setTimeout(function(){d.classList.add('motion-timeout')},3000);try{var s=sessionStorage,q=new URLSearchParams(location.search).get('app');if(q&&/^\\d+$/.test(q))s.setItem('mimir-app-build',q);if(s.getItem('mimir-app-build')||/ MimirApp\\/\\d+/.test(n.userAgent)||matchMedia('(display-mode: standalone)').matches||document.referrer.indexOf('android-app://xyz.mimirmarkets.app')===0){s.setItem('mimir-app','1')}if(s.getItem('mimir-app')){d.setAttribute('data-app','');try{var i=JSON.parse(window.MimirApp.insets());d.style.setProperty('--app-inset-top',i.top+'px');d.style.setProperty('--app-inset-bottom',i.bottom+'px')}catch(e){}var m=location.pathname.match(/^\\/([a-z]{2})?\\/?$/)||location.pathname.match(/^\\/([a-z]{2})?\\/?app\\/?$/);if(m)location.replace('/'+(m[1]||'en')+'/arena')}}catch(e){}})();`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // The CSP nonce (proxy.ts): reading the request also renders every page per request, which a nonce needs.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html suppressHydrationWarning className={fontVariables}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: HEAD_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: HEAD_SCRIPT }} />
       </head>
       <body>
         <div className="wall" aria-hidden />

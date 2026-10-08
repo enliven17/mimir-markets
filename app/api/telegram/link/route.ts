@@ -7,6 +7,7 @@
  * nobody can follow a wallet they do not hold. The chat then gets a
  * confirmation from the bot.
  */
+import { accessDenied } from "@/lib/server/access";
 import { NextResponse } from "next/server";
 
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
@@ -34,6 +35,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
   if (!storeEnabled()) return NextResponse.json({ error: "telegram linking is not configured" }, { status: 503 });
+  const denied = await accessDenied(wallet);
+  if (denied) return NextResponse.json({ error: denied }, { status: 403 });
 
   try {
     const chatId = await redeemLinkCode(code, wallet);

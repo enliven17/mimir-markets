@@ -23,12 +23,10 @@ if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() === "mainnet-beta") {
 }
 
 /**
- * Baseline security headers. The only enforced CSP directive is
- * `frame-ancestors`, which blocks clickjacking of the stake and sign prompts.
- * The full policy (nonce-based script-src, object-src 'none', ...) is sent
- * report-only by proxy.ts (lib/server/csp.ts) until its reports are clean:
- * the wallet adapters and configurable RPC/ER endpoints make a wrong enforced
- * policy break connecting.
+ * Baseline security headers. The full Content-Security-Policy (nonce +
+ * 'strict-dynamic' script-src, object-src 'none', ...) is enforced per request
+ * by proxy.ts (lib/server/csp.ts); this static frame-ancestors copy covers
+ * whatever the proxy does not match (static files, API routes).
  *
  * The one framer allowed is Telegram's web client, which opens the site as
  * the bot's Mini App in an iframe (the mobile and desktop apps use a webview).

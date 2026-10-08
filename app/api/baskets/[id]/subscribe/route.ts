@@ -11,6 +11,7 @@
  * the signature on file (enforced atomically in the upsert), so an old
  * "cap 50" cannot be replayed after an unfollow.
  */
+import { accessDenied } from "@/lib/server/access";
 import {
   followMessage,
   isFreshSignature,
@@ -65,6 +66,8 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     signature,
   });
   if (!signedOk) return basketFail(401, "bad_signature", "the follower signature does not match");
+  const denied = await accessDenied(follower);
+  if (denied) return basketFail(403, "invite_only", denied);
 
   try {
     const stored = await setSubscription({ basketId: id, follower, perMarketCapUsdc, signature, signedAt });

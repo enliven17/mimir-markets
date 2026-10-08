@@ -10,9 +10,15 @@ export type ArcPhase = "open" | "awaiting" | "proposed" | "disputed" | "resolved
 export const BTN_PRIMARY = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 export const BTN_SECONDARY = "press rounded-full bg-panel-raised px-5 py-2.5 text-[14px] text-cream disabled:opacity-60";
 
-/** What the viewer can do now: betting closes LOCK_SECONDS before the deadline, then the oracle takes over. */
-export function arcPhase(m: Pick<ArcMarket, "status" | "deadline">, now: number): ArcPhase {
-  if (m.status === "open" || m.status === "active") return now + LOCK_SECONDS <= m.deadline ? "open" : "awaiting";
+/**
+ * What the viewer can do now: betting closes LOCK_SECONDS before the deadline, or earlier at lockAt (setLockAt), then
+ * the oracle takes over.
+ */
+export function arcPhase(m: Pick<ArcMarket, "status" | "deadline"> & { lockAt?: number }, now: number): ArcPhase {
+  if (m.status === "open" || m.status === "active") {
+    const lockedEarly = Boolean(m.lockAt) && now >= (m.lockAt ?? 0);
+    return !lockedEarly && now + LOCK_SECONDS <= m.deadline ? "open" : "awaiting";
+  }
   return m.status;
 }
 

@@ -14,6 +14,7 @@ import type * as arcAdmin from "../arcAdmin.js";
 import type * as arcCouncil from "../arcCouncil.js";
 import type * as arcCouncilDb from "../arcCouncilDb.js";
 import type * as arcCreator from "../arcCreator.js";
+import type * as arcCutover from "../arcCutover.js";
 import type * as arcOracle from "../arcOracle.js";
 import type * as arcSync from "../arcSync.js";
 import type * as arcTriage from "../arcTriage.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   arcCouncil: typeof arcCouncil;
   arcCouncilDb: typeof arcCouncilDb;
   arcCreator: typeof arcCreator;
+  arcCutover: typeof arcCutover;
   arcOracle: typeof arcOracle;
   arcSync: typeof arcSync;
   arcTriage: typeof arcTriage;

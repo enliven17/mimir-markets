@@ -6,6 +6,8 @@ import { query } from "./_generated/server";
 
 type Wallets = Record<string, { id: string; address: string }>;
 
+const VERDICT_COUNT_CAP = 5000;
+
 function councilWallets(): Wallets {
   try {
     return JSON.parse(process.env.ARC_COUNCIL_WALLETS ?? "{}") as Wallets;
@@ -21,7 +23,7 @@ export const council = query({
     const out = [];
     for (const [slug, w] of Object.entries(councilWallets())) {
       const address = w.address.toLowerCase();
-      const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address)).collect();
+      const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address)).order("desc").take(300);
       let won = 0;
       let lost = 0;
       let atRisk = 0n;
@@ -49,8 +51,9 @@ export const oracle = query({
     const key = process.env.ARC_ORACLE_KEY?.trim();
     // Only the public address leaves this function.
     const address = key && /^0x[0-9a-fA-F]{64}$/.test(key) ? privateKeyToAccount(key as `0x${string}`).address : null;
-    const verdicts = await ctx.db.query("arcVerdicts").collect();
-    return { address, verdicts: verdicts.length };
+    // Bounded count: past VERDICT_COUNT_CAP the page shows "N+".
+    const verdicts = await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP);
+    return { address, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
   },
 });
 
@@ -66,13 +69,13 @@ export const challengedBy = query({
     const seen = new Set<number>();
     const out = [];
     for (const w of wallets.slice(0, 50)) {
-      const legs = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w.toLowerCase())).collect();
+      const legs = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w.toLowerCase())).order("desc").take(400);
       for (const leg of legs) {
         if (leg.kind !== "vs" || leg.side !== 2 || seen.has(leg.marketId)) continue;
         const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", "vs").eq("marketId", leg.marketId)).unique();
         if (!m || m.isPrivate || !want.has(m.status)) continue;
         seen.add(leg.marketId);
-        const positions = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "vs").eq("marketId", leg.marketId)).collect();
+        const positions = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("kind", "vs").eq("marketId", leg.marketId)).take(500);
         out.push({ ...m, positions: positions.map((p) => ({ user: p.user, side: p.side, amount: p.amount })) });
       }
     }
@@ -85,9 +88,9 @@ export const challengedBy = query({
 export const volumeByUser = query({
   args: {},
   handler: async (ctx) => {
-    // ponytail: full scan of positions per board refresh (the route caches 60s); an aggregate table past ~100k positions.
+    // ponytail: bounded scan of the newest 12k positions per board refresh (the route caches 60s); an aggregate table past that.
     const totals = new Map<string, number>();
-    for (const p of await ctx.db.query("arcPositions").collect()) totals.set(p.user, (totals.get(p.user) ?? 0) + p.amountUsd);
+    for (const p of await ctx.db.query("arcPositions").order("desc").take(12_000)) totals.set(p.user, (totals.get(p.user) ?? 0) + p.amountUsd);
     return [...totals].map(([user, usdc]) => ({ user, usdc }));
   },
 });

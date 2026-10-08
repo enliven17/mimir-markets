@@ -9,6 +9,7 @@
  * With BASKET_CREATE_MIN_TIER set (and the token launched) the composer must
  * hold that token tier on Solana mainnet.
  */
+import { accessDenied } from "@/lib/server/access";
 import {
   composeMessage,
   isValidBasketId,
@@ -97,6 +98,8 @@ export async function POST(req: Request): Promise<Response> {
     signature,
   });
   if (!signedOk) return basketFail(401, "bad_signature", "the composer signature does not match");
+  const denied = await accessDenied(creatorWallet);
+  if (denied) return basketFail(403, "invite_only", denied);
 
   // Token perk: composing can be reserved for holders (BASKET_CREATE_MIN_TIER).
   // The composer signature above proves the wallet, so no extra proof is needed.

@@ -10,6 +10,7 @@ import {
   MIMIR_POOL_ABI,
   MIMIR_V3_ABI,
   parseUsdc,
+  stakeLimitBlocker,
   poolQuote,
   stakeCall,
   vsChallengeQuote,
@@ -78,4 +79,23 @@ test("a holder ticket becomes an applyTicket call; tier 0 needs none", () => {
   assert.ok(call);
   assert.deepEqual(decodeFunctionData({ abi: MIMIR_FEES_ABI, data: call.data }).args, [2, 1_800_000_000n, sig]);
   assert.equal(applyTicketCall(fees, { account: fees, tier: 0, expires: 1, signature: null }), null);
+});
+
+test("stake limits: pause, early lock and launch caps block with a reason", () => {
+  const U = 10n ** 18n;
+  const none = { maxMarket: 0n, maxAccount: 0n, lockAt: 0, paused: false };
+  const fmt = (w: bigint) => `$${Number(w) / 1e18}`;
+  const base = { kind: "pool" as const, gross: 10n * U, entryBps: 0, mine: 0n, total: 0n, now: 1000 };
+  assert.equal(stakeLimitBlocker(none, base, fmt), null);
+  assert.match(stakeLimitBlocker({ ...none, paused: true }, base, fmt) ?? "", /paused/);
+  assert.match(stakeLimitBlocker({ ...none, lockAt: 1000 }, base, fmt) ?? "", /closed early/);
+  assert.equal(stakeLimitBlocker({ ...none, lockAt: 1001 }, base, fmt), null);
+  // Market cap: 95 already in, cap 100 → 5 more fits.
+  assert.match(stakeLimitBlocker({ ...none, maxMarket: 100n * U }, { ...base, total: 95n * U }, fmt) ?? "", /at most \$5 more/);
+  assert.equal(stakeLimitBlocker({ ...none, maxMarket: 100n * U }, { ...base, total: 90n * U }, fmt), null);
+  // Account cap counts what a pool user already has in; a VS challenge is capped per stake.
+  assert.match(stakeLimitBlocker({ ...none, maxAccount: 15n * U }, { ...base, mine: 10n * U }, fmt) ?? "", /at most \$5 more/);
+  assert.equal(stakeLimitBlocker({ ...none, maxAccount: 15n * U }, { ...base, kind: "vs", mine: 10n * U }, fmt), null);
+  // Caps are net: a 1% fee lets a little more gross through.
+  assert.equal(stakeLimitBlocker({ ...none, maxAccount: 10n * U }, { ...base, gross: 101n * U / 10n, entryBps: 100 }, fmt), null);
 });

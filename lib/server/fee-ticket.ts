@@ -11,6 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import { ARC } from "@/lib/arc/config";
 import { FEE_TICKET_TYPES, feeTicketDomain, feeTierFor, TICKET_TTL_SECONDS, type FeeTicket } from "@/lib/arc/fee-tiers";
+import { accessDenied } from "./access";
 import { getArcBindingByArc } from "./arc-accounts";
 import { walletBalances } from "./holder";
 
@@ -25,7 +26,9 @@ export async function feeTicketFor(arcAccount: Address, now = Math.floor(Date.no
   const expires = now + TICKET_TTL_SECONDS;
   const binding = await getArcBindingByArc(account);
   // Unbound accounts and unreadable balances pay the standard fee: never fail the bet over a discount.
-  const mimir = binding ? await walletBalances(binding.solana).then((b) => b.mimir).catch(() => 0) : 0;
+  // Invite-only: a discount only for a wallet that is in.
+  const member = binding ? (await accessDenied(binding.solana)) === null : false;
+  const mimir = binding && member ? await walletBalances(binding.solana).then((b) => b.mimir).catch(() => 0) : 0;
   const tier = feeTierFor(mimir);
   const fees = ARC.contracts.mimirFees;
   const key = signer();

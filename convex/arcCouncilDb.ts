@@ -9,7 +9,7 @@ const kind = v.union(v.literal("vs"), v.literal("pool"));
 export const standing = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
-    const rows = await ctx.db.query("arcCouncilDecisions").withIndex("by_until", (q) => q.gt("until", now)).collect();
+    const rows = await ctx.db.query("arcCouncilDecisions").withIndex("by_until", (q) => q.gt("until", now)).take(4000);
     return rows.map((r) => `${r.slug}:${r.kind}:${r.marketId}`);
   },
 });
@@ -48,7 +48,8 @@ export const forMarket = query({
 /** Markets that already have a council take, as "kind:id" keys, and who opened each and when it was written. */
 export const takenMarkets = internalQuery({
   args: {},
-  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").collect()).map((t) => ({ key: `${t.kind}:${t.marketId}`, creator: t.creator ?? "", at: t.at })),
+  // The newest 5000 takes: older ones belong to markets long closed (writeTakes only looks at open markets).
+  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.kind}:${t.marketId}`, creator: t.creator ?? "", at: t.at })),
 });
 
 export const saveTake = internalMutation({

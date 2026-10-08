@@ -27,3 +27,15 @@ test("codes per member default to 2 and follow MIMIR_INVITES_PER_USER", () => {
   assert.equal(invitesPerUser({ MIMIR_INVITES_PER_USER: "3" }), 3);
   assert.equal(invitesPerUser({ MIMIR_INVITES_PER_USER: "-1" }), 2);
 });
+
+test("codes wait for the grant to age, and a holder must still hold to get them", async () => {
+  const { inviteMintAllowance } = await import("../../lib/access");
+  const day = 86_400_000;
+  const base = { via: "holder" as const, grantedAt: 0, holdsMinimum: true, existing: 0, allowance: 2, unlockMs: 3 * day };
+  assert.equal(inviteMintAllowance({ ...base, now: day }), 0, "too new");
+  assert.equal(inviteMintAllowance({ ...base, now: 4 * day }), 2);
+  assert.equal(inviteMintAllowance({ ...base, now: 4 * day, holdsMinimum: false }), 0, "moved the tokens away");
+  assert.equal(inviteMintAllowance({ ...base, via: "invite", now: 4 * day, holdsMinimum: false }), 2, "invitees need no $MIMIR");
+  assert.equal(inviteMintAllowance({ ...base, now: 4 * day, existing: 1 }), 1);
+  assert.equal(inviteMintAllowance({ ...base, now: 4 * day, existing: 3 }), 0);
+});

@@ -1,23 +1,27 @@
 "use client";
 
 /**
- * The admin panel: a read-only view of everything that runs Mimir. Sign in with an ADMIN_WALLETS Solana wallet
- * (the holder proof); the server answers 404 to anyone else (app/api/admin/overview). Refreshes every 30 s.
+ * The admin panel: a read-only view of everything that runs Mimir. Sign in with an ADMIN_WALLETS Solana wallet by
+ * signing a single-use challenge (lib/server/admin.ts); the session lasts 10 minutes, then the panel asks again.
+ * The server answers 404 to anyone else. Refreshes every 30 s.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import bs58 from "bs58";
 
 import { SURFACE } from "@/components/arena/surface";
-import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 import type { AdminOverview, Health } from "@/lib/server/admin-overview";
 
 const REFRESH_MS = 30_000;
+const SESSION_KEY = "mimir-admin-session";
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 const TONE: Record<Health, string> = { ok: "text-win", warn: "text-pending", down: "text-danger" };
 const DOT: Record<Health, string> = { ok: "bg-win", warn: "bg-pending", down: "bg-danger" };
 
 const usdc = (wei: string | null | undefined) => (wei == null ? "–" : (Number(BigInt(wei)) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const cap = (wei: string | null | undefined) => (wei === "0" ? "none" : usdc(wei));
 const short = (a: string | null | undefined) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "–");
 const ago = (ms: number | null) => (ms ? `${Math.max(0, Math.round((Date.now() - ms) / 60_000))} min ago` : "never");
 
@@ -29,26 +33,65 @@ function until(sec: number, now: number): string {
   return d >= 0 ? s : `ended ${s} ago`;
 }
 
+type Session = { wallet: string; token: string; expires: number };
+
+function savedSession(wallet: string | null): Session | null {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "null") as Session | null;
+    return s && s.wallet === wallet && s.expires > Date.now() ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AdminPanel() {
-  const { wallet, proven, canSign, prove } = useHolderTier();
+  const { publicKey, signMessage } = useWallet();
+  const wallet = publicKey?.toBase58() ?? null;
+  const [session, setSession] = useState<Session | null>(null);
   const [data, setData] = useState<AdminOverview | null>(null);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!wallet || !proven) return;
+  useEffect(() => setSession(savedSession(wallet)), [wallet]);
+
+  const signIn = async () => {
+    if (!wallet || !signMessage) return;
+    setBusy(true);
+    setError(null);
     try {
-      const res = await fetch("/api/admin/overview", { headers: holderProofHeaders(wallet), cache: "no-store" });
-      if (res.status === 404) return setDenied(true);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const c = await fetch(`/api/admin/nonce?wallet=${wallet}`, { cache: "no-store" });
+      if (!c.ok) return setDenied(true);
+      const { nonce, message } = (await c.json()) as { nonce: string; message: string };
+      const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+      const r = await fetch("/api/admin/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet, nonce, signature }) });
+      if (!r.ok) return setDenied(true);
+      const s = { wallet, ...((await r.json()) as { token: string; expires: number }) };
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      } catch {}
       setDenied(false);
+      setSession(s);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const load = useCallback(async () => {
+    if (!session) return;
+    if (session.expires <= Date.now()) return setSession(null);
+    try {
+      const res = await fetch("/api/admin/overview", { headers: { authorization: `Bearer ${session.token}` }, cache: "no-store" });
+      if (res.status === 404) return setSession(null);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setError(null);
       setData((await res.json()) as AdminOverview);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [wallet, proven]);
+  }, [session]);
 
   useEffect(() => {
     void load();
@@ -56,20 +99,21 @@ export default function AdminPanel() {
     return () => clearInterval(t);
   }, [load]);
 
-  if (!wallet || !proven || denied) {
+  if (!wallet || !session) {
     return (
       <div className="mx-auto grid max-w-[480px] gap-5 py-10">
         <h1 className="m-0 font-display text-app-h1 text-cream">Admin</h1>
         <section className={`${SURFACE} grid gap-4 p-5`}>
           {!wallet ? (
             <ConnectWalletButton />
-          ) : !proven ? (
-            <button className={BTN} disabled={!canSign || busy} onClick={() => (setBusy(true), void prove().catch(() => undefined).finally(() => setBusy(false)))}>
+          ) : denied ? (
+            <p className="m-0 text-[14px] text-muted">This wallet has no access.</p>
+          ) : (
+            <button className={BTN} disabled={!signMessage || busy} onClick={() => void signIn()}>
               {busy ? "Check your wallet…" : "Sign in"}
             </button>
-          ) : (
-            <p className="m-0 text-[14px] text-muted">This wallet has no access.</p>
           )}
+          {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
         </section>
       </div>
     );
@@ -275,10 +319,13 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
             head={["", "MimirV3 (VS)", "MimirPool"]}
             rows={[
               ["Address", ...[d.chain.v3, d.chain.pool].map((c, i) => c.data ? <a key={i} href={ex("address", c.data.address)} target="_blank" rel="noreferrer" className="font-mono hover:text-coral">{short(c.data.address)}</a> : <span key={i} className="text-danger">{c.error}</span>)],
-              ["Owner (arbiter)", short(d.chain.v3.data?.owner), short(d.chain.pool.data?.owner)],
+              ["Owner", short(d.chain.v3.data?.owner), short(d.chain.pool.data?.owner)],
+              ["Arbiter", short(d.chain.v3.data?.arbiter), short(d.chain.pool.data?.arbiter)],
               ["Oracle", short(d.chain.v3.data?.oracle), short(d.chain.pool.data?.oracle)],
               ["Fee recipient", short(d.chain.v3.data?.feeRecipient), short(d.chain.pool.data?.feeRecipient)],
-              ["Paused", String(d.chain.v3.data?.paused ?? "–"), String(d.chain.pool.data?.paused ?? "–")],
+              ["Paused", ...[d.chain.v3, d.chain.pool].map((c, i) => <span key={i} className={c.data?.paused ? "text-danger" : ""}>{String(c.data?.paused ?? "–")}</span>)],
+              ["Cap per market (USDC)", cap(d.chain.v3.data?.maxMarketStakeWei), cap(d.chain.pool.data?.maxMarketStakeWei)],
+              ["Cap per account (USDC)", cap(d.chain.v3.data?.maxAccountStakeWei), cap(d.chain.pool.data?.maxAccountStakeWei)],
               ["Holds (USDC)", usdc(d.chain.v3.data?.balanceWei), usdc(d.chain.pool.data?.balanceWei)],
               ["Owes, estimated", usdc(d.chain.solvency.vs?.owedWei), usdc(d.chain.solvency.pool?.owedWei)],
               ["Surplus", ...[d.chain.solvency.vs, d.chain.solvency.pool].map((s, i) => <span key={i} className={s ? (s.ok ? "text-win" : "text-danger") : ""}>{usdc(s?.surplusWei)}</span>)],

@@ -1,9 +1,11 @@
 // Arc indexer: pulls MimirV3 / MimirPool logs since the cursor, re-reads every market they touch from the chain
 // (so contract logic is never re-implemented here) and hands the snapshots to arc.apply in one transaction.
 // Arc has BFT finality (no reorgs), so a block once read is final. Runs from convex/crons.ts.
-import { createPublicClient, http, parseAbi, parseEventLogs, type Log } from "viem";
+import { internalSecret } from "../lib/internal-secrets";
+import { createPublicClient, parseAbi, parseEventLogs, type Log } from "viem";
 import { internal } from "./_generated/api";
 import { internalAction, type ActionCtx } from "./_generated/server";
+import { arcTransport } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
 import { jevEnabled } from "../lib/jev";
 import { triageMarket } from "../lib/jev-triage";
@@ -20,6 +22,8 @@ const V3_ABI = parseAbi([
   "event ClaimExpiredRefund(uint256 indexed id, address indexed caller)",
   "event ReferrerSet(uint256 indexed id, address indexed participant, address indexed referrer)",
   "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
+  "event LockSet(uint256 indexed id, uint256 lockAt)",
+  "function lockAt(uint256) view returns (uint256)",
   "function getClaim(uint256) view returns (address creator, string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 creatorStake, uint256 totalChallengerStake, uint256 reservedCreatorLiability, uint256 deadline, uint8 state, uint8 winnerSide, string resolutionSummary, uint8 confidence, string category, uint256 parentId, uint256 challengerCount, uint256 createdAt, bytes32 evidenceHash)",
   "function getClaimMarketConfig(uint256) view returns (string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, uint256 reservedCreatorLiability)",
   "function getChallengerList(uint256) view returns (address[] addrs, uint256[] stakes)",
@@ -37,6 +41,8 @@ const POOL_ABI = parseAbi([
   "event Claimed(uint256 indexed id, address indexed user, uint256 paid, uint256 fee)",
   "event ReferrerSet(uint256 indexed id, address indexed user, address indexed referrer)",
   "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
+  "event LockSet(uint256 indexed id, uint256 lockAt)",
+  "function lockAt(uint256) view returns (uint256)",
   "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB)",
   "function getMarketText(uint256) view returns (string question, string labelA, string labelB, string resolutionUrl, string category, string summary)",
   "function stakeOf(uint256, address) view returns (uint256 onA, uint256 onB)",
@@ -61,6 +67,9 @@ function timing(deadline: bigint, proposedAt: bigint, disputedAt: bigint, window
   };
 }
 const lower = (a: string) => a.toLowerCase();
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+/** The owner's veto is a dispute with no disputer (vetoProposal). */
+const vetoed = (status: string, disputer: string) => status === "disputed" && lower(disputer) === ZERO_ADDRESS;
 
 type Kind = "vs" | "pool";
 type DecodedLog = Log<bigint, number, false> & { eventName: string; args: Record<string, unknown> };
@@ -83,7 +92,7 @@ export const sync = internalAction({
     const cfg = config();
     const { mimirV3, mimirPool, fromBlock } = cfg.contracts;
     if (!mimirV3 || !mimirPool) throw new Error("MIMIR_V3_ADDRESS and MIMIR_POOL_ADDRESS must be set in the Convex env");
-    const client = createPublicClient({ transport: http(cfg.chain.rpcUrl) });
+    const client = createPublicClient({ transport: arcTransport(cfg) });
 
     const cursor = await ctx.runQuery(internal.arc.cursor, {});
     let from = cursor === null ? fromBlock : BigInt(cursor) + 1n;
@@ -148,11 +157,12 @@ export const sync = internalAction({
 type Client = ReturnType<typeof createPublicClient>;
 
 async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number, window: bigint) {
-  const [c, cfg, list, proposal] = await Promise.all([
+  const [c, cfg, list, proposal, lock] = await Promise.all([
     client.readContract({ address, abi: V3_ABI, functionName: "getClaim", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimMarketConfig", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getChallengerList", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "proposals", args: [id] }),
+    client.readContract({ address, abi: V3_ABI, functionName: "lockAt", args: [id] }).catch(() => 0n), // contracts before the cutover have no lockAt
   ]);
   const [creator, question, creatorPosition, counterPosition, resolutionUrl, creatorStake, totalChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
   const byUser = new Map<string, bigint>();
@@ -174,6 +184,8 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
       deadline: Number(deadline),
       createdAt: Number(createdAt),
       status: V3_STATUS[state] ?? "open",
+      lockAt: Number(lock),
+      vetoed: vetoed(V3_STATUS[state] ?? "open", proposal[4]),
       winner: winnerSide,
       summary,
       stakeA: creatorStake.toString(),
@@ -189,10 +201,11 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
 }
 
 async function readPool(client: Client, address: `0x${string}`, id: bigint, users: string[], block: number, window: bigint) {
-  const [m, text, proposal] = await Promise.all([
+  const [m, text, proposal, lock] = await Promise.all([
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarket", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getProposal", args: [id] }),
+    client.readContract({ address, abi: POOL_ABI, functionName: "lockAt", args: [id] }).catch(() => 0n), // contracts before the cutover have no lockAt
   ]);
   const [creator, deadline, createdAt, state, outcome, totalA, totalB] = m;
   const [question, labelA, labelB, resolutionUrl, category, summary] = text;
@@ -218,6 +231,8 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
       // An expired refund resolves the market as unresolvable (outcome 4): shown as cancelled.
       status: state === 3 && outcome === 4 ? ("cancelled" as const) : (POOL_STATUS[state] ?? "open"),
       winner: outcome,
+      lockAt: Number(lock),
+      vetoed: vetoed(POOL_STATUS[state] ?? "open", proposal[3]),
       summary,
       stakeA: totalA.toString(),
       stakeB: totalB.toString(),
@@ -237,11 +252,12 @@ function eventRow(kind: Kind, log: DecodedLog) {
   const user = (a.challenger ?? a.creator ?? a.user ?? a.participant ?? a.recipient ?? a.disputer ?? a.caller) as string | undefined;
   const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond ?? a.totalPaid ?? a.refunded) as bigint | undefined;
   const side = (a.side ?? a.winnerSide ?? a.outcome) as number | undefined;
+  const veto = log.eventName === "ResolutionDisputed" && lower(String(a.disputer)) === ZERO_ADDRESS;
   return {
     kind,
     marketId: Number(a.id as bigint),
-    name: log.eventName,
-    user: user ? lower(user) : undefined,
+    name: veto ? "ResolutionVetoed" : log.eventName,
+    user: user && lower(user) !== ZERO_ADDRESS ? lower(user) : undefined,
     amount: amount?.toString(),
     side: side === undefined ? undefined : Number(side),
     txHash: log.transactionHash,
@@ -266,12 +282,12 @@ async function triageNew(ctx: ActionCtx, changes: Change[]): Promise<void> {
 
 /**
  * Post what changed to the site's Telegram route (app/api/telegram/arc-events), which messages the chats. Off unless
- * TELEGRAM_EVENTS_URL and MIMIR_INTERNAL_SECRET are set; a failed post is logged, never retried (alerts are best effort).
+ * TELEGRAM_EVENTS_URL and the events secret (MIMIR_EVENTS_SECRET) are set; a failed post is logged, never retried (alerts are best effort).
  * "New" only for markets opened in the last hour, so a re-index does not announce old markets again.
  */
 async function notifyTelegram(ctx: ActionCtx, changes: Change[]): Promise<void> {
   const url = process.env.TELEGRAM_EVENTS_URL?.trim();
-  const secret = process.env.MIMIR_INTERNAL_SECRET?.trim();
+  const secret = internalSecret("events");
   if (!url || !secret || !changes.length) return;
   const recent = Math.floor(Date.now() / 1000) - 3600;
   const events = [];

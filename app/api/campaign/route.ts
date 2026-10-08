@@ -6,6 +6,7 @@
  * public directories. Joining needs a wallet signature (free, no transaction)
  * so nobody can sign a wallet up, or pick its referrer, for it.
  */
+import { accessDenied } from "@/lib/server/access";
 import { NextResponse } from "next/server";
 
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
@@ -58,6 +59,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
   if (!storeEnabled()) return NextResponse.json({ error: "the campaign is not configured" }, { status: 503 });
+  const denied = await accessDenied(wallet);
+  if (denied) return NextResponse.json({ error: denied }, { status: 403 });
   try {
     const joined = await joinCampaign(wallet, inviteCode);
     return NextResponse.json({ ok: true, code: joined.code, invited: joined.referrer !== null });

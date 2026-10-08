@@ -40,6 +40,10 @@ function label(m: ArcMarket, e: Event): string {
       return `Oracle proposed: ${side}`;
     case "ResolutionDisputed":
       return "Disputed the result (bond)";
+    case "ResolutionVetoed":
+      return "Vetoed by the owner, sent to the arbiter";
+    case "LockSet":
+      return m.lockAt ? `Betting closes early: ${when(m.lockAt)}` : "Betting closes early";
     case "DisputeResolved":
       return `Arbiter ruled: ${side}`;
     case "ClaimResolved":
