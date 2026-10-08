@@ -15,8 +15,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Above every TWA build (1-4), so this installs over it.
-        versionCode = 9
-        versionName = "2.3.0"
+        versionCode = 10
+        versionName = "2.4.0"
     }
 
     signingConfigs {

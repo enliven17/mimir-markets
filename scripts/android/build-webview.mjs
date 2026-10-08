@@ -18,7 +18,13 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const PROJECT = join(ROOT, 'android-app')
 const KEYSTORE = join(homedir(), '.mimir-android/mimir-release.jks')
-const password = process.env.KEYSTORE_PASSWORD ?? readFileSync(join(homedir(), '.mimir-android/keystore-password.txt'), 'utf8').trim()
+// Prefer KEYSTORE_PASSWORD (e.g. from a password manager); the plain-text file next to the keystore still works but
+// anyone who copies that folder gets both the key and its password.
+const passwordFile = join(homedir(), '.mimir-android/keystore-password.txt')
+const password = process.env.KEYSTORE_PASSWORD ?? readFileSync(passwordFile, 'utf8').trim()
+if (!process.env.KEYSTORE_PASSWORD) {
+  console.warn(`warning: the keystore password was read from ${passwordFile}. Move it to a password manager and pass KEYSTORE_PASSWORD instead.`)
+}
 const win = process.platform === 'win32'
 const JAVA_HOME = process.env.JAVA_HOME ?? 'C:/Program Files/Eclipse Adoptium/jdk-17.0.19.10-hotspot'
 

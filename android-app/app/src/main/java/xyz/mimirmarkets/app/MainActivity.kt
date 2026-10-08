@@ -34,6 +34,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
+import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewFeature
 
 /**
@@ -63,6 +64,10 @@ class MainActivity : ComponentActivity() {
     private val main = Handler(Looper.getMainLooper())
     private var launchDone = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private lateinit var bridge: MimirBridge
+    /** The registered window.MimirApp shim (re-registered when the insets change, so the next page reads them). */
+    private var shimHandle: ScriptHandler? = null
+    private var listenerBridge = false
 
     private val pickFiles = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         fileCallback?.onReceiveValue(uris.toTypedArray())
@@ -108,6 +113,7 @@ class MainActivity : ComponentActivity() {
             insetTop = px(bars.top)
             insetBottom = if (ime.bottom > 0) 0 else px(bars.bottom)
             pushInsets()
+            registerShim()
             refresh.setProgressViewOffset(false, bars.top, bars.top + dp(64))
             (pill.layoutParams as FrameLayout.LayoutParams).topMargin = bars.top + dp(64)
             pill.requestLayout()
@@ -115,7 +121,9 @@ class MainActivity : ComponentActivity() {
         }
 
         configure(web)
-        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(startUrl(intent))
+        // A recreated activity restores its page; if there is nothing to restore (the system recreated us before the
+        // first page committed, e.g. a theme overlay change on launch) load the start page instead of staying blank.
+        if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(startUrl(intent))
         main.postDelayed({ hideLaunch() }, 8_000)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -165,6 +173,11 @@ class MainActivity : ComponentActivity() {
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // Only the web: no file:// or content:// from pages (the offline page is an asset, which these don't cover).
+            allowFileAccess = false
+            allowContentAccess = false
+            @Suppress("DEPRECATION") allowFileAccessFromFileURLs = false
+            @Suppress("DEPRECATION") allowUniversalAccessFromFileURLs = false
             setSupportMultipleWindows(false)
             userAgentString = "$userAgentString MimirApp/${BuildConfig.VERSION_CODE}"
         }
@@ -175,12 +188,28 @@ class MainActivity : ComponentActivity() {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
             WebSettingsCompat.setWebAuthenticationSupport(w.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP)
         }
-        w.addJavascriptInterface(
-            MimirBridge(this, ::hideLaunch, ::retry, { """{"top":$insetTop,"bottom":$insetBottom}""" }, { refreshAllowed = it }) { url ->
-                Uri.parse(url).takeIf { Updater.isOurApk(it) }?.let { updater.start(it.toString()) }
-            },
-            "MimirApp",
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
+            WebSettingsCompat.setSafeBrowsingEnabled(w.settings, true)
+        }
+        bridge = MimirBridge(
+            this,
+            onReady = ::hideLaunch,
+            onRetry = ::retry,
+            onRefreshAllowed = { refreshAllowed = it },
+            onUpdate = { url -> Uri.parse(url).takeIf { Updater.isOurApk(it) }?.let { updater.start(it.toString()) } },
+            insets = ::insetsJson,
         )
+        // window.MimirApp exists only on https://mimirmarkets.xyz: a message port plus a document-start shim, and every
+        // message is checked again (main frame, our origin). Older WebViews: a JS interface refused off our site.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            listenerBridge = true
+            WebViewCompat.addWebMessageListener(w, "MimirAppPort", setOf(ORIGIN)) { _, message, sourceOrigin, isMainFrame, _ ->
+                if (isMainFrame && sourceOrigin.toString().trimEnd('/') == ORIGIN) message.data?.let { bridge.dispatch(it) }
+            }
+            registerShim()
+        } else {
+            w.addJavascriptInterface(bridge.Legacy(), "MimirApp")
+        }
         // Before any page script: route blob/data downloads (the recovery file) to the bridge.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             WebViewCompat.addDocumentStartJavaScript(w, DOWNLOAD_SHIM, setOf("https://$HOST"))
@@ -189,9 +218,22 @@ class MainActivity : ComponentActivity() {
         w.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
+                // The offline page's Try again (it is an asset, off our origin, so it has no bridge).
+                if (uri.scheme == "mimirapp") {
+                    if (uri.host == "retry") retry()
+                    return true
+                }
                 if (isSite(uri)) return false
                 openOutside(uri)
                 return true
+            }
+
+            override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                bridge.originOk = url?.let { isSite(Uri.parse(it)) } == true
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                bridge.originOk = url?.let { isSite(Uri.parse(it)) } == true
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -302,7 +344,7 @@ class MainActivity : ComponentActivity() {
     private fun showOffline() {
         val html = assets.open("offline.html").bufferedReader().use { it.readText() }
             .replace("/app/icon-192.png", "icon-192.png")
-            .replace("location.reload()", "MimirApp.retry()")
+            .replace("location.reload()", "location.href='mimirapp://retry'")
         web.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
         hideLaunch()
     }
@@ -316,6 +358,15 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun insetsJson() = """{"top":$insetTop,"bottom":$insetBottom}"""
+
+    /** (Re)register the window.MimirApp shim with the current insets: the head script reads them synchronously. */
+    private fun registerShim() {
+        if (!listenerBridge || !::web.isInitialized) return
+        shimHandle?.remove()
+        shimHandle = WebViewCompat.addDocumentStartJavaScript(web, MimirBridge.shim(insetsJson()), setOf(ORIGIN))
+    }
+
     private fun px(raw: Int) = Math.round(raw / resources.displayMetrics.density)
 
     private fun retry() = main.post { web.loadUrl(withApp(Uri.parse(START_URL)).toString()) }
@@ -325,6 +376,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val HOST = "mimirmarkets.xyz"
         const val START_URL = "https://$HOST/en/arena"
+        const val ORIGIN = "https://$HOST"
         val INK = Color.parseColor("#110F0E")
         val CORAL = Color.parseColor("#FF5148")
         val PANEL = Color.parseColor("#1C1817")
