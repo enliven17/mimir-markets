@@ -4,6 +4,8 @@
  * First steps on Arc, shown on the Arena until done or dismissed: connect a
  * Solana wallet, create the passkey account, link the two, add USDC over CCTP,
  * place a first stake. Every step reads real state; nothing is ticked by hand.
+ * Funding counts as done once anyone has staked (a spent balance is not a step
+ * undone), and once all five are done the card is gone for good.
  */
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -32,10 +34,17 @@ export default function ArcOnboarding() {
     { title: "Connect your Solana wallet", done: Boolean(wallet.solana), href: "/wallet" },
     { title: "Create your Arc account with a passkey", done: Boolean(wallet.session), href: "/wallet" },
     { title: "Link it to your Solana wallet", done: wallet.linked, href: "/wallet" },
-    { title: "Add USDC from Solana", done: (account.balance ?? 0n) > 0n, href: "/wallet" },
+    { title: "Add USDC from Solana", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
     { title: "Place your first stake", done: (positions?.length ?? 0) > 0, href: "/arena" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
+  const finished = doneCount === steps.length;
+  useEffect(() => {
+    if (!finished) return;
+    try {
+      localStorage.setItem(KEY, "1");
+    } catch {}
+  }, [finished]);
   if (hidden || wallet.restoring || doneCount === steps.length) return null;
   const next = steps.find((s) => !s.done);
 
