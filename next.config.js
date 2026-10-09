@@ -58,10 +58,6 @@ const nextConfig = {
       { source: "/ingest/:path*", destination: `https://${region}.i.posthog.com/:path*` },
     ];
   },
-  // Local-only folders (brand sources and videos, the Android project, build outputs) never ship in a function.
-  outputFileTracingExcludes: {
-    "*": ["brand/**", "android-app/**", "forge-out/**", "forge-cache/**", "test-results/**", "onchain/**", "contracts/**", ".keys/**"],
-  },
   // PostHog's API paths end in a slash; a redirect would break them.
   skipTrailingSlashRedirect: true,
 };
