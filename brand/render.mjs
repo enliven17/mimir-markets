@@ -46,6 +46,7 @@ for (const [page, out, w, h] of [
   ['passkey.html', 'passkey.png', 1600, 900],
   ['members100.html', 'members100.png', 1080, 1080],
   ['burn.html', 'burn.png', 1080, 1080],
+  ['burn-200k.html', 'burn-200k.png', 1080, 1080],
   ['post-arc.html', 'post-arc.png', 1080, 1080],
   ['article-system.html', 'article-system.png', 1600, 900],
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],

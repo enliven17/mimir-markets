@@ -58,6 +58,11 @@ const nextConfig = {
       { source: "/ingest/:path*", destination: `https://${region}.i.posthog.com/:path*` },
     ];
   },
+  // Server code builds paths from process.cwd() (the Telegram launch video in brand/), which makes the tracer
+  // copy whole folders into every function. None of these are read at runtime on Vercel.
+  outputFileTracingExcludes: {
+    "*": ["brand/**", "android-app/**", "forge-out/**", "forge-cache/**", "test-results/**", "onchain/**", "contracts/**", ".keys/**"],
+  },
   // PostHog's API paths end in a slash; a redirect would break them.
   skipTrailingSlashRedirect: true,
 };

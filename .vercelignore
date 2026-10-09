@@ -1,0 +1,20 @@
+# Not needed to build or run the site: keep CLI uploads small and keys local.
+.keys
+.agents
+brand
+android-app
+contracts
+onchain
+forge-cache
+forge-out
+docs
+examples
+tests
+test-results
+cli
+scripts
+MAINNET-TODO.md
+accelerator-application.md
+*.mp4
+*.apk
+!public/app/mimir.apk
