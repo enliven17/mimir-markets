@@ -59,7 +59,6 @@ const nextConfig = {
     ];
   },
   // Local-only folders (brand sources and videos, the Android project, build outputs) never ship in a function.
-  // The Telegram launch video lives in assets/telegram, which stays traced.
   outputFileTracingExcludes: {
     "*": ["brand/**", "android-app/**", "forge-out/**", "forge-cache/**", "test-results/**", "onchain/**", "contracts/**", ".keys/**"],
   },

@@ -10,8 +10,6 @@
  *   /alerts  a switch per alert (new markets, results, verdicts, payouts); on|off sets them all
  *   /unlink  stop following the wallet
  */
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { fetchDexStats } from "./dex-prices";
 import { mimirMint, mimirSymbol } from "../token-config";
@@ -48,8 +46,10 @@ import {
   WELCOME_TEXT,
 } from "../telegram";
 
-const VIDEO_PATH = path.join(process.cwd(), "assets/telegram/launch.mp4");
-const THUMB_PATH = path.join(process.cwd(), "assets/telegram/launch-thumb.jpg");
+// Static files on the CDN (public/telegram), fetched for the one upload: a file read here would copy the
+// 14 MB clip into every function that imports the bot.
+const VIDEO_URL = `${SITE_URL}/telegram/launch.mp4`;
+const THUMB_URL = `${SITE_URL}/telegram/launch-thumb.jpg`;
 // Telegram sizes the bubble from these, not from the file: without them a 16:9 clip shows in a square bubble.
 const VIDEO_DIMS = { width: 1920, height: 1080, duration: 20 };
 // v2: the v1 upload carried no dimensions, and a file_id keeps whatever it was uploaded with.
@@ -115,6 +115,12 @@ async function linkButtons(chatId: number) {
   return { inline_keyboard: [[{ text: "🔗 Link wallet", url: linkUrl(code) }], [appButton]] };
 }
 
+async function fetchMedia(url: string): Promise<ArrayBuffer> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`launch media ${res.status}: ${url}`);
+  return res.arrayBuffer();
+}
+
 /** The launch video: uploaded once, then re-sent by file_id. */
 async function sendLaunchVideo(chatId: number): Promise<void> {
   const cached = await getBotMeta(VIDEO_META_KEY).catch(() => null);
@@ -126,8 +132,8 @@ async function sendLaunchVideo(chatId: number): Promise<void> {
   form.append("chat_id", String(chatId));
   form.append("supports_streaming", "true");
   for (const [k, v] of Object.entries(VIDEO_DIMS)) form.append(k, String(v));
-  form.append("video", new Blob([await readFile(VIDEO_PATH)], { type: "video/mp4" }), "mimir.mp4");
-  form.append("thumbnail", new Blob([await readFile(THUMB_PATH)], { type: "image/jpeg" }), "thumb.jpg");
+  form.append("video", new Blob([await fetchMedia(VIDEO_URL)], { type: "video/mp4" }), "mimir.mp4");
+  form.append("thumbnail", new Blob([await fetchMedia(THUMB_URL)], { type: "image/jpeg" }), "thumb.jpg");
   const sent = await tg<{ video?: { file_id: string } }>("sendVideo", form, 120_000);
   if (sent.video?.file_id) await setBotMeta(VIDEO_META_KEY, sent.video.file_id).catch(() => undefined);
 }
