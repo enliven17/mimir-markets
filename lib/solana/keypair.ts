@@ -28,7 +28,7 @@ export function loadAgentKeypair(): Keypair {
     process.env.SOLANA_KEYPAIR ||
     join(homedir(), ".config", "solana", "talos-deploy.json");
   return Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(readFileSync(path, "utf8")))
+    Uint8Array.from(JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, "utf8")))
   );
 }
 
@@ -43,8 +43,8 @@ export function loadHedgeKeypair(): Keypair | null {
   const path = process.env.HEDGE_KEYPAIR?.trim();
   const hedge = raw
     ? secretFromEnv(raw)
-    : path && existsSync(path)
-      ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(path, "utf8"))))
+    : path && existsSync(/*turbopackIgnore: true*/ path)
+      ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, "utf8"))))
       : null;
   if (hedge && hedge.publicKey.toBase58() === agentPublicKeyOrNull()) {
     throw new Error("HEDGE_KEYPAIR must not be the oracle/admin keypair");
@@ -77,8 +77,8 @@ export function loadCreatorKeypair(opts: { mainnet?: boolean } = {}): Keypair {
   const path = process.env.CREATOR_KEYPAIR?.trim();
   if (raw) {
     creator = secretFromEnv(raw);
-  } else if (path && existsSync(path)) {
-    creator = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(path, "utf8"))));
+  } else if (path && existsSync(/*turbopackIgnore: true*/ path)) {
+    creator = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, "utf8"))));
   }
   if (!(opts.mainnet ?? IS_MAINNET)) return creator ?? loadAgentKeypair();
   if (!creator) {
@@ -141,9 +141,9 @@ export function derivePersonaKeypair(
 /** Local dev keeps using the .keys/council/<slug>.json files when they already exist. */
 export function loadPersonaKeypair(admin: Keypair, slug: string): Keypair {
   const path = join(process.cwd(), ".keys", "council", `${slug}.json`);
-  if (existsSync(path)) {
+  if (existsSync(/*turbopackIgnore: true*/ path)) {
     return Keypair.fromSecretKey(
-      Uint8Array.from(JSON.parse(readFileSync(path, "utf8")))
+      Uint8Array.from(JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, "utf8")))
     );
   }
   return derivePersonaKeypair(admin, slug);
