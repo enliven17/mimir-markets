@@ -16,5 +16,6 @@ scripts
 MAINNET-TODO.md
 accelerator-application.md
 *.mp4
+!assets/telegram/*.mp4
 *.apk
 !public/app/mimir.apk

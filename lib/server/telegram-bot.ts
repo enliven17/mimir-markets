@@ -48,8 +48,8 @@ import {
   WELCOME_TEXT,
 } from "../telegram";
 
-const VIDEO_PATH = path.join(process.cwd(), "brand", "launch.mp4");
-const THUMB_PATH = path.join(process.cwd(), "brand", "launch-thumb.jpg");
+const VIDEO_PATH = path.join(process.cwd(), "assets/telegram/launch.mp4");
+const THUMB_PATH = path.join(process.cwd(), "assets/telegram/launch-thumb.jpg");
 // Telegram sizes the bubble from these, not from the file: without them a 16:9 clip shows in a square bubble.
 const VIDEO_DIMS = { width: 1920, height: 1080, duration: 20 };
 // v2: the v1 upload carried no dimensions, and a file_id keeps whatever it was uploaded with.

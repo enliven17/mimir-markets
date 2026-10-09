@@ -58,8 +58,8 @@ const nextConfig = {
       { source: "/ingest/:path*", destination: `https://${region}.i.posthog.com/:path*` },
     ];
   },
-  // Server code builds paths from process.cwd() (the Telegram launch video in brand/), which makes the tracer
-  // copy whole folders into every function. None of these are read at runtime on Vercel.
+  // Local-only folders (brand sources and videos, the Android project, build outputs) never ship in a function.
+  // The Telegram launch video lives in assets/telegram, which stays traced.
   outputFileTracingExcludes: {
     "*": ["brand/**", "android-app/**", "forge-out/**", "forge-cache/**", "test-results/**", "onchain/**", "contracts/**", ".keys/**"],
   },
