@@ -1,4 +1,28 @@
-# Not needed to build or run the site: keep CLI uploads small and keys local.
+# With this file present the Vercel CLI no longer reads .gitignore, so the secrets and build outputs it covers
+# are repeated here first.
+.env
+.env*.local
+deploy/.env
+deploy/keystore/
+*.key
+*.pem
+.next
+out
+build
+dist
+archive
+coverage
+*.log
+*.tsbuildinfo
+.cache
+.temp
+*.tmp
+.claude
+artifacts
+.vercel
+/playwright-report
+
+# Not needed to build or run the site.
 /.keys
 /.agents
 /brand
