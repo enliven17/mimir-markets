@@ -18,6 +18,8 @@ export interface NavItem {
   badge?: string;
   /** Website only: hidden inside the installed app (html[data-app]), e.g. the page that offers the app. */
   webOnly?: boolean;
+  /** Sibling tabs of the same page (e.g. /copy under Strategies): they light this entry too. */
+  also?: readonly string[];
 }
 
 export interface NavGroup {
@@ -34,17 +36,18 @@ export const NAV_PRIMARY: readonly NavItem[] = [
 ];
 
 /**
- * Grouped by what people come to do: follow strategies, build on Mimir, look
- * at the numbers, and the rest. "New X" pages are not listed: each one is a
- * button on its list page. The desktop sheet hides anything already in the
+ * Grouped by what people come to do: explore, build on Mimir, and the rest.
+ * One entry per page: tabs of the same page (Baskets/Copy, Stats/Calibration)
+ * are listed once via `also`, and "New X" pages are a button on their list page. The desktop sheet hides anything already in the
  * pill (NAV_PRIMARY); the mobile sheet shows it, since the tab bar has no Agents.
  */
 export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
-    key: "strategies",
+    key: "explore",
     items: [
-      { href: "/baskets", key: "baskets", matchNested: true },
-      { href: "/copy", key: "copy" },
+      { href: "/baskets", key: "strategies", matchNested: true, also: ["/copy"] },
+      { href: "/campaign", key: "campaign" },
+      { href: "/stats", key: "stats", also: ["/calibration"] },
     ],
   },
   {
@@ -55,14 +58,6 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
       // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
       { href: "/terminal", key: "terminal" },
       { href: "/docs", key: "docs" },
-    ],
-  },
-  {
-    key: "data",
-    items: [
-      { href: "/campaign", key: "campaign" },
-      { href: "/stats", key: "stats" },
-      { href: "/calibration", key: "calibration" },
     ],
   },
   {
@@ -86,7 +81,7 @@ export const NAV_CTA: NavItem = { href: "/arena/create", key: "create" };
 export const NAV_ITEMS: readonly NavItem[] = [...NAV_PRIMARY, ...NAV_MORE, NAV_CTA];
 
 function matches(pathname: string, item: NavItem): boolean {
-  if (pathname === item.href) return true;
+  if (pathname === item.href || item.also?.includes(pathname)) return true;
   return Boolean(item.matchNested && pathname.startsWith(item.href + "/"));
 }
 
@@ -99,7 +94,7 @@ export function activeNavHref(pathname: string): string | null {
   let best: NavItem | null = null;
   for (const item of NAV_ITEMS) {
     if (!matches(pathname, item)) continue;
-    if (pathname === item.href) return item.href;
+    if (pathname === item.href || item.also?.includes(pathname)) return item.href;
     if (!best || item.href.length > best.href.length) best = item;
   }
   return best?.href ?? null;
