@@ -9,6 +9,7 @@ import { Sheet } from "@/components/ui/Card";
 import { Pending } from "@/components/ui/StatusPill";
 import type { Published } from "./useCreateDraft";
 import { explorerUrl, IS_MAINNET } from "@/lib/solana/config";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export default function CreateSuccess({ published, onAnother }: { published: Published; onAnother: () => void }) {
   const t = useTranslations("arena.create");
@@ -42,7 +43,7 @@ export default function CreateSuccess({ published, onAnother }: { published: Pub
               <span className="block text-[13px] text-cream">{r.label}</span>
               <span className="block truncate font-mono text-[12px] text-muted">{r.sig.slice(0, 24)}…</span>
             </span>
-            <span className="shrink-0 text-[13px] text-coral">↗ {r.where}</span>
+            <span className="shrink-0 text-[13px] text-coral"><ExternalMark /> {r.where}</span>
           </a>
         ))}
       </div>

@@ -22,6 +22,7 @@ import { challengerGross, splitFees } from "@/lib/solana/fees";
 import { MIN_STAKE } from "@/lib/constants";
 import { formatUsdcUnits } from "@/lib/money";
 import { IS_MAINNET } from "@/lib/solana/config";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export interface ChallengeState {
   stake: string;
@@ -234,7 +235,7 @@ function ChallengeForm({
           <span className="min-w-0 truncate">
             {t("tx")} · <span className="font-mono">{challenge.lastSig.slice(0, 16)}…</span>
           </span>
-          <span className="shrink-0 text-coral">↗ {t("explorer")}</span>
+          <span className="shrink-0 text-coral"><ExternalMark /> {t("explorer")}</span>
         </a>
       ) : null}
     </div>

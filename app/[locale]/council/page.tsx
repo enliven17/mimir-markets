@@ -13,6 +13,7 @@ import ArcCouncil from "@/components/arc/council/ArcCouncil";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { councilRoster } from "@/lib/server/council-roster";
 import { pageMeta } from "@/lib/seo";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export const metadata = pageMeta({
   path: "/council",
@@ -87,7 +88,7 @@ async function OracleCard({ oracle }: { oracle: OracleStats }) {
             rel="noreferrer"
             className="ml-auto self-center font-mono text-[12px] text-muted hover:text-coral sm:ml-0"
           >
-            {short(oracle.address)} ↗
+            {short(oracle.address)} <ExternalMark />
           </a>
         ) : null}
       </div>

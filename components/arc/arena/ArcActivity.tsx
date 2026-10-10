@@ -12,6 +12,7 @@ import { useState } from "react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { usdFine, type ArcMarket } from "./shared";
+import { ExternalMark } from "@/components/ExternalMark";
 
 type Event = Doc<"arcEvents">;
 type Verdict = Doc<"arcVerdicts">;
@@ -76,7 +77,7 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="m-0 text-[14px] text-cream">Oracle verdict</h3>
             <a href={arcExplorerUrl("tx", verdict.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
-              {short(verdict.txHash)} ↗
+              {short(verdict.txHash)} <ExternalMark />
             </a>
           </div>
           <p className="m-0 text-[14px] leading-relaxed text-cream">
@@ -104,7 +105,7 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
           <li key={e._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b border-line py-2.5 text-[13px] last:border-0">
             <span className="truncate text-cream">{label(m, e)}</span>
             <a href={arcExplorerUrl("tx", e.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
-              {short(e.txHash)} ↗
+              {short(e.txHash)} <ExternalMark />
             </a>
             <span className="truncate text-[12px] text-muted">
               {e.user ? (

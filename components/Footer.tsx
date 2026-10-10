@@ -24,6 +24,7 @@ import RollingNumber from "@/components/motion/RollingNumber";
 import Wordmark from "@/components/ui/Wordmark";
 import InfoModal, { INFO_PANELS, type InfoPanel } from "./footer/InfoModal";
 import { NAV_CTA, NAV_MORE_GROUPS, NAV_PRIMARY, type NavItem } from "./nav-items";
+import { ExternalMark } from "@/components/ExternalMark";
 
 // The closer is home-only; its SplitText reveal loads only there.
 const SplitReveal = dynamic(() => import("@/components/motion/SplitReveal"));
@@ -130,7 +131,7 @@ export default function Footer() {
     <li key={url}>
       <a href={url} target="_blank" rel="noreferrer" className="footer-link">
         {label}
-        <span aria-hidden className="ml-1 text-dim">↗</span>
+        <ExternalMark className="ml-1 text-dim" />
         <span className="sr-only"> {t("external")}</span>
       </a>
     </li>
@@ -193,7 +194,7 @@ export default function Footer() {
                     className="footer-link font-mono text-[13px]"
                   >
                     {PROGRAM_SHORT}
-                    <span aria-hidden className="ml-1 text-dim">↗</span>
+                    <ExternalMark className="ml-1 text-dim" />
                   </a>
                 </dd>
               </div>
@@ -210,7 +211,7 @@ export default function Footer() {
                 <dd>
                   <a href={CCTP_URL} target="_blank" rel="noreferrer" className="footer-link">
                     {t("rollupValue")}
-                    <span aria-hidden className="ml-1 text-dim">↗</span>
+                    <ExternalMark className="ml-1 text-dim" />
                   </a>
                 </dd>
               </div>

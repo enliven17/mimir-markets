@@ -19,6 +19,7 @@ import { formatUsdcUnits } from "@/lib/money";
 import { txErrorMessage } from "@/lib/tx-errors";
 import Button from "@/components/ui/Button";
 import { explorerTx } from "./useSettleAction";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export default function BalanceCard({
   mimir,
@@ -119,7 +120,7 @@ export default function BalanceCard({
         </Button>
         {lastSig ? (
           <a href={explorerTx(lastSig)} target="_blank" rel="noopener noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
-            ↗ {lastSig.slice(0, 20)}…
+            <ExternalMark /> {lastSig.slice(0, 20)}…
           </a>
         ) : null}
       </div>

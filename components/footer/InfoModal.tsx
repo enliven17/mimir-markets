@@ -7,6 +7,7 @@
  */
 import { useTranslations } from "next-intl";
 import Modal from "@/components/ui/Modal";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export type InfoPanel = "how" | "about" | "disclaimer";
 
@@ -29,7 +30,7 @@ export default function InfoModal({ panel, onClose }: { panel: InfoPanel | null;
             rel="noreferrer"
             className="mt-1 w-fit text-coral underline decoration-coral/40 underline-offset-4 hover:decoration-coral"
           >
-            {t("github")} ↗
+            {t("github")} <ExternalMark />
           </a>
         ) : null}
       </div>

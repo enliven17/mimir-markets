@@ -17,6 +17,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 import { explorerUrl } from "@/lib/solana/config";
+import { ExternalMark } from "@/components/ExternalMark";
 
 interface RegisteredAgent {
   agentId: string;
@@ -156,7 +157,7 @@ const AgentCard = memo(function AgentCard({ agent: a, index }: { agent: Register
         rel="noreferrer"
         className="font-mono text-[12px] text-muted hover:text-coral"
       >
-        {t("operator", { address: short(a.operatorWallet) })} ↗
+        {t("operator", { address: short(a.operatorWallet) })} <ExternalMark />
       </a>
     </li>
   );

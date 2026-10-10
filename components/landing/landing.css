@@ -398,7 +398,7 @@
   line-height: 1;
   letter-spacing: -0.04em;
   color: var(--red);
-  text-shadow: 0 0 60px rgba(255, 43, 43, 0.25);
+  text-shadow: none;
 }
 .l-how-digits {
   display: flex;

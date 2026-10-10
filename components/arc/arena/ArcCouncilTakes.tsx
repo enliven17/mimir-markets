@@ -20,6 +20,7 @@ import { arcExplorerUrl } from "@/lib/arc/config";
 import type { ArcMarketKind } from "@/lib/arc/markets";
 import { SURFACE } from "@/components/arena/surface";
 import { usd } from "./shared";
+import { ExternalMark } from "@/components/ExternalMark";
 
 const ADVANCE_MS = 5000;
 const CARD = "flex w-[min(280px,78vw)] flex-none snap-start flex-col gap-1.5 rounded-xl p-3.5";
@@ -124,7 +125,7 @@ export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { ki
               <Who slug={t.slug} />
               {t.outcome === "staked" && t.txHash ? (
                 <a href={arcExplorerUrl("tx", t.txHash)} target="_blank" rel="noreferrer" className="flex-none font-mono text-[12px] text-coral hover:underline">
-                  tx ↗
+                  tx <ExternalMark />
                 </a>
               ) : null}
             </span>

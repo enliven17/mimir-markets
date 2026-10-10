@@ -16,6 +16,7 @@ import {
   type TokenTier,
 } from "@/lib/token-tiers";
 import { pageMeta } from "@/lib/seo";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export const metadata = pageMeta({
   path: "/token",
@@ -126,7 +127,7 @@ export default async function TokenPage() {
               </span>
               <span aria-hidden>·</span>
               <a href={`https://solscan.io/token/${mint}`} target="_blank" rel="noreferrer" className={`font-mono ${LINK}`}>
-                {short(mint)} ↗
+                {short(mint)} <ExternalMark />
               </a>
             </p>
           </div>
@@ -142,7 +143,7 @@ export default async function TokenPage() {
           rel="noreferrer"
           className="btn-primary !min-h-[46px] !w-auto !flex-none !px-5 !py-2.5 !text-[15px]"
         >
-          {launched ? t("tradeCta") : t("launchingCta")} ↗
+          {launched ? t("tradeCta") : t("launchingCta")} <ExternalMark />
         </a>
       </section>
 
@@ -207,7 +208,7 @@ export default async function TokenPage() {
         <Disclosure summary={t("ansemTitle")} meta={ansemPrice !== null ? usd(ansemPrice) : undefined}>
           <p className="m-0 text-[14px] leading-relaxed text-muted">{t("ansemBody", { n: fmtN(thresholds.ansemHolderMin) })}</p>
           <a href={`https://solscan.io/token/${ansemMint()}`} target="_blank" rel="noreferrer" className={`mt-3 inline-block font-mono text-[13px] ${LINK}`}>
-            {short(ansemMint())} ↗
+            {short(ansemMint())} <ExternalMark />
           </a>
         </Disclosure>
 

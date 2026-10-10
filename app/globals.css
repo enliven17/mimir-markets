@@ -435,7 +435,7 @@ html.lenis.lenis-stopped {
     overflow: hidden;
     color: #160909;
     background: linear-gradient(100deg, #e73f39, #ff5148 48%, #ff746c);
-    box-shadow: 0 10px 30px -12px rgba(255, 81, 72, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
     transition: transform 160ms var(--ease-out), background 280ms ease;
   }
   .btn-primary::after,
@@ -1213,7 +1213,7 @@ html.lenis.lenis-stopped {
   font-size: 1.05rem;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: 0 10px 30px -12px rgba(255, 81, 72, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: background 200ms ease, transform 160ms var(--ease-out);
 }
 .nav-cta:hover {
@@ -1356,7 +1356,7 @@ html[data-app] .footer-closer {
   height: 2px;
   pointer-events: none;
   background: var(--coral);
-  box-shadow: 0 0 10px rgb(255 81 72 / 0.7);
+  box-shadow: none;
   transform-origin: left;
   transition: transform 240ms var(--ease-out), opacity 300ms ease;
 }

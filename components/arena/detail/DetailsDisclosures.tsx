@@ -15,6 +15,7 @@ import { claimPda, ST_CANCELLED, ST_RESOLVED, explorerUrl, IS_MAINNET } from "@/
 import { isLiveState, isPendingVerdict } from "@/lib/claim-status";
 import { shortKey } from "@/components/arena/settlement/useSettleAction";
 import { sourceOf } from "./source";
+import { ExternalMark } from "@/components/ExternalMark";
 
 const addr = (a: string) => explorerUrl("address", a);
 
@@ -86,7 +87,7 @@ export default function DetailsDisclosures({
               <dt>{t("claimAccount")}</dt>
               <dd>
                 <a href={addr(account)} target="_blank" rel="noopener noreferrer" className="hover:text-coral">
-                  {shortKey(account)} ↗
+                  {shortKey(account)} <ExternalMark />
                 </a>
               </dd>
             </>
@@ -94,7 +95,7 @@ export default function DetailsDisclosures({
           <dt>{t("creatorAccount")}</dt>
           <dd>
             <a href={addr(claim.creator)} target="_blank" rel="noopener noreferrer" className="hover:text-coral">
-              {shortKey(claim.creator)} ↗
+              {shortKey(claim.creator)} <ExternalMark />
             </a>
           </dd>
           <dt>{t("record")}</dt>
@@ -113,7 +114,7 @@ export default function DetailsDisclosures({
                   rel="noopener noreferrer"
                   className="hover:text-coral"
                 >
-                  {lastSig.slice(0, 10)}… ↗
+                  {lastSig.slice(0, 10)}… <ExternalMark />
                 </a>
               </dd>
             </>

@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import Disclosure from "@/components/ui/Disclosure";
 import { explorerUrl } from "@/lib/solana/config";
+import { ExternalMark } from "@/components/ExternalMark";
 
 interface PersonaVote {
   slug: string;
@@ -121,7 +122,7 @@ export default function CouncilVotes({ claimId, claimState, winnerSide = 0 }: Pr
                             <span className={outcome ? "text-muted" : "text-cream"}>{v.stakeUsdc.toFixed(2)}</span>
                             {!outcome ? (
                               <a href={explorerAddr(v.address)} target="_blank" rel="noreferrer" aria-label={t("explorer", { name: v.displayName })} className="text-muted hover:text-coral">
-                                ↗
+                                <ExternalMark />
                               </a>
                             ) : null}
                           </span>

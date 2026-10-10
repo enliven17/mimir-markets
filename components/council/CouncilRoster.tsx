@@ -18,6 +18,7 @@ import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { explorerUrl } from "@/lib/solana/config";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export type Track = "classic" | "philosopher";
 
@@ -217,7 +218,7 @@ function PersonaCard({
             {p.arcAddress ? (
               <a href={arcExplorerUrl("address", p.arcAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
                 <span className="mr-2 text-dim">Arc</span>
-                {short(p.arcAddress)} ↗
+                {short(p.arcAddress)} <ExternalMark />
               </a>
             ) : null}
             {p.address ? (
@@ -228,7 +229,7 @@ function PersonaCard({
                 className="font-mono text-[12px] text-muted hover:text-coral"
               >
                 {p.arcAddress ? <span className="mr-2 text-dim">Solana</span> : null}
-                {short(p.address)} ↗
+                {short(p.address)} <ExternalMark />
               </a>
             ) : null}
           </div>

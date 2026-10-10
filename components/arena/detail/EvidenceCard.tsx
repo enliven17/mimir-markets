@@ -12,6 +12,7 @@ import type { ApiClaim } from "@/lib/server/arena-claim";
 import { isLiveState } from "@/lib/claim-status";
 import { ST_CANCELLED } from "@/lib/solana/config";
 import { sourceOf } from "./source";
+import { ExternalMark } from "@/components/ExternalMark";
 
 export default function EvidenceCard({ claim }: { claim: ApiClaim }) {
   const t = useTranslations("arena.detail.evidence");
@@ -25,7 +26,7 @@ export default function EvidenceCard({ claim }: { claim: ApiClaim }) {
         <dd>
           {claim.resolutionUrl ? (
             <a href={href} target="_blank" rel="noopener noreferrer" className="text-cream underline-offset-4 hover:text-coral hover:underline">
-              {host} ↗
+              {host} <ExternalMark />
             </a>
           ) : (
             "-"

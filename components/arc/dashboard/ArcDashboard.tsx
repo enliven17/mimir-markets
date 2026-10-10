@@ -25,6 +25,7 @@ import { arcPhase, BTN_PRIMARY, BTN_SECONDARY, KIND_LABEL, PHASE_DOT, PHASE_LABE
 import { useArcAccount } from "../arena/useArcAccount";
 import { useArcSend } from "../arena/useArcSend";
 import { useArcBalances } from "../useArcBalances";
+import { ExternalMark } from "@/components/ExternalMark";
 
 const PARKED_ABI = parseAbi(["function pendingWithdrawals(address) view returns (uint256)", "function withdraw()"]);
 
@@ -49,7 +50,7 @@ export default function ArcDashboard() {
         <h1 className="m-0 font-display text-app-h1 text-cream">Portfolio</h1>
         {account.address ? (
           <a href={arcExplorerUrl("address", account.address)} target="_blank" rel="noreferrer" className="truncate font-mono text-[13px] text-muted hover:text-coral">
-            {account.address.slice(0, 6)}…{account.address.slice(-4)} ↗
+            {account.address.slice(0, 6)}…{account.address.slice(-4)} <ExternalMark />
           </a>
         ) : null}
       </header>

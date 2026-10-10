@@ -6,14 +6,13 @@ import localFont from "next/font/local";
  * - Terminal Grotesque: display (wordmark, headings, buttons), 400 only, SIL OFL
  *   (app/fonts/TERMINAL-GROTESQUE-LICENSE.md). var --font-terminal-grotesque
  * - Geist Mono: addresses, hex, ticking numbers. var --font-geist-mono
- * - Geist Sans: fallback only. var --font-geist-sans
  *
  * Declared here from the geist package's files rather than through
  * `geist/font`: those modules declare every static weight and all five pixel
  * faces, and next/font preloads each of them (24 font requests racing the
  * page's script on every route). Only the two faces above the fold, the
- * display face and the body face, are preloaded; Mono and Sans are single
- * variable files fetched when first used. All use font-display: swap.
+ * display face and the body face, are preloaded; Mono is a single
+ * variable file fetched when first used. All use font-display: swap.
  * (next/font needs literal options, so the fallback lists are spelled out.)
  */
 export const fontDisplay = localFont({
@@ -44,20 +43,9 @@ export const fontMono = localFont({
   adjustFontFallback: false,
 });
 
-export const fontSans = localFont({
-  src: "../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2",
-  weight: "100 900",
-  variable: "--font-geist-sans",
-  display: "swap",
-  preload: false,
-  fallback: ["system-ui", "sans-serif"],
-  adjustFontFallback: false,
-});
-
 /** Every font variable class, for the <html> element. */
 export const fontVariables = [
   fontPixel.variable,
   fontDisplay.variable,
   fontMono.variable,
-  fontSans.variable,
 ].join(" ");

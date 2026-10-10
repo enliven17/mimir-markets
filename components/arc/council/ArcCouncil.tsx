@@ -22,6 +22,7 @@ import { Strip, StripCell } from "@/components/ui/Strip";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
+import { ExternalMark } from "@/components/ExternalMark";
 
 /** 18-dp wei (string) → the 6-dp units the roster formats. */
 const units = (wei: string | bigint) => (BigInt(wei) / 1_000_000_000_000n).toString();
@@ -93,7 +94,7 @@ export default function ArcCouncil({ solana }: { solana: Record<string, string> 
           </div>
           {oracle?.address ? (
             <a href={arcExplorerUrl("address", oracle.address)} target="_blank" rel="noreferrer" className="ml-auto self-center font-mono text-[12px] text-muted hover:text-coral sm:ml-0">
-              {short(oracle.address)} ↗
+              {short(oracle.address)} <ExternalMark />
             </a>
           ) : null}
         </div>
