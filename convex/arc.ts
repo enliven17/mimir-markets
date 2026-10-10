@@ -180,13 +180,13 @@ export const oracleWork = internalQuery({
   },
 });
 
-/** A deferred or failed decision: try this market again later, backing off exponentially (lib/oracle-queue.ts). */
+/** A deferred or failed decision: try this market again later, backing off exponentially (lib/oracle-queue.ts), at most `capMinutes` apart. */
 export const deferMarket = internalMutation({
-  args: { kind, marketId: v.number(), error: v.optional(v.string()) },
-  handler: async (ctx, { kind, marketId, error }) => {
+  args: { kind, marketId: v.number(), error: v.optional(v.string()), capMinutes: v.optional(v.number()) },
+  handler: async (ctx, { kind, marketId, error, capMinutes }) => {
     const row = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).unique();
     const attempts = (row?.attempts ?? 0) + 1;
-    const next = { notBefore: Date.now() + retryDelayMs(attempts), lastError: error?.slice(0, 500) };
+    const next = { notBefore: Date.now() + retryDelayMs(attempts, capMinutes), lastError: error?.slice(0, 500) };
     if (row) await ctx.db.patch(row._id, { ...next, attempts });
     else await ctx.db.insert("arcOracleTries", { kind, marketId, attempts, ...next });
   },

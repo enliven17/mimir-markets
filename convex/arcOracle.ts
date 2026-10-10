@@ -39,6 +39,8 @@ const POOL = parseAbi([
   "function paused() view returns (bool)",
 ]);
 const SIDE = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 3, UNRESOLVABLE: 4 } as const;
+/** Longest wait between tries while a sports market waits for the final whistle. */
+const SPORTS_RETRY_CAP_MINUTES = 10;
 // Decisions fetch evidence and call an LLM (up to a minute each): a few per tick keeps the action well inside 10 min.
 const MAX_DECISIONS_PER_TICK = 3;
 const ZERO_HASH: Hex = `0x${"0".repeat(64)}`;
@@ -155,7 +157,9 @@ export const tick = internalAction({
         );
         if (!raw) {
           console.log(`${tag}: deferred`);
-          await ctx.runMutation(internal.arc.deferMarket, { kind: m.kind, marketId: m.marketId });
+          // A game in progress ends within a couple of hours: look again every few minutes, not after a 2-hour backoff.
+          const capMinutes = m.category === "sports" ? SPORTS_RETRY_CAP_MINUTES : undefined;
+          await ctx.runMutation(internal.arc.deferMarket, { kind: m.kind, marketId: m.marketId, capMinutes });
           continue;
         }
         const decision = applyPayoutPolicy(raw, s.mainnet, s.extraHosts);

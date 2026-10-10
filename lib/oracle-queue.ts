@@ -49,8 +49,8 @@ export function orderDecisions<T extends QueueMarket>(candidates: T[], limit: nu
   return out.slice(0, limit);
 }
 
-/** Minutes until the next try after `attempts` deferrals: 2, 4, 8, … capped at 6 hours. */
-export function retryDelayMs(attempts: number): number {
-  const minutes = Math.min(2 ** Math.max(1, attempts), 360);
+/** Minutes until the next try after `attempts` deferrals: 2, 4, 8, … capped at `capMinutes` (6 hours by default). */
+export function retryDelayMs(attempts: number, capMinutes = 360): number {
+  const minutes = Math.min(2 ** Math.max(1, attempts), capMinutes);
   return minutes * 60_000;
 }

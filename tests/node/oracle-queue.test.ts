@@ -48,4 +48,6 @@ test("deferrals back off exponentially, capped at 6 hours", () => {
   assert.equal(retryDelayMs(1), 2 * 60_000);
   assert.equal(retryDelayMs(3), 8 * 60_000);
   assert.equal(retryDelayMs(20), 360 * 60_000);
+  assert.equal(retryDelayMs(3, 10), 8 * 60_000);
+  assert.equal(retryDelayMs(7, 10), 10 * 60_000);
 });

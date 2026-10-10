@@ -284,10 +284,12 @@ async function triageNew(ctx: ActionCtx, changes: Change[]): Promise<void> {
  * Post what changed to the site's Telegram route (app/api/telegram/arc-events), which messages the chats. Off unless
  * TELEGRAM_EVENTS_URL and the events secret (MIMIR_EVENTS_SECRET) are set; a failed post is logged, never retried (alerts are best effort).
  * "New" only for markets opened in the last hour, so a re-index does not announce old markets again.
+ * No message on a proposal: people hear once, when the result is final (resolved), not while it can still change.
  */
-async function notifyTelegram(ctx: ActionCtx, changes: Change[]): Promise<void> {
+async function notifyTelegram(ctx: ActionCtx, allChanges: Change[]): Promise<void> {
   const url = process.env.TELEGRAM_EVENTS_URL?.trim();
   const secret = internalSecret("events");
+  const changes = allChanges.filter((c) => c.type !== "proposed");
   if (!url || !secret || !changes.length) return;
   const recent = Math.floor(Date.now() / 1000) - 3600;
   const events = [];
