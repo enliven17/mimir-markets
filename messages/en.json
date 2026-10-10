@@ -1741,13 +1741,10 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "groups": {
-      "agents": "Agents",
       "strategies": "Strategies",
-      "wallet": "Wallet",
-      "token": "Token",
+      "build": "Build",
       "data": "Data",
-      "docs": "Docs",
-      "mobile": "Mobile"
+      "mimir": "Mimir"
     },
     "items": {
       "campaign": {

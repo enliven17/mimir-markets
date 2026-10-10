@@ -167,10 +167,10 @@ export default function Modal({
         tabIndex={-1}
         data-lenis-prevent
         {...swipe}
-        className={`glass-deep w-full overflow-y-auto bg-[rgb(14_7_9/.91)] p-[26px] shadow-modal outline-none motion-safe:animate-[sheet-in_200ms_cubic-bezier(0.22,1,0.36,1)_both] ${
+        className={`glass-deep w-full overflow-y-auto bg-[#120c0c] p-[26px] shadow-modal outline-none motion-safe:animate-[sheet-in_200ms_cubic-bezier(0.22,1,0.36,1)_both] ${
           isSheet
-            ? // Opaque on phones: a see-through sheet lets the page's text read through its own.
-              "max-h-[min(88dvh,720px)] rounded-t-3xl !bg-[#120c0c] pb-[calc(26px+var(--safe-bottom))] sm:max-w-[520px] sm:rounded-3xl sm:!bg-[rgb(14_7_9/.91)] sm:pb-[26px]"
+            ? // Opaque everywhere: a see-through panel lets the page's text read through its own.
+              "max-h-[min(88dvh,720px)] rounded-t-3xl pb-[calc(26px+var(--safe-bottom))] sm:max-w-[520px] sm:rounded-3xl sm:pb-[26px]"
             : "max-h-[min(620px,calc(100dvh-40px))] max-w-[460px] rounded-3xl"
         } ${className}`}
       >

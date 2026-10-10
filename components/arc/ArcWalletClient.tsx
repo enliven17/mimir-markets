@@ -23,7 +23,14 @@ const BTN_PRIMARY = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium t
 const BTN_SECONDARY = "press rounded-full bg-panel-raised px-5 py-2.5 text-[14px] text-cream disabled:opacity-60";
 
 export default function ArcWalletClient() {
-  const w = useArcWallet();
+  return <ArcWalletView w={useArcWallet()} />;
+}
+
+/**
+ * The wallet steps for a given wallet state. `bare` drops the page header, for
+ * Portfolio, which shows these steps in place until the account exists.
+ */
+export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolean }) {
   const { arcUnits, solanaUnits, reload } = useArcBalances(w.session?.address ?? null, w.solana);
   const [recovery, setRecovery] = useState<RecoveryFlag>(null);
   const clusterMismatch = ARC.solana.cluster !== SOLANA_CLUSTER;
@@ -34,16 +41,18 @@ export default function ArcWalletClient() {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
-      <header className="grid gap-2">
-        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">
-          Arc · {ARC.network === "testnet" ? "testnet" : "mainnet"}
-        </p>
-        <h1 className="m-0 font-display text-app-h1 text-cream">Your Arc wallet.</h1>
-        <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">
-          Your Solana wallet stays your identity. Your Arc account is a smart wallet unlocked by a passkey: your device&apos;s Face ID,
-          fingerprint or PIN. Mimir never holds a key, and gas on Arc is sponsored. USDC moves between Solana and Arc through Circle&apos;s CCTP.
-        </p>
-      </header>
+      {bare ? null : (
+        <header className="grid gap-2">
+          <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">
+            Arc · {ARC.network === "testnet" ? "testnet" : "mainnet"}
+          </p>
+          <h1 className="m-0 font-display text-app-h1 text-cream">Your Arc wallet.</h1>
+          <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">
+            Your Solana wallet stays your identity. Your Arc account is a smart wallet unlocked by a passkey: your device&apos;s Face ID,
+            fingerprint or PIN. Mimir never holds a key, and gas on Arc is sponsored. USDC moves between Solana and Arc through Circle&apos;s CCTP.
+          </p>
+        </header>
+      )}
 
       {clusterMismatch ? (
         <p role="alert" className="m-0 rounded-xl bg-ink-deep px-4 py-3 text-[13px] text-coral">

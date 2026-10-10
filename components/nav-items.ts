@@ -2,7 +2,7 @@
  * Site navigation: the single source for the header pill, the "More" sheet,
  * the mobile panel and the footer.
  *
- * - `NAV_PRIMARY` sits in the pill: CLI, Arena, Council, Portfolio. Keep it at 4.
+ * - `NAV_PRIMARY` sits in the pill: Arena, Portfolio, Agents, Council. Keep it at 4.
  * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the
  *   footer). New pages usually belong here.
  *
@@ -26,52 +26,58 @@ export interface NavGroup {
 }
 
 export const NAV_PRIMARY: readonly NavItem[] = [
-  // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
-  { href: "/terminal", key: "terminal" },
   { href: "/arena", key: "arena", matchNested: true },
-  { href: "/council", key: "council" },
-  // Portfolio is the old Dashboard: label change only, the route stays.
+  // Portfolio is the old Dashboard: label change only, the route stays. It also hosts the Arc account setup.
   { href: "/dashboard", key: "portfolio" },
+  { href: "/agents", key: "agents" },
+  { href: "/council", key: "council" },
 ];
 
+/**
+ * Grouped by what people come to do: follow strategies, build on Mimir, look
+ * at the numbers, and the rest. "New X" pages are not listed: each one is a
+ * button on its list page. The desktop sheet hides anything already in the
+ * pill (NAV_PRIMARY); the mobile sheet shows it, since the tab bar has no Agents.
+ */
 export const NAV_MORE_GROUPS: readonly NavGroup[] = [
-  {
-    key: "agents",
-    items: [
-      { href: "/agents", key: "agents" },
-      { href: "/agents/new", key: "agentsNew" },
-    ],
-  },
   {
     key: "strategies",
     items: [
       { href: "/baskets", key: "baskets", matchNested: true },
-      { href: "/baskets/new", key: "basketsNew" },
       { href: "/copy", key: "copy" },
     ],
   },
-  { key: "wallet", items: [{ href: "/wallet", key: "wallet", badge: "beta" }] },
-  { key: "token", items: [{ href: "/token", key: "token" }] },
+  {
+    key: "build",
+    items: [
+      { href: "/agents", key: "agents" },
+      { href: "/agents/new", key: "agentsNew" },
+      // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
+      { href: "/terminal", key: "terminal" },
+      { href: "/docs", key: "docs" },
+    ],
+  },
   {
     key: "data",
     items: [
-      { href: "/campaign", key: "campaign", badge: "new" },
+      { href: "/campaign", key: "campaign" },
       { href: "/stats", key: "stats" },
       { href: "/calibration", key: "calibration" },
     ],
   },
-  { key: "mobile", items: [{ href: "/app", key: "app", badge: "new", webOnly: true }] },
   {
-    key: "docs",
+    key: "mimir",
     items: [
-      { href: "/docs", key: "docs" },
+      { href: "/app", key: "app", webOnly: true },
+      { href: "/token", key: "token" },
       // The footer is hidden in the app, so the terms live here too.
       { href: "/terms", key: "terms" },
     ],
   },
 ];
 
-export const NAV_MORE: readonly NavItem[] = NAV_MORE_GROUPS.flatMap((g) => g.items);
+/** The sheet's pages that are not already in the pill. */
+export const NAV_MORE: readonly NavItem[] = NAV_MORE_GROUPS.flatMap((g) => g.items).filter((i) => !NAV_PRIMARY.some((p) => p.href === i.href));
 
 /** Primary call to action: the coral pill next to the links. */
 export const NAV_CTA: NavItem = { href: "/arena/create", key: "create" };

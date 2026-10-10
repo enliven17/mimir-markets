@@ -12,7 +12,7 @@ import { useTranslations } from "next-intl";
 import { ArrowUpRight } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";
-import { NAV_MORE, NAV_MORE_GROUPS, activeNavHref } from "./nav-items";
+import { NAV_MORE, NAV_MORE_GROUPS, NAV_PRIMARY, activeNavHref } from "./nav-items";
 
 export function NavMoreLinks({ onNavigate, compact = false }: { onNavigate?: () => void; compact?: boolean }) {
   const t = useTranslations("nav");
@@ -29,7 +29,8 @@ export function NavMoreLinks({ onNavigate, compact = false }: { onNavigate?: () 
             {t(`groups.${group.key}`)}
           </h3>
           <ul className="grid gap-1">
-            {group.items.map((item) => {
+            {/* The header sheet skips what the pill already shows; the mobile one (compact) has no pill. */}
+            {group.items.filter((item) => compact || !NAV_PRIMARY.some((p) => p.href === item.href)).map((item) => {
               const isActive = active === item.href;
               return (
                 <li key={item.href} data-web-only={item.webOnly || undefined}>

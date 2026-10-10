@@ -14,7 +14,7 @@ import { CircleUserRound, Ellipsis, LayoutGrid, Plus, Users } from "lucide-react
 import { Link, usePathname } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";
 import { NavMoreLinks } from "@/components/NavMoreMenu";
-import { NAV_MORE, activeNavHref } from "@/components/nav-items";
+import { NAV_MORE_GROUPS, activeNavHref } from "@/components/nav-items";
 
 const TABS = [
   { href: "/arena", label: (t: (k: string) => string) => t("items.arena.label"), Icon: LayoutGrid },
@@ -31,7 +31,7 @@ export default function MobileTabBar() {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
   const active = activeNavHref(pathname);
-  const moreActive = NAV_MORE.some((i) => i.href === active);
+  const moreActive = NAV_MORE_GROUPS.some((g) => g.items.some((i) => i.href === active));
 
   return (
     <>

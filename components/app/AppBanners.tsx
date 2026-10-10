@@ -4,13 +4,14 @@
  * The installable app's glue, mounted once in the locale layout:
  *   - registers the service worker (public/sw.js: the offline page);
  *   - remembers the APK build that opened the site (?app=<versionCode>, lib/app-release.ts);
- *   - desktop: a thin "get the app" strip above the nav, until dismissed (phones never see it);
+ *   - desktop: a thin "get the app" strip above the nav once the terms are accepted, until dismissed (phones never see it);
  *   - inside an older APK: a strip offering the new build.
  * The strip's height is published as --top-banner, which the nav and the page frame add to their top offset.
  */
 import { useEffect, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { TERMS_ACCEPTED_EVENT, termsAccepted } from "@/components/legal/ConsentNotice";
 import { APP_RELEASE, APP_VERSION_PARAM, appReleased } from "@/lib/app-release";
 
 /** The same deployment on a host the app does not claim as a link (see the update link below). */
@@ -63,7 +64,15 @@ export default function AppBanners() {
     if (inApp) document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover");
 
     if (inApp) setStrip(build > 0 && build < APP_RELEASE.versionCode ? "update" : null);
-    else if (appReleased() && read(DISMISS_KEY) !== "1" && window.matchMedia("(min-width: 1024px)").matches) setStrip("desktop");
+    else if (appReleased() && read(DISMISS_KEY) !== "1" && window.matchMedia("(min-width: 1024px)").matches) {
+      // One ask at a time: the strip waits until the terms notice is accepted.
+      if (termsAccepted()) setStrip("desktop");
+      else {
+        const show = () => setStrip("desktop");
+        window.addEventListener(TERMS_ACCEPTED_EVENT, show, { once: true });
+        return () => window.removeEventListener(TERMS_ACCEPTED_EVENT, show);
+      }
+    }
   }, []);
 
   useEffect(() => {

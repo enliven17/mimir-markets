@@ -21,6 +21,7 @@ import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnits } from "@/lib/arc/encoding";
 import AccountGate from "../arena/AccountGate";
+import { ArcWalletView } from "../ArcWalletClient";
 import { arcPhase, BTN_PRIMARY, BTN_SECONDARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, usd, type ArcMarket } from "../arena/shared";
 import { useArcAccount } from "../arena/useArcAccount";
 import { useArcSend } from "../arena/useArcSend";
@@ -56,7 +57,12 @@ export default function ArcDashboard() {
       </header>
       {/* Codes belong to the Solana wallet, so a new member sees them before creating an Arc account. */}
       <InvitesPanel />
-      <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>
+      {/* No account yet: the setup steps right here, not a button off to /wallet. */}
+      {account.wallet.configured && !account.wallet.restoring && !account.address ? (
+        <ArcWalletView w={account.wallet} bare />
+      ) : (
+        <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>
+      )}
     </div>
   );
 }

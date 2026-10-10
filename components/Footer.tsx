@@ -42,9 +42,11 @@ const ARC_CLIENT = arcPublicClient();
 
 const groupItems = (key: string) => NAV_MORE_GROUPS.find((g) => g.key === key)?.items ?? [];
 
-const PRODUCT: readonly NavItem[] = [NAV_PRIMARY[0], NAV_CTA, ...NAV_PRIMARY.slice(1), ...groupItems("token")];
+const mimirItem = (key: string) => groupItems("mimir").filter((i) => i.key === key);
+
+const PRODUCT: readonly NavItem[] = [NAV_PRIMARY[0], NAV_CTA, ...NAV_PRIMARY.slice(1), ...mimirItem("token")];
 const EXPLORE: readonly NavItem[] = [...groupItems("strategies"), ...groupItems("data")];
-const BUILD: readonly NavItem[] = [...groupItems("agents"), ...groupItems("docs")];
+const BUILD: readonly NavItem[] = [...groupItems("build").filter((i) => i.href !== "/agents"), ...mimirItem("terms")];
 
 const formatSlot = (n: number) => Math.round(n).toLocaleString("en-US");
 

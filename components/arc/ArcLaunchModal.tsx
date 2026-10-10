@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * First visit only: tells people Mimir now runs on Arc (testnet), funded from
- * Solana. Dismissal is remembered in localStorage; a blocked or cleared store
+ * Returning visitors only, once: tells people who used Mimir before that it
+ * now runs on Arc (testnet), funded from Solana. A first-time visitor never
+ * knew the old Mimir and already has the terms card to read, so they skip it. Dismissal is remembered in localStorage; a blocked or cleared store
  * just means it shows again, never an error. Waits a beat after load so it
  * does not fight the landing's own entrance.
  */
-import { TERMS_ACCEPTED_EVENT, termsAccepted } from "@/components/legal/ConsentNotice";
+import { termsAccepted } from "@/components/legal/ConsentNotice";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -25,17 +26,17 @@ export default function ArcLaunchModal() {
     try {
       seen = localStorage.getItem(KEY) === "1";
     } catch {}
-    // The app is past the announcement; on the website it waits for the terms card to be accepted, so the two
-    // never stack (components/legal/ConsentNotice.tsx fires TERMS_ACCEPTED_EVENT).
+    // The app is past the announcement.
     if (seen || document.documentElement.hasAttribute("data-app")) return;
-    let id: ReturnType<typeof setTimeout> | undefined;
-    const show = () => (id = setTimeout(() => setOpen(true), 1200));
-    if (termsAccepted()) show();
-    else window.addEventListener(TERMS_ACCEPTED_EVENT, show, { once: true });
-    return () => {
-      clearTimeout(id);
-      window.removeEventListener(TERMS_ACCEPTED_EVENT, show);
-    };
+    // Terms not yet accepted means a first visit (components/legal/ConsentNotice.tsx): nothing to announce.
+    if (!termsAccepted()) {
+      try {
+        localStorage.setItem(KEY, "1");
+      } catch {}
+      return;
+    }
+    const id = setTimeout(() => setOpen(true), 1200);
+    return () => clearTimeout(id);
   }, []);
 
   const close = () => {
