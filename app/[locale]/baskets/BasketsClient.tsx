@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";

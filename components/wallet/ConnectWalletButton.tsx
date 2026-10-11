@@ -5,7 +5,7 @@
  * opens the connect sheet while disconnected, the wallet chip once connected.
  */
 import { useTranslations } from "next-intl";
-import { Wallet } from "lucide-react";
+import { Wallet } from "@/components/icons";
 
 import Button from "@/components/ui/Button";
 import { useMimirWallet } from "@/hooks/useMimirWallet";

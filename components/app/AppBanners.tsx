@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { X } from "@/components/icons";
 import { TERMS_ACCEPTED_EVENT, termsAccepted } from "@/components/legal/ConsentNotice";
 import { APP_RELEASE, APP_VERSION_PARAM, appReleased } from "@/lib/app-release";
 
@@ -124,7 +125,7 @@ export default function AppBanners() {
         </span>
       )}
       <button type="button" onClick={close} aria-label="Dismiss" className="absolute right-3 rounded px-2 py-1 text-muted hover:text-cream">
-        ✕
+        <X size={14} />
       </button>
     </div>
   );

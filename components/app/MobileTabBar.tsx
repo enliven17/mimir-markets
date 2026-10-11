@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CircleUserRound, Ellipsis, LayoutGrid, Plus, Users } from "lucide-react";
+import { CircleUserRound, Ellipsis, LayoutGrid, Plus, Users } from "@/components/icons";
 
 import { Link, usePathname } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";

@@ -5,7 +5,7 @@
  * current step is announced through a polite live region; the list itself is
  * static so screen readers do not re-read it on every change.
  */
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "@/components/icons";
 
 import type { TransferKind, TransferProgress, TransferStep } from "@/lib/arc/transfers";
 

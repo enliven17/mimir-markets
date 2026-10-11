@@ -7,7 +7,7 @@
  * resolution source itself, so it says so. It also carries the CoinMarketCap
  * attribution where that data is actually used.
  */
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@/components/icons";
 import { useTranslations } from "next-intl";
 import { priceCheckTarget } from "@/lib/price-consensus";
 import { resolverFromUrl } from "@/lib/resolver-spec";

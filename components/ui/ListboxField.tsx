@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@/components/icons";
 
 export type ListboxFieldOption = { value: string; label: string };
 

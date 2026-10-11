@@ -7,7 +7,7 @@
  * queries and balances load again; a spinner follows the finger meanwhile.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { RotateCw } from "lucide-react";
+import { RotateCw } from "@/components/icons";
 
 import { useRouter } from "@/i18n/navigation";
 

@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@/components/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";
 import { NAV_MORE, NAV_MORE_GROUPS, NAV_PRIMARY, activeNavHref } from "./nav-items";

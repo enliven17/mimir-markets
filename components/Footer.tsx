@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@/components/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";

@@ -8,7 +8,7 @@
  */
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Wand2 } from "lucide-react";
+import { Wand2 } from "@/components/icons";
 import Chip from "@/components/ui/Chip";
 import Disclosure from "@/components/ui/Disclosure";
 import Input, { Textarea } from "@/components/ui/Input";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";

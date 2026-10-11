@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";

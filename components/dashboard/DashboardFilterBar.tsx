@@ -7,7 +7,7 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { RefreshCw, Search, SlidersHorizontal, X } from "@/components/icons";
 
 import Chip from "@/components/ui/Chip";
 import Segmented from "@/components/ui/Segmented";

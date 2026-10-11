@@ -24,7 +24,7 @@ import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import bs58 from "bs58";
-import { Check, TriangleAlert, Users } from "lucide-react";
+import { Check, TriangleAlert, Users } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } f
 import { useTranslations } from "next-intl";
 import { associatedTokenAddress } from "@/lib/solana/ata";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { Check, Copy, ExternalLink, LogOut, Wallet } from "lucide-react";
+import { Check, Copy, ExternalLink, LogOut, Wallet } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";

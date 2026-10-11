@@ -24,7 +24,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpRight, ChevronDown, RotateCcw } from "lucide-react";
+import { ArrowUpRight, ChevronDown, RotateCcw } from "@/components/icons";
 
 import Modal from "@/components/ui/Modal";
 import { isUserRejection, onWalletError } from "@/lib/solana/wallet-events";

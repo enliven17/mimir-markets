@@ -5,7 +5,7 @@
  * taking the challenger side would pay. The derivation is stated, not implied.
  * Hidden once a verdict is in: a decided market has an outcome, not a price.
  */
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "@/components/icons";
 import { useTranslations } from "next-intl";
 import type { ApiClaim } from "@/lib/server/arena-claim";
 import { crowdImbalance, formatProbability, impliedOdds } from "@/lib/odds";

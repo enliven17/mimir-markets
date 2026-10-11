@@ -10,7 +10,7 @@
  */
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw, TriangleAlert } from "@/components/icons";
 
 import { copyPermissionMessage, worstCaseCopySpend } from "@/lib/copy-trading";
 import {

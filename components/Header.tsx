@@ -17,7 +17,7 @@
 import { useRef } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ScrollTrigger, gsap, useGSAP } from "@/lib/motion";
 import Wordmark from "@/components/ui/Wordmark";

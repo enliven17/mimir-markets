@@ -19,7 +19,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { toast } from "sonner";
-import { Check, ChevronDown, ExternalLink, X } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, X } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";

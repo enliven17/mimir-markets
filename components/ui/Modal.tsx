@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { X } from "@/components/icons";
 import { setScrollLocked } from "@/lib/motion";
 
 const SWIPE_CLOSE_PX = 110;

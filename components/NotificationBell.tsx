@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Bell } from "lucide-react";
+import { Bell } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import Modal from "@/components/ui/Modal";

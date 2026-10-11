@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@/components/icons";
 
 import { SURFACE } from "@/components/arena/surface";
 import Button from "@/components/ui/Button";

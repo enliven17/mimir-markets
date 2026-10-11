@@ -18,7 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@solana/wallet-adapter-react";
 import bs58 from "bs58";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "@/components/icons";
 
 import { SURFACE_DEEP } from "@/components/arena/surface";
 import Button from "@/components/ui/Button";

@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@/components/icons";
 
 import { SURFACE } from "@/components/arena/surface";
 import Button from "@/components/ui/Button";
