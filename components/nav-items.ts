@@ -63,6 +63,7 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
     key: "mimir",
     items: [
+      { href: "/mainnet", key: "mainnet" },
       { href: "/app", key: "app", webOnly: true },
       { href: "/token", key: "token" },
       // The footer is hidden in the app, so the terms live here too.

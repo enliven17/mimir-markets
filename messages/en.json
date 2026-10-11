@@ -1819,6 +1819,10 @@
         "label": "Terms",
         "hint": "What you accept by using Mimir"
       },
+      "mainnet": {
+        "label": "Mainnet",
+        "hint": "Release notes for October 13"
+      },
       "app": {
         "label": "Mobile app",
         "hint": "Mimir on Android, and on your home screen"
