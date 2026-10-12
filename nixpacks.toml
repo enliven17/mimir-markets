@@ -1,4 +1,0 @@
-# Pin Node 22 LTS for Railway / any Nixpacks-driven CI (Node 20 is EOL since
-# April 2026). Our agent scripts use `tsx --env-file`, which needs ≥ 20.6.
-[phases.setup]
-nixPkgs = ["nodejs_22"]
