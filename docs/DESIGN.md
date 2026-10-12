@@ -93,7 +93,7 @@ into every prefetched route chunk.
 | `Button` (`primary`, `ghost`, `light`, `secondary`, `danger`; `sm` / `md` / `lg`), `buttonClass()` for links | pill buttons, press scale .97 |
 | `Card`, `Panel`, `Sheet`, `FeedCard` (`Card.tsx`) | glass card, solid panel, focused-job sheet, glossy feed card |
 | `Chip`, `StatusPill`, `LiveDot`, `Pending`, `Badge`, `Eyebrow` | pills and status language |
-| `Input`, `Textarea`, `ListboxField`, `Slider` | pill / well inputs |
+| `Input`, `Textarea`, `Slider` | pill / well inputs |
 | `Segmented` | pill track with sliding thumb, tabs or toggles, arrow keys |
 | `SegmentedNav` | the same track for sibling routes: links, `aria-current="page"`, server-renderable |
 | `Disclosure` | `<details>` with a coral chevron: progressive disclosure |

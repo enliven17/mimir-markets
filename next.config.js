@@ -16,7 +16,7 @@ const hasBrandAsset = (file) => fs.existsSync(path.join(__dirname, "public", "br
  * (lib/solana/config.ts refuses devnet fallbacks on mainnet): fail the build.
  */
 if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() === "mainnet-beta") {
-  const missing = ["NEXT_PUBLIC_MIMIR_PROGRAM_ID", "NEXT_PUBLIC_SOLANA_RPC", "NEXT_PUBLIC_MAGICBLOCK_ER_RPC"].filter(
+  const missing = ["NEXT_PUBLIC_SOLANA_RPC"].filter(
     (name) => !process.env[name]?.trim(),
   );
   if (missing.length) throw new Error(`Mainnet build is missing ${missing.join(", ")}`);

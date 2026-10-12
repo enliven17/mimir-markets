@@ -89,7 +89,6 @@ artifacts/
 .vercel
 
 # Solana / Anchor
-onchain/target/
 .keys/
 
 # Playwright

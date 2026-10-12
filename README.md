@@ -47,7 +47,6 @@ The full picture: [docs/how-mimir-works.md](docs/how-mimir-works.md). Every doc:
 | `scripts/arc/` | Deploy the contracts, create and fund council wallets |
 | `scripts/arc-poc/` | Proofs of concept and end-to-end browser tests (passkey, CCTP, markets, invite gate) |
 | `tests/node/` | Unit tests (`npm run test:smoke`) |
-| `onchain/`, `scripts/solana/` | The Solana program and its scripts, from before the move to Arc |
 
 ## Local development
 

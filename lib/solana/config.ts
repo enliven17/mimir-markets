@@ -23,14 +23,13 @@ function clusterValue(name: string, value: string | undefined, devnetDefault: st
 
 const IS_SERVER = typeof window === "undefined";
 
-/** Mimir program (V3: optimistic resolution + disputes + fees) */
-export const MIMIR_PROGRAM_ID = new PublicKey(
-  clusterValue(
-    "NEXT_PUBLIC_MIMIR_PROGRAM_ID",
-    process.env.NEXT_PUBLIC_MIMIR_PROGRAM_ID,
-    "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE"
-  )
-);
+/**
+ * The devnet-era Mimir program (V3). Markets run on Arc now; this and the MagicBlock values below only serve the
+ * old Solana pages and history, so they keep their devnet defaults on mainnet instead of failing the bundle.
+ */
+const legacyValue = (value: string | undefined, devnetDefault: string): string => value?.trim() || devnetDefault;
+
+export const MIMIR_PROGRAM_ID = new PublicKey(legacyValue(process.env.NEXT_PUBLIC_MIMIR_PROGRAM_ID, "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE"));
 
 /** The pre-V3 program. Read-only history; funds were migrated out of it. */
 export const LEGACY_MIMIR_PROGRAM_ID = new PublicKey(
@@ -63,21 +62,20 @@ export const SOLANA_RPC = clusterValue(
  * The Magic Router (devnet-router.magicblock.app) auto-routes transactions
  * between base layer and ER; the regional endpoints hit the ER directly.
  */
-export const MAGICBLOCK_ER_RPC = clusterValue(
-  "NEXT_PUBLIC_MAGICBLOCK_ER_RPC",
+export const MAGICBLOCK_ER_RPC = legacyValue(
   IS_SERVER ? process.env.MAGICBLOCK_ER_RPC || process.env.NEXT_PUBLIC_MAGICBLOCK_ER_RPC : process.env.NEXT_PUBLIC_MAGICBLOCK_ER_RPC,
   "https://devnet-as.magicblock.app/"
 );
 
 // Server-only values: the browser never sees them, so it keeps the defaults.
 export const MAGICBLOCK_ER_WS = IS_SERVER
-  ? clusterValue("MAGICBLOCK_ER_WS", process.env.MAGICBLOCK_ER_WS, "wss://devnet-as.magicblock.app/")
+  ? legacyValue(process.env.MAGICBLOCK_ER_WS, "wss://devnet-as.magicblock.app/")
   : "wss://devnet-as.magicblock.app/";
 
 /** MagicBlock ER validator identity (devnet Asia region default) */
 export const ER_VALIDATOR = new PublicKey(
   IS_SERVER
-    ? clusterValue("MAGICBLOCK_ER_VALIDATOR", process.env.MAGICBLOCK_ER_VALIDATOR, "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57")
+    ? legacyValue(process.env.MAGICBLOCK_ER_VALIDATOR, "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57")
     : "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57"
 );
 
