@@ -168,7 +168,7 @@ export default function DocsPage() {
             </div>
             <Facts
               rows={[
-                ["Minimum stake", "2 USDC"],
+                ["Minimum stake", `${(Number(ARC.minStakeWei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`],
                 ["Betting closes", "60 seconds before the deadline"],
                 ["Before you sign", "Every stake shows what you risk, the fee, and what you win: “at most” for VS (later challengers only lower it), “if it closed now” for pools."],
                 ["Payouts", "Pushed to your Arc account at settlement; nothing to claim."],
@@ -247,8 +247,12 @@ export default function DocsPage() {
             />
             <p className="m-0 text-[14px] text-muted">
               Source and tests:{" "}
-              <a className={LINK} href="https://github.com/enliven17/mimir-solana/tree/feat/arc-base-layer/contracts" target="_blank" rel="noreferrer">
+              <a className={LINK} href="https://github.com/enliven17/mimir-markets/tree/main/contracts" target="_blank" rel="noreferrer">
                 contracts/
+              </a>
+              , verified on{" "}
+              <a className={LINK} href="https://sourcify.dev" target="_blank" rel="noreferrer">
+                Sourcify
               </a>
               . Ownership and oracle changes are timelocked; a dispute is ruled by the owner (a multisig on mainnet).
             </p>
