@@ -168,7 +168,7 @@ export default function DocsPage() {
             </div>
             <Facts
               rows={[
-                ["Minimum stake", `${(Number(ARC.minStakeWei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`],
+                ["Minimum stake", `${(Number(ARC.contracts.minStakeWei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`],
                 ["Betting closes", "60 seconds before the deadline"],
                 ["Before you sign", "Every stake shows what you risk, the fee, and what you win: “at most” for VS (later challengers only lower it), “if it closed now” for pools."],
                 ["Payouts", "Pushed to your Arc account at settlement; nothing to claim."],
