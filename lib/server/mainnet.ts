@@ -18,13 +18,14 @@ const TIMEOUT_MS = Number(process.env.SOLANA_MAINNET_RPC_TIMEOUT_MS ?? "8000");
 const BALANCE_TTL_MS = 60_000;
 const SUPPLY_TTL_MS = 5 * 60_000;
 
-function rpcUrl(): string {
-  const url = process.env.SOLANA_MAINNET_RPC?.trim();
-  return url && /^https:\/\//.test(url) ? url : DEFAULT_RPC;
+/** SOLANA_MAINNET_RPC may be a comma list (e.g. two Helius keys); the public endpoint is always the last resort. */
+export function rpcUrls(value = process.env.SOLANA_MAINNET_RPC): string[] {
+  const own = (value ?? "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u));
+  return [...new Set([...own, DEFAULT_RPC])];
 }
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(rpcUrl(), {
+async function rpcAt<T>(url: string, method: string, params: unknown[]): Promise<T> {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -35,6 +36,19 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   const body = (await res.json()) as { result?: T; error?: { message?: string } };
   if (body.error || body.result === undefined) throw new Error(`mainnet rpc ${method} failed`);
   return body.result;
+}
+
+/** One call, trying each RPC in turn: a dead or rate-limited key falls through to the next. */
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  let last: unknown;
+  for (const url of rpcUrls()) {
+    try {
+      return await rpcAt<T>(url, method, params);
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last;
 }
 
 interface ParsedTokenAccounts {
