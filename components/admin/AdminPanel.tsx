@@ -17,6 +17,7 @@ import InvitesCard from "./InvitesCard";
 import { Card, Table } from "./ui";
 
 const REFRESH_MS = 30_000;
+const ARC_SOLANA_CLUSTER = process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() || "devnet";
 const SESSION_KEY = "mimir-admin-session";
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 const TONE: Record<Health, string> = { ok: "text-win", warn: "text-pending", down: "text-danger" };
@@ -321,8 +322,8 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
               ["Backend", d.backend.ok ? "up" : "down", d.backend.ok ? `${d.backend.ms} ms` : d.backend.error],
               ["App records", d.database.ok ? "up" : "down", d.database.ok ? `${d.database.ms} ms` : d.database.error],
               ["Arc RPC", d.chain.head.ok ? "up" : "down", d.chain.head.ok ? `block ${d.chain.head.data} · ${d.chain.head.ms} ms` : d.chain.head.error],
-              ["Solana devnet RPC", d.solana.devnet.ok ? "up" : "down", d.solana.devnet.ok ? `slot ${d.solana.devnet.data}` : d.solana.devnet.error],
-              ["Solana mainnet RPC", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],
+              [`Solana RPC (site, ${ARC_SOLANA_CLUSTER})`, d.solana.devnet.ok ? "up" : "down", d.solana.devnet.ok ? `slot ${d.solana.devnet.data}` : d.solana.devnet.error],
+              ["Solana RPC ($MIMIR balances)", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],
               ["Telegram", d.telegram.ok ? d.telegram.data?.bot : "down", d.telegram.ok ? `${d.telegram.data?.webhook ? "webhook" : "polling"} · ${d.telegram.data?.pending} pending${d.telegram.data?.lastError ? ` · ${d.telegram.data.lastError}` : ""}` : d.telegram.error],
             ]}
           />

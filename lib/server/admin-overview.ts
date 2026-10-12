@@ -14,6 +14,7 @@ import { ARC } from "@/lib/arc/config";
 import { isInviteOnly } from "@/lib/server/access";
 import { store, storeEnabled } from "@/lib/server/store";
 import { SOLANA_RPC } from "@/lib/solana/config";
+import { rpcUrls } from "@/lib/server/mainnet";
 
 export type Health = "ok" | "warn" | "down";
 export interface Probe<T> {
@@ -196,7 +197,8 @@ export async function adminOverview() {
     probe(database),
     probe(telegram),
     probe(() => solanaSlot(SOLANA_RPC)),
-    probe(() => solanaSlot(process.env.SOLANA_MAINNET_RPC?.trim() || "https://api.mainnet-beta.solana.com")),
+    // SOLANA_MAINNET_RPC is a comma list (lib/server/mainnet.ts): probe the first, the one balance reads try first.
+    probe(() => solanaSlot(rpcUrls()[0])),
   ]);
 
   const b = be.data;
