@@ -144,11 +144,11 @@ export function arcConfig(env: ArcEnv): ArcConfig {
   return {
     network,
     // Chain id 5042 is viem's `arc` definition (viem/chains).
-    chain: { id: 5042, name: "Arc", rpcUrl, rpcUrls, explorer: env.explorer?.trim() || "https://arcscan.app" },
+    chain: { id: 5042, name: "Arc", rpcUrl, rpcUrls, explorer: env.explorer?.trim() || "https://explorer.arc.io" },
     usdc: ARC_USDC,
     cctp: {
-      // CCTP V2 uses the same CREATE2 addresses on every EVM mainnet.
-      // TODO(arc-mainnet): confirm both on developers.circle.com/cctp/evm-smart-contracts before real money.
+      // CCTP V2 uses the same CREATE2 addresses on every EVM mainnet; Arc is domain 26 (checked against
+      // developers.circle.com/cctp/evm-smart-contracts and on chain, 2026-10-12).
       tokenMessengerV2: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
       messageTransmitterV2: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
       irisUrl: "https://iris-api.circle.com",
