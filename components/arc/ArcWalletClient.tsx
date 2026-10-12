@@ -13,7 +13,8 @@ import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnits } from "@/lib/arc/encoding";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
-import { readRecoveryFlag, RecoverWithPhrase, RecoverySetup, type RecoveryFlag } from "./RecoveryPanel";
+import { loadArcAccount } from "@/lib/arc/lazy";
+import { markRecoveryOn, readRecoveryFlag, RecoverWithPhrase, RecoverySetup, type RecoveryFlag } from "./RecoveryPanel";
 import TransferPanel from "./TransferPanel";
 import { useArcBalances } from "./useArcBalances";
 import { useArcWallet, type ArcWallet } from "./useArcWallet";
@@ -36,7 +37,24 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
   const clusterMismatch = ARC.solana.cluster !== SOLANA_CLUSTER;
 
   useEffect(() => {
-    setRecovery(w.session ? readRecoveryFlag(w.session.address) : null);
+    const address = w.session?.address;
+    const flag = address ? readRecoveryFlag(address) : null;
+    setRecovery(flag);
+    // The flag is per browser: on another device (or with storage cleared) ask the chain, so a phrase is never
+    // registered twice (each registration is gas we sponsor).
+    if (!address || flag === "on") return;
+    let live = true;
+    void loadArcAccount()
+      .then((m) => m.hasRecoveryOwner(address))
+      .then((on) => {
+        if (!live || !on) return;
+        markRecoveryOn(address);
+        setRecovery("on");
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
   }, [w.session]);
 
   return (

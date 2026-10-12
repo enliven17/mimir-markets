@@ -47,8 +47,13 @@ function downloadPhrase(mnemonic: string, account: string): void {
 }
 
 function writeRecoveryFlag(address: string, flag: Exclude<RecoveryFlag, null>): void {
-  localStorage.setItem(flagKey(address), flag);
+  try {
+    localStorage.setItem(flagKey(address), flag);
+  } catch {}
 }
+
+/** The chain says this account already has a recovery key (ArcWalletClient): remember it here too. */
+export const markRecoveryOn = (address: string) => writeRecoveryFlag(address, "on");
 
 export function RecoverySetup({ session, onDone }: { session: ArcSession; onDone: (flag: "on" | "skipped") => void }) {
   const confirmId = useId();

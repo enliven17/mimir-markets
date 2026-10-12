@@ -24,12 +24,12 @@ import {
   WebAuthnMode,
   type WebAuthnCredential,
 } from "@circle-fin/modular-wallets-core";
-import { bytesToHex, createPublicClient, getAddress, hexToBigInt, hexToBytes, parseGwei, type Address, type Hex, type PublicClient, type Transport } from "viem";
+import { bytesToHex, createPublicClient, getAddress, hexToBigInt, hexToBytes, parseAbi, parseGwei, zeroAddress, type Address, type Hex, type PublicClient, type Transport } from "viem";
 import { createBundlerClient, toWebAuthnAccount, type SmartAccount } from "viem/account-abstraction";
 import { english, generateMnemonic, mnemonicToAccount } from "viem/accounts";
 
 import type { ArcCall } from "./cctp-arc";
-import { arcChain } from "./chain";
+import { arcChain, arcPublicClient } from "./chain";
 import { ARC, type ArcConfig } from "./config";
 
 export interface StoredPasskey {
@@ -52,8 +52,30 @@ export interface ArcSession {
   sendCalls(calls: ArcCall[]): Promise<CallsReceipt>;
   /** Sign a message with the passkey (ERC-1271, ERC-6492-wrapped while the account is not deployed). */
   signMessage(message: string): Promise<Hex>;
-  /** Add a recovery key as a second owner (sponsored). */
+  /** Add a recovery key as a second owner (sponsored). Refuses when the account already has one. */
   registerRecoveryAddress(recoveryAddress: Address): Promise<CallsReceipt>;
+}
+
+/** Circle's weighted multisig plugin: every MSCA's owners (passkeys as public keys, a recovery key as an address). */
+const MULTISIG_PLUGIN = "0x0000000C984AFf541D6cE86Bb697e68ec57873C8";
+const MULTISIG_ABI = parseAbi([
+  "struct OwnerData { uint256 weight; uint8 credType; address addr; uint256 publicKeyX; uint256 publicKeyY; }",
+  "struct ThresholdWeight { uint256 a; uint256 b; uint256 c; uint256 d; }",
+  "function ownershipInfoOf(address account) view returns (bytes30[] owners, OwnerData[] ownersData, ThresholdWeight threshold)",
+]);
+
+/** An address owner on the account is the recovery key (passkeys are public keys). Not deployed yet: none. */
+export function hasAddressOwner(ownersData: ReadonlyArray<{ addr: string }>): boolean {
+  return ownersData.some((o) => o.addr.toLowerCase() !== zeroAddress);
+}
+
+/**
+ * Whether the account already has a recovery key, read from the chain. Each registration is a sponsored operation
+ * we pay for, so the site never sends a second one for the same account.
+ */
+export async function hasRecoveryOwner(account: Address, config: ArcConfig = ARC): Promise<boolean> {
+  const [, ownersData] = await arcPublicClient(config).readContract({ address: MULTISIG_PLUGIN, abi: MULTISIG_ABI, functionName: "ownershipInfoOf", args: [account] });
+  return hasAddressOwner(ownersData);
 }
 
 function requireClientKey(config: ArcConfig): string {
@@ -173,6 +195,7 @@ async function sessionFor(account: SmartAccount, passkey: StoredPasskey, config:
     },
     signMessage: (message) => account.signMessage({ message }),
     async registerRecoveryAddress(recoveryAddress) {
+      if (await hasRecoveryOwner(address, config)) throw new Error("Recovery is already on for this account.");
       const hash = await bundler.extend(recoveryActions).registerRecoveryAddress({ account, recoveryAddress, paymaster: true });
       return wait(hash);
     },
