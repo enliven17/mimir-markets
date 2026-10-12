@@ -13,6 +13,8 @@ import { SURFACE } from "@/components/arena/surface";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 import type { AdminOverview, Health } from "@/lib/server/admin-overview";
+import InvitesCard from "./InvitesCard";
+import { Card, Table } from "./ui";
 
 const REFRESH_MS = 30_000;
 const SESSION_KEY = "mimir-admin-session";
@@ -119,19 +121,7 @@ export default function AdminPanel() {
     );
   }
   if (!data) return <p className="py-10 text-[14px] text-muted">{error ? `Could not load: ${error}` : "Loading…"}</p>;
-  return <Dashboard d={data} error={error} />;
-}
-
-function Card({ title, children, note }: { title: string; children: ReactNode; note?: string }) {
-  return (
-    <section className={`${SURFACE} grid min-w-0 content-start gap-3 p-4 sm:p-5`}>
-      <header className="flex items-baseline justify-between gap-3">
-        <h2 className="m-0 text-[15px] text-cream">{title}</h2>
-        {note ? <span className="text-[12px] text-dim">{note}</span> : null}
-      </header>
-      {children}
-    </section>
-  );
+  return <Dashboard d={data} error={error} token={session.token} />;
 }
 
 function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: string }) {
@@ -143,30 +133,9 @@ function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: 
   );
 }
 
-/** A table that scrolls inside its card, never the page. */
-function Table({ head, rows, empty = "None." }: { head: string[]; rows: ReactNode[][]; empty?: string }) {
-  if (!rows.length) return <p className="m-0 text-[13px] text-muted">{empty}</p>;
-  return (
-    <div className="-mx-1 overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
-        <thead>
-          <tr>{head.map((h) => <th key={h} className="whitespace-nowrap px-1 pb-2 font-normal text-muted">{h}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-t border-white/5 align-top">
-              {r.map((c, j) => <td key={j} className="px-1 py-1.5 text-cream">{c}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 const Yes = ({ on, n }: { on: boolean; n?: number }) => <span className={on ? "text-win" : "text-dim"}>{on ? (n && n > 1 ? `set ×${n}` : "set") : "not set"}</span>;
 
-function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
+function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null; token: string }) {
   const b = d.backend.data;
   const now = Math.floor(d.at / 1000);
   const ex = (kind: "tx" | "address", id: string) => `${d.explorer}/${kind}/${id}`;
@@ -223,7 +192,7 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
             head={["Market", "Question", "State", "Deadline", "Dispute ends", "Stakes A / B", "People", "Creator", "Take"]}
             rows={b.markets.live.map((m) => [
               <Link key="l" href={`/arena/arc/${m.kind}/${m.marketId}`} className="whitespace-nowrap text-coral hover:underline">{m.kind.toUpperCase()} #{m.marketId}</Link>,
-              <span key="q" className="line-clamp-2 min-w-[220px]">{m.question}</span>,
+              <span key="q" className="line-clamp-2">{m.question}</span>,
               m.status,
               <span key="d" className={`whitespace-nowrap ${m.deadline < now ? "text-pending" : ""}`}>{until(m.deadline, now)}</span>,
               m.disputableUntil ? <span key="u" className="whitespace-nowrap">{until(m.disputableUntil, now)}</span> : "–",
@@ -242,10 +211,10 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
             head={["Market", "Question", "Attempts", "Next try", "Last error"]}
             rows={b.oracle.deferred.map((t) => [
               <Link key="l" href={`/arena/arc/${t.kind}/${t.marketId}`} className="whitespace-nowrap text-coral hover:underline">{t.kind.toUpperCase()} #{t.marketId}</Link>,
-              <span key="q" className="line-clamp-2 min-w-[200px]">{t.question}</span>,
+              <span key="q" className="line-clamp-2">{t.question}</span>,
               <span key="a" className={t.attempts >= 5 ? "text-pending" : ""}>{t.attempts}</span>,
               <span key="n" className="whitespace-nowrap">{until(Math.floor(t.notBefore / 1000), now)}</span>,
-              <span key="e" className="line-clamp-2 min-w-[240px] text-muted">{t.lastError ?? "–"}</span>,
+              <span key="e" className="line-clamp-2 text-muted">{t.lastError ?? "–"}</span>,
             ])}
             empty="Nothing deferred."
           />
@@ -258,15 +227,17 @@ function Dashboard({ d, error }: { d: AdminOverview; error: string | null }) {
             head={["Market", "Question", "Result", "Confidence", "Summary", "Tx"]}
             rows={b.markets.settled.map((m) => [
               <Link key="l" href={`/arena/arc/${m.kind}/${m.marketId}`} className="whitespace-nowrap text-coral hover:underline">{m.kind.toUpperCase()} #{m.marketId}</Link>,
-              <span key="q" className="line-clamp-2 min-w-[200px]">{m.question}</span>,
+              <span key="q" className="line-clamp-2">{m.question}</span>,
               m.status === "cancelled" ? "cancelled" : m.winner === 1 ? "A" : m.winner === 2 ? "B" : m.winner === 3 ? "draw" : "refund",
               m.confidence == null ? "–" : `${m.confidence}%`,
-              <span key="s" className="line-clamp-2 min-w-[240px] text-muted">{m.summary || "–"}</span>,
+              <span key="s" className="line-clamp-2 text-muted">{m.summary || "–"}</span>,
               m.txHash ? <a key="t" href={ex("tx", m.txHash)} target="_blank" rel="noreferrer" className="font-mono hover:text-coral">{short(m.txHash)}</a> : "–",
             ])}
           />
         </Card>
       ) : null}
+
+      <InvitesCard token={token} />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="People on Solana" note="app records">

@@ -112,6 +112,32 @@ export async function redeemInvite(wallet: string, code: string): Promise<Redeem
   return "ok";
 }
 
+/** Codes minted from the admin panel have this owner; anyone may redeem them, and they skip the daily budget. */
+export const ADMIN_INVITE_OWNER = "admin";
+
+export type InviteRow = { code: string; owner: string; note: string | null; createdAt: number; usedBy: string | null; usedAt: number | null };
+
+/** Every invite code, newest first (the admin panel). */
+export async function listInvites(): Promise<InviteRow[]> {
+  type Row = { code: string; owner: string; note?: string | null; created_at: number; used_by: string | null; used_at: number | null };
+  const rows = await store().list<Row>("access_invites", { limit: 5000 });
+  return rows
+    .map((r) => ({ code: r.code, owner: r.owner, note: r.note ?? null, createdAt: Number(r.created_at), usedBy: r.used_by ?? null, usedAt: r.used_at == null ? null : Number(r.used_at) }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** `count` fresh codes owned by the admin, with an optional note (who they are for). */
+export async function mintAdminInvites(count: number, note: string | null): Promise<string[]> {
+  const now = Date.now();
+  const codes: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const code = newCode();
+    await insert("access_invites", code, { code, owner: ADMIN_INVITE_OWNER, note, created_at: now + i, used_by: null, used_at: null }, { i1: ADMIN_INVITE_OWNER, at: now + i });
+    codes.push(code);
+  }
+  return codes;
+}
+
 /** Server-side gate for routes that act for a wallet (binding an Arc account). */
 export async function hasAccess(wallet: string): Promise<boolean> {
   if (!isInviteOnly()) return true;
