@@ -5,8 +5,8 @@
  * page as is. On, a gated route first asks for the Solana wallet and one signed
  * proof (the holder proof, lib/token-proof.ts); then /api/access says whether
  * the wallet is in: a holder of the minimum $MIMIR is let in on the spot,
- * anyone else enters an invite code. Public pages (home, docs, token, council,
- * stats, legal) are never gated. The server enforces the same rule where it
+ * anyone else enters an invite code. Browsing is never gated, only the screens that
+ * act (GATED). The server enforces the same rule where it
  * acts for a wallet (binding an Arc account), so skipping this UI gains nothing.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -20,7 +20,10 @@ import { inviteKind, xIntentUrl } from "@/lib/invite-share";
 import { ARC } from "@/lib/arc/config";
 
 const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
-const GATED = ["/arena", "/wallet", "/dashboard", "/agents/new", "/baskets", "/copy", "/campaign", "/telegram"];
+// Only the screens that act are gated: setting up and funding the Arc account, the portfolio, creating markets and
+// agents, linking Telegram. Everyone can browse the arena, markets, baskets and the rest; a stake needs an account,
+// and the account is set up on /wallet.
+const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/telegram"];
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 
 export function useAccess() {

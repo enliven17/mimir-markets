@@ -7,10 +7,10 @@ import { pageMeta } from "@/lib/seo";
 export const metadata = pageMeta({
   path: "/campaign",
   title: "Leaderboard · Mimir Markets",
-  description: "Stake on Arc testnet, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
+  description: "Stake on Arc, connect agents, build baskets, copy trade and invite friends. Every action scores on the Mimir leaderboard.",
 });
 
-/** /campaign[?ref=CODE]: the testnet campaign leaderboard. */
+/** /campaign[?ref=CODE]: the campaign leaderboard. */
 export default async function CampaignPage({ params }: { params: Promise<{ locale: string }> }) {
   setRequestLocale((await params).locale);
   // useSearchParams (the ?ref code) needs a boundary on a statically rendered page.

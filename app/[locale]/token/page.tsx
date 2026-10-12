@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { SURFACE } from "@/components/arena/surface";
 import Disclosure from "@/components/ui/Disclosure";
 import TokenYourTier from "@/components/token/TokenYourTier";
-import { fetchDexReadings } from "@/lib/server/dex-prices";
+import { fetchDexReadings, fetchDexStats } from "@/lib/server/dex-prices";
 import { mainnetMintSupply } from "@/lib/server/mainnet";
 import { cachedFor } from "@/lib/server/ttl-cache";
 import { ansemMint, mimirMint, mimirSymbol, mimirTokenUrl } from "@/lib/token-config";
@@ -33,10 +33,13 @@ export const metadata = pageMeta({
  */
 export const dynamic = "force-dynamic";
 
-/** A price is the median of what the DEX readers return right now; null when none answer. */
+/**
+ * The price shown: the median of the settlement readers when the token clears their liquidity floor, else the
+ * deepest DexScreener pool (display only, no floor; a thin pool still has a price people want to see).
+ */
 const livePrice = cachedFor(async (mint: string): Promise<number | null> => {
   const readings = await fetchDexReadings(mint);
-  if (readings.length === 0) return null;
+  if (readings.length === 0) return (await fetchDexStats(mint))?.priceUsd ?? null;
   const sorted = readings.map((r) => r.priceUsd).sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
 }, 60_000);

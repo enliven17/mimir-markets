@@ -50,7 +50,7 @@ function OldSolanaClaim() {
     <div className="mx-auto grid max-w-[560px] gap-4 py-16 text-center">
       <h1 className="m-0 font-display text-[1.8rem] text-cream">This market was on Solana devnet</h1>
       <p className="m-0 text-[14px] leading-relaxed text-muted">
-        Mimir now runs on Arc testnet. Markets from the Solana devnet beta are no longer shown; the Arena has the live ones.
+        Mimir now runs on Arc mainnet. Markets from the Solana devnet beta are no longer shown; the Arena has the live ones.
       </p>
       <Link href="/arena" className="text-coral hover:underline">
         Go to the Arena

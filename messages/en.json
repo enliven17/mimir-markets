@@ -16,7 +16,7 @@
   },
   "verify": {
     "notFound": "Claim not found on this program.",
-    "claimLine": "Market #{id} · Arc testnet",
+    "claimLine": "Market #{id} · Arc",
     "openMarket": "Open the market",
     "noVerdictYet": "The record appears here once the oracle proposes a verdict.",
     "notFinal": "proposed · not final",
@@ -267,9 +267,9 @@
     "ansemBody": "$ANSEM (The Black Bull) holders of at least {n} ANSEM count as holders, can satisfy the agent registration gate, and $ANSEM price claims settle deterministically from mainnet DEX data.",
     "roadmapTitle": "Roadmap",
     "roadmap": {
-      "now": "Now: markets settle on Arc testnet (MimirV3 duels, MimirPool pools, oracle with audit bundles), funded from Solana over Circle CCTP; $MIMIR on Solana mainnet lowers fees.",
-      "next": "Next: mainnet program deploy with the same optimistic resolution, dispute bonds and profit-only fees; USDC markets for real stakes.",
-      "fees": "Fees: the creator share of ClawPump trading fees funds oracle and council inference, RPC and audits. Protocol fee revenue on mainnet is intended for the same, plus buybacks if and when that is decided in the open.",
+      "now": "Now: live on Arc mainnet with real USDC, invite-only. Head-to-head markets (MimirV3) and pools (MimirPool), settled by the AI oracle with a 24-hour dispute window and a 2-of-3 Safe as arbiter, funded from Solana over Circle CCTP. $MIMIR on Solana lowers fees and opens the door: 5,000,000 $MIMIR gets you in without an invite.",
+      "next": "Next: open access once the invite gate comes off, higher stake caps after an external audit of the contracts, and a settlement API so other apps can have their questions settled by the Mimir oracle.",
+      "fees": "Fees: the creator share of ClawPump trading fees funds oracle and council inference, RPC and audits. Protocol fee revenue (the 0.5% entry fee, lower for holders) is intended for the same, plus buybacks if and when that is decided in the open.",
       "honest": "No yield, revenue share or price promises. The token unlocks product perks; it is not an investment."
     },
     "cachedNote": "Tiers read from mainnet balances, cached for a minute."
@@ -376,7 +376,7 @@
     "github": "GitHub",
     "external": "(opens in a new tab)",
     "cluster": "Cluster",
-    "clusterValue": "Arc testnet",
+    "clusterValue": "Arc mainnet",
     "program": "Program",
     "programAria": "Contract {id} on ArcScan",
     "rollup": "Funding",
@@ -384,8 +384,8 @@
     "slot": "Block",
     "token": "Token",
     "tokenValue": "$MIMIR · Solana",
-    "finePrint": "Mimir is a beta on Arc testnet. Stakes use test USDC with no real value. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Arc testnet · Solana",
+    "finePrint": "Mimir is in beta on Arc mainnet. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
+    "beta": "Beta · Arc mainnet · Solana",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -406,7 +406,7 @@
       },
       "disclaimer": {
         "title": "Disclaimer",
-        "p1": "Mimir is experimental software on Arc testnet. Balances are test tokens with no monetary value; contracts, data and payouts can be reset at any time.",
+        "p1": "Mimir is experimental software in beta on Arc mainnet. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
         "p2": "Verdicts are produced by AI models and can be wrong. Nothing on this site is financial, legal or investment advice. You are responsible for your wallet, your approvals and following the law where you live."
       }
     }
@@ -427,7 +427,7 @@
       "liveOnEr": "Live now",
       "usdc": "USDC",
       "network": "Network",
-      "networkValue": "Arc testnet · Solana",
+      "networkValue": "Arc mainnet · Solana",
       "networkArc": "Live on Arc · Solana",
       "openNow": "Open now",
       "offline": "Feed offline",
@@ -1240,12 +1240,12 @@
     "openInTitle": "On your phone",
     "openInLead": "Open Mimir inside your wallet’s browser.",
     "openIn": "Open in {wallet}",
-    "footnote": "Testnet only. No real funds move.",
+    "footnote": "Mainnet: real USDC. Connecting moves no funds.",
     "toastError": "{wallet} could not connect.",
     "genericWallet": "Your wallet",
     "chipAria": "{wallet} wallet {address}, open menu",
     "menuLabel": "Wallet",
-    "devnet": "Arc testnet",
+    "devnet": "Arc mainnet",
     "usdc": "USDC",
     "sol": "SOL",
     "copy": "Copy address",
@@ -1674,7 +1674,7 @@
     "cancelled": "Cancelled: “{q}”"
   },
   "onboarding": {
-    "title": "Your first stake on Arc testnet",
+    "title": "Your first stake on Mimir",
     "complete": "You are set up: every step done",
     "progress": "{done}/{total}",
     "progressAria": "{done} of {total} steps done",
@@ -2080,8 +2080,8 @@
       "reviewCategory": "Category",
       "publish": "Publish and fund {amount} USDC",
       "connectToPublish": "Connect a wallet to publish.",
-      "faucet": "Need test USDC?",
-      "faucetLink": "Circle faucet, Solana Devnet",
+      "faucet": "Need USDC?",
+      "faucetLink": "Get USDC on Solana",
       "proof": "On-chain proof",
       "proofCreate": "Create and fund",
       "proofDelegate": "Delegate to the rollup",
@@ -2090,11 +2090,11 @@
     }
   },
   "arcLaunch": {
-    "eyebrow": "New · Arc testnet",
+    "eyebrow": "New · Arc mainnet",
     "title": "Mimir now runs on Arc",
     "body": "Markets settle on Arc, Circle's stablecoin chain, and you fund them from your Solana wallet over Circle CCTP. Your Mimir account opens with a passkey: Face ID or a fingerprint, no seed phrase, gas paid for you.",
-    "points": ["Live on Arc testnet today", "USDC in from Solana in about 15 seconds", "$MIMIR holders pay lower fees"],
-    "cta": "Try it on testnet",
+    "points": ["Live on Arc mainnet, invite-only", "USDC in from Solana in about 15 seconds", "$MIMIR holders pay lower fees"],
+    "cta": "Open the arena",
     "later": "Later"
   }
 }
