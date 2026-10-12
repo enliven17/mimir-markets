@@ -19,6 +19,8 @@ import type * as arcOracle from "../arcOracle.js";
 import type * as arcSync from "../arcSync.js";
 import type * as arcTriage from "../arcTriage.js";
 import type * as arcViews from "../arcViews.js";
+import type * as arcWatch from "../arcWatch.js";
+import type * as arcWatchDb from "../arcWatchDb.js";
 import type * as crons from "../crons.js";
 
 import type {
@@ -39,6 +41,8 @@ declare const fullApi: ApiFromModules<{
   arcSync: typeof arcSync;
   arcTriage: typeof arcTriage;
   arcViews: typeof arcViews;
+  arcWatch: typeof arcWatch;
+  arcWatchDb: typeof arcWatchDb;
   crons: typeof crons;
 }>;
 

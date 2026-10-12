@@ -154,6 +154,9 @@ export default defineSchema({
   /** Admin panel (convex/arcAdmin.ts): when each scheduled job last started, one row per job. */
   arcHeartbeats: defineTable({ name: v.string(), at: v.number() }).index("by_name", ["name"]),
 
+  /** Watchdog alerts already sent to the admin Telegram (convex/arcWatch.ts), so each problem is reported once per `until`. */
+  arcAlerts: defineTable({ key: v.string(), until: v.number() }).index("by_key", ["key"]),
+
   /**
    * The app's own records, once Postgres tables (convex/appStore.ts, lib/server/store.ts): agents and their API
    * keys, nonces and replies, baskets, copy permissions, invites, Arc account bindings, Telegram chats, the campaign,
