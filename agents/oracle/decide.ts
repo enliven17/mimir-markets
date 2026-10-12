@@ -152,7 +152,7 @@ interface DeadlinePrices {
 
 type BundleParts = Omit<VerdictBundle, "version" | "program" | "claimId" | "decidedAt" | "claim" | "finalVerdict">;
 
-async function fetchEvidence(url: string): Promise<Evidence> {
+export async function fetchEvidence(url: string): Promise<Evidence> {
   const target = stripResolverFragment(url ?? "");
   if (!target.startsWith("http")) return { text: "(No resolution URL provided)", fetcher: "none" };
   try {

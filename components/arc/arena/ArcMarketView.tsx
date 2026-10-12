@@ -24,6 +24,7 @@ import ArcCouncilTakes from "./ArcCouncilTakes";
 import ArcMarketActions from "./ArcMarketActions";
 import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
 import ArcStakePanel from "./ArcStakePanel";
+import MarketCaution from "./MarketCaution";
 import ShareMarket from "./ShareMarket";
 import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
@@ -106,6 +107,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             <span className="ml-auto flex items-center gap-2">
               <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${PHASE_DOT[phase]}`} />
               {PHASE_LABEL[phase]}
+              <MarketCaution />
             </span>
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>

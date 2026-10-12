@@ -240,6 +240,16 @@ export const marketWithPositions = internalQuery({
   },
 });
 
+/** When each stake on a market landed (the opening stake included), for the late-stake rule (lib/late-stakes.ts). */
+const STAKE_EVENTS = new Set(["ClaimCreated", "ClaimChallenged", "MarketCreated", "Staked"]);
+export const stakeTimes = internalQuery({
+  args: { kind, marketId: v.number() },
+  handler: async (ctx, { kind, marketId }) =>
+    (await ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).take(2000))
+      .filter((e) => STAKE_EVENTS.has(e.name) && e.at !== undefined)
+      .map((e) => ({ at: e.at as number, user: e.user })),
+});
+
 /** Markets still taking positions after `closesAfter` (unix seconds): VS open or active, pools open. */
 export const openMarkets = internalQuery({
   args: { closesAfter: v.number() },

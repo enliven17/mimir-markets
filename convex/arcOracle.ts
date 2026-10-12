@@ -19,7 +19,10 @@ import { privateKeyToAccount } from "viem/accounts";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
-import { decide, type SettlementDecision } from "../agents/oracle/decide";
+import { decide, fetchEvidence, type SettlementDecision } from "../agents/oracle/decide";
+import { outcomeKnownAt } from "../agents/oracle/evaluate";
+import { lateStakes, lateStakeSummary } from "../lib/late-stakes";
+import { sealBundle, type VerdictBundle } from "../lib/verdict-bundle";
 import type { OnchainClaim } from "../lib/solana/client";
 import { arcChain, arcTransport } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
@@ -164,9 +167,23 @@ export const tick = internalAction({
         }
         const decision = applyPayoutPolicy(raw, s.mainnet, s.extraHosts);
         if (!decision.policy.pay) console.log(`${tag}: payout policy → refund (${decision.policy.reason})`);
-        const side = SIDE[decision.verdict.verdict];
-        const summary = decision.verdict.explanation.slice(0, 500);
-        const hash = toHex(decision.evidenceHash);
+        let side: number = SIDE[decision.verdict.verdict];
+        let summary = decision.verdict.explanation.slice(0, 500);
+        let hash = toHex(decision.evidenceHash);
+        let bundle: unknown = decision.bundle;
+        // A winner only if nobody staked once the outcome was known (lib/late-stakes.ts); else everyone is refunded.
+        if (side === SIDE.CREATOR_WINS || side === SIDE.CHALLENGERS_WIN) {
+          const evidence = await fetchEvidence(m.resolutionUrl);
+          const knownAt = await outcomeKnownAt({ question: m.question, resolutionUrl: m.resolutionUrl, deadline: m.deadline }, evidence.text);
+          const late = lateStakes(knownAt, await ctx.runQuery(internal.arc.stakeTimes, { kind: m.kind, marketId: m.marketId }));
+          if (knownAt !== null && late.length) {
+            side = SIDE.UNRESOLVABLE;
+            summary = lateStakeSummary(knownAt, late);
+            bundle = { ...decision.bundle, lateStakeRefund: { knownAt, lateStakes: late, overriddenVerdict: decision.verdict.verdict } };
+            hash = toHex(sealBundle(bundle as VerdictBundle).bytes);
+            console.log(`${tag}: ${late.length} late stake(s) after ${knownAt}, refund instead of ${decision.verdict.verdict}`);
+          }
+        }
         const tx =
           m.kind === "vs"
             ? await write(s, { address: s.mimirV3, abi: V3, functionName: "resolveClaim", args: [BigInt(m.marketId), side, summary, decision.verdict.confidence, hash] })
@@ -178,7 +195,7 @@ export const tick = internalAction({
           confidence: decision.verdict.confidence,
           summary,
           evidenceHash: hash,
-          bundle: JSON.stringify(decision.bundle),
+          bundle: JSON.stringify(bundle),
           txHash: tx,
         });
         console.log(`${tag}: proposed side ${side} (${decision.verdict.confidence}%) ${tx}`);

@@ -26,6 +26,14 @@ import { useArcSend } from "./useArcSend";
 const FIELD = "w-full min-w-0 rounded-xl bg-ink-deep px-4 py-3 text-[15px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]";
 // Selects draw their own chevron inside the box: the platform arrow lands outside the rounded field on some phones.
 const SELECT = `${FIELD} appearance-none bg-no-repeat bg-[length:12px_12px] bg-[position:right_16px_center] pr-11 bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23A89D93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")]`;
+// What the deadline means for each category (sports has its own warning above the field's foot).
+const DEADLINE_HINT: Record<string, string> = {
+  crypto: "For a price question, the price is read at the deadline from two independent sources.",
+  weather: "Set it before the day or period the question is about begins; the oracle reads the result afterwards.",
+  culture: "Set it before the outcome can be known (the announcement, the ceremony, the release).",
+  custom: "Betting closes at the deadline. Set it before the answer can be known.",
+};
+
 // Leave the deadline at least this far out, so the tx and the betting lock both fit.
 const MIN_LEAD_SECONDS = 10 * 60;
 
@@ -134,6 +142,18 @@ export default function ArcCreateForm() {
           ))}
         </div>
 
+        <div className="grid gap-1.5 rounded-xl bg-panel p-4 shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)]">
+          <p className="m-0 flex items-center gap-2 text-[14px] font-medium text-cream">
+            <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full bg-coral text-[12px] font-bold text-[#160909]">!</span>
+            Spell everything out
+          </p>
+          <p className="m-0 text-[13px] leading-relaxed text-muted">
+            Name the exact event, the date, what counts as a win for each side and a source that will show the result. The oracle settles only what is
+            written: a vague question, a wrong deadline or a source without the answer gets the market refunded, and stakes placed after the result was
+            known are never paid.
+          </p>
+        </div>
+
         <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
           Question
           <textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={280} className={FIELD} placeholder="Will BTC close above $120k on Oct 31?" />
@@ -155,22 +175,42 @@ export default function ArcCreateForm() {
           <input value={url} onChange={(e) => setUrl(e.target.value)} inputMode="url" className={FIELD} placeholder="https://www.coingecko.com/en/coins/bitcoin" />
         </label>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
-            Category
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT}>
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
-            Deadline
-            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={FIELD} />
-          </label>
+        <div className="grid gap-1.5 text-[13px] text-muted">
+          <span id="category-label">Category</span>
+          <div role="radiogroup" aria-labelledby="category-label" className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={category === c.id}
+                onClick={() => setCategory(c.id)}
+                className={`press inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] ${
+                  category === c.id ? "bg-panel-raised text-cream shadow-[inset_0_0_0_1px_rgb(255_81_72/.6)]" : "bg-ink-deep text-muted hover:text-cream"
+                }`}
+              >
+                <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+                {c.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
+          Deadline (your local time)
+          <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={FIELD} />
+          {category === "sports" ? (
+            <span className="flex gap-2 rounded-xl bg-coral/10 px-3 py-2.5 text-[13px] leading-relaxed text-cream">
+              <span aria-hidden className="font-bold text-coral">!</span>
+              <span>
+                Set the deadline <strong className="font-medium">before the game starts</strong> (kickoff, tip-off, first pitch). Betting closes at the
+                deadline; any stake placed after the start is a late stake, and the market is refunded instead of paid.
+              </span>
+            </span>
+          ) : (
+            <span className="text-[12px] text-dim">{DEADLINE_HINT[category] ?? DEADLINE_HINT.custom}</span>
+          )}
+        </label>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="grid min-w-0 gap-1.5 text-[13px] text-muted">
