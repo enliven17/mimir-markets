@@ -156,7 +156,7 @@ export function arcConfig(env: ArcEnv): ArcConfig {
     },
     solana: { cluster: "mainnet-beta", usdcMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", ...CCTP_SOLANA_PROGRAMS },
     contracts: contractsFrom(env),
-    // TODO(arc-mainnet): the SDK and docs do not name the mainnet path; `/arc` follows the viem chain name like `/arcTestnet`.
+    // `/arc` is the mainnet path (checked 2026-10-12 with a LIVE client key: chain id 0x13b2).
     circle: { clientKey, passkeyUrl: CIRCLE_MODULAR_BASE, modularUrl: `${CIRCLE_MODULAR_BASE}/arc` },
   };
 }
