@@ -60,9 +60,9 @@ export default function ArcLaunchModal() {
         </div>
       }
     >
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">{t("eyebrow")}</p>
-        <NetworkLogos className="h-7" />
+        <NetworkLogos className="h-6 max-sm:hidden" />
         <p className="m-0 text-[14px] leading-relaxed text-muted">{t("body")}</p>
         <ul className="m-0 grid list-none gap-1.5 p-0">
           {(t.raw("points") as string[]).map((p) => (
@@ -72,7 +72,7 @@ export default function ArcLaunchModal() {
             </li>
           ))}
         </ul>
-        <div className="grid gap-1.5 rounded-xl bg-panel p-4 shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)]">
+        <div className="grid gap-1 rounded-xl bg-panel px-4 py-3 shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)]">
           <p className="m-0 flex items-center gap-2 text-[14px] font-medium text-cream">
             <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full bg-coral text-[12px] font-bold text-[#160909]">!</span>
             {t("warnTitle")}

@@ -2092,10 +2092,10 @@
   "arcLaunch": {
     "eyebrow": "Live · Arc mainnet",
     "title": "Mimir is live on mainnet",
-    "body": "Markets settle on Arc, Circle's stablecoin chain, with real USDC funded from your Solana wallet over Circle CCTP. Your Mimir account opens with a passkey: Face ID or a fingerprint, no seed phrase, gas paid for you.",
-    "points": ["Real USDC, invite-only for now", "USDC in from Solana in about 15 seconds", "$MIMIR holders pay lower fees"],
+    "body": "Markets settle on Arc with real USDC, funded from your Solana wallet over Circle CCTP. Sign in with a passkey: no seed phrase, gas paid for you.",
+    "points": ["Real USDC, invite-only for now", "USDC in from Solana in about 15 seconds"],
     "warnTitle": "Read a market before you stake",
-    "warn": "Anyone can open a market, and a market can be worded badly, carry a wrong deadline or point at a weak source. Check the question, the deadline and the resolution source every time. A market whose deadline let people stake after the result was known is refunded, not settled. AI verdicts can be wrong: that is what the 24-hour dispute window is for.",
+    "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
     "cta": "Open the arena",
     "later": "Later"
   }
