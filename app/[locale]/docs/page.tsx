@@ -1,6 +1,7 @@
 import { Link } from "@/i18n/navigation";
 import { DocsAccordion, DocsSection as Section } from "@/components/docs/DocsAccordion";
 import { FeeDiagram, LifecycleDiagram, SystemDiagram } from "@/components/docs/ArcDiagrams";
+import ReleaseNotes from "@/components/docs/ReleaseNotes";
 import SettlementData from "@/components/docs/SettlementData";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import "@/components/docs/docs.css";
@@ -31,6 +32,7 @@ const TOC: Array<[string, string]> = [
   ["verify", "Verify everything"],
   ["faq", "FAQ"],
   ["data", "Price data"],
+  ["release", "Release notes"],
 ];
 
 const LINK = "text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral";
@@ -264,6 +266,10 @@ export default function DocsPage() {
 
           <Section id="data" eyebrow="09" title="Price data">
             <SettlementData />
+          </Section>
+
+          <Section id="release" eyebrow="10" title="Release notes: mainnet">
+            <ReleaseNotes />
           </Section>
         </DocsAccordion>
       </div>
