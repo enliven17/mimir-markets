@@ -5,7 +5,16 @@
  */
 import { SITE_URL } from "./site";
 
-export const CARD_TYPES = ["new", "proposed", "won", "lost", "refunded", "cancelled"] as const;
+// "share" is the link preview of a market page (X, Telegram, WhatsApp…): the market as it stands right now.
+export const CARD_TYPES = [
+  "new",
+  "proposed",
+  "won",
+  "lost",
+  "refunded",
+  "cancelled",
+  "share",
+] as const;
 export type CardType = (typeof CARD_TYPES)[number];
 export type CardKind = "vs" | "pool";
 
@@ -24,7 +33,10 @@ export interface CardQuery {
 }
 
 /** Validates a card request; null for anything malformed (the route answers 400). */
-export function parseCardQuery(type: string, params: URLSearchParams): CardQuery | null {
+export function parseCardQuery(
+  type: string,
+  params: URLSearchParams,
+): CardQuery | null {
   if (!(CARD_TYPES as readonly string[]).includes(type)) return null;
   const kind = params.get("kind");
   if (kind !== "vs" && kind !== "pool") return null;
@@ -34,11 +46,22 @@ export function parseCardQuery(type: string, params: URLSearchParams): CardQuery
   if (id < 1) return null;
   const rawSide = params.get("side");
   if (rawSide !== null && rawSide !== "1" && rawSide !== "2") return null;
-  return { type: type as CardType, kind, id, side: rawSide ? (Number(rawSide) as 1 | 2) : 0 };
+  return {
+    type: type as CardType,
+    kind,
+    id,
+    side: rawSide ? (Number(rawSide) as 1 | 2) : 0,
+  };
 }
 
 /** The card's public URL (the site origin, so Telegram fetches it from us), with a cache-busting version. */
-export function cardUrl(type: CardType, kind: CardKind, id: number, side?: number, origin = SITE_URL): string {
+export function cardUrl(
+  type: CardType,
+  kind: CardKind,
+  id: number,
+  side?: number,
+  origin = SITE_URL,
+): string {
   const q = new URLSearchParams({ kind, id: String(id) });
   if (side === 1 || side === 2) q.set("side", String(side));
   q.set("v", String(CARD_VERSION));
@@ -46,7 +69,10 @@ export function cardUrl(type: CardType, kind: CardKind, id: number, side?: numbe
 }
 
 /** The card a personal Arc event gets: the market's new state, from this holder's point of view. */
-export function cardTypeFor(e: { type: "new" | "proposed" | "resolved" | "cancelled"; winner: number }, side: number): CardType {
+export function cardTypeFor(
+  e: { type: "new" | "proposed" | "resolved" | "cancelled"; winner: number },
+  side: number,
+): CardType {
   if (e.type === "new") return "new";
   if (e.type === "proposed") return "proposed";
   if (e.type === "cancelled") return "cancelled";
@@ -69,6 +95,8 @@ export interface CardMarket {
   winner: number;
   disputableUntil: number;
   verdict?: { confidence: number } | null;
+  /** The index state; a share card reads it to tell a cancelled market from one still settling. */
+  status?: string;
 }
 
 export type Tone = "accent" | "win" | "muted" | "cream";
@@ -115,26 +143,83 @@ export function clampText(text: string, max: number): string {
 }
 
 const utc = (sec: number) =>
-  new Date(sec * 1000).toLocaleString("en-GB", { timeZone: "UTC", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + " UTC";
+  new Date(sec * 1000).toLocaleString("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }) + " UTC";
 
-export function cardModel(q: CardQuery, m: CardMarket): CardModel {
+export function cardModel(
+  q: CardQuery,
+  m: CardMarket,
+  now = Math.floor(Date.now() / 1000),
+): CardModel {
   const a = BigInt(m.stakeA || "0");
   const b = BigInt(m.stakeB || "0");
   const total = a + b;
   const pctA = total === 0n ? 100 : Number((a * 100n) / total);
-  const sideOf = (label: string, wei: string, pct: number, n: 1 | 2): CardSide => ({
+  const sideOf = (
+    label: string,
+    wei: string,
+    pct: number,
+    n: 1 | 2,
+  ): CardSide => ({
     label: clampText(label, 27),
     usdc: usdcText(wei),
     pct,
-    lead: (q.type === "proposed" || q.type === "won" || q.type === "lost") && m.winner === n,
-    tag: q.side === n && (q.type === "won" || q.type === "lost") ? "Your side" : null,
+    lead:
+      (q.type === "proposed" || q.type === "won" || q.type === "lost") &&
+      m.winner === n,
+    tag:
+      q.side === n && (q.type === "won" || q.type === "lost")
+        ? "Your side"
+        : null,
   });
-  const sides: [CardSide, CardSide] = [sideOf(m.labelA, m.stakeA, pctA, 1), sideOf(m.labelB, m.stakeB, 100 - pctA, 2)];
-  const winnerLabel = m.winner === 1 ? m.labelA : m.winner === 2 ? m.labelB : "";
+  const sides: [CardSide, CardSide] = [
+    sideOf(m.labelA, m.stakeA, pctA, 1),
+    sideOf(m.labelB, m.stakeB, 100 - pctA, 2),
+  ];
+  const winnerLabel =
+    m.winner === 1 ? m.labelA : m.winner === 2 ? m.labelB : "";
   const confidence = m.verdict?.confidence;
-  for (const s of sides) if (s.lead && !s.tag) s.tag = q.type === "proposed" ? "Proposed" : "Won";
+  for (const s of sides)
+    if (s.lead && !s.tag) s.tag = q.type === "proposed" ? "Proposed" : "Won";
 
+  const decided = m.winner === 1 || m.winner === 2;
+  const share: [string, Tone, string] = decided
+    ? [
+        now < m.disputableUntil ? "Result proposed" : "Settled",
+        "win",
+        `${named(winnerLabel)} ${now < m.disputableUntil ? "is the proposed result" : "won"}`,
+      ]
+    : m.status === "cancelled"
+      ? [
+          "Cancelled",
+          "cream",
+          "Nobody took the other side; the stake went back",
+        ]
+      : m.winner === 3 || m.winner === 4
+        ? ["Refunded", "cream", "No winner: every stake is returned"]
+        : now < m.deadline
+          ? [
+              "Take a side",
+              "accent",
+              `Pot ${usdcText(total.toString())} USDC · closes ${utc(m.deadline)}`,
+            ]
+          : [
+              "Settling",
+              "cream",
+              "Closed. The AI oracle is reading the evidence.",
+            ];
+  if (q.type === "share" && decided)
+    Object.assign(sides[m.winner - 1], {
+      lead: true,
+      tag: now < m.disputableUntil ? "Proposed" : "Won",
+    });
   const headline: Record<CardType, [string, Tone]> = {
+    share: [share[0], share[1]],
     new: ["New market", "accent"],
     proposed: ["Result proposed", "accent"],
     won: ["You won", "win"],
@@ -143,11 +228,14 @@ export function cardModel(q: CardQuery, m: CardMarket): CardModel {
     cancelled: ["Cancelled", "cream"],
   };
   const detail: Record<CardType, string> = {
+    share: share[2],
     new: `Opening stake ${usdcText(m.stakeA)} USDC · closes ${utc(m.deadline)}`,
     proposed: winnerLabel
       ? `${named(winnerLabel)}${confidence ? ` · ${confidence}% sure` : ""}${m.disputableUntil ? ` · disputable until ${utc(m.disputableUntil)}` : ""}`
       : `No winner: a refund${m.disputableUntil ? ` · disputable until ${utc(m.disputableUntil)}` : ""}`,
-    won: winnerLabel ? `${named(winnerLabel)} won · paid straight to your account` : "Settled in your favour",
+    won: winnerLabel
+      ? `${named(winnerLabel)} won · paid straight to your account`
+      : "Settled in your favour",
     lost: winnerLabel ? `${named(winnerLabel)} won` : "Settled against you",
     refunded: "No winner: every stake is returned",
     cancelled: "The creator cancelled; stakes are returned",
@@ -160,7 +248,10 @@ export function cardModel(q: CardQuery, m: CardMarket): CardModel {
     question: clampText(m.question, 150),
     detail: detail[q.type],
     sides,
-    footer: [`${m.participants} ${m.participants === 1 ? "participant" : "participants"}`, `${usdcText(total.toString())} USDC staked`],
+    footer: [
+      `${m.participants} ${m.participants === 1 ? "participant" : "participants"}`,
+      `${usdcText(total.toString())} USDC staked`,
+    ],
   };
 }
 
@@ -181,5 +272,8 @@ export function trimCaption(html: string, max = CAPTION_MAX): string {
       if (at >= 0) open.splice(at, 1);
     } else open.push(tag);
   }
-  return `${cut.trimEnd()}…${open.reverse().map((t) => `</${t}>`).join("")}`;
+  return `${cut.trimEnd()}…${open
+    .reverse()
+    .map((t) => `</${t}>`)
+    .join("")}`;
 }

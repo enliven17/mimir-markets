@@ -24,6 +24,7 @@ import ArcCouncilTakes from "./ArcCouncilTakes";
 import ArcMarketActions from "./ArcMarketActions";
 import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
 import ArcStakePanel from "./ArcStakePanel";
+import ShareMarket from "./ShareMarket";
 import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
 
@@ -53,6 +54,9 @@ function useWide(): boolean {
 }
 
 export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind; marketId: number }) {
+  // Right after the creator opened it (ArcCreateForm sends ?new=1): the share prompt instead of the small buttons.
+  const [fresh, setFresh] = useState(false);
+  useEffect(() => setFresh(new URLSearchParams(window.location.search).get("new") === "1"), []);
   const m = useQuery(api.arc.market, { kind, marketId });
   // Live bets: a chip flies into the side that was backed and the bar jolts (BetFx.tsx).
   const bets = useNewBets(m?.events);
@@ -105,7 +109,10 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             </span>
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>
+          {fresh ? null : <ShareMarket kind={kind} marketId={m.marketId} question={m.question} />}
         </header>
+
+        {fresh ? <ShareMarket kind={kind} marketId={m.marketId} question={m.question} fresh /> : null}
 
         <section aria-label="Sides" className={`${SURFACE} grid gap-4 p-5`}>
           <div className="grid grid-cols-2 gap-3">

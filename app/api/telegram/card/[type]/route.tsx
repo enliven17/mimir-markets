@@ -1,7 +1,7 @@
 /**
  * GET /api/telegram/card/<type>?kind=vs|pool&id=N[&side=1|2]&v=<version>: the picture a Telegram market
  * notification is sent with (lib/server/telegram.ts sendPhotoTo). Types: new, proposed, won, lost, refunded,
- * cancelled. 1200×630 PNG in the brand: ink ground, cream type, one signal-red accent, the horn.
+ * cancelled, share (a market page's link preview). 1200×630 PNG in the brand: ink ground, cream type, one signal-red accent, the horn.
  * Market data comes from the backend index; the card shows nothing a market page does not.
  */
 import { readFile } from "node:fs/promises";
@@ -116,7 +116,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string }>
   const [display, pixel, mono, hornPng] = await assets;
   const horn = `data:image/png;base64,${hornPng.toString("base64")}`;
   // A settled market's card never changes; an open one does as stakes come in.
-  const final = q.type !== "new" && q.type !== "proposed";
+  const final = q.type !== "new" && q.type !== "proposed" && q.type !== "share";
   return new ImageResponse(<Card c={cardModel(q, market)} horn={horn} />, {
     width: 1200,
     height: 630,

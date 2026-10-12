@@ -106,7 +106,7 @@ export default function ArcCreateForm() {
         : parseEventLogs({ abi: MIMIR_POOL_ABI, logs: receipt.logs, eventName: "MarketCreated" });
     const id = logs.find((l) => l.address.toLowerCase() === contract.toLowerCase())?.args.id;
     if (id === undefined) return setStage(null);
-    router.push(`/arena/arc/${kind}/${id}`);
+    router.push(`/arena/arc/${kind}/${id}?new=1`);
   };
 
   return (
