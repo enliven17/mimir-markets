@@ -5,6 +5,7 @@
  * challengers take the other, up to 5× your stake) or a two-sided pool, in
  * one form. One passkey prompt creates and funds it; then the market page.
  */
+import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { parseEventLogs } from "viem";
 
@@ -16,6 +17,7 @@ import { createMarketCall, entryFeeOf, LOCK_SECONDS, MIMIR_POOL_ABI, MIMIR_V3_AB
 import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
 import { CATEGORIES } from "@/lib/constants";
 import { mentionsPastDay } from "@/lib/past-date";
+import { api } from "@/convex/_generated/api";
 import AccountGate from "./AccountGate";
 import { BTN_PRIMARY, KIND_LABEL, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
@@ -42,6 +44,9 @@ function isHttpUrl(s: string) {
   }
 }
 
+/** Markets one account may open in 24 hours, so a bot cannot flood the arena or the oracle's queue. */
+const MARKETS_PER_DAY = 3;
+
 export default function ArcCreateForm() {
   const router = useRouter();
   const account = useArcAccount();
@@ -61,8 +66,10 @@ export default function ArcCreateForm() {
   const deadlineSec = Math.floor(new Date(deadline).getTime() / 1000);
   const contract = kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
 
+  const openedToday = useQuery(api.arc.openedToday, account.address ? { creator: account.address } : "skip");
   const problem = useMemo(() => {
     const now = Math.floor(Date.now() / 1000);
+    if ((openedToday ?? 0) >= MARKETS_PER_DAY) return `You can open ${MARKETS_PER_DAY} markets a day. Take a side on an open one, or come back tomorrow.`;
     if (question.trim().length < 10) return "Write the question (at least 10 characters).";
     // A day that has already passed means the outcome is public: refuse it (lib/past-date.ts).
     if (mentionsPastDay(question, Date.now(), { includeToday: false })) return "The question names a day that has passed: its outcome is already known.";
@@ -72,7 +79,7 @@ export default function ArcCreateForm() {
     if (stake === null || stake < MIN_STAKE_WEI) return `Stake at least ${usd(MIN_STAKE_WEI)}.`;
     if (account.balance !== null && stake > account.balance) return "not-enough";
     return null;
-  }, [question, labelA, labelB, url, deadlineSec, stake, account.balance]);
+  }, [question, labelA, labelB, url, deadlineSec, stake, account.balance, openedToday]);
 
   const onCreate = async () => {
     if (problem || !contract || stake === null) return;

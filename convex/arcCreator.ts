@@ -141,7 +141,14 @@ export const tick = internalAction({
       console.log(`[creator] daily budget used (${spentToday.toFixed(2)} of ${budget} USDC)`);
       return;
     }
-    drafts.splice(affordable);
+    // At most CREATOR_DAILY_MARKETS markets a day (UTC), whatever the budget allows.
+    const openedToday = own.filter((m) => m.createdAt >= dayStart).length;
+    const dailyLeft = Math.max(0, envNum("CREATOR_DAILY_MARKETS", 2) - openedToday);
+    if (dailyLeft === 0) {
+      console.log(`[creator] daily market count reached (${openedToday})`);
+      return;
+    }
+    drafts.splice(Math.min(affordable, dailyLeft));
     const balance = await arcPublicClient(cfg).getBalance({ address: wallet.address });
     if (balance < parseEther((stakeUsdc * drafts.length).toFixed(6))) {
       console.warn(`[creator] not enough USDC on ${wallet.address} for ${drafts.length} markets; top it up`);

@@ -132,6 +132,7 @@ export const poke = mutation({
 /** How many decisions one oracle tick is offered (arcOracle takes the first few), and how far each scan reads. */
 const DECIDE_BATCH = 12;
 const SCAN = 400;
+const SPAM_UNCONTESTED_PER_CREATOR = 3;
 
 /** Everything the oracle may do right now, from the index. `now` in unix seconds. Every read is bounded. */
 export const oracleWork = internalQuery({
@@ -144,8 +145,21 @@ export const oracleWork = internalQuery({
     const [active, open, proposed, disputed] = await Promise.all([due("active"), due("open"), due("proposed"), due("disputed")]);
     const undecided = [...active.filter((m) => m.kind === "vs"), ...open.filter((m) => m.kind === "pool")];
 
+    // Spam guard: a creator with more than SPAM_UNCONTESTED_PER_CREATOR one-sided markets due at once gets no oracle
+    // gas spent on the extra ones; they stay refundable by anyone (refundExpired) once the grace period ends.
+    const oneSided = (m: M) => BigInt(m.stakeA) === 0n || BigInt(m.stakeB) === 0n;
+    const seen = new Map<string, number>();
+    const spam = new Set<M["_id"]>();
+    for (const m of [...undecided].sort((a, b) => a.createdAt - b.createdAt)) {
+      if (!oneSided(m)) continue;
+      const n = (seen.get(m.creator) ?? 0) + 1;
+      seen.set(m.creator, n);
+      if (n > SPAM_UNCONTESTED_PER_CREATOR) spam.add(m._id);
+    }
+
     const ready: M[] = [];
     for (const m of undecided) {
+      if (spam.has(m._id)) continue;
       if (m.refundAt <= now) continue;
       const t = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", m.kind).eq("marketId", m.marketId)).unique();
       if (!t || t.notBefore <= now * 1000) ready.push(m);
@@ -157,7 +171,7 @@ export const oracleWork = internalQuery({
     ).map(({ pot: _pot, ...m }) => m as M);
 
     const finalize = proposed.filter((m) => m.disputableUntil > 0 && m.disputableUntil <= now);
-    const refund = [...undecided, ...disputed].filter((m) => m.refundAt <= now).slice(0, 50);
+    const refund = [...undecided.filter((m) => !spam.has(m._id)), ...disputed].filter((m) => m.refundAt <= now).slice(0, 50);
 
     // Pool payouts still owed: settled in the last 30 days (older ones anyone can claim themselves).
     const since = now - 30 * 86_400;
@@ -227,6 +241,16 @@ export const openMarkets = internalQuery({
 });
 
 /** Every market one address opened (lowercase), any status. */
+/** How many markets an account opened in the last 24 hours (the create form's daily limit). */
+export const openedToday = query({
+  args: { creator: v.string() },
+  handler: async (ctx, { creator }) => {
+    const since = Math.floor(Date.now() / 1000) - 86_400;
+    const rows = await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(50);
+    return rows.filter((m) => m.createdAt >= since).length;
+  },
+});
+
 export const marketsBy = internalQuery({
   args: { creator: v.string() },
   handler: async (ctx, { creator }) => ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(2000),
