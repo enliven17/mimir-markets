@@ -96,6 +96,7 @@ async function vetDrafts(drafts: DraftClaim[]): Promise<DraftClaim[]> {
 export const tick = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-creator" });
     const e = process.env;
     const wallet = creatorWallet();

@@ -52,7 +52,7 @@ export default function ArcMarketActions({
   };
 
   return (
-    <div className="grid gap-3 border-t border-line pt-4">
+    <div className="mt-6 grid gap-3 border-t border-line pt-5">
       {canCancel ? (
         <>
           <p className="m-0 text-[13px] leading-relaxed text-muted">Nobody has challenged yet. You can cancel and take your stake back.</p>

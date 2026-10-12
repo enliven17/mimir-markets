@@ -66,6 +66,7 @@ const utc = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 16).r
 export const tick = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     const e = process.env;
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS });
     const { mimirV3, mimirPool } = cfg.contracts;

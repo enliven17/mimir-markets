@@ -195,6 +195,7 @@ export const importRows = internalMutation({
 export const sweep = internalMutation({
   args: {},
   handler: async (ctx) => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     const now = Date.now();
     const cutoffs: Array<[string, number]> = [
       ["wallet_relay", now - 10 * 60_000],

@@ -126,6 +126,7 @@ const errText = (e: unknown) => {
 export const tick = internalAction({
   args: {},
   handler: async (ctx) => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-oracle" });
     if (process.env.MIMIR_PAUSE_ORACLE_SETTLEMENT === "1") return;
     const s = setup();

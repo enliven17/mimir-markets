@@ -1,6 +1,7 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
 
+// MIMIR_BACKEND_OFF=1 in a deployment's env turns every job below into a no-op (the old testnet backend).
 const crons = cronJobs();
 // ~86k runs a month, well inside the free 1M calls.
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});

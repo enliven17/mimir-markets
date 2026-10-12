@@ -88,6 +88,7 @@ function config() {
 export const sync = internalAction({
   args: {},
   handler: async (ctx) => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-sync" });
     const cfg = config();
     const { mimirV3, mimirPool, fromBlock } = cfg.contracts;
