@@ -31,6 +31,13 @@ export async function fetchBinding(solana: string): Promise<ArcBinding | null> {
   return (await json<{ binding: ArcBinding }>(res)).binding;
 }
 
+/** The binding that holds this Arc account, if any wallet holds it. */
+export async function fetchBindingByArc(arc: string): Promise<ArcBinding | null> {
+  const res = await fetch(`/api/arc/bind?arc=${encodeURIComponent(arc)}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  return (await json<{ binding: ArcBinding }>(res)).binding;
+}
+
 export async function postBinding(body: {
   solana: string;
   arc: string;

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { useSignText } from "@/components/copy/useSignText";
-import { fetchBinding, postBinding, type ArcBinding } from "@/lib/arc/api-client";
+import { fetchBinding, fetchBindingByArc, postBinding, type ArcBinding } from "@/lib/arc/api-client";
 import type { ArcSession } from "@/lib/arc/account";
 import { arcBindMessage } from "@/lib/arc/bind";
 import { ARC } from "@/lib/arc/config";
@@ -26,6 +26,8 @@ export interface ArcWallet {
   binding: BindingState;
   /** The session's account is the one bound to the connected Solana wallet. */
   linked: boolean;
+  /** The Solana wallet the session's account is bound to (null: none, undefined: not known yet). */
+  sessionOwner: string | null | undefined;
   busy: string | null;
   error: string | null;
   clearError(): void;
@@ -34,6 +36,8 @@ export interface ArcWallet {
   link(): Promise<void>;
   recover(phrase: string): Promise<void>;
   signOut(): Promise<void>;
+  /** Forget this device's passkey account and create a new one (for a second Solana wallet on the same device). */
+  startFresh(): Promise<void>;
   setSession(session: ArcSession): void;
 }
 
@@ -57,6 +61,7 @@ export function useArcWallet(): ArcWallet {
   const [binding, setBinding] = useState<BindingState>({ status: "unknown" });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sessionOwner, setSessionOwner] = useState<string | null | undefined>(undefined);
 
   // A stored public credential: rebuild the session without a prompt.
   useEffect(() => {
@@ -90,6 +95,20 @@ export function useArcWallet(): ArcWallet {
   useEffect(() => {
     void reloadBinding();
   }, [reloadBinding]);
+
+  // Which wallet owns the session's account, so a second wallet on this device is offered a new account, not a link that fails.
+  const sessionAddress = session?.address ?? null;
+  useEffect(() => {
+    setSessionOwner(undefined);
+    if (!sessionAddress) return;
+    let cancelled = false;
+    fetchBindingByArc(sessionAddress)
+      .then((b) => !cancelled && setSessionOwner(b?.solana ?? null))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionAddress, binding]);
 
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setBusy(label);
@@ -143,6 +162,15 @@ export function useArcWallet(): ArcWallet {
     setSession(null);
   }, []);
 
+  const startFresh = useCallback(async () => {
+    await run("create", async () => {
+      const mod = await loadArcAccount();
+      mod.clearStoredPasskey();
+      setSession(null);
+      setSession(await mod.createPasskeyAccount(passkeyName(solana)));
+    });
+  }, [run, solana]);
+
   const bound = binding.status === "loaded" ? binding.binding : null;
   return {
     configured,
@@ -151,6 +179,7 @@ export function useArcWallet(): ArcWallet {
     restoring,
     binding,
     linked: Boolean(session && bound && bound.arc.toLowerCase() === session.address.toLowerCase()),
+    sessionOwner,
     busy,
     error,
     clearError: () => setError(null),
@@ -159,6 +188,7 @@ export function useArcWallet(): ArcWallet {
     link,
     recover,
     signOut,
+    startFresh,
     setSession,
   };
 }

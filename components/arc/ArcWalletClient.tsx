@@ -207,6 +207,16 @@ function AccountBody({ w }: { w: ArcWallet }) {
         <p className="m-0 text-[14px] text-cream" data-testid="arc-linked">
           Linked to your Solana wallet <span className="font-mono">{short(w.solana ?? "")}</span>.
         </p>
+      ) : w.solana && w.sessionOwner && w.sessionOwner !== w.solana ? (
+        <div className="grid gap-2">
+          <p className="m-0 text-[13px] text-coral">
+            This Arc account belongs to your other Solana wallet ({short(w.sessionOwner)}). Each wallet gets its own Arc account.
+          </p>
+          <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.startFresh()} className={`${BTN_PRIMARY} justify-self-start`}>
+            {w.busy === "create" ? "Follow your device's prompt…" : "Create a new Arc account for this wallet"}
+          </button>
+          <p className="m-0 text-[12px] text-muted">A new passkey on this device, then link it. The other account stays with the other wallet.</p>
+        </div>
       ) : w.solana ? (
         <div className="grid gap-2">
           {bound ? (

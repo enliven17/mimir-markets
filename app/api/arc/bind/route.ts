@@ -1,5 +1,6 @@
 /**
  * GET  /api/arc/bind?solana=<base58>  the Arc account bound to that wallet (public info), 404 when none
+ * GET  /api/arc/bind?arc=<0x…>         the wallet that Arc account is bound to, 404 when none
  * POST /api/arc/bind                  { solana, arc, signedAt, solanaSignature, arcSignature, credentialId? }
  *
  * Both signatures cover `arcBindMessage(solana, arc, signedAt)` (lib/arc/bind.ts):
@@ -12,7 +13,9 @@ import { NextResponse } from "next/server";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { checkArcBindBody } from "@/lib/arc/bind";
 import { hasAccess } from "@/lib/server/access";
-import { ArcAccountTakenError, getArcBinding, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
+import { getAddress, isAddress } from "viem";
+
+import { ArcAccountTakenError, getArcBinding, getArcBindingByArc, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -23,11 +26,15 @@ const NOT_CONFIGURED = { error: "Arc accounts need a database on this deploy" };
 
 export async function GET(req: Request) {
   if (!(await allowRequest("arc-bind-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
-  const solana = normalizeAddress(new URL(req.url).searchParams.get("solana"));
-  if (!solana) return NextResponse.json({ error: "solana must be a Solana public key" }, { status: 400 });
+  const params = new URL(req.url).searchParams;
+  const arcParam = params.get("arc");
+  const arc = arcParam && isAddress(arcParam) ? getAddress(arcParam) : null;
+  const solana = arc ? null : normalizeAddress(params.get("solana"));
+  if (arcParam && !arc) return NextResponse.json({ error: "arc must be an EVM address" }, { status: 400 });
+  if (!arc && !solana) return NextResponse.json({ error: "solana must be a Solana public key" }, { status: 400 });
   if (!storeEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   try {
-    const binding = await getArcBinding(solana);
+    const binding = arc ? await getArcBindingByArc(arc) : await getArcBinding(solana!);
     if (!binding) return NextResponse.json({ error: "no Arc account is bound to this wallet" }, { status: 404 });
     return NextResponse.json({ binding }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
