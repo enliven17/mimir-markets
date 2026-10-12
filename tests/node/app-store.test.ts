@@ -54,14 +54,16 @@ test("invite redeem: a code is spent once, never by its owner, and grants the wa
 
 test("an Arc account binds to one Solana wallet; a wallet moving frees its old account", () =>
   withStore(async () => {
-    const { upsertArcBinding, getArcBindingByArc, ArcAccountTakenError } = await import("../../lib/server/arc-accounts");
+    const { upsertArcBinding, getArcBindingByArc, ArcAccountTakenError, ArcRebindTooSoonError, REBIND_COOLDOWN_MS: DAY } = await import("../../lib/server/arc-accounts");
     await upsertArcBinding({ solana: "S1", arc: "0xA", credentialId: null, now: 1 });
     await assert.rejects(() => upsertArcBinding({ solana: "S2", arc: "0xA", credentialId: null }), ArcAccountTakenError);
     await upsertArcBinding({ solana: "S1", arc: "0xA", credentialId: "c", now: 2 });
-    await upsertArcBinding({ solana: "S1", arc: "0xB", credentialId: null, now: 3 });
+    // Moving to another account within a day is refused; after it, allowed.
+    await assert.rejects(() => upsertArcBinding({ solana: "S1", arc: "0xB", credentialId: null, now: 3 }), ArcRebindTooSoonError);
+    await upsertArcBinding({ solana: "S1", arc: "0xB", credentialId: null, now: 2 + DAY });
     assert.equal(await getArcBindingByArc("0xA"), null);
     assert.equal((await getArcBindingByArc("0xB"))?.solana, "S1");
-    await upsertArcBinding({ solana: "S2", arc: "0xA", credentialId: null, now: 4 });
+    await upsertArcBinding({ solana: "S2", arc: "0xA", credentialId: null, now: 4 + DAY });
     assert.equal((await getArcBindingByArc("0xA"))?.solana, "S2");
   }));
 

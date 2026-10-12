@@ -15,7 +15,7 @@ import { checkArcBindBody } from "@/lib/arc/bind";
 import { hasAccess } from "@/lib/server/access";
 import { getAddress, isAddress } from "viem";
 
-import { ArcAccountTakenError, getArcBinding, getArcBindingByArc, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
+import { ArcAccountTakenError, ArcRebindTooSoonError, getArcBinding, getArcBindingByArc, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -45,6 +45,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   if (!(await allowRequest("arc-bind", clientIp(req), 10, 60_000))) return tooManyRequests(60);
+  // Links per address per day: new accounts are free to make, so cap how many one address can link.
+  if (!(await allowRequest("arc-bind-day", clientIp(req), 20, 86_400_000))) return tooManyRequests(3600);
   const read = await readLimitedJson(req);
   if (!read.ok || !read.value || typeof read.value !== "object") {
     return NextResponse.json({ error: "body must be a JSON object" }, { status: read.ok ? 400 : read.status });
@@ -67,6 +69,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ binding });
   } catch (err) {
     if (err instanceof ArcAccountTakenError) return NextResponse.json({ error: err.message }, { status: 409 });
+    if (err instanceof ArcRebindTooSoonError) return NextResponse.json({ error: err.message, retryAt: err.retryAt }, { status: 429 });
     console.error("[arc-bind] write failed:", err);
     return NextResponse.json({ error: "the binding could not be saved" }, { status: 503 });
   }

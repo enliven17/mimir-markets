@@ -22,6 +22,19 @@ interface Props {
   onSettled: () => void;
 }
 
+/** Each transfer is a gas-sponsored operation: no dust transfers, and a short pause between two from one browser. */
+const MIN_TRANSFER_UNITS = 1_000_000n; // 1 USDC
+const TRANSFER_COOLDOWN_MS = 60_000;
+const LAST_TRANSFER_KEY = "mimir:arc:last-transfer";
+
+function cooldownLeft(): number {
+  try {
+    return Math.max(0, Number(localStorage.getItem(LAST_TRANSFER_KEY) ?? 0) + TRANSFER_COOLDOWN_MS - Date.now());
+  } catch {
+    return 0;
+  }
+}
+
 function describe(err: unknown): string {
   const e = err as { name?: string; message?: string; shortMessage?: string };
   if (e?.name === "NotAllowedError") return "The passkey prompt was closed or timed out.";
@@ -53,6 +66,7 @@ export default function TransferPanel({ session, arcUnits, solanaUnits, onSettle
   const units = parseUsdcAmount(amount);
   const available = kind === "deposit" ? solanaUnits : arcUnits;
   const tooMuch = units !== null && available !== null && units > available;
+  const tooSmall = units !== null && units < MIN_TRANSFER_UNITS;
   const signer = publicKey && signTransaction ? { publicKey, signTransaction } : null;
 
   async function go(fn: (m: Awaited<ReturnType<typeof loadArcTransfers>>, deps: TransferDeps) => Promise<unknown>, k: TransferKind) {
@@ -73,7 +87,14 @@ export default function TransferPanel({ session, arcUnits, solanaUnits, onSettle
   }
 
   function submit() {
-    if (!signer || units === null || tooMuch) return;
+    if (!signer || units === null || tooMuch || tooSmall) return;
+    const wait = cooldownLeft();
+    if (wait > 0) return setError(`One transfer a minute: try again in ${Math.ceil(wait / 1000)} s.`);
+    try {
+      localStorage.setItem(LAST_TRANSFER_KEY, String(Date.now()));
+    } catch {
+      // ponytail: the pause is a convenience brake; the Gas Station policy is the real per-wallet limit.
+    }
     if (kind === "deposit") {
       if (feeBps === null) return setError("The transfer fee quote is not available yet; try again in a moment.");
       void go((m, deps) => m.deposit({ connection, signer, session, amount: units, feeBps }, deps), "deposit");
@@ -127,13 +148,13 @@ export default function TransferPanel({ session, arcUnits, solanaUnits, onSettle
             placeholder="1.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(",", "."))}
-            aria-invalid={amount !== "" && (units === null || tooMuch)}
+            aria-invalid={amount !== "" && (units === null || tooMuch || tooSmall)}
             aria-describedby={`${amountId}-hint`}
             className="min-w-0 flex-1 rounded-xl bg-ink-deep px-3 py-2.5 font-mono text-[15px] text-cream outline-none placeholder:text-dim focus-visible:ring-2 focus-visible:ring-coral"
           />
           <button
             type="submit"
-            disabled={busy || !signer || units === null || tooMuch}
+            disabled={busy || !signer || units === null || tooMuch || tooSmall}
             className="rounded-full bg-coral px-6 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60"
           >
             {busy ? "Working…" : kind === "deposit" ? "Deposit" : "Withdraw"}
@@ -145,6 +166,7 @@ export default function TransferPanel({ session, arcUnits, solanaUnits, onSettle
             ? `Fast transfer through Circle's CCTP${feeBps !== null ? `, fee about ${(feeBps / 100).toFixed(2)}% of the amount` : ""}. You pay the Solana fee.`
             : "Standard transfer through Circle's CCTP, no fee. Arc gas is sponsored; receiving on Solana costs a tiny SOL fee."}
           {tooMuch ? " That is more than you have." : ""}
+          {tooSmall ? " The minimum is 1 USDC." : ""}
         </p>
       </form>
 

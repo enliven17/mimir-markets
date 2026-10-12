@@ -109,7 +109,7 @@ const GROQ_QUOTA_COOLDOWN_MS = Number(process.env.GROQ_QUOTA_COOLDOWN_MS ?? "270
 const OPENROUTER_QUOTA_COOLDOWN_MS = Number(process.env.OPENROUTER_QUOTA_COOLDOWN_MS ?? "2700000");
 
 const anthropicClients = new Map<string, Anthropic>();
-let openrouterCooldownUntil = 0;
+const openrouterCooldownByKey = new Map<string, number>();
 const groqCooldownByKey = new Map<string, number>();
 /** `${keyId}|${model}` → until: Gemini limits are per key per model. */
 const geminiCooldownByCombo = new Map<string, number>();
@@ -208,6 +208,10 @@ function groqKeys(): string[] {
   return splitList(process.env.GROQ_API_KEY, process.env.GROQ_API_KEYS);
 }
 
+function openrouterKeys(): string[] {
+  return splitList(process.env.OPENROUTER_API_KEY, process.env.OPENROUTER_API_KEYS);
+}
+
 /** SETTLEMENT_MODELS (comma list): Gemini and Claude ids only, never Gemma or ":free". */
 export function settlementModels(): string[] {
   return splitList(process.env.SETTLEMENT_MODELS?.trim() || SETTLEMENT_DEFAULT_MODELS).filter((m) => {
@@ -272,7 +276,7 @@ function hasKey(provider: LLMProvider, scope: KeyScope): boolean {
   if (provider === "gemini") return geminiKeysFor(scope).length > 0;
   // Groq and OpenRouter keys are shared by definition: never the oracle's.
   if (provider === "groq") return scope.role !== "oracle" && groqKeys().length > 0;
-  if (provider === "openrouter") return scope.role !== "oracle" && Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  if (provider === "openrouter") return scope.role !== "oracle" && openrouterKeys().length > 0;
   return Boolean(anthropicKeyFor(scope));
 }
 
@@ -287,7 +291,10 @@ function cooldown(provider: LLMProvider, scope: KeyScope, geminiModels: string[]
     const keys = groqKeys().map((k) => remaining(groqCooldownByKey.get(k) ?? 0));
     return keys.length === 0 || keys.some((c) => c === 0) ? 0 : Math.min(...keys);
   }
-  if (provider === "openrouter") return remaining(openrouterCooldownUntil);
+  if (provider === "openrouter") {
+    const keys = openrouterKeys().map((k) => remaining(openrouterCooldownByKey.get(k) ?? 0));
+    return keys.length === 0 || keys.some((c) => c === 0) ? 0 : Math.min(...keys);
+  }
   return 0;
 }
 
@@ -297,7 +304,7 @@ export function activeLLMProvider(keyEnv?: string): LLMProvider {
   if (geminiKeyFor(keyEnv)) return "gemini";
   if (process.env.ANTHROPIC_API_KEY?.trim()) return "anthropic";
   if (groqKeys().length > 0) return "groq";
-  if (process.env.OPENROUTER_API_KEY?.trim()) return "openrouter";
+  if (openrouterKeys().length > 0) return "openrouter";
   throw new Error("No LLM API key configured. Set GEMINI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY or OPENROUTER_API_KEY.");
 }
 
@@ -318,7 +325,7 @@ export function activeLLMKeyFingerprint(keyEnv?: string): string {
   const key = (
     provider === "gemini" ? geminiKeyFor(keyEnv)
     : provider === "groq" ? groqKeys()[0]
-    : provider === "openrouter" ? process.env.OPENROUTER_API_KEY
+    : provider === "openrouter" ? openrouterKeys()[0]
     : process.env.ANTHROPIC_API_KEY
   )?.trim() ?? "";
   return key ? `sha256:${keyId(key)}` : "(missing)";
@@ -514,33 +521,44 @@ async function callGroq(prompt: string, o: CallOpts): Promise<string> {
 
 // ── OpenRouter ────────────────────────────────────────────────────────────────
 async function callOpenRouter(prompt: string, o: CallOpts): Promise<string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY!.trim()}`,
-    "X-OpenRouter-Title": process.env.OPENROUTER_APP_NAME || "Mimir",
-  };
-  if (process.env.OPENROUTER_SITE_URL?.trim()) headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL.trim();
-  const body: Record<string, unknown> = {
-    model: DEFAULT_OPENROUTER_MODEL,
-    messages: [{ role: "user", content: prompt }],
-    max_tokens: o.maxTokens,
-    temperature: o.temperature,
-  };
-  if (o.jsonOnly && DEFAULT_OPENROUTER_MODEL !== "openrouter/free") body.response_format = { type: "json_object" };
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) {
-    if (res.status === 429) openrouterCooldownUntil = Date.now() + OPENROUTER_QUOTA_COOLDOWN_MS;
-    throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  let lastError: Error | null = null;
+  for (const apiKey of openrouterKeys()) {
+    if (remaining(openrouterCooldownByKey.get(apiKey) ?? 0) > 0) continue;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "X-OpenRouter-Title": process.env.OPENROUTER_APP_NAME || "Mimir",
+    };
+    if (process.env.OPENROUTER_SITE_URL?.trim()) headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL.trim();
+    const body: Record<string, unknown> = {
+      model: DEFAULT_OPENROUTER_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: o.maxTokens,
+      temperature: o.temperature,
+    };
+    if (o.jsonOnly && DEFAULT_OPENROUTER_MODEL !== "openrouter/free") body.response_format = { type: "json_object" };
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) {
+      const text = (await res.text()).slice(0, 300);
+      // A rate limit, an exhausted credit balance or a bad key: rest this key and try the next one.
+      if (res.status === 429 || res.status === 401 || res.status === 402 || res.status === 403) {
+        openrouterCooldownByKey.set(apiKey, Date.now() + OPENROUTER_QUOTA_COOLDOWN_MS);
+        lastError = new Error(`OpenRouter key:${keyId(apiKey)} ${res.status}: ${text}`);
+        continue;
+      }
+      throw new Error(`OpenRouter ${res.status}: ${text}`);
+    }
+    const json: any = await res.json();
+    const out: string = (json?.choices?.[0]?.message?.content ?? "").trim();
+    if (!out) throw new Error("OpenRouter empty response");
+    return out;
   }
-  const json: any = await res.json();
-  const out: string = (json?.choices?.[0]?.message?.content ?? "").trim();
-  if (!out) throw new Error("OpenRouter empty response");
-  return out;
+  throw lastError ?? new Error("OpenRouter: every key is cooling down");
 }
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────

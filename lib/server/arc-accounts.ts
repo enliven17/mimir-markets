@@ -25,6 +25,15 @@ export class ArcAccountTakenError extends Error {
   }
 }
 
+/** A wallet may move to a different Arc account once a day, so accounts are not churned to farm sponsored gas. */
+export const REBIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export class ArcRebindTooSoonError extends Error {
+  constructor(public readonly retryAt: number) {
+    super("This wallet changed its Arc account less than a day ago. Try again later.");
+  }
+}
+
 type Row = { solana: string; arc: string; credential_id: string | null; bound_at: number | null };
 const toBinding = (r: Row | null): ArcBindingRow | null =>
   r ? { solana: r.solana, arc: r.arc as `0x${string}`, boundAt: Number(r.bound_at ?? 0) } : null;
@@ -50,6 +59,9 @@ export async function upsertArcBinding(args: {
   const boundAt = args.now ?? Date.now();
   const s = store();
   const previous = await s.get<Row>("arc_accounts", args.solana);
+  if (previous && previous.arc !== args.arc && previous.bound_at && boundAt - Number(previous.bound_at) < REBIND_COOLDOWN_MS) {
+    throw new ArcRebindTooSoonError(Number(previous.bound_at) + REBIND_COOLDOWN_MS);
+  }
   const steps: Step[] = [];
   // The account must be free, or already this wallet's; a wallet moving to a new account frees its old one.
   if (previous && previous.arc !== args.arc) steps.push({ op: "remove", t: "arc_owners", k: previous.arc });
