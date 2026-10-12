@@ -44,6 +44,7 @@ interface Board {
 
 const short = (k: string) => `${k.slice(0, 4)}…${k.slice(-4)}`;
 const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const usdc = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CampaignClient() {
   const { publicKey } = useWallet();
@@ -138,7 +139,7 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
           </div>
           {me?.row ? (
             <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-muted">
-              <span>{num(me.row.volumeUsdc)} USDC</span>
+              <span>{usdc(me.row.volumeUsdc)} USDC</span>
               <span>{me.row.agents} agents</span>
               <span>{me.row.baskets} baskets</span>
               <span>{me.row.follows} follows</span>
@@ -317,7 +318,7 @@ function Leaderboard({ board, wallet }: { board: Board | null; wallet: string | 
                     {r.tier !== "none" ? <HolderBadge tier={r.tier} className="ml-2" /> : null}
                     {r.wallet === wallet ? <span className="ml-2 font-mono text-[11px] text-coral">you</span> : null}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-cream">{num(r.volumeUsdc)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-cream">{usdc(r.volumeUsdc)}</td>
                   <td className="px-4 py-3 text-right font-mono text-muted">{r.agents}</td>
                   <td className="px-4 py-3 text-right font-mono text-muted">{r.baskets}</td>
                   <td className="px-4 py-3 text-right font-mono text-muted">{r.follows}</td>

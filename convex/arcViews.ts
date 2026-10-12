@@ -89,8 +89,16 @@ export const volumeByUser = query({
   args: {},
   handler: async (ctx) => {
     // ponytail: bounded scan of the newest 12k positions per board refresh (the route caches 60s); an aggregate table past that.
+    // Money that came straight back scores nothing: cancelled markets, and settled ones that refunded everyone (a draw,
+    // unresolvable, a one-sided pool), so opening and cancelling markets cannot farm points.
+    const refunded = new Set<string>();
+    const key = (kind: string, id: number) => `${kind}:${id}`;
+    for (const m of await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", "cancelled")).take(5000)) refunded.add(key(m.kind, m.marketId));
+    for (const m of await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", "resolved")).take(5000))
+      if (m.winner !== 1 && m.winner !== 2) refunded.add(key(m.kind, m.marketId));
     const totals = new Map<string, number>();
-    for (const p of await ctx.db.query("arcPositions").order("desc").take(12_000)) totals.set(p.user, (totals.get(p.user) ?? 0) + p.amountUsd);
+    for (const p of await ctx.db.query("arcPositions").order("desc").take(12_000))
+      if (!refunded.has(key(p.kind, p.marketId))) totals.set(p.user, (totals.get(p.user) ?? 0) + p.amountUsd);
     return [...totals].map(([user, usdc]) => ({ user, usdc }));
   },
 });
