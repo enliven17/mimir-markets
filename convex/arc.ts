@@ -134,6 +134,14 @@ const DECIDE_BATCH = 12;
 const SCAN = 400;
 const SPAM_UNCONTESTED_PER_CREATOR = 3;
 
+function houseCreator(): string | null {
+  try {
+    return String(JSON.parse(process.env.ARC_CREATOR_WALLET ?? "null")?.address ?? "").toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Everything the oracle may do right now, from the index. `now` in unix seconds. Every read is bounded. */
 export const oracleWork = internalQuery({
   args: { now: v.number() },
@@ -147,11 +155,13 @@ export const oracleWork = internalQuery({
 
     // Spam guard: a creator with more than SPAM_UNCONTESTED_PER_CREATOR one-sided markets due at once gets no oracle
     // gas spent on the extra ones; they stay refundable by anyone (refundExpired) once the grace period ends.
+    // The house creator's own pools are exempt: their stake is ours and it should come back.
     const oneSided = (m: M) => BigInt(m.stakeA) === 0n || BigInt(m.stakeB) === 0n;
+    const house = houseCreator();
     const seen = new Map<string, number>();
     const spam = new Set<M["_id"]>();
     for (const m of [...undecided].sort((a, b) => a.createdAt - b.createdAt)) {
-      if (!oneSided(m)) continue;
+      if (!oneSided(m) || m.creator === house) continue;
       const n = (seen.get(m.creator) ?? 0) + 1;
       seen.set(m.creator, n);
       if (n > SPAM_UNCONTESTED_PER_CREATOR) spam.add(m._id);

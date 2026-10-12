@@ -5,7 +5,9 @@
 //   2. count its joinable markets; at MAX_ACTIVE_CLAIMS, stop
 //   3. draft from the same rule-built sources (crypto, $ANSEM, sports, stocks, Polymarket when enabled), gate them on
 //      chain limits and the decidability score, drop duplicates of its live markets, optionally council-preflight them
-//   4. open each as a VS market from the creator's Circle developer-controlled wallet (the key stays with Circle)
+//   4. open each as a two-sided pool (anyone stakes either side) from the creator's Circle developer-controlled
+//      wallet (the key stays with Circle); its stake backs side A. A pool nobody joined is refunded by the oracle.
+//      Leftover VS claims from before the switch are still cancelled by step 1.
 // Env: ARC_CREATOR_WALLET ({"id","address"}), CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, the CREATOR_* knobs of the old
 //      worker, MIMIR_PAUSE_CREATE_MARKET=1, MARKET_CREATOR_DRY_RUN=1.
 import { parseEther } from "viem";
@@ -29,7 +31,8 @@ const envNum = (name: string, fallback: number) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && process.env[name] !== undefined && process.env[name] !== "" ? n : fallback;
 };
-const CREATE_CLAIM = "createClaim(string,string,string,string,uint256,uint256,string,uint256,string,string,uint256,string,string,uint256,bool,string,address)";
+const CREATE_POOL = "createMarket(string,string,string,string,string,uint256,uint8,address)";
+const SIDE_A = 1;
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 function creatorWallet(): { id: string; address: `0x${string}` } | null {
@@ -98,7 +101,8 @@ export const tick = internalAction({
     const wallet = creatorWallet();
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS });
     const v3 = cfg.contracts.mimirV3;
-    if (!wallet || !v3) return;
+    const pool = cfg.contracts.mimirPool;
+    if (!wallet || !v3 || !pool) return;
     const dryRun = e.MARKET_CREATOR_DRY_RUN === "1";
     const now = Math.floor(Date.now() / 1000);
     const own: Doc<"arcMarkets">[] = await ctx.runQuery(internal.arc.marketsBy, { creator: wallet.address });
@@ -122,7 +126,7 @@ export const tick = internalAction({
       return;
     }
 
-    const signatures = live.map((m) => signatureOf({ category: m.category, question: m.question, resolutionUrl: m.resolutionUrl }, `VS #${m.marketId}`));
+    const signatures = live.map((m) => signatureOf({ category: m.category, question: m.question, resolutionUrl: m.resolutionUrl }, `${m.kind} #${m.marketId}`));
     const unique = filterDuplicates(gateDrafts(await gatherDrafts(cfg.network === "mainnet")), signatures, (d, why) => console.warn(`[draft] drop (duplicate, ${why}): ${d.label}`));
     const drafts = (await vetDrafts(unique)).slice(0, headroom);
     if (!drafts.length) {
@@ -135,7 +139,8 @@ export const tick = internalAction({
     // keeps losing its stakes costs at most this much a day. Cancelled empty markets give theirs back.
     const budget = envNum("CREATOR_DAILY_BUDGET_USDC", 1);
     const dayStart = Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()) / 1000);
-    const spentToday = own.filter((m) => m.createdAt >= dayStart && m.status !== "cancelled").reduce((sum, m) => sum + Number(BigInt(m.stakeA)) / 1e18, 0);
+    // ponytail: counts each market at today's stake; a pool's stakeA also holds other people's money on side A.
+    const spentToday = own.filter((m) => m.createdAt >= dayStart && m.status !== "cancelled").length * stakeUsdc;
     const affordable = Math.max(0, Math.floor((budget - spentToday + 1e-9) / stakeUsdc));
     if (affordable === 0) {
       console.log(`[creator] daily budget used (${spentToday.toFixed(2)} of ${budget} USDC)`);
@@ -165,9 +170,9 @@ export const tick = internalAction({
         const amount = stakeUsdc.toFixed(6);
         const tx = await executeContract({
           walletId: wallet.id,
-          contractAddress: v3,
-          abiFunctionSignature: CREATE_CLAIM,
-          abiParameters: [d.question, d.creatorPosition, d.counterPosition, d.resolutionUrl, BigInt(d.deadline), parseEther(amount), d.category, 0n, "binary", "pool", 0n, "", d.settlementRule.slice(0, 200), 16n, false, "", ZERO],
+          contractAddress: pool,
+          abiFunctionSignature: CREATE_POOL,
+          abiParameters: [d.question, d.creatorPosition, d.counterPosition, d.resolutionUrl, d.category, BigInt(d.deadline), SIDE_A, ZERO],
           amount,
         });
         created++;
