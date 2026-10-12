@@ -45,6 +45,8 @@ const RESULT_TONE: Record<Result, string> = { open: "text-cream", settling: "tex
 
 export default function ArcDashboard() {
   const account = useArcAccount();
+  // A Solana wallet is connected, its binding is known, and it is not this device's passkey account.
+  const unlinked = Boolean(account.wallet.solana) && account.wallet.binding.status === "loaded" && !account.wallet.linked;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <header className="flex items-baseline justify-between gap-4">
@@ -57,8 +59,8 @@ export default function ArcDashboard() {
       </header>
       {/* Codes belong to the Solana wallet, so a new member sees them before creating an Arc account. */}
       <InvitesPanel />
-      {/* No account yet: the setup steps right here, not a button off to /wallet. */}
-      {account.wallet.configured && !account.wallet.restoring && !account.address ? (
+      {/* No account yet, or this device's account belongs to another Solana wallet: the setup steps right here. */}
+      {account.wallet.configured && !account.wallet.restoring && (!account.address || unlinked) ? (
         <ArcWalletView w={account.wallet} bare />
       ) : (
         <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>

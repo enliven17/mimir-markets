@@ -45,6 +45,7 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
     key: "explore",
     items: [
+      { href: "/wallet", key: "wallet" },
       { href: "/baskets", key: "strategies", matchNested: true, also: ["/copy"] },
       { href: "/campaign", key: "campaign" },
       { href: "/stats", key: "stats", also: ["/calibration"] },

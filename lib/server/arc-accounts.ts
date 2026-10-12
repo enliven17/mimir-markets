@@ -21,7 +21,7 @@ export interface ArcBindingRow {
 
 export class ArcAccountTakenError extends Error {
   constructor() {
-    super("this Arc account is already bound to another Solana wallet");
+    super("This Arc account is already linked to another Solana wallet. Choose \"Use a different passkey on this device\", then create a new account for this wallet.");
   }
 }
 
