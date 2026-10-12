@@ -13,6 +13,7 @@
  */
 import {
   getAddressMapping,
+  getUserOperationGasPrice,
   OwnerIdentifierType,
   recoveryActions,
   toCircleModularWalletClient,
@@ -23,7 +24,7 @@ import {
   WebAuthnMode,
   type WebAuthnCredential,
 } from "@circle-fin/modular-wallets-core";
-import { bytesToHex, createPublicClient, getAddress, hexToBigInt, hexToBytes, type Address, type Hex } from "viem";
+import { bytesToHex, createPublicClient, getAddress, hexToBigInt, hexToBytes, parseGwei, type Address, type Hex, type PublicClient, type Transport } from "viem";
 import { createBundlerClient, toWebAuthnAccount, type SmartAccount } from "viem/account-abstraction";
 import { english, generateMnemonic, mnemonicToAccount } from "viem/accounts";
 
@@ -94,6 +95,40 @@ function p256Coordinates(publicKey: Hex): { x: bigint; y: bigint } {
 }
 
 /**
+ * Circle's Arc mainnet bundler refuses a priority fee under 1 gwei, while the chain suggests almost nothing, so every
+ * user operation tips at least that. Gas Station still pays; this only sets the price it is quoted.
+ */
+export const MIN_PRIORITY_FEE = parseGwei("1");
+
+/** Fee cap = baseFee × headroom + tip, the tip at least MIN_PRIORITY_FEE. A quote that already has headroom passes 1n. */
+export function userOpFees(baseFee: bigint, suggestedTip: bigint, headroom = 2n): { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } {
+  const tip = suggestedTip > MIN_PRIORITY_FEE ? suggestedTip : MIN_PRIORITY_FEE;
+  return { maxPriorityFeePerGas: tip, maxFeePerGas: baseFee * headroom + tip };
+}
+
+function arcBundler<A extends SmartAccount>(account: A, config: ArcConfig, transport: Transport) {
+  const client = createPublicClient({ chain: arcChain(config), transport }) as PublicClient;
+  return createBundlerClient({
+    account,
+    chain: arcChain(config),
+    transport,
+    userOperation: {
+      // Circle's own quote first ("low": enough for Arc, and keeps the first, account-deploying op under the Gas
+      // Station per-transaction cap); the chain's base fee with the minimum tip if the quote is unavailable.
+      estimateFeesPerGas: async () => {
+        try {
+          const { low } = await getUserOperationGasPrice(client);
+          return userOpFees(BigInt(low.maxFeePerGas) - BigInt(low.maxPriorityFeePerGas), BigInt(low.maxPriorityFeePerGas), 1n);
+        } catch {
+          const [block, tip] = await Promise.all([client.getBlock(), client.estimateMaxPriorityFeePerGas().catch(() => 0n)]);
+          return userOpFees(block.baseFeePerGas ?? (await client.getGasPrice()), tip);
+        }
+      },
+    },
+  });
+}
+
+/**
  * The account a passkey owns. A recovered passkey is mapped to the original
  * account (executeRecovery writes that mapping), so ask Circle first; a fresh
  * passkey has no mapping and gets its own counterfactual account.
@@ -115,7 +150,7 @@ async function resolveAccountAddress(passkey: StoredPasskey, config: ArcConfig):
 
 async function sessionFor(account: SmartAccount, passkey: StoredPasskey, config: ArcConfig): Promise<ArcSession> {
   const transport = toModularTransport(config.circle.modularUrl, requireClientKey(config));
-  const bundler = createBundlerClient({ account, chain: arcChain(config), transport });
+  const bundler = arcBundler(account, config, transport);
   const wait = async (userOpHash: Hex): Promise<CallsReceipt> => {
     const { receipt, success, reason } = await bundler.waitForUserOperationReceipt({ hash: userOpHash, timeout: 120_000 });
     if (!success || receipt.status !== "success") {
@@ -213,7 +248,7 @@ export async function recoverWithPhrase(mnemonic: string, username: string, conf
     mode: WebAuthnMode.Register,
     username,
   });
-  const bundler = createBundlerClient({ account: recoveryAccount, chain: arcChain(config), transport }).extend(recoveryActions);
+  const bundler = arcBundler(recoveryAccount, config, transport).extend(recoveryActions);
   const hash = await bundler.executeRecovery({ account: recoveryAccount, credential, paymaster: true });
   const { success, receipt } = await bundler.waitForUserOperationReceipt({ hash, timeout: 120_000 });
   if (!success || receipt.status !== "success") throw new Error(`Recovery reverted (tx ${receipt.transactionHash}).`);
