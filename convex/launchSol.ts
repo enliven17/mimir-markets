@@ -14,6 +14,7 @@ import { createRanker } from "../lib/launch/engine/rank";
 import { platformRouter } from "../lib/launch/llm";
 import { createDexScreener } from "../lib/launch/market/dexscreener";
 import { createHeliusSource } from "../lib/launch/market/helius";
+import { createXSource } from "../lib/launch/market/x";
 import { createJupiterPrices, fallbackPrices } from "../lib/launch/market/jupiter";
 import type { AgentRow, PositionRow, Ranker, Repo } from "../lib/launch/ports";
 import { solanaFromEnv } from "../lib/launch/solana/env";
@@ -39,10 +40,12 @@ function build(env: Record<string, string | undefined>) {
     fetch: helius ? (url, init) => helius((k) => url.replace(`api-key=${KEY}`, `api-key=${encodeURIComponent(k)}`), init) : undefined,
     onError,
   });
+  // X mentions through an external CLI (snipad's agent-reach / twitter-cli); returns nothing unless AGENT_REACH_BIN is set.
+  const x = createXSource({ bin: env.AGENT_REACH_BIN || undefined, args: env.X_SEARCH_ARGS ? (JSON.parse(env.X_SEARCH_ARGS) as string[]) : undefined, query: env.X_QUERY || undefined, onError });
   const threshold = env.LAUNCH_RANK_THRESHOLD ? Number(env.LAUNCH_RANK_THRESHOLD) : undefined;
   return {
     executor: solana.executor,
-    sources: { dexscreener: dex.source, helius: whales },
+    sources: { dexscreener: dex.source, helius: whales, x },
     prices: fallbackPrices(jupiter, dex.prices, onError),
     enrich: dex.enrich,
     settings: { threshold: threshold !== undefined && threshold >= 0 && threshold <= 1 ? threshold : undefined, maxOpen: Math.min(20, Math.max(1, Number(env.LAUNCH_MAX_OPEN) || 3)) },
