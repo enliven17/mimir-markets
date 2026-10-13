@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
+import { allowRequest } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const g = await readSigned(req, "status", id);
   if (!g.ok) return g.res;
+  if (!(await allowRequest("launch-status", g.owner, 20, 10 * 60_000))) return fail(429, "Too many changes. Wait a few minutes.");
   const parsed = z.object({ status: z.enum(["live", "paused", "killed"]) }).safeParse(g.body);
   if (!parsed.success) return fail(400, "status must be live, paused or killed");
   const c = launchCx();

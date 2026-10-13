@@ -36,6 +36,7 @@ export const tick = internalAction({
       deadline: m.deadline, lockAt: m.lockAt ?? 0, usdcA: usdc(m.stakeA), usdcB: usdc(m.stakeB), status: "open",
     }));
     const client = arcPublicClient(cfg);
+    const minStake = Number(BigInt(cfg.contracts.minStakeWei)) / 1e18;
     let staked = false;
 
     for (const a of agents) {
@@ -47,14 +48,23 @@ export const tick = internalAction({
         const balance = usdc(await client.getBalance({ address: a.arc.address as `0x${string}` }));
         const budget = Math.min(a.markets.budgetUsdc - a.openUsdc, balance - GAS_RESERVE_USDC);
         if (budget < 0.1) continue;
-        const router = a.brain.kind === "byok" ? byokRouter(a.uid, a.brain as SealedKey) : platformRouter;
+        // Mimir's keys never stand in for an owner's key. A key the provider refuses (401/403) pauses the agent; any
+        // other failure (rate limit, timeout) is just no stake this tick.
+        let keyError: string | null = null;
+        const base = a.brain.kind === "byok" ? byokRouter(a.uid, a.brain as SealedKey) : platformRouter;
+        const router: typeof base = {
+          completeJson: (o, parse) => base.completeJson(o, parse).catch((err: unknown) => {
+            keyError = err instanceof Error ? err.message : String(err);
+            throw err;
+          }),
+        };
         const judged = await judgeMarkets(router, a.thesis, candidates, nowS);
         if (!judged.size) {
-          // An owner's key that answers nothing pauses the agent; Mimir's keys never stand in for it silently.
-          if (a.brain.kind === "byok") await say("error", "your API key gave no answer: agent paused. Check the key, then resume.", true);
+          const refused = a.brain.kind === "byok" && keyError !== null && / (401|403)/.test(keyError);
+          if (refused) await say("error", "your API key was refused: agent paused. Check the key, then resume.", true);
           continue;
         }
-        const pick = pickStake(judged, candidates, rules, budget);
+        const pick = pickStake(judged, candidates, rules, budget, minStake);
         if (!pick) {
           await say("hold", `read ${judged.size} market${judged.size > 1 ? "s" : ""}, no edge worth a stake`);
           continue;

@@ -18,8 +18,9 @@ export function launchMessage(a: { action: LaunchAction; owner: string; agent: s
   ].join("\n");
 }
 
+/** Up to 5 minutes old, and at most a minute of clock skew ahead. Each signature is also accepted once (request.ts). */
 export const isFreshLaunchSig = (signedAt: number, now = Date.now()) =>
-  Number.isSafeInteger(signedAt) && signedAt <= now + LAUNCH_SIG_TTL_MS && now - signedAt <= LAUNCH_SIG_TTL_MS;
+  Number.isSafeInteger(signedAt) && signedAt <= now + 60_000 && now - signedAt <= LAUNCH_SIG_TTL_MS;
 
 /** Headers the browser sends with the raw JSON body. */
 export const LAUNCH_HEADERS = { owner: "x-mimir-owner", signedAt: "x-mimir-signed-at", signature: "x-mimir-signature" } as const;

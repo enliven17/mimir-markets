@@ -40,6 +40,7 @@ export const tickAll = internalMutation({
   handler: async (ctx) => {
     if (process.env.MIMIR_BACKEND_OFF === "1" || process.env.LAUNCH_SOLANA !== "1") return 0;
     const now = Date.now();
+    // ponytail: 500 per status in creation order; swept killed agents stay "killed", so past ~500 kills give them their own status.
     const of = (status: Doc<"launchAgents">["status"]) => ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).take(500);
     const [live, paused, killed] = await Promise.all([of("live"), of("paused"), of("killed")]);
     const due: Doc<"launchAgents">[] = live.filter((a) => wakeCheckDue(a.idle, now));
@@ -47,7 +48,8 @@ export const tickAll = internalMutation({
     for (const a of killed) if (a.sweptAt === undefined || (await hasOpen(ctx, a._id))) due.push(a);
     let n = 0;
     for (const a of due) {
-      if (!a.trading.enabled || !a.solana || !a.mint || (a.leaseUntil ?? 0) > now) continue;
+      // A shut-down agent is swept even with trading off: its own token burned, its SOL back to the owner.
+      if ((!a.trading.enabled && a.status !== "killed") || !a.solana || !a.mint || (a.leaseUntil ?? 0) > now) continue;
       await ctx.scheduler.runAfter(0, internal.launchSol.tickOne, { id: a._id });
       n++;
     }

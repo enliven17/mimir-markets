@@ -50,7 +50,7 @@ export interface MarketRules {
 
 export const DEFAULT_MARKET_RULES: MarketRules = { categories: [], minMinutesToClose: 30, maxHoursToClose: 72, minEdge: 0.08, kellyFraction: 0.25, maxStakeUsdc: 5 };
 
-/** The contracts' floor and the launch cap per account per market (MimirPool MIN_STAKE, setCaps). */
+/** Default floor (the live pool's MIN_STAKE is passed in) and the launch cap per account per market (setCaps). */
 export const MIN_STAKE_USDC = 0.1;
 export const ACCOUNT_CAP_USDC = 50;
 /** Seconds before the deadline (or lockAt) that staking closes on chain (LOCK_SECONDS), plus a margin for the tx. */
@@ -109,6 +109,8 @@ export function pickStake(
   candidates: readonly MarketView[],
   rules: MarketRules,
   budgetUsdc: number,
+  /** The deployed pool's minimum stake (MimirPool MIN_STAKE), USDC. */
+  minStakeUsdc = MIN_STAKE_USDC,
 ): MarketPick | null {
   let best: MarketPick | null = null;
   for (const m of candidates) {
@@ -123,7 +125,7 @@ export function pickStake(
       const same = side === 1 ? m.usdcA : m.usdcB, other = side === 1 ? m.usdcB : m.usdcA;
       const raw = kellyStake(p, same || 1, other || 1, budgetUsdc, rules.kellyFraction);
       const stake = Math.floor(Math.min(raw, rules.maxStakeUsdc, ACCOUNT_CAP_USDC, budgetUsdc) * 100) / 100;
-      if (stake < MIN_STAKE_USDC) continue;
+      if (stake < minStakeUsdc) continue;
       if (!best || edge > best.edge) best = { market: m, side, p, edge, stakeUsdc: stake, why: j.why };
     }
   }

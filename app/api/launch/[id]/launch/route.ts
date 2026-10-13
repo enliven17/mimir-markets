@@ -22,7 +22,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!parsed.success) return fail(400, "Missing funding signature.");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
-  const solana = getSolana();
+  let solana: ReturnType<typeof getSolana>;
+  try {
+    solana = getSolana();
+  } catch (e) {
+    console.error("[launch] solana config:", e);
+    return fail(503, "Launching is not configured on this server.");
+  }
   const r = await launch(c, { verify: verifyFunding, conn: solana.connection, launchToken: (a) => solana.executor.launchToken(a), image: defaultTokenImage }, g.owner, id, parsed.data.sig);
   if (!r.ok) return fail(r.status, r.error);
   return Response.json({ mint: r.mint });

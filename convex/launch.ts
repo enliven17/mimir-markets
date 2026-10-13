@@ -112,7 +112,7 @@ export const setStatus = mutation({
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner || a.status === "killed" || (a.status === "pending" && status !== "killed")) return false;
     await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined, idle: undefined } : {}) });
-    await log(ctx, a._id, "rules", status === "killed" ? "shut down by its owner: closing positions" : `${status === "live" ? "resumed" : "paused"} by its owner`);
+    await log(ctx, a._id, "rules", status === "killed" ? "shut down by its owner: closing Solana positions and returning its SOL (Arc stakes settle on their own; withdraw USDC any time)" : `${status === "live" ? "resumed" : "paused"} by its owner`);
     return true;
   },
 });
@@ -123,17 +123,44 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   trading: { enabled: a.trading.enabled }, markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc },
-  solana: a.solana?.address ?? null, arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
+  wallet: a.solana?.address ?? null, arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
   fundLamports: a.status === "pending" ? (a.launch?.fundLamports ?? null) : null,
 });
 
-export const get = query({
+/** The agent's card: what anyone may see (its face, token, wallets). */
+export const card = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
     const a = await bySlug(ctx, slug);
+    return a && a.status !== "pending" ? publicView(a) : null;
+  },
+});
+
+/** The full agent page (reasoning log, trades, PnL): $MIMIR holders only, served by /api/launch/:id/detail. */
+export const detail = query({
+  args: { secret: v.string(), slug: v.string() },
+  handler: async (ctx, { secret, slug }) => {
+    allowed(secret);
+    const a = await bySlug(ctx, slug);
     if (!a) return null;
     const events = await ctx.db.query("launchEvents").withIndex("by_agent", (q) => q.eq("agent", a._id)).order("desc").take(50);
-    return { ...publicView(a), events: events.map((e) => ({ at: e.at, kind: e.kind, text: e.text, chain: e.chain ?? null, tx: e.tx ?? null })) };
+    const positions = await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", a._id)).take(50);
+    const trades = await ctx.db.query("launchTrades").withIndex("by_agent", (q) => q.eq("agent", a._id)).order("desc").take(500);
+    // Realized Solana PnL: closed (confirmed) sells carry their PnL.
+    let pnl = 0n, wins = 0, losses = 0;
+    for (const t of trades) {
+      if (t.side !== "sell" || t.status !== "confirmed" || t.pnlLamports === undefined) continue;
+      const v = BigInt(t.pnlLamports);
+      pnl += v;
+      if (v > 0n) wins++;
+      else if (v < 0n) losses++;
+    }
+    return {
+      ...publicView(a),
+      events: events.map((e) => ({ at: e.at, kind: e.kind, text: e.text, chain: e.chain ?? null, tx: e.tx ?? null })),
+      solana: { pnlLamports: pnl.toString(), wins, losses, trades: trades.length, open: positions.map((p) => ({ mint: p.mint, symbol: p.symbol, costLamports: p.costLamports, openedAt: p.openedAt })) },
+      recentTrades: trades.slice(0, 20).map((t) => ({ mint: t.mint, side: t.side, lamports: t.lamports, sig: t.sig, status: t.status, pnlLamports: t.pnlLamports ?? null, reason: t.reason, at: t.at })),
+    };
   },
 });
 
@@ -156,14 +183,21 @@ export const claimMarketAgents = internalMutation({
     const due = live.filter((a) => a.markets.enabled && a.arc && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
     for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
     return Promise.all(due.map(async (a) => {
-      const stakes = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
+      // What it holds, from the chain (the indexed positions) and from our own records: a Circle call that timed out
+      // can still land, and the index sees it within seconds, so the next tick never stakes that market again.
+      const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
+      const onChain = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a.arc!.address.toLowerCase())).collect();
+      const out = new Map<string, number>();
+      for (const p of onChain) out.set(`${p.kind}:${p.marketId}`, (out.get(`${p.kind}:${p.marketId}`) ?? 0) + Number(BigInt(p.amount)) / 1e18);
+      for (const s of recorded) if (!out.has(`${s.kind}:${s.marketId}`)) out.set(`${s.kind}:${s.marketId}`, s.usdc);
       // Money still out: stakes on markets that have not settled yet.
       let openUsdc = 0;
-      for (const s of stakes) {
-        const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", s.kind).eq("marketId", s.marketId)).unique();
-        if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += s.usdc;
+      for (const [key, usdc] of out) {
+        const [kind, id] = key.split(":");
+        const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind as "vs" | "pool").eq("marketId", Number(id))).unique();
+        if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
       }
-      return { id: a._id, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: stakes.map((s) => `${s.kind}:${s.marketId}`), openUsdc };
+      return { id: a._id, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: [...out.keys()], openUsdc };
     }));
   },
 });
@@ -182,5 +216,67 @@ export const note = internalMutation({
     await log(ctx, agent, kind, text);
     const a = await ctx.db.get(agent);
     if (pause && a?.status === "live") await ctx.db.patch(agent, { status: "paused" });
+  },
+});
+
+/** The launch page's directory: launched agents (not pending), newest first. */
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const out = [];
+    for (const status of ["live", "paused"] as const) {
+      out.push(...(await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).order("desc").take(100)));
+    }
+    return out.filter((a) => !a.house).sort((a, b) => b.createdAt - a.createdAt).map(publicView);
+  },
+});
+
+/**
+ * Any Arc address's record on Mimir markets, from the index: every position with its market and outcome. `pnl` is
+ * the pari-mutuel result before fees (won: its share of the losing side; lost: minus the stake; open or refunded: 0).
+ */
+export const arcRecord = query({
+  args: { secret: v.string(), address: v.string() },
+  handler: async (ctx, { secret, address }) => {
+    allowed(secret);
+    const user = address.toLowerCase();
+    const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user)).order("desc").take(300);
+    const bets = [];
+    for (const p of positions) {
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", p.kind).eq("marketId", p.marketId)).unique();
+      if (!m) continue;
+      const usdc = Number(BigInt(p.amount)) / 1e18;
+      const same = Number(BigInt(p.side === 1 ? m.stakeA : m.stakeB)) / 1e18, other = Number(BigInt(p.side === 1 ? m.stakeB : m.stakeA)) / 1e18;
+      const outcome = m.status === "cancelled" || (m.status === "resolved" && m.winner > 2) ? "refunded" : m.status !== "resolved" ? "open" : m.winner === p.side ? "won" : "lost";
+      const pnl = outcome === "won" ? (same > 0 ? (usdc / same) * other : 0) : outcome === "lost" ? -usdc : 0;
+      bets.push({ kind: p.kind, marketId: p.marketId, side: p.side, label: p.side === 1 ? m.labelA : m.labelB, question: m.question, usdc, outcome, pnl, deadline: m.deadline });
+    }
+    return bets;
+  },
+});
+
+/**
+ * The owner's withdrawal takes the agent's lease like a tick does (one spender per wallet at a time). Returns the
+ * lease token, or null while a tick or another withdrawal holds it.
+ */
+export const leaseForOwner = mutation({
+  args: { secret: v.string(), slug: v.string(), owner: v.string() },
+  handler: async (ctx, { secret, slug, owner }): Promise<number | null> => {
+    allowed(secret);
+    const a = await bySlug(ctx, slug);
+    const now = Date.now();
+    if (!a || a.owner !== owner || (a.leaseUntil !== undefined && a.leaseUntil > now)) return null;
+    const until = now + 3 * 60_000;
+    await ctx.db.patch(a._id, { leaseUntil: until });
+    return until;
+  },
+});
+
+export const releaseForOwner = mutation({
+  args: { secret: v.string(), slug: v.string(), token: v.number() },
+  handler: async (ctx, { secret, slug, token }) => {
+    allowed(secret);
+    const a = await bySlug(ctx, slug);
+    if (a?.leaseUntil === token) await ctx.db.patch(a._id, { leaseUntil: undefined });
   },
 });

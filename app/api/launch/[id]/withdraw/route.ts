@@ -15,7 +15,7 @@ import { transferNative } from "@/lib/server/circle-w3s";
 import { allowRequest } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120; // Circle and Solana confirmations wait up to 90 s
 
 /** Left on Arc for the agent's own gas. */
 const ARC_GAS_RESERVE_WEI = 50_000_000_000_000_000n; // 0.05 USDC
@@ -34,6 +34,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const a = await c.client.query(api.launch.forLaunch, { secret: c.secret, slug: id });
   if (!a || a.owner !== g.owner) return fail(404, "No such agent.");
   const { chain, amount } = parsed.data;
+  const lease = await c.client.mutation(api.launch.leaseForOwner, { secret: c.secret, slug: id, owner: g.owner });
+  if (lease === null) return fail(409, "The agent is busy right now (trading or another withdrawal). Try again in a minute.");
 
   try {
     if (chain === "solana") {
@@ -57,7 +59,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await c.client.mutation(api.launch.logEvent, { secret: c.secret, slug: id, kind: "rules", text: `owner withdrew ${amount} USDC on Arc (${tx.slice(0, 10)}…)` });
     return Response.json({ tx });
   } catch (e) {
+    // A send can land after its confirmation timed out: never tell the owner nothing was sent.
     console.error(`[launch] withdraw ${id} ${chain} failed:`, e);
-    return fail(502, "The withdrawal did not go through. Nothing was sent; try again.");
+    return fail(502, "The withdrawal could not be confirmed. Check the agent's balance before you try again.");
+  } finally {
+    await c.client.mutation(api.launch.releaseForOwner, { secret: c.secret, slug: id, token: lease }).catch(() => undefined);
   }
 }

@@ -7,7 +7,8 @@ import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { internalSecret } from "@/lib/internal-secrets";
 import { readLimitedText } from "@/lib/server/body-limit";
 import { hasAccess } from "@/lib/server/access";
-import { isFreshLaunchSig, LAUNCH_HEADERS, launchMessage, type LaunchAction } from "./auth";
+import { allowRequest } from "@/lib/server/rate-limit";
+import { isFreshLaunchSig, LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS, launchMessage, type LaunchAction } from "./auth";
 
 export const fail = (status: number, error: string) => Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 
@@ -25,6 +26,8 @@ export async function readSigned(req: Request, action: LaunchAction, agent: stri
   if (!verifyAgentSignature({ address: owner, message: launchMessage({ action, owner, agent, bodySha256, signedAt }), signature })) {
     return { ok: false, res: fail(401, "The wallet signature does not match.") };
   }
+  // Once per signature: a captured request cannot be replayed inside its freshness window.
+  if (!(await allowRequest("launch-sig", signature, 1, 2 * LAUNCH_SIG_TTL_MS))) return { ok: false, res: fail(409, "That signature was already used. Sign again.") };
   if (!(await hasAccess(owner).catch(() => false))) return { ok: false, res: fail(403, "Mimir is invite-only right now: redeem an invite code first.") };
   let body: unknown;
   try {

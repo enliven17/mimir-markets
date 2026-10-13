@@ -12,7 +12,9 @@ import { agentWalletPolicy } from "@/lib/launch/solana/policy";
 import { getSolana } from "@/lib/launch/solana/env";
 import { ARC } from "@/lib/arc/config";
 import { createWallets } from "@/lib/server/circle-w3s";
+import { walletTier } from "@/lib/server/holder";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
+import { tierAtLeast } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -31,6 +33,10 @@ export async function POST(req: Request) {
   const g = await readSigned(req, "create", "new", 800_000);
   if (!g.ok) return g.res;
   if (!(await allowRequest("launch-create", g.owner, 5, 60 * 60_000))) return fail(429, "Too many agents this hour.");
+  // Launching is for $MIMIR holders (the agent's own token is a separate buy).
+  const tier = await walletTier(g.owner).then((r) => r.tier).catch(() => null);
+  if (tier === null) return fail(503, "Could not read your $MIMIR balance. Try again.");
+  if (!tierAtLeast(tier, "holder")) return fail(403, "Hold $MIMIR to launch an agent.");
   const parsed = CreateBody.safeParse(g.body);
   if (!parsed.success) return fail(400, parsed.error.issues[0]?.message ?? "Invalid agent.");
   const c = launchCx();
@@ -57,6 +63,9 @@ export async function POST(req: Request) {
     return Response.json({ id: r.id, solana: r.solana, arc: r.arc, fundLamports: r.fundLamports.toString() });
   } catch (e) {
     console.error("[launch] create failed:", e);
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("LAUNCH_BYOK_SECRET")) return fail(503, "Own API keys are not configured on this server yet. Use Mimir AI for now.");
+    if (msg.includes("does not look like an API key")) return fail(400, "That does not look like an API key.");
     return fail(502, "Could not create the agent's wallets. Try again.");
   }
 }

@@ -62,6 +62,11 @@ const toPosition = (p: PositionView): PositionRow => ({
   costLamports: BigInt(p.costLamports), entryPrice: p.entryPrice, highPrice: p.highPrice, openedAt: new Date(p.openedAt),
 });
 
+const SWEEP_ONLY = {
+  config: { preset: "trending", sources: [], entry: [], whales: [], trailingStopPct: null, maxHoldMinutes: null, thesis: "", liveView: "public", copyTrade: false },
+  risk: { slippageBps: 300, positionPct: 5, stopLossPct: 20, takeProfitPct: 50, maxDailyLossPct: 20 },
+} as const;
+
 function convexRepo(ctx: ActionCtx): Repo {
   const aid = (id: string) => id as Id<"launchAgents">;
   const pid = (id: string) => id as Id<"launchPositions">;
@@ -71,7 +76,10 @@ function convexRepo(ctx: ActionCtx): Repo {
   return {
     agent: async (id) => {
       const a = await ctx.runQuery(internal.launchSolDb.agent, { id: aid(id) });
-      return a && a.config && a.risk ? toAgent(a) : null;
+      if (!a) return null;
+      if (a.config && a.risk) return toAgent(a);
+      // Markets-only agent: no strategy, but a kill still needs the sweep (sells nothing, burns its token, returns SOL).
+      return a.status === "killed" ? toAgent({ ...a, config: SWEEP_ONLY.config, risk: SWEEP_ONLY.risk }) : null;
     },
     openPositions: async (id) => (await ctx.runQuery(internal.launchSolDb.openPositions, { id: aid(id) })).map(toPosition),
     openPosition: async (p, buy) =>
