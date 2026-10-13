@@ -191,9 +191,13 @@ export function InvitesPanel() {
   if (!a.status.invites.length) {
     const at = a.status.invitesUnlockAt;
     return at ? (
-      <section aria-label="Your invites" className={`${SURFACE} grid gap-2 p-5`}>
+      <section aria-label="Your invites" className={`${SURFACE} grid gap-3 p-5`}>
         <h2 className="m-0 text-[15px] text-cream">Your invite codes</h2>
-        <p className="m-0 text-[13px] text-muted">They unlock on {new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.</p>
+        <p className="m-0 text-[13px] leading-relaxed text-muted">
+          New members get their codes 3 days after they join, so the same $MIMIR can&apos;t be passed from wallet to wallet for extra codes. Yours unlock on{" "}
+          {new Date(at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.
+        </p>
+        <Countdown to={at} />
       </section>
     ) : null;
   }
@@ -226,5 +230,32 @@ export function InvitesPanel() {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Days, hours, minutes and seconds until `to`, ticking every second. */
+function Countdown({ to }: { to: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const left = Math.max(0, to - now);
+  const parts: Array<[number, string]> = [
+    [Math.floor(left / 86_400_000), "days"],
+    [Math.floor(left / 3_600_000) % 24, "hours"],
+    [Math.floor(left / 60_000) % 60, "min"],
+    [Math.floor(left / 1000) % 60, "sec"],
+  ];
+  if (left === 0) return <p className="m-0 text-[13px] text-cream">Unlocking now: refresh the page.</p>;
+  return (
+    <div role="timer" aria-label="Time until your invite codes unlock" className="flex gap-2">
+      {parts.map(([n, unit]) => (
+        <div key={unit} className="grid min-w-[64px] justify-items-center rounded-xl bg-ink-deep px-3 py-2.5">
+          <span className="font-display text-[26px] leading-none tabular-nums text-cream">{String(n).padStart(2, "0")}</span>
+          <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">{unit}</span>
+        </div>
+      ))}
+    </div>
   );
 }
