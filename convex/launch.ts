@@ -197,7 +197,7 @@ export const claimMarketAgents = internalMutation({
         const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind as "vs" | "pool").eq("marketId", Number(id))).unique();
         if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
       }
-      return { id: a._id, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: [...out.keys()], openUsdc };
+      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: [...out.keys()], openUsdc };
     }));
   },
 });

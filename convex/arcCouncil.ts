@@ -29,6 +29,10 @@ import { skipTake } from "../lib/jev-triage";
 import { ENTRY_FEE_BPS } from "../lib/arc/fee-tiers";
 import { LOCK_SECONDS, maxGrossFor, vsRoom } from "../lib/arc/markets";
 import { councilWalletsFromEnv, executeContract } from "../lib/server/circle-w3s";
+import { copyArcStake } from "../lib/launch/arc-copy";
+import { createConsoleLogger } from "../lib/launch/worker/log";
+
+const copyLog = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "council-copy" } });
 
 /** A tick fits well inside Convex's 10-minute action limit: each decision is one throttled LLM call at most. */
 const MAX_DECISIONS_PER_TICK = Number(process.env.COUNCIL_MAX_DECISIONS ?? 12);
@@ -160,6 +164,8 @@ export const tick = internalAction({
           console.log(`[council] ${persona.slug} staked ${amount} USDC on ${m.kind} #${m.marketId} ${txHash}`);
           // A stake stands for good: a persona is in once per market.
           await record({ outcome: "staked", rationale: decision.rationale, confidence: decision.confidence, amount: wei.toString(), txHash, until: Number.MAX_SAFE_INTEGER });
+          // Mimir Launch: followers copying this persona stake the same side from their copy wallets (pools only).
+          await copyArcStake(ctx, cfg, copyLog, persona.slug, m, 2).catch((e) => console.warn(`[council] copy of ${persona.slug} failed`, e));
         } catch (err) {
           const msg = (err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 300);
           console.warn(`[council] ${persona.slug} on ${m.kind} #${m.marketId}: ${msg}`);

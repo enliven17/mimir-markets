@@ -13,6 +13,10 @@ import { byokRouter, type SealedKey } from "../lib/launch/byok";
 import { platformRouter } from "../lib/launch/llm";
 import { judgeMarkets, marketCandidates, pickStake, type MarketRules, type MarketView } from "../lib/launch/markets";
 import { executeContract } from "../lib/server/circle-w3s";
+import { copyArcStake } from "../lib/launch/arc-copy";
+import { createConsoleLogger } from "../lib/launch/worker/log";
+
+const copyLog = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "launch-copy" } });
 
 const EVERY_MS = 10 * 60_000;
 const AGENTS_PER_TICK = 10;
@@ -84,6 +88,8 @@ export const tick = internalAction({
         });
         // Counted at once so the next agent sees the moved pool.
         pick.market[pick.side === 1 ? "usdcA" : "usdcB"] += Number(amount);
+        // Followers copying its stakes do the same from their own copy wallets.
+        await copyArcStake(ctx, cfg, copyLog, a.slug, pick.market, pick.side);
       } catch (err) {
         const msg = (err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200);
         console.warn(`[launch-arc] ${a.id}: ${msg}`);

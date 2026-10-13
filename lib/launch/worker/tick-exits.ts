@@ -62,6 +62,8 @@ export async function manageExits(
       const share = full ? 100 : Number((soldTokens * 100n) / pos.tokens);
       await emit("sell", `${d.reason} on ${name}, sold ${share}% for ${fmtSol(fill.lamports)} SOL (${pnl >= 0n ? "+" : ""}${fmtSol(pnl)} SOL)`);
       sold += 1;
+      // Followers sell the same share of theirs (paused ones too: they exit with the agent).
+      await deps.mirror?.sell(agent.id, pos.mint, full ? 1 : Number((soldTokens * 10_000n) / pos.tokens) / 10_000, agent.risk.slippageBps);
       if (!full) remaining.push({ ...pos, tokens: pos.tokens - soldTokens, costLamports: pos.costLamports - cost });
     } catch (err) {
       errors += 1;

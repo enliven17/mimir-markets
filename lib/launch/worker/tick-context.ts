@@ -29,6 +29,8 @@ export type TickDeps = {
   now: () => number;
   log: Log;
   settings?: TickSettings;
+  /** Copy trading: mirror fills into followers' copy wallets (worker/copy.ts). Optional; never throws. */
+  mirror?: { buy(agentId: string, mint: string, slippageBps: number): Promise<void>; sell(agentId: string, mint: string, fraction: number, slippageBps: number): Promise<void> };
 };
 
 export type TickContext = {

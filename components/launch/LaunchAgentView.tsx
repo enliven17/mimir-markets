@@ -18,6 +18,7 @@ import { Link } from "@/i18n/navigation";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/council-view";
 import AgentFace from "./AgentFace";
+import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
@@ -98,6 +99,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       </section>
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} /> : null}
+      <CopyPanel slug={slug} ticker={a.ticker} />
       <HolderSection slug={slug} />
     </div>
   );

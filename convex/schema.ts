@@ -288,4 +288,32 @@ export default defineSchema({
   })
     .index("by_agent", ["agent", "at"])
     .index("by_market", ["kind", "marketId"]),
+
+  /**
+   * Copy trading (lib/launch/worker/copy.ts): one per (agent, follower). `agent` is a launch agent's slug or a council
+   * persona's slug. Each side the follower picked has its own copy wallet; a stopped or gated subscription takes no
+   * new entries, but what it holds still exits with the agent.
+   */
+  launchCopies: defineTable({
+    agent: v.string(),
+    follower: v.string(),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerTradeLamports: v.string(), on: v.boolean() })),
+    arc: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
+    active: v.boolean(),
+    pausedReason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_agent", ["agent"])
+    .index("by_agent_follower", ["agent", "follower"])
+    .index("by_follower", ["follower"]),
+
+  /** Tokens a Solana copy wallet holds because it mirrored a buy (so its sells follow the agent's). */
+  launchCopyPositions: defineTable({
+    sub: v.id("launchCopies"),
+    mint: v.string(),
+    tokens: v.string(),
+    costLamports: v.string(),
+  })
+    .index("by_sub", ["sub"])
+    .index("by_sub_mint", ["sub", "mint"]),
 });
