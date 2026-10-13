@@ -204,6 +204,20 @@ export default defineSchema({
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its pump.fun token, once launched. */
     mint: v.optional(v.string()),
+    /** Random id bound into the sealed BYOK key (lib/launch/byok AAD), fixed for the agent's life. */
+    uid: v.string(),
+    /** The launch: SOL the owner must send (lamports, decimal string), the token text, and the claim that lets one request mint. */
+    launch: v.optional(v.object({
+      fundLamports: v.string(),
+      description: v.string(),
+      /** An uploaded token image (data URL, capped well under the doc limit); without one the face is drawn at launch. */
+      image: v.optional(v.string()),
+      claimedAt: v.optional(v.number()),
+      metadataUri: v.optional(v.string()),
+      sig: v.optional(v.string()),
+    })),
+    /** The verified funding tx, bound to this agent so it cannot fund another launch. */
+    fundingSig: v.optional(v.string()),
     createdAt: v.number(),
     /** One worker at a time per agent (snipad's lease); and a sleeping agent is skipped until then. */
     leaseUntil: v.optional(v.number()),
@@ -212,7 +226,8 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["owner"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_fundingSig", ["fundingSig"]),
 
   /** What the agent did and why, newest last: the live reasoning log on its page. */
   launchEvents: defineTable({

@@ -11,6 +11,17 @@ export const MAX_BODY_BYTES = 16 * 1024;
 export type LimitedJson = { ok: true; value: unknown } | { ok: false; status: 400 | 413 };
 
 export async function readLimitedJson(req: Request, maxBytes = MAX_BODY_BYTES): Promise<LimitedJson> {
+  const text = await readLimitedText(req, maxBytes);
+  if (!text.ok) return text;
+  try {
+    return { ok: true, value: JSON.parse(text.value) };
+  } catch {
+    return { ok: false, status: 400 };
+  }
+}
+
+/** The raw body as text, under the same cap (for routes that hash what was signed). */
+export async function readLimitedText(req: Request, maxBytes = MAX_BODY_BYTES): Promise<{ ok: true; value: string } | { ok: false; status: 400 | 413 }> {
   const declared = req.headers.get("content-length");
   if (declared !== null && (!/^\d+$/.test(declared.trim()) || Number(declared) > maxBytes)) {
     return { ok: false, status: 413 };
@@ -30,9 +41,5 @@ export async function readLimitedJson(req: Request, maxBytes = MAX_BODY_BYTES): 
     }
     chunks.push(value);
   }
-  try {
-    return { ok: true, value: JSON.parse(Buffer.concat(chunks).toString("utf8")) };
-  } catch {
-    return { ok: false, status: 400 };
-  }
+  return { ok: true, value: Buffer.concat(chunks).toString("utf8") };
 }

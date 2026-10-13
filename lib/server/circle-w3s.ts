@@ -106,7 +106,7 @@ export async function transferNative(args: { walletId: string; to: `0x${string}`
 }
 
 /** New EOA wallets in the wallet set, one per name. */
-export async function createWallets(names: string[], blockchain: string): Promise<Array<{ id: string; address: `0x${string}`; refId: string }>> {
+export async function createWallets(names: string[], blockchain: string, prefix = "mimir-council"): Promise<Array<{ id: string; address: `0x${string}`; refId: string }>> {
   const r = await circleFetch<{ data: { wallets: Array<{ id: string; address: string; refId?: string }> } }>("POST", "/developer/wallets", {
     idempotencyKey: randomUUID(),
     entitySecretCiphertext: await entitySecretCiphertext(),
@@ -114,7 +114,7 @@ export async function createWallets(names: string[], blockchain: string): Promis
     blockchains: [blockchain],
     accountType: "EOA",
     count: names.length,
-    metadata: names.map((n) => ({ name: `mimir-council-${n}`, refId: n })),
+    metadata: names.map((n) => ({ name: `${prefix}-${n}`, refId: n })),
   });
   return r.data.wallets.map((w) => ({ id: w.id, address: w.address as `0x${string}`, refId: w.refId ?? "" }));
 }

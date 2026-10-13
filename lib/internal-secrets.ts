@@ -3,15 +3,17 @@
  *   store   MIMIR_STORE_SECRET   the site reading and writing the app store (convex/appStore.ts)
  *   events  MIMIR_EVENTS_SECRET  the backend posting market events to /api/telegram/arc-events
  *   admin   MIMIR_ADMIN_SECRET   the site reading the admin overview (convex/arcAdmin.ts)
+ *   launch  MIMIR_LAUNCH_SECRET  the site creating and launching hosted agents (convex/launch.ts)
  * During the rollout each falls back to the old single MIMIR_INTERNAL_SECRET when its own is not set.
  * Shared by Next and Convex (no Node APIs).
  */
-export type SecretPurpose = "store" | "events" | "admin";
+export type SecretPurpose = "store" | "events" | "admin" | "launch";
 
 export const SECRET_ENV: Record<SecretPurpose, string> = {
   store: "MIMIR_STORE_SECRET",
   events: "MIMIR_EVENTS_SECRET",
   admin: "MIMIR_ADMIN_SECRET",
+  launch: "MIMIR_LAUNCH_SECRET",
 };
 
 type Env = Record<string, string | undefined>;
