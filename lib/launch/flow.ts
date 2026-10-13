@@ -16,6 +16,7 @@ import { DEFAULT_MARKET_RULES } from "./markets";
 import { allocationProblem, DEFAULT_ALLOCATION } from "./fees";
 import type { verifyFunding } from "./funding";
 import type { Cx } from "./request";
+import { reservedLaunchSlug } from "./copy-key";
 
 /** pump.fun create + rent + priority, paid by the agent wallet (~0.006 SOL measured in snipad); the rest is bankroll. */
 export const LAUNCH_FEE_LAMPORTS = 10_000_000n;
@@ -103,6 +104,8 @@ type Verify = typeof verifyFunding;
 
 export async function create({ client, secret }: Cx, deps: { wallets: Wallets; checkKey: KeyCheck }, owner: string, input: CreateInput) {
   const slug = input.ticker.toLowerCase();
+  // A persona's or a house name would share a council agent's page and its copy followers: refused before anything is made.
+  if (reservedLaunchSlug(slug)) return { ok: false as const, status: 409, error: `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` };
   const uid = randomUUID();
   // Check and seal the key before any wallet exists, so a bad key costs nothing.
   let brain: { kind: "mimir" } | { kind: "byok"; provider: string; sealed: string; last4: string; model: string } = { kind: "mimir" };
@@ -134,7 +137,7 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
     allocation: input.allocation,
   });
   // Lost a race for the ticker after the wallets were made: they are simply never funded.
-  if (!r.ok) return { ok: false as const, status: 409, error: `Too many agents named $${input.ticker}. Pick another ticker.` };
+  if (!r.ok) return { ok: false as const, status: 409, error: r.reason === "reserved" ? `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` : `Too many agents named $${input.ticker}. Pick another ticker.` };
   return { ok: true as const, id: r.slug, solana: solana.address, arc: arc.address, fundLamports };
 }
 

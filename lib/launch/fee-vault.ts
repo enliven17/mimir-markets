@@ -4,7 +4,12 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 const PUMP_PROGRAM = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
 
-/** pump.fun keeps a creator's fees in PDA ["creator-vault", creator] (unverified against the IDL: if it is wrong, accrued() reads 0 and claims fall back to the 24h schedule). */
+/**
+ * pump.fun keeps a creator's bonding-curve fees in PDA ["creator-vault", creator] (unverified against the IDL). A wrong
+ * PDA reads 0, not null, so lib/launch/fees.ts treats a 0 read like an unknown one and claims on the 24h schedule.
+ * Not read here: PumpSwap's coin-creator vault for graduated tokens (no lookup in snipad either); those fees are still
+ * collected by that daily claim (claimCreatorFees takes curve + PumpSwap).
+ */
 export const creatorVault = (creator: string) => PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), new PublicKey(creator).toBuffer()], PUMP_PROGRAM)[0];
 
 /** Lamports waiting in `creator`'s vault. */

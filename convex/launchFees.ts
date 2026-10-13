@@ -19,6 +19,8 @@ import { vaultBalance } from "../lib/launch/fee-vault";
 import { feeForAgent, payOwed, type FeeDeps, type FeeStore } from "../lib/launch/fees";
 import { solanaFromEnv } from "../lib/launch/solana/env";
 import { lockOwnMint } from "../lib/launch/solana/locks";
+import { fetchConfirmedTx, settleSignature, walletDeltas, type Settlement } from "../lib/launch/solana/tx";
+import { reconcileItem, type ReconcileStore } from "../lib/launch/reconcile";
 import { heliusClient, heliusKeys } from "../lib/launch/solana/rpc-pool";
 import { createConsoleLogger, publicError } from "../lib/launch/worker/log";
 
@@ -60,6 +62,8 @@ function feeStore(ctx: ActionCtx): FeeStore {
   const aid = (id: string) => id as Id<"launchAgents">;
   return {
     markClaimed: async (id) => void (await ctx.runMutation(internal.launchFeeDb.markClaimed, { id: aid(id) })),
+    claimSigned: async (id, sig, lastValidBlockHeight) => void (await ctx.runMutation(internal.launchFeeDb.claimSigned, { id: aid(id), sig, lastValidBlockHeight })),
+    clearPendingClaim: async (id, sig) => void (await ctx.runMutation(internal.launchFeeDb.clearPendingClaim, { id: aid(id), sig })),
     recordClaim: (id, c) => ctx.runMutation(internal.launchFeeDb.recordClaim, { id: aid(id), lamports: c.lamports, split: c.split, allocation: c.allocation, accrue: c.accrue, sig: c.sig }),
     recordBurn: async (id, b) => void (await ctx.runMutation(internal.launchFeeDb.recordBurn, { id: aid(id), ...b })),
     event: async (id, kind, text) => void (await ctx.runMutation(internal.launchFeeDb.event, { id: aid(id), kind, text })),
@@ -112,6 +116,7 @@ export const feeOne = internalAction({
         const fd: FeeDeps = {
           store: feeStore(ctx), executor: d.solana.executor, accrued: (w) => vaultBalance(d.solana.connection, w), treasury: d.solana.treasury,
           minClaimLamports: d.minClaimLamports, creatorPayoutMinLamports: d.creatorPayoutMinLamports, log,
+          settleClaim: (sig, lvbh, wallet) => settleClaim(d, sig, lvbh, wallet),
         };
         const claimed = await feeForAgent(a, fd);
         if (claimed === 0n) {
@@ -125,6 +130,51 @@ export const feeOne = internalAction({
       return "busy";
     } catch (err) {
       log.error("fee action failed", { agentId: id, err });
+      return "failed";
+    }
+  },
+});
+
+/** A claim signed in an earlier round but never booked: where it stands, and what it brought in when it landed. */
+async function settleClaim(d: ReturnType<typeof deps>, sig: string, lastValidBlockHeight: number, wallet: string): Promise<{ state: Settlement; lamports: bigint }> {
+  const ep = d.solana.sticky.pickEndpoint();
+  if (!ep) return { state: "unknown", lamports: 0n };
+  const { state } = await settleSignature(ep.connection, ep.witnesses, sig, lastValidBlockHeight);
+  if (state !== "landed") return { state, lamports: 0n };
+  return { state, lamports: walletDeltas(await fetchConfirmedTx(ep.connection, sig), wallet, null).lamports };
+}
+
+/** Settles one agent's payouts and treasury transfers left in sending/unknown, by signature, under its lease. */
+export const reconcileOne = internalAction({
+  args: { id: v.id("launchAgents"), attempt: v.optional(v.number()) },
+  handler: async (ctx, { id, attempt = 0 }): Promise<string> => {
+    if (gated()) return "gated";
+    try {
+      const out = await withLease(ctx, id, async () => {
+        const items = await ctx.runQuery(internal.launchFeeDb.unresolvedFor, { id });
+        const ep = deps().solana.sticky.pickEndpoint();
+        if (!ep) return "no endpoint";
+        const settle = async (sig: string, lvbh: number) => (await settleSignature(ep.connection, ep.witnesses, sig, lvbh)).state;
+        const store: ReconcileStore = {
+          payout: async (pid, outcome, sig) => void (await ctx.runMutation(internal.launchFeeDb.finishCreatorPayout, { payout: pid as Id<"launchPayouts">, status: outcome, ...(sig ? { sig } : {}) })),
+          treasury: async (tid, outcome, sig) =>
+            void (await ctx.runMutation(internal.launchFeeDb.finishTreasury, { transfer: tid as Id<"launchTreasuryTransfers">, status: outcome === "sent" ? "sent" : "pending", ...(sig ? { sig } : {}) })),
+        };
+        let settled = 0;
+        for (const u of items) {
+          const r = await reconcileItem(u, settle, store);
+          if (r !== "open") {
+            settled++;
+            log.info("reconciled", { agentId: id, kind: u.kind, id: u.id, outcome: r, sig: u.sig });
+          }
+        }
+        return `settled ${settled}/${items.length}`;
+      });
+      if (out.ran) return out.value;
+      if (attempt + 1 < MAX_ATTEMPTS) await ctx.scheduler.runAfter(RETRY_MS, internal.launchFees.reconcileOne, { id, attempt: attempt + 1 });
+      return "busy";
+    } catch (err) {
+      log.error("reconcile action failed", { agentId: id, err });
       return "failed";
     }
   },

@@ -81,7 +81,8 @@ export function splitClaim(total: bigint, a: Allocation): ClaimSplit {
 type OnSigned = (sig: string, lastValidBlockHeight: number) => Promise<void>;
 
 export type FeeExecutor = {
-  claimCreatorFees(a: { walletId: string; wallet: string }): Promise<{ sig: string; lamports: bigint }>;
+  /** `onSigned` gets the claim's signature before the first broadcast (a claim landing after a timeout is still booked). */
+  claimCreatorFees(a: { walletId: string; wallet: string; onSigned?: OnSigned }): Promise<{ sig: string; lamports: bigint }>;
   /** `onSigned` gets the signature before the first broadcast (record it to reconcile by sig). */
   transferSol(a: { walletId: string; wallet: string; to: string; lamports: bigint; onSigned?: OnSigned }): Promise<string>;
   buy(a: TradeArgs & { lamports: bigint }): Promise<Fill>;
@@ -95,6 +96,9 @@ export type PayoutStatus = "sent" | "failed" | "unknown";
 /** Persistence for the fee flow. Writes keyed by a signature are idempotent. */
 export type FeeStore = {
   markClaimed(agentId: string): Promise<void>;
+  /** M6: the claim's signature, stored before broadcast; cleared once booked (recordClaim) or proven not landed. */
+  claimSigned(agentId: string, sig: string, lastValidBlockHeight: number): Promise<void>;
+  clearPendingClaim(agentId: string, sig: string): Promise<void>;
   /**
    * Records the claim once per sig, and in the same write: the treasury share (platform + llm) as an
    * owed transfer (L1) and, with `accrue`, creatorPayout/holders added to the pools. Returns the pools after.
@@ -106,7 +110,7 @@ export type FeeStore = {
   beginCreatorPayout(agentId: string, lamports: bigint): Promise<string | null>;
   /** M7: the payout's signature, stored BEFORE broadcast so a crash is reconciled by sig. */
   payoutSigned(payoutId: string, sig: string, lastValidBlockHeight: number): Promise<void>;
-  /** sent: done (with sig). failed: provably not landed, back into the pool. unknown: may have landed, the reconciler settles it. */
+  /** sent: done (with sig). failed: provably not landed, back into the pool. unknown: may have landed, the reconciler (lib/launch/reconcile.ts) settles it. */
   finishCreatorPayout(payoutId: string, r: { status: PayoutStatus; sig?: string }): Promise<void>;
   /** L1: treasury transfers owed and not yet attempted (or provably not landed). */
   owedTreasury(agentId: string): Promise<{ id: string; lamports: bigint }[]>;
@@ -124,6 +128,8 @@ export type FeeDeps = {
   minClaimLamports: bigint;
   creatorPayoutMinLamports: bigint;
   log: Log;
+  /** Where an earlier, unbooked claim stands (by its stored sig) and the lamports it brought in if it landed. */
+  settleClaim?(sig: string, lastValidBlockHeight: number, wallet: string): Promise<{ state: "landed" | "failed" | "pending" | "notLanded" | "unknown"; lamports: bigint }>;
 };
 
 /** What the fee flow needs to know about one launched agent. */
@@ -136,6 +142,8 @@ export type FeeAgent = AllocationState & {
   wallet: string;
   status: "live" | "paused" | "killed";
   feesClaimedAt: number | null;
+  /** A claim signed but not booked (an ambiguous send): settled before any new claim. */
+  pendingClaim?: { sig: string; lastValidBlockHeight: number } | null;
   slippageBps: number;
   creatorPool: bigint;
 };
@@ -160,18 +168,43 @@ export function bookedSplit(parts: ClaimSplit, killed: boolean): ClaimSplit {
 
 /** One agent's claim + split. Returns lamports claimed (0 when skipped). */
 export async function claimAndSplit(a: FeeAgent, d: FeeDeps, now = Date.now()): Promise<bigint> {
+  // M6: an earlier claim that may have landed unbooked is settled first, so its SOL is split, never left as bankroll.
+  if (a.pendingClaim && d.settleClaim) {
+    const { sig, lastValidBlockHeight } = a.pendingClaim;
+    const r = await d.settleClaim(sig, lastValidBlockHeight, a.wallet);
+    if (r.state === "landed") {
+      if (r.lamports > 0n) await bookClaim(a, d, r.lamports, sig, now);
+      await d.store.clearPendingClaim(a.id, sig);
+      return r.lamports > 0n ? r.lamports : 0n;
+    }
+    if (r.state !== "failed" && r.state !== "notLanded") return 0n; // still undecided: no new claim on top of it
+    await d.store.clearPendingClaim(a.id, sig);
+  }
+
   const accrued = await d.accrued(a.wallet).catch(() => null);
   const stale = a.feesClaimedAt === null || now - a.feesClaimedAt > 24 * 3600_000;
-  if (accrued !== null ? accrued < d.minClaimLamports : !stale) return 0n;
+  // A read of 0 is not trusted (L2): the bonding-curve vault PDA is unverified, and a graduated token's fees sit in
+  // PumpSwap's vault, which this does not read. Unknown or 0 claims on the 24h schedule; a small positive read waits.
+  const due = accrued !== null && accrued >= d.minClaimLamports;
+  if (!due && !(stale && (accrued === null || accrued === 0n))) return 0n;
 
   // Marked before the claim: a failing claim must not be retried every round.
   await d.store.markClaimed(a.id);
-  const claim = await d.executor.claimCreatorFees({ walletId: a.walletId, wallet: a.wallet });
-  if (claim.lamports <= 0n) return 0n; // nothing (net of the tx fee) came in
+  const claim = await d.executor.claimCreatorFees({ walletId: a.walletId, wallet: a.wallet, onSigned: (sig, lvbh) => d.store.claimSigned(a.id, sig, lvbh) });
+  if (claim.lamports <= 0n) {
+    await d.store.clearPendingClaim(a.id, claim.sig);
+    return 0n; // nothing (net of the tx fee) came in
+  }
+  await bookClaim(a, d, claim.lamports, claim.sig, now);
+  return claim.lamports;
+}
+
+/** Books a landed claim once (by sig): the split, the treasury share, a buyback and burn, a creator payout. */
+async function bookClaim(a: FeeAgent, d: FeeDeps, lamports: bigint, sig: string, now: number): Promise<void> {
   const allocation = effectiveAllocation(a, now);
-  const parts = bookedSplit(splitClaim(claim.lamports, allocation), a.status === "killed");
-  const pools = await d.store.recordClaim(a.id, { lamports: claim.lamports, split: parts, allocation, accrue: true, sig: claim.sig });
-  await d.store.event(a.id, "fee", `claimed ${sol(claim.lamports)} SOL in creator fees: ${sol(parts.bankroll)} to the bankroll`);
+  const parts = bookedSplit(splitClaim(lamports, allocation), a.status === "killed");
+  const pools = await d.store.recordClaim(a.id, { lamports, split: parts, allocation, accrue: true, sig });
+  await d.store.event(a.id, "fee", `claimed ${sol(lamports)} SOL in creator fees: ${sol(parts.bankroll)} to the bankroll`);
 
   await payTreasury(a, d);
   // Buy back and burn the agent's own token (also after a kill: the allocation stays in force).
@@ -185,7 +218,6 @@ export async function claimAndSplit(a: FeeAgent, d: FeeDeps, now = Date.now()): 
     await d.store.event(a.id, "burn", `bought back and burned $${a.ticker} for ${sol(fill.lamports)} SOL`);
   }
   await payCreator({ ...a, creatorPool: pools.creatorPool }, d);
-  return claim.lamports;
 }
 
 /**

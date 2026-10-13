@@ -240,6 +240,8 @@ export default defineSchema({
     creatorPool: v.optional(v.int64()),
     holdersPool: v.optional(v.int64()),
     feesClaimedAt: v.optional(v.number()),
+    /** A fee claim signed but not booked yet (its sig stored before broadcast): settled and booked on the next round. */
+    pendingClaim: v.optional(v.object({ sig: v.string(), lastValidBlockHeight: v.number() })),
     holdersAirdropAt: v.optional(v.number()),
     /** True while the wallet policy may be widened for a holder airdrop round (restored after). */
     airdropPolicyOpen: v.optional(v.boolean()),
@@ -331,6 +333,25 @@ export default defineSchema({
   })
     .index("by_sub", ["sub"])
     .index("by_sub_mint", ["sub", "mint"]),
+
+  /**
+   * One follower's copy of one agent fill (lib/launch/worker/copy.ts), keyed "<sub>:<buy|sell|arc>:<agent sig>": it
+   * runs once. A Solana buy stores its own sig before broadcast; "unknown" ones are settled by signature.
+   */
+  launchCopyJobs: defineTable({
+    key: v.string(),
+    sub: v.id("launchCopies"),
+    kind: v.union(v.literal("buy"), v.literal("sell"), v.literal("arc")),
+    status: v.union(v.literal("running"), v.literal("done"), v.literal("failed"), v.literal("unknown"), v.literal("skipped")),
+    mint: v.optional(v.string()),
+    sig: v.optional(v.string()),
+    lastValidBlockHeight: v.optional(v.number()),
+    note: v.optional(v.string()),
+    at: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_status", ["status"])
+    .index("by_sub", ["sub"]),
   // ---------------- Mimir Launch creator fees (lib/launch/fees.ts, airdrop.ts; convex/launchFeeDb.ts) ----------------
 
   /** Every creator-fee claim, once per signature, with the split it was booked with. */
@@ -355,7 +376,9 @@ export default defineSchema({
     lastValidBlockHeight: v.optional(v.number()),
     at: v.number(),
     doneAt: v.optional(v.number()),
-  }).index("by_agent_status", ["agent", "status"]),
+  })
+    .index("by_agent_status", ["agent", "status"])
+    .index("by_status", ["status"]),
 
   /** Owner payouts from the creator pool: reserved first, sig stored before broadcast, so one is never paid twice. */
   launchPayouts: defineTable({
@@ -368,7 +391,8 @@ export default defineSchema({
     doneAt: v.optional(v.number()),
   })
     .index("by_agent", ["agent", "at"])
-    .index("by_agent_status", ["agent", "status"]),
+    .index("by_agent_status", ["agent", "status"])
+    .index("by_status", ["status"]),
 
   /** Buybacks of the agent's own token, burned. */
   launchBurns: defineTable({

@@ -149,7 +149,7 @@ export function createExecutor(d: ExecutorDeps): Executor & ReturnType<typeof cr
             ? fromBytes(await d.pumpportal.buildTradeTx({ wallet, mint, side: "buy", amount: lamports, decimals: 9, slippageBps }))
             : await jupiterTx({ inputMint: WSOL_MINT, outputMint: mint, amount: lamports, wallet, slippageBps });
         // allowLockedTouch: a buyback buys the own token; the submitter still refuses any decrease of it.
-        return { walletId: a.walletId, wallet, unsigned: { ...unsigned, maxSolOut: buyCeiling(lamports), allowLockedTouch: true, lockedMints: own, protectMints: [...(a.protect ?? []), mint] } };
+        return { walletId: a.walletId, wallet, unsigned: { ...unsigned, maxSolOut: buyCeiling(lamports), allowLockedTouch: true, lockedMints: own, protectMints: [...(a.protect ?? []), mint], onSigned: a.onSigned } };
       },
       (tx) => fillFrom(walletDeltas(tx, wallet, mint), "buy"),
     );

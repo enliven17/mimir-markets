@@ -1,13 +1,14 @@
 /**
  * POST /api/launch/:id/copy/withdraw { chain, amount }: part (or all) of a copy wallet's free balance back to the
  * follower, signed by the follower. Solana: SOL to the follower (the wallet's policy allows nothing else). Arc: USDC to
- * the Arc account bound to the follower's wallet. Copied tokens stay until they exit with the agent.
+ * the Arc account bound to the follower's wallet. Copied tokens exit with the agent, or sell them first (copy/drain).
  */
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
+import { copyKeyFor } from "@/lib/launch/copy-key";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { getSolana } from "@/lib/launch/solana/env";
 import { getArcBinding } from "@/lib/server/arc-accounts";
@@ -29,7 +30,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!parsed.success) return fail(400, "chain must be solana or arc, with a positive amount");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
-  const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: id, follower: g.owner });
+  const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: copyKeyFor(id), follower: g.owner });
   if (!s) return fail(404, "You are not copying this agent.");
   const { chain, amount } = parsed.data;
   try {

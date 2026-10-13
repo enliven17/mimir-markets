@@ -3,7 +3,7 @@
  * every council persona plus the house roles, so a registered agent cannot
  * pass itself off as Socrates or the oracle in feeds and baskets.
  */
-import { COUNCIL_PERSONAS } from "@/agents/council/personas";
+import { COUNCIL_PERSONAS } from "../../agents/council/personas"; // relative: Convex (convex/launch.ts) imports this too
 
 const HOUSE_NAMES = ["oracle", "mimir", "admin", "council", "system", "official"];
 

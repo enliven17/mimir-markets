@@ -40,6 +40,8 @@ function memStore(pools = { creatorPool: 0n, holdersPool: 0n }) {
   };
   const store: FeeStore = {
     async markClaimed(id) { log.push(`marked:${id}`); },
+    async claimSigned(id, sig) { log.push(`claim-signed:${sig}`); },
+    async clearPendingClaim(id, sig) { log.push(`claim-cleared:${sig}`); },
     async recordClaim(id, c) {
       log.push(`claim:${id}:${c.lamports}:${c.split.bankroll}:${c.accrue}`);
       const owed = c.split.platform + c.split.llm;

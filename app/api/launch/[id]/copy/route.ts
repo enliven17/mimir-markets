@@ -13,13 +13,13 @@ import { normalizeAddress } from "@/lib/agents/signature";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
+import { holdsMimir } from "@/lib/launch/copy-gate";
+import { copyKeyFor } from "@/lib/launch/copy-key";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
-import { agentWalletPolicy } from "@/lib/launch/solana/policy";
+import { copyTradeWalletPolicy } from "@/lib/launch/solana/policy";
 import { getSolana } from "@/lib/launch/solana/env";
 import { createWallets } from "@/lib/server/circle-w3s";
-import { walletTier } from "@/lib/server/holder";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
-import { tierAtLeast } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -46,7 +46,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!c) return fail(503, "Launch is not configured on this server.");
   const can = await copyable(c, id);
   if (!can) return fail(404, "No such agent.");
-  const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: id, follower });
+  const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: copyKeyFor(id), follower });
   const [sol, usdc] = await Promise.all([
     s?.solana ? getSolana().executor.spendable(s.solana.address).then((l) => Number(l) / 1e9).catch(() => null) : null,
     s?.arc ? arcPublicClient(ARC).getBalance({ address: s.arc.address as `0x${string}` }).then((w) => Number(w) / 1e18).catch(() => null) : null,
@@ -82,17 +82,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (arc?.on && !can.arc) return fail(400, "This agent does not stake on markets.");
   // Copying is for $MIMIR holders; stopping never needs it.
   if (active) {
-    const tier = await walletTier(g.owner).then((r) => r.tier).catch(() => null);
-    if (tier === null) return fail(503, "Could not read your $MIMIR balance. Try again.");
-    if (!tierAtLeast(tier, "holder")) return fail(403, "Hold $MIMIR to copy an agent.");
+    const holds = await holdsMimir(g.owner);
+    if (holds === "unknown") return fail(503, "Could not read your $MIMIR balance. Try again.");
+    if (holds === "no") return fail(403, "Hold $MIMIR to copy an agent.");
   }
+  const key = copyKeyFor(id);
   try {
-    const cur = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: id, follower: g.owner });
+    const cur = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: key, follower: g.owner });
     let sol = cur?.solana ?? undefined;
     if (solana) {
       if (!sol && solana.on) {
         const s = getSolana();
-        const w = await s.privy.createWalletWithPolicy((address) => agentWalletPolicy({ wallet: address, creator: g.owner, treasury: s.treasury }));
+        const w = await s.privy.createWalletWithPolicy((address) => copyTradeWalletPolicy({ wallet: address, follower: g.owner }));
         sol = { walletId: w.id, address: w.address, maxPerTradeLamports: "0", on: false };
       }
       if (sol) sol = { ...sol, on: solana.on, maxPerTradeLamports: BigInt(Math.round(solana.maxPerTradeSol * 1e9)).toString() };
@@ -105,8 +106,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       }
       if (a) a = { ...a, on: arc.on, maxPerStakeUsdc: arc.maxPerStakeUsdc };
     }
-    await c.client.mutation(api.launchCopy.upsert, { secret: c.secret, agent: id, follower: g.owner, ...(sol ? { solana: sol } : {}), ...(a ? { arc: a } : {}), active });
-    return Response.json({ ok: true, solana: sol?.address ?? null, arc: a?.address ?? null });
+    // The stored wallets win: a racing request's fresh wallet is dropped here, never handed out.
+    const stored = await c.client.mutation(api.launchCopy.upsert, { secret: c.secret, agent: key, follower: g.owner, ...(sol ? { solana: sol } : {}), ...(a ? { arc: a } : {}), active });
+    return Response.json({ ok: true, solana: stored.solana, arc: stored.arc });
   } catch (e) {
     console.error(`[launch] copy ${id} failed:`, e);
     return fail(502, "Could not set up the copy wallets. Try again.");

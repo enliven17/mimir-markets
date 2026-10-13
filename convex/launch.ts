@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { secretMatches } from "../lib/internal-secrets";
+import { reservedLaunchSlug } from "../lib/launch/copy-key";
 import { allocationProblem } from "../lib/launch/fees";
 import { vAllocation } from "./schema";
 
@@ -37,10 +38,12 @@ export const createPending = mutation({
     allowed(secret);
     const problem = a.allocation ? allocationProblem(a.allocation) : null;
     if (problem) throw new Error(`allocation: ${problem}`);
+    // Never a persona's or a house name (lib/launch/copy-key.ts), checked again here and for every suffixed try.
+    if (reservedLaunchSlug(a.slug)) return { ok: false as const, reason: "reserved" as const };
     // Tickers may repeat (every token has its own mint); the slug in the URL stays unique: odin, odin-2, ...
     let slug = a.slug;
-    for (let n = 2; await bySlug(ctx, slug); n++) {
-      if (n > 999) return { ok: false as const };
+    for (let n = 2; reservedLaunchSlug(slug) || (await bySlug(ctx, slug)); n++) {
+      if (n > 999) return { ok: false as const, reason: "taken" as const };
       slug = `${a.slug}-${n}`;
     }
     await ctx.db.insert("launchAgents", { ...a, slug, status: "pending", createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}) } });

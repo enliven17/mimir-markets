@@ -65,11 +65,12 @@ export function createOps(d: OpsDeps) {
   }
 
   /** Claims all pump.fun creator fees (curve + PumpSwap). `lamports` is the net SOL gained after tx fees. */
-  async function claimCreatorFees(a: { walletId: string; wallet: string }): Promise<{ sig: string; lamports: bigint }> {
+  async function claimCreatorFees(a: { walletId: string; wallet: string; onSigned?: (sig: string, lastValidBlockHeight: number) => Promise<void> }): Promise<{ sig: string; lamports: bigint }> {
     const wallet = assertAddress("wallet", a.wallet);
     return d.submitter.run(
       "claim fees",
-      async () => ({ walletId: a.walletId, wallet, unsigned: { tx: VersionedTransaction.deserialize(await d.pumpportal.buildCollectFeeTx({ wallet })), allowLockedTouch: true } }),
+      // onSigned: the claim's sig is stored before broadcast, so a claim that lands after a timeout is still booked.
+      async () => ({ walletId: a.walletId, wallet, unsigned: { tx: VersionedTransaction.deserialize(await d.pumpportal.buildCollectFeeTx({ wallet })), allowLockedTouch: true, onSigned: a.onSigned } }),
       (tx) => {
         const delta = walletDeltas(tx, wallet, null);
         return { sig: delta.sig, lamports: delta.lamports };

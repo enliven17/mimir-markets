@@ -4,7 +4,7 @@
  * moved to another body, agent or action. Fresh for 5 minutes. Isomorphic: the browser builds the same text.
  */
 export const LAUNCH_SIG_TTL_MS = 5 * 60_000;
-export type LaunchAction = "create" | "launch" | "status" | "withdraw" | "brain" | "copy" | "copy-withdraw" | "allocation";
+export type LaunchAction = "create" | "launch" | "status" | "withdraw" | "brain" | "copy" | "copy-withdraw" | "allocation" | "copy-drain";
 
 export function launchMessage(a: { action: LaunchAction; owner: string; agent: string; bodySha256: string; signedAt: number }): string {
   return [

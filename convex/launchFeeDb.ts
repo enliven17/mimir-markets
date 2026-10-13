@@ -10,6 +10,7 @@ import { vAllocation } from "./schema";
 import { secretMatches } from "../lib/internal-secrets";
 import { ALLOCATION_DELAY_MS, allocationProblem, BUCKETS, effectiveAllocation, type Allocation, type AllocationState } from "../lib/launch/fees";
 import { airdropDue, airdropSettings, FINAL_ROUND_MIN_LAMPORTS, type RoundView } from "../lib/launch/airdrop";
+import type { Unresolved } from "../lib/launch/reconcile";
 
 type Agent = Doc<"launchAgents">;
 type AgentId = Id<"launchAgents">;
@@ -150,17 +151,22 @@ export const closeOutPools = internalMutation({
 
 async function launched(db: DatabaseReader): Promise<Agent[]> {
   const out: Agent[] = [];
-  // ponytail: 500 per status; past that, page through by_status.
-  for (const status of ["live", "paused", "killed"] as const) out.push(...(await db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).take(500)));
+  // Every launched agent, whatever its age (no first-N window). ponytail: collect() reads them all in one mutation;
+  // past ~10k agents, page by_status across chained mutations.
+  for (const status of ["live", "paused", "killed"] as const) out.push(...(await db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).collect()));
   return out.filter(feeable);
 }
 
-/** Hourly: one fee round per launched agent, spread a second apart (claims hit the RPC and PumpPortal). */
+/**
+ * Hourly: one fee round per launched agent, spread a second apart (claims hit the RPC and PumpPortal). Shut-down
+ * agents too, for good (as snipad): their token still trades, and its fees still owe the treasury share and pay the
+ * owner (bookedSplit sends the bankroll share to the owner).
+ */
 export const feeAll = internalMutation({
   args: {},
   handler: async (ctx): Promise<number> => {
     if (gated()) return 0;
-    const agents = (await launched(ctx.db)).filter((a) => !(a.status === "killed" && a.sweptAt !== undefined && (a.creatorPool ?? 0n) === 0n && (a.holdersPool ?? 0n) === 0n));
+    const agents = await launched(ctx.db);
     for (const [i, a] of agents.entries()) await ctx.scheduler.runAfter(i * 1_000, internal.launchFees.feeOne, { id: a._id });
     return agents.length;
   },
@@ -195,6 +201,50 @@ export const snapshotAll = internalMutation({
   },
 });
 
+/**
+ * Every 10 minutes: agents with a payout or treasury transfer left in sending/unknown get a reconcile action
+ * (launchFees.reconcileOne, under the agent lease); copy buys signed but never recorded get settled too.
+ */
+export const reconcileAll = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<number> => {
+    if (process.env.MIMIR_BACKEND_OFF === "1") return 0;
+    let n = 0;
+    if (process.env.LAUNCH_FEES === "1") {
+      const ids = new Set<AgentId>();
+      for (const status of ["sending", "unknown"] as const) {
+        for (const p of await ctx.db.query("launchPayouts").withIndex("by_status", (q) => q.eq("status", status)).collect()) ids.add(p.agent);
+        for (const t of await ctx.db.query("launchTreasuryTransfers").withIndex("by_status", (q) => q.eq("status", status)).collect()) ids.add(t.agent);
+      }
+      for (const [i, id] of [...ids].entries()) await ctx.scheduler.runAfter(i * 1_000, internal.launchFees.reconcileOne, { id });
+      n += ids.size;
+    }
+    const copyBuys = [
+      ...(await ctx.db.query("launchCopyJobs").withIndex("by_status", (q) => q.eq("status", "unknown")).collect()),
+      ...(await ctx.db.query("launchCopyJobs").withIndex("by_status", (q) => q.eq("status", "running")).collect()),
+    ].some((j) => j.kind === "buy" && j.sig);
+    if (copyBuys) await ctx.scheduler.runAfter(0, internal.launchCopyJobs.reconcileBuys, {});
+    return n;
+  },
+});
+
+/** One agent's unresolved payouts and treasury transfers (lib/launch/reconcile.ts). */
+export const unresolvedFor = internalQuery({
+  args: { id: vAgent },
+  handler: async (ctx, { id }): Promise<Unresolved[]> => {
+    const out: Unresolved[] = [];
+    for (const status of ["sending", "unknown"] as const) {
+      for (const p of await ctx.db.query("launchPayouts").withIndex("by_agent_status", (q) => q.eq("agent", id).eq("status", status)).collect()) {
+        out.push({ kind: "payout", id: p._id, agent: id, sig: p.sig ?? null, lastValidBlockHeight: p.lastValidBlockHeight ?? null, status });
+      }
+      for (const t of await ctx.db.query("launchTreasuryTransfers").withIndex("by_agent_status", (q) => q.eq("agent", id).eq("status", status)).collect()) {
+        out.push({ kind: "treasury", id: t._id, agent: id, sig: t.sig ?? null, lastValidBlockHeight: t.lastValidBlockHeight ?? null, status });
+      }
+    }
+    return out;
+  },
+});
+
 // ---------------- FeeStore ----------------
 
 export const feeAgent = internalQuery({
@@ -204,7 +254,7 @@ export const feeAgent = internalQuery({
     if (!a || !feeable(a)) return null;
     return {
       id: a._id as string, ticker: a.ticker, mint: a.mint, creator: a.owner, walletId: a.solana.walletId, wallet: a.solana.address,
-      status: a.status, feesClaimedAt: a.feesClaimedAt ?? null, slippageBps: (a.trading.risk as { slippageBps?: number } | null)?.slippageBps ?? 300,
+      status: a.status, feesClaimedAt: a.feesClaimedAt ?? null, pendingClaim: a.pendingClaim ?? null, slippageBps: (a.trading.risk as { slippageBps?: number } | null)?.slippageBps ?? 300,
       ...allocationState(a), creatorPool: a.creatorPool ?? 0n,
     };
   },
@@ -213,6 +263,21 @@ export const feeAgent = internalQuery({
 export const markClaimed = internalMutation({
   args: { id: vAgent },
   handler: async (ctx, { id }) => void (await ctx.db.patch(id, { feesClaimedAt: Date.now() })),
+});
+
+/** The claim's signature, stored before broadcast: a claim that lands after a timeout is booked on the next round. */
+export const claimSigned = internalMutation({
+  args: { id: vAgent, sig: v.string(), lastValidBlockHeight: v.number() },
+  handler: async (ctx, { id, sig, lastValidBlockHeight }) => void (await ctx.db.patch(id, { pendingClaim: { sig, lastValidBlockHeight } })),
+});
+
+/** The pending claim is settled (booked, or provably never landed). */
+export const clearPendingClaim = internalMutation({
+  args: { id: vAgent, sig: v.string() },
+  handler: async (ctx, { id, sig }) => {
+    const a = await ctx.db.get(id);
+    if (a?.pendingClaim?.sig === sig) await ctx.db.patch(id, { pendingClaim: undefined });
+  },
 });
 
 const vSplit = v.object({ platform: v.int64(), llm: v.int64(), bankroll: v.int64(), buyback: v.int64(), creatorPayout: v.int64(), holders: v.int64() });
@@ -224,6 +289,7 @@ export const recordClaim = internalMutation({
   args: { id: vAgent, lamports: v.int64(), split: vSplit, allocation: vAllocation, accrue: v.boolean(), sig: v.string() },
   handler: async (ctx, a): Promise<Pools> => {
     const agent = await ctx.db.get(a.id);
+    if (agent?.pendingClaim?.sig === a.sig) await ctx.db.patch(a.id, { pendingClaim: undefined });
     if (await ctx.db.query("launchFeeClaims").withIndex("by_sig", (q) => q.eq("sig", a.sig)).first()) return pools(agent);
     const now = Date.now();
     await ctx.db.insert("launchFeeClaims", { agent: a.id, lamports: a.lamports, split: a.split, allocation: a.allocation, sig: a.sig, at: now });

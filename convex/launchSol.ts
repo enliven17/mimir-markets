@@ -22,8 +22,7 @@ import { lockOwnMint } from "../lib/launch/solana/locks";
 import { heliusClient, heliusKeys } from "../lib/launch/solana/rpc-pool";
 import { createConsoleLogger, publicError, type Log } from "../lib/launch/worker/log";
 import { tickAgent, type TickDeps } from "../lib/launch/worker/tick";
-import { createMirror, type CopyStore } from "../lib/launch/worker/copy";
-import { holdsMimir } from "../lib/launch/copy-gate";
+import { createMirror, type CopyFanout } from "../lib/launch/worker/copy";
 import type { AgentView, PositionView } from "./launchSolDb";
 
 const log = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "launch-sol" } });
@@ -102,16 +101,17 @@ function convexRepo(ctx: ActionCtx): Repo {
   };
 }
 
-/** Copy-trading persistence (lib/launch/worker/copy.ts CopyStore); amounts cross Convex as decimal strings. */
-function copyStore(ctx: ActionCtx): CopyStore {
+/** Copy trading: the agent's fill becomes one job per follower (convex/launchCopyJobs.ts), scheduled, never run here. */
+function copyFanout(ctx: ActionCtx): CopyFanout {
   const aid = (id: string) => id as Id<"launchAgents">;
   const sid = (id: string) => id as Id<"launchCopies">;
   return {
-    solSubs: async (id) => (await ctx.runQuery(internal.launchCopy.solSubs, { id: aid(id) })).map((x) => ({ ...x, maxPerTradeLamports: BigInt(x.maxPerTradeLamports) })),
-    holders: async (id, mint) => (await ctx.runQuery(internal.launchCopy.holders, { id: aid(id), mint })).map((x) => ({ ...x, tokens: BigInt(x.tokens) })),
-    addPosition: async (sub, mint, tokens, cost) => void (await ctx.runMutation(internal.launchCopy.addPosition, { sub: sid(sub), mint, tokens: tokens.toString(), costLamports: cost.toString() })),
-    settleSell: async (sub, mint, held, left) => void (await ctx.runMutation(internal.launchCopy.settleSell, { sub: sid(sub), mint, held: held.toString(), left: left.toString() })),
-    pauseForGate: async (sub) => void (await ctx.runMutation(internal.launchCopy.pauseForGate, { sub: sid(sub) })),
+    solSubs: (id) => ctx.runQuery(internal.launchCopy.solSubs, { id: aid(id) }),
+    holders: (id, mint) => ctx.runQuery(internal.launchCopy.holders, { id: aid(id), mint }),
+    schedule: async (j) =>
+      void (j.kind === "buy"
+        ? await ctx.scheduler.runAfter(0, internal.launchCopyJobs.solBuy, { key: j.key, sub: sid(j.sub), mint: j.mint, slippageBps: j.slippageBps })
+        : await ctx.scheduler.runAfter(0, internal.launchCopyJobs.solSell, { key: j.key, sub: sid(j.sub), mint: j.mint, fraction: j.fraction, slippageBps: j.slippageBps })),
   };
 }
 
@@ -149,7 +149,7 @@ export const tickOne = internalAction({
       // The executor refuses to sell or move the agent's own token from this wallet.
       lockOwnMint(agent.wallet, agent.mint);
       cached ??= build(process.env);
-      const deps: TickDeps = { ...cached, repo, ranker: rankerFor(b as Parameters<typeof rankerFor>[0], repo, id, log), now: Date.now, log, mirror: createMirror(copyStore(ctx), cached.executor, log, holdsMimir) };
+      const deps: TickDeps = { ...cached, repo, ranker: rankerFor(b as Parameters<typeof rankerFor>[0], repo, id, log), now: Date.now, log, mirror: createMirror(copyFanout(ctx), log) };
       const r = await tickAgent(agent, deps);
       log.debug("ticked", { agentId: id, ...r });
       return r.errors > 0 ? "errors" : "ok";

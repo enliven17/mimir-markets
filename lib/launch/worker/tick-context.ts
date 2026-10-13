@@ -31,8 +31,11 @@ export type TickDeps = {
   now: () => number;
   log: Log;
   settings?: TickSettings;
-  /** Copy trading: mirror fills into followers' copy wallets (worker/copy.ts). Optional; never throws. */
-  mirror?: { buy(agentId: string, mint: string, slippageBps: number): Promise<void>; sell(agentId: string, mint: string, fraction: number, slippageBps: number): Promise<void> };
+  /**
+   * Copy trading: hand the agent's fill to its followers (worker/copy.ts schedules one job per follower, keyed on
+   * the agent's signature so a retried tick never copies twice). Optional; never throws.
+   */
+  mirror?: { buy(agentId: string, mint: string, slippageBps: number, sig: string): Promise<void>; sell(agentId: string, mint: string, fraction: number, slippageBps: number, sig: string): Promise<void> };
 };
 
 export type TickContext = {

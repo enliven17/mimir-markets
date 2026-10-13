@@ -130,7 +130,24 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
               {sub.solana.address} · {sub.solana.spendableSol?.toFixed(3) ?? "?"} SOL free <ExternalMark />
             </a>
           ) : null}
-          {sub.holdings.length ? <span>Holding {sub.holdings.length} copied token{sub.holdings.length > 1 ? "s" : ""}; they exit with the agent.</span> : null}
+          {sub.holdings.length ? (
+            <span className="flex flex-wrap items-center gap-3">
+              Holding {sub.holdings.length} copied token{sub.holdings.length > 1 ? "s" : ""}; they exit with the agent.
+              <button
+                type="button"
+                disabled={busy}
+                className="font-sans text-coral hover:underline"
+                onClick={() =>
+                  void act(async () => {
+                    await signedPost(`/api/launch/${slug}/copy/drain`, { owner, signMessage, action: "copy-drain", agent: slug, body: {} });
+                    return "Selling your copied tokens now. Their SOL is free to withdraw in a minute.";
+                  })
+                }
+              >
+                Sell them now
+              </button>
+            </span>
+          ) : null}
           <form
             className="mt-1 flex flex-wrap items-end gap-3 font-sans"
             onSubmit={(e) => {

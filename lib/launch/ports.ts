@@ -42,6 +42,8 @@ export type TradeArgs = {
   walletId: string; wallet: string; mint: string; slippageBps: number; ownMint?: string | null;
   /** Mints of the wallet's other open positions: the simulation refuses a tx that lowers them. */
   protect?: readonly string[];
+  /** Gets the signature before the first broadcast (store it to settle an ambiguous send by signature). */
+  onSigned?: (sig: string, lastValidBlockHeight: number) => Promise<void>;
 };
 
 export interface Executor {

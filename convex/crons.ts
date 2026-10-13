@@ -25,4 +25,6 @@ crons.interval("launch solana", { seconds: 30 }, internal.launchSolDb.tickAll, {
 crons.interval("launch fees", { hours: 1 }, internal.launchFeeDb.feeAll, {});
 crons.interval("launch holder snapshots", { hours: 2 }, internal.launchFeeDb.snapshotAll, {});
 crons.interval("launch holder airdrops", { minutes: 30 }, internal.launchFeeDb.airdropAll, {});
+// Payouts, treasury transfers and copy buys whose outcome was never recorded, settled by signature (launchFeeDb.reconcileAll).
+crons.interval("launch reconcile", { minutes: 10 }, internal.launchFeeDb.reconcileAll, {});
 export default crons;

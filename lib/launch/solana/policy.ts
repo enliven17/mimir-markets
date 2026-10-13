@@ -120,7 +120,7 @@ export function agentWalletPolicy(a: { wallet: string; creator: string; treasury
   return build(`agent ${wallet}`, wallet, [assertAddress("treasury", a.treasury), assertAddress("creator", a.creator)], holders);
 }
 
-/** Copy-trade wallet: trade only; SOL may only go back to the follower (and the treasury if given). */
+/** Copy-trade wallet: trade only; SOL may only go back to the follower (and the treasury if given; Mimir Launch passes none). */
 export function copyTradeWalletPolicy(a: { wallet: string; follower: string; treasury?: string }): PolicyInput {
   const wallet = assertAddress("wallet", a.wallet);
   const recipients = [assertAddress("follower", a.follower), ...(a.treasury ? [assertAddress("treasury", a.treasury)] : [])];
