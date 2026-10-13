@@ -232,7 +232,7 @@ export function drawAvatar(spec: AvatarSpec, face: Face, { id }: DrawOptions): D
   // Tint mark: a small square, like a status dot.
   if (tintColour) prims.push({ k: "rect", x: x1 - 5, y: y0 + 2, w: 3, h: 3, fill: tintColour, stroke: INK, part: "tint" });
 
-  // Overlays.
+  // Overlays (cream: Mimir draws on a dark ground).
   const right = Math.min(29, x1);
   const top = Math.max(1, y0);
   if (face.overlay === "reticle") {
@@ -241,12 +241,12 @@ export function drawAvatar(spec: AvatarSpec, face: Face, { id }: DrawOptions): D
     const g = spec.eyes === "cyclops" ? 2 : 0;
     for (const b of [[-1, -5 - g, 2, 3], [-1, 4 + g, 2, 3], [-6 - g, 0, 3, 2], [3 + g, 0, 3, 2]] as Box[]) prims.push(box(b, cx, ey, c, "overlay", 1, { cls: "av-reticle" }));
   } else if (face.overlay === "dots") {
-    prims.push({ k: "rect", x: right - 2, y: top + 1, w: 1, h: 1, fill: INK, part: "overlay", cls: "av-dot av-dot-1" });
-    prims.push({ k: "rect", x: right, y: Math.max(0, top - 2), w: 2, h: 2, fill: INK, part: "overlay", cls: "av-dot av-dot-2" });
-    prims.push({ k: "rect", x: Math.min(29, right + 1), y: Math.max(0, top - 6), w: 3, h: 3, fill: INK, part: "overlay", cls: "av-dot av-dot-3" });
+    prims.push({ k: "rect", x: right - 2, y: top + 1, w: 1, h: 1, fill: CREAM, part: "overlay", cls: "av-dot av-dot-1" });
+    prims.push({ k: "rect", x: right, y: Math.max(0, top - 2), w: 2, h: 2, fill: CREAM, part: "overlay", cls: "av-dot av-dot-2" });
+    prims.push({ k: "rect", x: Math.min(29, right + 1), y: Math.max(0, top - 6), w: 3, h: 3, fill: CREAM, part: "overlay", cls: "av-dot av-dot-3" });
   } else if (face.overlay === "zzz") {
     const z = (zx: number, zy: number, cls: string) => {
-      for (const b of [[0, 0, 3, 1], [1, 1, 1, 1], [0, 2, 3, 1]] as Box[]) prims.push(box(b, zx, zy, INK, "overlay", 1, { opacity: 0.75, cls }));
+      for (const b of [[0, 0, 3, 1], [1, 1, 1, 1], [0, 2, 3, 1]] as Box[]) prims.push(box(b, zx, zy, CREAM, "overlay", 1, { opacity: 0.75, cls }));
     };
     z(Math.min(26, right - 2), Math.max(0, top - 4), "av-z av-z-1");
     z(Math.min(29, right + 1), Math.max(0, top - 8), "av-z av-z-2");
