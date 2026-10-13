@@ -48,7 +48,7 @@ export const forLaunch = query({
   handler: async (ctx, { secret, slug }) => {
     allowed(secret);
     const a = await bySlug(ctx, slug);
-    return a && { owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null, solana: a.solana ?? null, launch: a.launch ?? null };
+    return a && { owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null, solana: a.solana ?? null, arc: a.arc ?? null, launch: a.launch ?? null };
   },
 });
 
@@ -111,7 +111,7 @@ export const setStatus = mutation({
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner || a.status === "killed" || (a.status === "pending" && status !== "killed")) return false;
-    await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined } : {}) });
+    await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined, idle: undefined } : {}) });
     await log(ctx, a._id, "rules", status === "killed" ? "shut down by its owner: closing positions" : `${status === "live" ? "resumed" : "paused"} by its owner`);
     return true;
   },

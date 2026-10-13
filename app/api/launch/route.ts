@@ -10,6 +10,7 @@ import { CreateBody, create } from "@/lib/launch/flow";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { agentWalletPolicy } from "@/lib/launch/solana/policy";
 import { getSolana } from "@/lib/launch/solana/env";
+import { ARC } from "@/lib/arc/config";
 import { createWallets } from "@/lib/server/circle-w3s";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       wallets: {
         solana: (owner) => solana.privy.createWalletWithPolicy((address) => agentWalletPolicy({ wallet: address, creator: owner, treasury: solana.treasury })),
         arc: async (slug) => {
-          const [w] = await createWallets([slug], "ARC", "mimir-launch");
+          const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
           return { id: w.id, address: w.address };
         },
       },

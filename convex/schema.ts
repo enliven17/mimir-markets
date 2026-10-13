@@ -206,6 +206,8 @@ export default defineSchema({
     mint: v.optional(v.string()),
     /** Random id bound into the sealed BYOK key (lib/launch/byok AAD), fixed for the agent's life. */
     uid: v.string(),
+    /** A council persona (agents/council): Mimir's own agent, its Arc wallet is the council's Circle wallet. */
+    house: v.optional(v.string()),
     /** The launch: SOL the owner must send (lamports, decimal string), the token text, and the claim that lets one request mint. */
     launch: v.optional(v.object({
       fundLamports: v.string(),
@@ -223,6 +225,9 @@ export default defineSchema({
     leaseUntil: v.optional(v.number()),
     sleepUntil: v.optional(v.number()),
     lastTickAt: v.optional(v.number()),
+    /** Solana tick: idle/sleep bookkeeping (lib/launch/worker/idle.ts) and when a shut-down agent's SOL went back. */
+    idle: v.optional(v.object({ ticks: v.number(), sleepingSince: v.optional(v.number()), checkedAt: v.optional(v.number()), wakeRequestedAt: v.optional(v.number()) })),
+    sweptAt: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["owner"])
@@ -249,6 +254,7 @@ export default defineSchema({
     entryPriceSol: v.number(),
     peakPriceSol: v.number(),
     openedAt: v.number(),
+    decimals: v.optional(v.number()),
   }).index("by_agent", ["agent"]),
 
   /** Every Solana buy and sell, with its signature (unconfirmed ones are settled by a reconciler). */
