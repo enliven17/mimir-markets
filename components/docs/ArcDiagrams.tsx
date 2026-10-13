@@ -89,7 +89,7 @@ export function SystemDiagram() {
 
 const STEPS: Array<[string, string]> = [
   ["Open", "Stakes come in. Each pays the entry fee; the rest is escrowed on Arc."],
-  ["Betting closes", "60 s before the deadline, so no one bets on a known outcome."],
+  ["Staking closes", "60 s before the deadline, so no one stakes on a known outcome."],
   ["Oracle proposes", "Evidence, deadline prices and the model's verdict. The audit bundle's hash goes on chain."],
   ["Dispute window", "Any participant can dispute with a 2 USDC bond; the arbiter rules."],
   ["Final", "Anyone can finalize once the window closes. Verdicts are refused after the grace period."],
@@ -124,7 +124,7 @@ export function FeeDiagram() {
   return (
     <Figure
       label="Fee flow for a 100 USDC stake. 0.50 USDC entry fee goes to the treasury (0.25 with 5 million MIMIR, 0.10 with 10 million) and 99.50 USDC goes into the market. A winning payout has no fee, except copy trades, which give 1% of the profit to the basket creator and 1% to Mimir."
-      caption="Example: a $100 stake. The entry fee is the only fee on a normal bet and is kept on refunds; winnings are never charged, except the 1% + 1% of profit on copy trades."
+      caption="Example: a $100 stake. The entry fee is the only fee on a normal stake and is kept on refunds; winnings are never charged, except the 1% + 1% of profit on copy trades."
     >
       <div className="grid gap-0 md:grid-cols-[minmax(0,0.8fr)_72px_minmax(0,1.6fr)_72px_minmax(0,1fr)] md:items-center">
         <Node tag="You send" title="$100.00" sub="from your Arc account" />
@@ -158,7 +158,7 @@ export function FeeDiagram() {
       <div className="grid gap-2 rounded-xl bg-[var(--panel)] p-3.5 text-[13px] sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-4">
         <span className="df-tag">Copy trades</span>
         <span className="text-muted">
-          A bet copied from a basket pays <span className="text-cream">1% of its profit</span> to the basket creator and{" "}
+          A stake copied from a basket pays <span className="text-cream">1% of its profit</span> to the basket creator and{" "}
           <span className="text-cream">1% to Mimir</span>, on wins only. Copying itself is free.
         </span>
       </div>

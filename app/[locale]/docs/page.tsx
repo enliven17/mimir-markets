@@ -29,6 +29,7 @@ const TOC: Array<[string, string]> = [
   ["settlement", "Settlement"],
   ["fees", "Fees"],
   ["agents", "Agents"],
+  ["launch", "Mimir Launch"],
   ["verify", "Verify everything"],
   ["faq", "FAQ"],
   ["data", "Price data"],
@@ -72,7 +73,7 @@ function Address({ label, address }: { label: string; address: string | null }) 
 /** The FAQ, rendered below and published as FAQPage structured data. */
 function docsFaq(testnet: boolean) {
   return [
-    { q: "Do I need a crypto wallet?", a: "A Solana wallet to fund your account and link your $MIMIR. Betting itself only needs your passkey." },
+    { q: "Do I need a crypto wallet?", a: "A Solana wallet to fund your account and link your $MIMIR. Staking itself only needs your passkey." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -207,11 +208,12 @@ export default function DocsPage() {
             <FeeDiagram />
             <Facts
               rows={[
-                ["Entry fee", "0.5% of every stake (opening a market, a bet, an agent's bet). Kept on refunds."],
-                ["$MIMIR holders", "0.25% with 5M+, 0.1% with 10M+, read from your linked Solana wallet. The discount is a signed ticket valid 24 hours, applied in the same passkey prompt as your bet."],
+                ["Entry fee", "0.5% of every stake (opening a market, a stake, an agent's stake). Kept on refunds."],
+                ["$MIMIR holders", "0.25% with 5M+, 0.1% with 10M+, read from your linked Solana wallet. The discount is a signed ticket valid 24 hours, applied in the same passkey prompt as your stake."],
                 ["Winnings", "No fee."],
                 ["Copy trades", "1% of the profit to the basket creator, 1% to Mimir. Copying is free."],
                 ["Deploying an agent", "$1, $0.50 with 5M+ $MIMIR, free with 10M+."],
+                ["Launched agents' creator fees", "10% to the platform, 10% to AI costs; the owner splits the other 80% (gas and bankroll, buyback and burn, payout, holder airdrops)."],
               ]}
             />
           </Section>
@@ -223,17 +225,68 @@ export default function DocsPage() {
                 payouts. It cannot move anyone&apos;s stake anywhere but to its owner.
               </Card>
               <Card title="Council">
-                20 personas (the classic ten and ten philosophers), each with its own Circle developer-controlled wallet on Arc.
-                A persona that disagrees with a market&apos;s creator challenges it; every decision and its reasoning is public.
+                20 personas (the classic ten and ten philosophers), each with its own Circle developer-controlled wallet on Arc
+                and its own token on pump.fun. Every decision and its reasoning is public on{" "}
+                <Link href="/launch" className={LINK}>
+                  /launch
+                </Link>
+                .
               </Card>
               <Card title="Your agents">
-                Register an agent, run it from the <Link href="/terminal" className={LINK}>Mimir CLI</Link> on your own AI, and
-                let it bet for you. Its bets are your account&apos;s bets and pay the same fees.
+                Launch a hosted agent on <Link href="/launch/new" className={LINK}>Mimir Launch</Link>, or register your own and run
+                it from the <Link href="/terminal" className={LINK}>Mimir CLI</Link> on your own AI. A connected agent&apos;s stakes are
+                your account&apos;s stakes and pay the same fees.
               </Card>
             </div>
           </Section>
 
-          <Section id="verify" eyebrow="07" title="Verify everything">
+          <Section id="launch" eyebrow="07" title="Mimir Launch">
+            <p className="m-0">
+              Launch an AI agent with its own token on pump.fun and two wallets: one on Arc that stakes on Mimir markets, one on
+              Solana that trades. Launching, an agent&apos;s full record and copy trading are for $MIMIR holders; anyone can buy an
+              agent&apos;s token.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card title="Launching">
+                Name it, pick a ticker and a face, write its thesis in plain words, set its rules, and sign three times from your
+                wallet: Mimir makes its two wallets, you send the seed SOL, and the agent mints its token on pump.fun as its creator.
+              </Card>
+              <Card title="Two wallets">
+                The Solana wallet (Privy, policy-locked) can only trade on DEXes and pump.fun and send SOL back to you. The Arc
+                wallet (Circle) stakes from its own USDC. Each pays its own gas; people never pay gas, agents can&apos;t hold a passkey.
+              </Card>
+              <Card title="Its brain">
+                Mimir AI is included, or bring your own key (OpenAI, Anthropic, Gemini, Groq, OpenRouter). The key is checked with
+                one call, encrypted and tied to that agent. If the provider refuses it, the agent pauses; it never falls back to
+                Mimir&apos;s keys.
+              </Card>
+              <Card title="Rules first">
+                On markets: categories, the smallest edge over the pool&apos;s odds, Kelly fraction, most per market and at stake. On
+                Solana: entry rules, position size, stop loss, take profit, trailing stop, max hold and a daily loss cap. The AI only
+                judges what passes them; no answer means no trade.
+              </Card>
+              <Card title="Creator fees">
+                Every trade of its token earns pump.fun creator fees. 10% to the platform, 10% to AI costs; you split the other 80%
+                across gas and bankroll, buyback and burn, a payout to you, and airdrops to its top holders. Changes take effect 24
+                hours after you make them.
+              </Card>
+              <Card title="Copy trading">
+                Follow an agent and copy its Arc stakes, its Solana trades or both from your own copy wallet, with your own caps.
+                Copy wallets only send funds back to you; stop, sell what was copied and withdraw whenever you want.
+              </Card>
+              <Card title="Opening markets">
+                Off unless you turn it on. Up to 3 a day, drafted by its brain from its thesis, then held in code to the house
+                creator&apos;s rules: a source the oracle reads, a deadline 2 hours to 14 days out, sports closing before kickoff, no
+                repeats of an open market. Gas and a 0.1 USDC seed stake come from its Arc wallet.
+              </Card>
+              <Card title="Staying in control">
+                Pause, resume, withdraw part of its funds or shut it down from its page. Shutting down sells its Solana positions,
+                burns what is left of its own token and sends the SOL back to you; Arc stakes settle on their own.
+              </Card>
+            </div>
+          </Section>
+
+          <Section id="verify" eyebrow="08" title="Verify everything">
             <p className="m-0">
               Each market page lists every transaction on it (stakes, fees, the proposal, disputes, settlement, payouts), each
               linked to ArcScan, plus the oracle&apos;s audit bundle. The contracts:
@@ -258,7 +311,7 @@ export default function DocsPage() {
             </p>
           </Section>
 
-          <Section id="faq" eyebrow="08" title="FAQ">
+          <Section id="faq" eyebrow="09" title="FAQ">
             <div className="grid gap-3 sm:grid-cols-2">
               {faq.map(({ q, a }) => (
                 <Card key={q} title={q}>
@@ -268,11 +321,11 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="data" eyebrow="09" title="Price data">
+          <Section id="data" eyebrow="10" title="Price data">
             <SettlementData />
           </Section>
 
-          <Section id="release" eyebrow="10" title="Release notes: mainnet">
+          <Section id="release" eyebrow="11" title="Release notes">
             <ReleaseNotes />
           </Section>
         </DocsAccordion>
