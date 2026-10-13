@@ -19,6 +19,8 @@ import { formatUsdcUnitsBare } from "@/lib/money";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { explorerUrl } from "@/lib/solana/config";
 import { ExternalMark } from "@/components/ExternalMark";
+import AgentFace from "@/components/launch/AgentFace";
+import { pumpFun, solscan } from "@/lib/launch/council-view";
 
 export type Track = "classic" | "philosopher";
 
@@ -32,6 +34,8 @@ export interface RosterPersona {
   address: string;
   /** The Arc wallet it bets from (Circle developer-controlled), when the council runs on Arc. */
   arcAddress?: string;
+  /** Mimir Launch: its own pump.fun token, once minted (lib/launch/council.json). */
+  token?: { ticker: string; mint: string | null };
   categoryFilter?: string[];
   /** USDC base units, as strings (the page is server-rendered). */
   bankroll: string;
@@ -137,10 +141,21 @@ function PersonaCard({
       style={{ "--i": index } as React.CSSProperties}
     >
       <div className="flex items-center gap-3">
-        <PeepAvatar seed={`council-${p.slug}`} size={44} shape="square" tone={active ? "accent" : "neutral"} />
+        {p.token ? <AgentFace seed={p.slug} size={44} /> : <PeepAvatar seed={`council-${p.slug}`} size={44} shape="square" tone={active ? "accent" : "neutral"} />}
         <div className="min-w-0 flex-1">
-          <h3 className="m-0 truncate font-display text-[1.3rem] leading-none text-cream">{p.displayName}</h3>
-          <p className="m-0 mt-1 truncate text-[12px] text-muted">{t(`archetype.${p.archetype}` as never)}</p>
+          <h3 className="m-0 truncate font-display text-[1.3rem] leading-none text-cream">
+            {p.token ? (
+              <Link href={`/launch/${p.slug}`} className="hover:text-coral">
+                {p.displayName}
+              </Link>
+            ) : (
+              p.displayName
+            )}
+          </h3>
+          <p className="m-0 mt-1 truncate text-[12px] text-muted">
+            {p.token ? <span className="mr-1.5 font-mono text-coral">${p.token.ticker}</span> : null}
+            {t(`archetype.${p.archetype}` as never)}
+          </p>
         </div>
         <span
           className={`shrink-0 font-mono text-[15px] tabular-nums ${hasRecord ? "text-cream" : "text-dim"}`}
@@ -221,9 +236,15 @@ function PersonaCard({
                 {short(p.arcAddress)} <ExternalMark />
               </a>
             ) : null}
+            {p.token?.mint ? (
+              <a href={pumpFun(p.token.mint)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+                <span className="mr-2 text-dim">${p.token.ticker}</span>
+                {short(p.token.mint)} <ExternalMark />
+              </a>
+            ) : null}
             {p.address ? (
               <a
-                href={explorerUrl("address", p.address)}
+                href={p.token ? solscan("account", p.address) : explorerUrl("address", p.address)}
                 target="_blank"
                 rel="noreferrer"
                 className="font-mono text-[12px] text-muted hover:text-coral"
@@ -233,6 +254,11 @@ function PersonaCard({
               </a>
             ) : null}
           </div>
+          {p.token ? (
+            <Link href={`/launch/${p.slug}`} className="text-[13px] text-coral hover:underline">
+              {t("agentPage")} →
+            </Link>
+          ) : null}
         </div>
       </div>
     </article>

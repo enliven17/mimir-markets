@@ -2,7 +2,7 @@
  * Site navigation: the single source for the header pill, the "More" sheet,
  * the mobile panel and the footer.
  *
- * - `NAV_PRIMARY` sits in the pill: Arena, Portfolio, Agents, Council. Keep it at 4.
+ * - `NAV_PRIMARY` sits in the pill: Arena, Portfolio, Launch. Keep it at 4 or fewer.
  * - `NAV_MORE_GROUPS` go into the "More" sheet (and the mobile panel and the
  *   footer). New pages usually belong here.
  *
@@ -31,8 +31,8 @@ export const NAV_PRIMARY: readonly NavItem[] = [
   { href: "/arena", key: "arena", matchNested: true },
   // Portfolio is the old Dashboard: label change only, the route stays. It also hosts the Arc account setup.
   { href: "/dashboard", key: "portfolio" },
-  { href: "/agents", key: "agents" },
-  { href: "/council", key: "council" },
+  // Agents and the council together (was /agents and /council).
+  { href: "/launch", key: "launch", matchNested: true },
 ];
 
 /**
@@ -54,7 +54,6 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
     key: "build",
     items: [
-      { href: "/agents", key: "agents" },
       { href: "/agents/new", key: "agentsNew" },
       // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
       { href: "/terminal", key: "terminal" },

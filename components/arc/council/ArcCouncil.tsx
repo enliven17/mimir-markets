@@ -23,6 +23,7 @@ import { arcPublicClient } from "@/lib/arc/chain";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { ExternalMark } from "@/components/ExternalMark";
+import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
 
 /** 18-dp wei (string) → the 6-dp units the roster formats. */
 const units = (wei: string | bigint) => (BigInt(wei) / 1_000_000_000_000n).toString();
@@ -38,13 +39,16 @@ export default function ArcCouncil({ solana }: { solana: Record<string, string> 
     const byslug = new Map((council ?? []).map((c) => [c.slug, c]));
     return COUNCIL_PERSONAS.map((p) => {
       const c = byslug.get(p.slug);
+      // Mimir Launch: a persona with its own agent wallet and token shows those instead of the derived identity.
+      const agent = COUNCIL_AGENTS[p.slug];
       return {
         slug: p.slug,
         displayName: p.displayName,
         bio: p.bio,
         archetype: p.archetype,
         track: trackOf(p),
-        address: solana[p.slug] ?? "",
+        address: agent?.solana ?? solana[p.slug] ?? "",
+        token: agent?.solana ? { ticker: agent.ticker, mint: agent.mint } : undefined,
         arcAddress: c?.address,
         categoryFilter: p.categoryFilter,
         bankroll: c ? units(bankrolls.get(c.address) ?? 0n) : "0",

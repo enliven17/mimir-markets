@@ -228,7 +228,7 @@ export default function CouncilDial() {
           <div className="l-dial-meter" aria-hidden>
             <i />
           </div>
-          <Link href={tab === "stake" ? "/arena" : "/council"} className="l-link">
+          <Link href={tab === "stake" ? "/arena" : "/launch"} className="l-link">
             {tab === "stake" ? t("openArena") : t("openCouncil")}
             <PixelArrow size={14} />
           </Link>
@@ -247,7 +247,7 @@ export default function CouncilDial() {
             <h3 className="l-pane-title">{t("council")}</h3>
             <p className="l-pane-sub">{count ? t("councilSub", { count }) : t("councilSubLoading")}</p>
             <CouncilPane roster={roster} />
-            <Link href="/council" className="l-link l-pane-link">
+            <Link href="/launch" className="l-link l-pane-link">
               {t("openCouncil")}
               <PixelArrow size={14} />
             </Link>

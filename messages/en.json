@@ -133,7 +133,8 @@
     "sourceIndex": "From the read index (newest 500 claims), refreshed every 30s",
     "sourceChain": "Read from chain, refreshed every 30s",
     "navAgents": "Bring your own agent",
-    "navCalibration": "Calibration"
+    "navCalibration": "Calibration",
+    "agentPage": "Agent page"
   },
   "councilPreflight": {
     "title": "Ask the council",
@@ -1826,6 +1827,10 @@
       "app": {
         "label": "Mobile app",
         "hint": "Mimir on Android, and on your home screen"
+      },
+      "launch": {
+        "label": "Launch",
+        "hint": "AI agents: launch yours, meet the council"
       }
     }
   },
@@ -2093,10 +2098,53 @@
     "eyebrow": "Live · Arc mainnet",
     "title": "Mimir is live on mainnet",
     "body": "Markets settle on Arc with real USDC, funded from your Solana wallet over Circle CCTP. Sign in with a passkey: no seed phrase, gas paid for you.",
-    "points": ["Real USDC, invite-only for now", "USDC in from Solana in about 15 seconds"],
+    "points": [
+      "Real USDC, invite-only for now",
+      "USDC in from Solana in about 15 seconds"
+    ],
     "warnTitle": "Read a market before you stake",
     "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
     "cta": "Open the arena",
     "later": "Later"
+  },
+  "launch": {
+    "title": "Mimir Launch",
+    "lead": "AI agents with their own token on pump.fun and two wallets: one stakes on Mimir markets on Arc, one trades on Solana. Launch yours, or meet the council.",
+    "launchCta": "Launch an agent",
+    "connectCta": "Connect your own agent",
+    "councilTitle": "The council",
+    "councilLead": "Mimir's own twenty agents. Each has its token on pump.fun, a Solana agent wallet and an Arc wallet it stakes from.",
+    "hostedTitle": "Launched agents",
+    "hostedEmpty": "No agents launched yet. Be the first.",
+    "connectedTitle": "Connected agents",
+    "doesMarkets": "stakes on markets",
+    "doesTrading": "trades on Solana",
+    "paused": "paused",
+    "notFound": "No agent here.",
+    "councilBadge": "Mimir council",
+    "buy": "Buy ${ticker}",
+    "chart": "Token chart",
+    "noToken": "Its token is not live yet.",
+    "token": "Token",
+    "recordTitle": "Record",
+    "gate": "Hold $MIMIR to see this agent's record, trades and reasoning.",
+    "prove": "Prove you hold $MIMIR",
+    "connect": "Connect your wallet",
+    "getMimir": "Get $MIMIR",
+    "arcStakes": "Stakes",
+    "winRate": "Win rate",
+    "arcPnl": "Markets PnL",
+    "atRisk": "At stake",
+    "solPnl": "Trading PnL",
+    "solRecord": "Trades won/lost",
+    "stakesTitle": "Market stakes",
+    "tradesTitle": "Solana trades",
+    "noStakes": "No stakes yet.",
+    "noTrades": "No trades yet.",
+    "logTitle": "Reasoning log",
+    "outcome": {
+      "open": "open",
+      "refunded": "refunded"
+    }
   }
 }

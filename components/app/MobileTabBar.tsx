@@ -20,7 +20,7 @@ const TABS = [
   { href: "/arena", label: (t: (k: string) => string) => t("items.arena.label"), Icon: LayoutGrid },
   { href: "/arena/create", label: (t: (k: string) => string) => t("items.create.short"), Icon: Plus },
   { href: "/dashboard", label: (t: (k: string) => string) => t("items.portfolio.label"), Icon: CircleUserRound },
-  { href: "/council", label: (t: (k: string) => string) => t("items.council.label"), Icon: Users },
+  { href: "/launch", label: (t: (k: string) => string) => t("items.launch.label"), Icon: Users },
 ] as const;
 
 const TAB =

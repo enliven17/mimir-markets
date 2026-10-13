@@ -216,7 +216,7 @@ export default function AgentRegisterClient() {
 
   const back = (
     <Link
-      href="/agents"
+      href="/launch"
       className="press inline-flex min-h-[34px] items-center gap-1.5 self-start rounded-full pr-2 text-[14px] text-muted transition-colors hover:text-cream"
     >
       <span aria-hidden>←</span>
