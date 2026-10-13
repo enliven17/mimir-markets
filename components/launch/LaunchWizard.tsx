@@ -20,6 +20,7 @@ import { signedPost } from "@/lib/launch/client";
 import { LAUNCH_FEE_SOL, PRESETS, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
+import { AGENT_MARKETS_PER_DAY_MAX } from "@/lib/launch/agent-markets-limit";
 import AgentFace from "./AgentFace";
 import ByokGuide from "./ByokGuide";
 import FeeAllocator, { AllocationBar } from "./FeeAllocator";
@@ -32,7 +33,7 @@ const INITIAL = {
   name: "", ticker: "", description: "", image: null as string | null, avatar: {} as AvatarPicks,
   thesis: "",
   brain: "mimir" as "mimir" | ByokProvider, apiKey: "", model: "",
-  markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20 },
+  markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20, opens: false, opensPerDay: 1 },
   trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
   seedSol: "0.1",
   allocation: DEFAULT_ALLOCATION as Allocation,
@@ -54,7 +55,7 @@ function problems(step: number, f: Form): string | null {
     const whales = f.trading.whales.split(/\s+/).filter(Boolean);
     if (f.trading.sources.includes("helius") && (!whales.length || whales.some((w) => !B58.test(w)))) return "Add the Solana wallets to follow, one per line.";
   }
-  if (step === 3 && !f.trading.enabled && !f.markets.enabled) return "Turn on markets, trading or both.";
+  if (step === 3 && !f.trading.enabled && !f.markets.enabled && !f.markets.opens) return "Turn on markets, trading or both.";
   if (step === 4 && !sumsTo100(f.allocation)) return "The four fee buckets must add up to 100.";
   if (step === 5 && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
   return null;
@@ -122,7 +123,7 @@ export default function LaunchWizard() {
     name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: Number(f.seedSol), allocation: f.allocation,
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
-    markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc },
+    markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
     trading: f.trading.enabled
       ? { enabled: true, strategy: { preset: f.trading.preset, sources: f.trading.sources, entry: f.trading.entry, whales: f.trading.whales.split(/\s+/).filter(Boolean) }, risk: f.trading.risk, trailingStopPct: f.trading.trailingStopPct, maxHoldMinutes: f.trading.maxHoldMinutes }
       : { enabled: false },
@@ -355,6 +356,16 @@ export default function LaunchWizard() {
                 </div>
               </>
             ) : null}
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
+              <span className="grid gap-0.5">
+                <span className="text-[14px] text-cream">Let it open markets (gas paid from its Arc wallet)</span>
+                <span className="text-[12px] text-muted">From its thesis and categories, held to the house creator&apos;s rules: a named source, a deadline 2 hours to 14 days out, sports closing before kickoff. Each one takes a 0.1 USDC seed stake.</span>
+              </span>
+              <input type="checkbox" role="switch" className="switch" checked={f.markets.opens} onChange={(e) => setM({ opens: e.target.checked })} />
+            </label>
+            {f.markets.opens ? (
+              <Range label="Markets a day, at most" value={f.markets.opensPerDay} min={1} max={AGENT_MARKETS_PER_DAY_MAX} unit="" onChange={(v) => setM({ opensPerDay: v })} hint="The same limit a person has." />
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -438,7 +449,10 @@ export default function LaunchWizard() {
               <dt>Brain</dt>
               <dd>{f.brain === "mimir" ? "Mimir AI" : `${BYOK_PROVIDERS[f.brain].label} (your key)`}</dd>
               <dt>Markets</dt>
-              <dd>{f.markets.enabled ? `edge ≥ ${f.markets.minEdge} pts · up to ${f.markets.maxStakeUsdc} USDC each · ${f.markets.budgetUsdc} USDC at once` : "off"}</dd>
+              <dd>
+                {f.markets.enabled ? `edge ≥ ${f.markets.minEdge} pts · up to ${f.markets.maxStakeUsdc} USDC each · ${f.markets.budgetUsdc} USDC at once` : "off"}
+                {f.markets.opens ? ` · opens up to ${f.markets.opensPerDay} a day` : ""}
+              </dd>
               <dt>Trading</dt>
               <dd>{t.enabled ? `${STRATEGIES[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · cap ${t.risk.maxDailyLossPct}%` : "off"}</dd>
               <dt>Fees</dt>
