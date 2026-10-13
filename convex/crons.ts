@@ -27,4 +27,6 @@ crons.interval("launch holder snapshots", { hours: 2 }, internal.launchFeeDb.sna
 crons.interval("launch holder airdrops", { minutes: 30 }, internal.launchFeeDb.airdropAll, {});
 // Payouts, treasury transfers and copy buys whose outcome was never recorded, settled by signature (launchFeeDb.reconcileAll).
 crons.interval("launch reconcile", { minutes: 10 }, internal.launchFeeDb.reconcileAll, {});
+// Agents opening their own markets when their owner allows it (convex/launchMarketsDb.ts); a no-op until LAUNCH_ARC=1.
+crons.interval("launch agent markets", { hours: 1 }, internal.launchMarketsDb.createAll, {});
 export default crons;

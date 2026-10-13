@@ -13,6 +13,7 @@ import { api } from "@/convex/_generated/api";
 import { AVATAR_SEED_RE } from "@/lib/avatar/spec";
 import { BYOK_PROVIDERS, sealKey, type ByokProvider } from "./byok";
 import { DEFAULT_MARKET_RULES } from "./markets";
+import { AGENT_MARKETS_PER_DAY_MAX } from "./agent-markets-limit";
 import { allocationProblem, DEFAULT_ALLOCATION } from "./fees";
 import type { verifyFunding } from "./funding";
 import type { Cx } from "./request";
@@ -63,6 +64,8 @@ const Markets = z.object({
   maxHoursToClose: z.number().min(1).max(24 * 30).default(DEFAULT_MARKET_RULES.maxHoursToClose),
   /** The most it may have staked at once. */
   budgetUsdc: z.number().min(0).max(10_000).default(20),
+  /** Opening its own markets (lib/launch/agent-markets.ts): off by default; gas and the seed stake from its Arc wallet. */
+  create: z.object({ enabled: z.boolean(), perDay: z.number().int().min(1).max(AGENT_MARKETS_PER_DAY_MAX) }).default({ enabled: false, perDay: 1 }),
 });
 
 const Brain = z.discriminatedUnion("kind", [
@@ -90,7 +93,7 @@ export const CreateBody = z.object({
   seedSol: z.number().min(0).max(100),
   /** Where the owner's 80% of every creator-fee claim goes (lib/launch/fees.ts). */
   allocation: AllocationBody.default(DEFAULT_ALLOCATION),
-}).refine((b) => b.trading.enabled || b.markets.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] });
+}).refine((b) => b.trading.enabled || b.markets.enabled || b.markets.create.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] });
 export type CreateInput = z.infer<typeof CreateBody>;
 
 export interface Wallets {
@@ -125,13 +128,13 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
         risk: t.risk,
       }
     : { enabled: false, config: null, risk: null };
-  const { enabled, budgetUsdc, ...rules } = input.markets;
+  const { enabled, budgetUsdc, create: opens, ...rules } = input.markets;
   const solana = await deps.wallets.solana(owner);
   const arc = await deps.wallets.arc(slug);
   const fundLamports = BigInt(Math.round(input.seedSol * 1e9)) + LAUNCH_FEE_LAMPORTS;
   const r = await client.mutation(api.launch.createPending, {
     secret, slug, uid, owner, name: input.name, ticker: input.ticker, avatarSeed: input.avatarSeed ?? slug, thesis: input.thesis, brain, trading,
-    markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules } },
+    markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules }, create: opens },
     solana: { walletId: solana.id, address: solana.address }, arc: { walletId: arc.id, address: arc.address },
     fundLamports: fundLamports.toString(), description: input.description, ...(input.image ? { image: input.image } : {}),
     allocation: input.allocation,

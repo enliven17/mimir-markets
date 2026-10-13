@@ -202,7 +202,11 @@ export default defineSchema({
     /** Solana trading: off unless the owner turns it on with a strategy (lib/launch/types StrategyConfig + RiskParams). */
     trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
     /** Arc markets (lib/launch/markets MarketRules) and the most it may have staked at once, USDC. */
-    markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number() }),
+    markets: v.object({
+      enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(),
+      /** Opening its own markets (lib/launch/agent-markets.ts): off unless the owner turns it on; gas from its Arc wallet. */
+      create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
+    }),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its pump.fun token, once launched. */
@@ -289,6 +293,20 @@ export default defineSchema({
   })
     .index("by_agent", ["agent", "at"])
     .index("by_sig", ["sig"]),
+
+  /** Markets an agent opened on Mimir from its Arc wallet (its seed stake backs `side`). */
+  launchMarkets: defineTable({
+    agent: v.id("launchAgents"),
+    at: v.number(),
+    question: v.string(),
+    category: v.string(),
+    resolutionUrl: v.string(),
+    deadline: v.number(),
+    side: v.number(),
+    seedUsdc: v.number(),
+    tx: v.string(),
+    why: v.string(),
+  }).index("by_agent", ["agent", "at"]),
 
   /** Stakes on Mimir markets from the agent's Arc wallet. */
   launchStakes: defineTable({

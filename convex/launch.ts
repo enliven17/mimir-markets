@@ -28,7 +28,7 @@ export const createPending = mutation({
     secret: v.string(), slug: v.string(), uid: v.string(), owner: v.string(), name: v.string(), ticker: v.string(), avatarSeed: v.string(), thesis: v.string(),
     brain: vBrain,
     trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
-    markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number() }),
+    markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
     solana: v.object({ walletId: v.string(), address: v.string() }),
     arc: v.object({ walletId: v.string(), address: v.string() }),
     fundLamports: v.string(), description: v.string(), image: v.optional(v.string()),
@@ -184,6 +184,27 @@ export const byOwner = query({
  * Live agents with markets on whose turn it is, claimed for this tick: lastTickAt moves first, so an overlapping
  * run skips them (one worker per agent). The sealed brain goes only to the internal action.
  */
+/**
+ * What an agent holds on Arc and how much is still out (unsettled), from the chain (the indexed positions) and from
+ * our own records: a Circle call that timed out can still land, and the index sees it within seconds, so it is never
+ * staked twice. Also used by convex/launchMarketsDb.ts for the seed stake of a market it opens.
+ */
+export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents">): Promise<{ held: string[]; openUsdc: number }> {
+  if (!a.arc) return { held: [], openUsdc: 0 };
+  const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
+  const onChain = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a.arc!.address.toLowerCase())).collect();
+  const out = new Map<string, number>();
+  for (const p of onChain) out.set(`${p.kind}:${p.marketId}`, (out.get(`${p.kind}:${p.marketId}`) ?? 0) + Number(BigInt(p.amount)) / 1e18);
+  for (const s of recorded) if (!out.has(`${s.kind}:${s.marketId}`)) out.set(`${s.kind}:${s.marketId}`, s.usdc);
+  let openUsdc = 0;
+  for (const [key, usdc] of out) {
+    const [kind, id] = key.split(":");
+    const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind as "vs" | "pool").eq("marketId", Number(id))).unique();
+    if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
+  }
+  return { held: [...out.keys()], openUsdc };
+}
+
 export const claimMarketAgents = internalMutation({
   args: { now: v.number(), everyMs: v.number(), max: v.number() },
   handler: async (ctx, { now, everyMs, max }) => {
@@ -191,21 +212,8 @@ export const claimMarketAgents = internalMutation({
     const due = live.filter((a) => a.markets.enabled && a.arc && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
     for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
     return Promise.all(due.map(async (a) => {
-      // What it holds, from the chain (the indexed positions) and from our own records: a Circle call that timed out
-      // can still land, and the index sees it within seconds, so the next tick never stakes that market again.
-      const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
-      const onChain = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a.arc!.address.toLowerCase())).collect();
-      const out = new Map<string, number>();
-      for (const p of onChain) out.set(`${p.kind}:${p.marketId}`, (out.get(`${p.kind}:${p.marketId}`) ?? 0) + Number(BigInt(p.amount)) / 1e18);
-      for (const s of recorded) if (!out.has(`${s.kind}:${s.marketId}`)) out.set(`${s.kind}:${s.marketId}`, s.usdc);
-      // Money still out: stakes on markets that have not settled yet.
-      let openUsdc = 0;
-      for (const [key, usdc] of out) {
-        const [kind, id] = key.split(":");
-        const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind as "vs" | "pool").eq("marketId", Number(id))).unique();
-        if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
-      }
-      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: [...out.keys()], openUsdc };
+      const { held, openUsdc } = await holdings(ctx, a);
+      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held, openUsdc };
     }));
   },
 });

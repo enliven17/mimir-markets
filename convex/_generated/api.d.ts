@@ -28,6 +28,8 @@ import type * as launchCopy from "../launchCopy.js";
 import type * as launchCopyJobs from "../launchCopyJobs.js";
 import type * as launchFeeDb from "../launchFeeDb.js";
 import type * as launchFees from "../launchFees.js";
+import type * as launchMarkets from "../launchMarkets.js";
+import type * as launchMarketsDb from "../launchMarketsDb.js";
 import type * as launchSol from "../launchSol.js";
 import type * as launchSolDb from "../launchSolDb.js";
 
@@ -58,6 +60,8 @@ declare const fullApi: ApiFromModules<{
   launchCopyJobs: typeof launchCopyJobs;
   launchFeeDb: typeof launchFeeDb;
   launchFees: typeof launchFees;
+  launchMarkets: typeof launchMarkets;
+  launchMarketsDb: typeof launchMarketsDb;
   launchSol: typeof launchSol;
   launchSolDb: typeof launchSolDb;
 }>;
