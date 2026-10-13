@@ -3,7 +3,7 @@
  * market judge (markets.ts) take a JsonRouter; this is the platform one. An owner's own key is a second router
  * (byok.ts) with the same shape. Agents spend the "web" role, so they never touch the oracle's settlement keys.
  */
-import { callLLMWithMeta, extractJson } from "@/lib/llm";
+import { callLLMWithMeta, extractJson } from "../llm";
 import type { JsonRouter } from "./engine/rank";
 
 /** Agents' own Gemini key when one is set (LAUNCH_GEMINI_API_KEY), else the shared pool. */

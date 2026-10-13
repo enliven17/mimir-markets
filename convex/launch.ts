@@ -1,7 +1,7 @@
 // Mimir Launch: hosted agents' records. Writes come only from the web server with MIMIR_LAUNCH_SECRET
 // (lib/launch/flow.ts); the public views never return a sealed key, a wallet id or the uid.
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { secretMatches } from "../lib/internal-secrets";
 
@@ -141,4 +141,46 @@ export const byOwner = query({
   args: { owner: v.string() },
   handler: async (ctx, { owner }) =>
     (await ctx.db.query("launchAgents").withIndex("by_owner", (q) => q.eq("owner", owner)).order("desc").take(50)).map(publicView),
+});
+
+// ---------------- the Arc market tick (convex/launchArc.ts) ----------------
+
+/**
+ * Live agents with markets on whose turn it is, claimed for this tick: lastTickAt moves first, so an overlapping
+ * run skips them (one worker per agent). The sealed brain goes only to the internal action.
+ */
+export const claimMarketAgents = internalMutation({
+  args: { now: v.number(), everyMs: v.number(), max: v.number() },
+  handler: async (ctx, { now, everyMs, max }) => {
+    const live = await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", "live")).take(500);
+    const due = live.filter((a) => a.markets.enabled && a.arc && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
+    for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
+    return Promise.all(due.map(async (a) => {
+      const stakes = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
+      // Money still out: stakes on markets that have not settled yet.
+      let openUsdc = 0;
+      for (const s of stakes) {
+        const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", s.kind).eq("marketId", s.marketId)).unique();
+        if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += s.usdc;
+      }
+      return { id: a._id, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc!, held: stakes.map((s) => `${s.kind}:${s.marketId}`), openUsdc };
+    }));
+  },
+});
+
+export const recordStake = internalMutation({
+  args: { agent: v.id("launchAgents"), kind: v.union(v.literal("vs"), v.literal("pool")), marketId: v.number(), side: v.number(), usdc: v.number(), p: v.number(), edge: v.number(), why: v.string(), tx: v.string(), text: v.string() },
+  handler: async (ctx, { text, ...s }) => {
+    await ctx.db.insert("launchStakes", { ...s, at: Date.now() });
+    await log(ctx, s.agent, "stake", text, { chain: "arc", tx: s.tx });
+  },
+});
+
+export const note = internalMutation({
+  args: { agent: v.id("launchAgents"), kind: v.string(), text: v.string(), pause: v.optional(v.boolean()) },
+  handler: async (ctx, { agent, kind, text, pause }) => {
+    await log(ctx, agent, kind, text);
+    const a = await ctx.db.get(agent);
+    if (pause && a?.status === "live") await ctx.db.patch(agent, { status: "paused" });
+  },
 });

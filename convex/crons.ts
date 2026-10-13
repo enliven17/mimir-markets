@@ -16,4 +16,6 @@ crons.interval("arc market creator", { hours: 1 }, internal.arcCreator.tick, {})
 crons.interval("app store sweep", { minutes: 10 }, internal.appStore.sweep, {});
 // The watchdog: problems that need a human go to the admin Telegram (convex/arcWatch.ts).
 crons.interval("arc watchdog", { minutes: 10 }, internal.arcWatch.tick, {});
+// Mimir Launch agents staking on markets (convex/launchArc.ts); a no-op until LAUNCH_ARC=1.
+crons.interval("launch arc", { minutes: 5 }, internal.launchArc.tick, {});
 export default crons;
