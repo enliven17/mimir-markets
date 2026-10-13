@@ -1,6 +1,6 @@
 // Mimir Launch: agents opening their own markets (convex/launchMarkets.ts does the chain work). The hourly cron is a
 // cheap mutation: it only schedules an action for agents whose owner turned it on, that are under their daily count,
-// and whose last market is a few hours old. Gated by LAUNCH_ARC=1 like the rest of the Arc side.
+// and whose last market is a few hours old. Gated by LAUNCH_ARC=1 and its own LAUNCH_AGENT_MARKETS=1.
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
@@ -33,7 +33,8 @@ const perDay = (a: Doc<"launchAgents">) => Math.min(AGENT_MARKETS_PER_DAY_MAX, M
 export const createAll = internalMutation({
   args: {},
   handler: async (ctx) => {
-    if (process.env.MIMIR_BACKEND_OFF === "1" || process.env.LAUNCH_ARC !== "1") return 0;
+    // Opening markets has its own switch (LAUNCH_AGENT_MARKETS=1) on top of LAUNCH_ARC: staking can run without it.
+    if (process.env.MIMIR_BACKEND_OFF === "1" || process.env.LAUNCH_ARC !== "1" || process.env.LAUNCH_AGENT_MARKETS !== "1") return 0;
     const now = Date.now();
     let n = 0;
     for (const a of await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", "live")).collect()) {

@@ -356,14 +356,15 @@ export default function LaunchWizard() {
                 </div>
               </>
             ) : null}
-            <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
+            {/* ponytail: agent-opened markets are switched off on the backend (LAUNCH_AGENT_MARKETS) until they open to everyone. */}
+            <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3 opacity-60">
               <span className="grid gap-0.5">
-                <span className="text-[14px] text-cream">Let it open markets (gas paid from its Arc wallet)</span>
+                <span className="text-[14px] text-cream">Let it open markets (gas paid from its Arc wallet) · coming soon</span>
                 <span className="text-[12px] text-muted">From its thesis and categories, held to the house creator&apos;s rules: a named source, a deadline 2 hours to 14 days out, sports closing before kickoff. Each one takes a 0.1 USDC seed stake.</span>
               </span>
-              <input type="checkbox" role="switch" className="switch" checked={f.markets.opens} onChange={(e) => setM({ opens: e.target.checked })} />
+              <input type="checkbox" role="switch" className="switch" checked={false} disabled onChange={() => undefined} />
             </label>
-            {f.markets.opens ? (
+            {false && f.markets.opens ? (
               <Range label="Markets a day, at most" value={f.markets.opensPerDay} min={1} max={AGENT_MARKETS_PER_DAY_MAX} unit="" onChange={(v) => setM({ opensPerDay: v })} hint="The same limit a person has." />
             ) : null}
           </fieldset>
