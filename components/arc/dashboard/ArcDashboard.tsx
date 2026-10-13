@@ -10,6 +10,7 @@
 import { InvitesPanel } from "@/components/access/AccessGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useLocale } from "next-intl";
 import { encodeFunctionData, parseAbi, type Address } from "viem";
 
 import { api } from "@/convex/_generated/api";
@@ -27,6 +28,7 @@ import { useArcAccount } from "../arena/useArcAccount";
 import { useArcSend } from "../arena/useArcSend";
 import { useArcBalances } from "../useArcBalances";
 import { ExternalMark } from "@/components/ExternalMark";
+import { SITE_URL } from "@/lib/site";
 
 const PARKED_ABI = parseAbi(["function pendingWithdrawals(address) view returns (uint256)", "function withdraw()"]);
 
@@ -160,8 +162,8 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
             {rows.map((r) => {
               const phase = arcPhase(r.market, now);
               return (
-                <li key={r._id} className="border-b border-line last:border-0">
-                  <Link href={`/arena/arc/${r.kind}/${r.marketId}`} className="grid gap-1 rounded-xl px-3 py-3 hover:bg-panel sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+                <li key={r._id} className="flex items-center gap-2 border-b border-line last:border-0">
+                  <Link href={`/arena/arc/${r.kind}/${r.marketId}`} className="grid min-w-0 flex-1 gap-1 rounded-xl px-3 py-3 hover:bg-panel sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-[12px] text-muted">
                         <span className="font-mono uppercase tracking-[0.12em] text-coral">{KIND_LABEL[r.kind]}</span>
@@ -177,6 +179,7 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
                       <span className={`text-[13px] ${RESULT_TONE[r.result]}`}>{RESULT_LABEL[r.result]}</span>
                     </span>
                   </Link>
+                  {r.result === "won" ? <ShareWin kind={r.kind} marketId={r.marketId} side={r.side} question={r.market.question} label={r.side === 1 ? r.market.labelA : r.market.labelB} /> : null}
                 </li>
               );
             })}
@@ -184,6 +187,24 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * Share a win: the market link with ?won=<side>, which previews as the winner card (app/api/telegram/card/winner).
+ * The phone's share sheet where there is one, else a post on X.
+ */
+function ShareWin({ kind, marketId, side, question, label }: { kind: string; marketId: number; side: number; question: string; label: string }) {
+  const url = `${SITE_URL}/${useLocale()}/arena/arc/${kind}/${marketId}?won=${side}`;
+  const text = `Called it on Mimir: ${question.length > 150 ? `${question.slice(0, 147)}…` : question} "${label}" won 🏆`;
+  const share = () => {
+    if (typeof navigator.share === "function") return void navigator.share({ text, url }).catch(() => undefined);
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <button type="button" onClick={share} className="press mr-2 shrink-0 rounded-full bg-panel-raised px-3.5 py-2 text-[13px] text-win hover:bg-panel" aria-label="Share this win">
+      Share
+    </button>
   );
 }
 

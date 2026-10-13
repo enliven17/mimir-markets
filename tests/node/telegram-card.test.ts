@@ -132,3 +132,12 @@ test("share card: open asks to take a side, decided names the winner, refunded s
   assert.equal(cardModel(q, { ...base, winner: 2, disputableUntil: 5000 }, 3000).headline, "Result proposed");
   assert.equal(cardModel(q, { ...base, winner: 3 }, 3000).headline, "Refunded");
 });
+
+test("winner card: 'Called it', the winning side marked as the sharer's", () => {
+  const base = { kind: "pool" as const, marketId: 2, question: "Will the Rams beat the Bills?", labelA: "Yes: Rams win", labelB: "No: Bills win", category: "sports", stakeA: "99500000000000000", stakeB: "99900000000000000", participants: 2, deadline: 100, winner: 2, disputableUntil: 50, status: "resolved" };
+  const c = cardModel({ type: "winner", kind: "pool", id: 2, side: 2 }, base, 1000);
+  assert.equal(c.headline, "Called it");
+  assert.equal(c.sides[1].lead, true);
+  assert.equal(c.sides[1].tag, "My side");
+  assert.match(c.detail, /Bills win.*won/);
+});

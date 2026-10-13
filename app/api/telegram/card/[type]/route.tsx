@@ -1,7 +1,7 @@
 /**
  * GET /api/telegram/card/<type>?kind=vs|pool&id=N[&side=1|2]&v=<version>: the picture a Telegram market
  * notification is sent with (lib/server/telegram.ts sendPhotoTo). Types: new, proposed, won, lost, refunded,
- * cancelled, share (a market page's link preview). 1200×630 PNG in the brand: ink ground, cream type, one signal-red accent, the horn.
+ * cancelled, share (a market page's link preview), winner (a win shared from the portfolio). 1200×630 PNG in the brand: ink ground, cream type, one signal-red accent, the horn.
  * Market data comes from the backend index; the card shows nothing a market page does not.
  */
 import { readFile } from "node:fs/promises";

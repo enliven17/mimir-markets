@@ -14,6 +14,7 @@ export const CARD_TYPES = [
   "refunded",
   "cancelled",
   "share",
+  "winner",
 ] as const;
 export type CardType = (typeof CARD_TYPES)[number];
 export type CardKind = "vs" | "pool";
@@ -213,6 +214,8 @@ export function cardModel(
               "cream",
               "Closed. The AI oracle is reading the evidence.",
             ];
+  // A win shared from the portfolio: the winning side leads, tagged as the sharer's own.
+  if (q.type === "winner" && decided) Object.assign(sides[m.winner - 1], { lead: true, tag: q.side === m.winner ? "My side" : "Won" });
   if (q.type === "share" && decided)
     Object.assign(sides[m.winner - 1], {
       lead: true,
@@ -220,6 +223,7 @@ export function cardModel(
     });
   const headline: Record<CardType, [string, Tone]> = {
     share: [share[0], share[1]],
+    winner: ["Called it", "win"],
     new: ["New market", "accent"],
     proposed: ["Result proposed", "accent"],
     won: ["You won", "win"],
@@ -229,6 +233,7 @@ export function cardModel(
   };
   const detail: Record<CardType, string> = {
     share: share[2],
+    winner: winnerLabel ? `${named(winnerLabel)} won · paid out automatically` : "Settled",
     new: `Opening stake ${usdcText(m.stakeA)} USDC · closes ${utc(m.deadline)}`,
     proposed: winnerLabel
       ? `${named(winnerLabel)}${confidence ? ` · ${confidence}% sure` : ""}${m.disputableUntil ? ` · disputable until ${utc(m.disputableUntil)}` : ""}`
