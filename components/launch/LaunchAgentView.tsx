@@ -18,6 +18,7 @@ import { Link } from "@/i18n/navigation";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/council-view";
 import AgentFace from "./AgentFace";
+import OwnerControls from "./OwnerControls";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
 type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
@@ -96,6 +97,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         </div>
       </section>
 
+      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} /> : null}
       <HolderSection slug={slug} />
     </div>
   );

@@ -7,15 +7,10 @@
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import type { JsonRouter } from "./engine/rank";
+import { BYOK_PROVIDERS, type ByokProvider } from "./byok-providers";
 
-export const BYOK_PROVIDERS = {
-  openai: { label: "OpenAI", model: "gpt-5-mini" },
-  anthropic: { label: "Anthropic", model: "claude-haiku-5-5" },
-  gemini: { label: "Gemini", model: "gemini-3.5-flash" },
-  groq: { label: "Groq", model: "openai/gpt-oss-20b" },
-  openrouter: { label: "OpenRouter", model: "openai/gpt-oss-20b" },
-} as const;
-export type ByokProvider = keyof typeof BYOK_PROVIDERS;
+export { BYOK_PROVIDERS, type ByokProvider };
+
 export const isByokProvider = (v: unknown): v is ByokProvider => typeof v === "string" && v in BYOK_PROVIDERS;
 
 export interface SealedKey {

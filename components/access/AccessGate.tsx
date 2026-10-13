@@ -23,7 +23,7 @@ const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?
 // Only the screens that act are gated: setting up and funding the Arc account, the portfolio, creating markets and
 // agents, linking Telegram. Everyone can browse the arena, markets, baskets and the rest; a stake needs an account,
 // and the account is set up on /wallet.
-const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/telegram"];
+const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/launch/new", "/telegram"];
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 
 export function useAccess() {
