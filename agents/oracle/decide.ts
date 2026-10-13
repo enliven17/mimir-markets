@@ -20,6 +20,7 @@
  * becomes the on-chain evidence_hash. Returns null when settlement should
  * wait for a later poll.
  */
+import { espnResult, espnResultText } from "../../lib/espn";
 import type { PublicKey } from "@solana/web3.js";
 import type { OnchainClaim } from "../../lib/solana/client";
 import { MIMIR_PROGRAM_ID } from "../../lib/solana/config";
@@ -441,11 +442,18 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
     return null;
   }
 
-  const evidence = await fetchEvidence(claim.resolutionUrl);
-  console.log(`[settle] Evidence fetcher: ${evidence.fetcher}`);
+  // An ESPN game link is read as data first (lib/espn.ts): is it final, and the score, without a model call.
+  const espn = await espnResult(claim.resolutionUrl);
+  if (espn && !espn.completed && nowSec <= claim.deadline + SPORTS_SETTLE_GRACE_SECS) {
+    console.log(`[settle] Claim #${claim.id}: ESPN says ${espn.status || "not final"}, deferring.`);
+    return null;
+  }
+  const fetched = await fetchEvidence(claim.resolutionUrl);
+  const evidence: Evidence = espn ? { ...fetched, text: `${espnResultText(espn)}\n\n${fetched.text}` } : fetched;
+  console.log(`[settle] Evidence fetcher: ${evidence.fetcher}${espn ? " + espn" : ""}`);
 
-  // Sports close betting at kickoff: wait for a final result, bounded.
-  if (claim.category.toLowerCase() === "sports" && nowSec <= claim.deadline + SPORTS_SETTLE_GRACE_SECS && evidence.fetcher !== "none") {
+  // Sports close betting at kickoff: wait for a final result, bounded (ESPN already answered that above).
+  if (!espn && claim.category.toLowerCase() === "sports" && nowSec <= claim.deadline + SPORTS_SETTLE_GRACE_SECS && evidence.fetcher !== "none") {
     if (!(await isEventFinal(claim, evidence.text))) {
       console.log(`[settle] Claim #${claim.id}: outcome not final yet, deferring.`);
       return null;

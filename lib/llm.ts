@@ -101,8 +101,10 @@ const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b";
 // "openrouter/free" can route to a reasoning model that spends the whole budget thinking and answers nothing.
 const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || "qwen/qwen3.8-27b:free";
 /** The models settlement verdicts may come from, unless SETTLEMENT_MODELS says otherwise. */
-// gemini-pro-latest is Google's alias for the current Pro: a pinned Pro id 404s once it is retired.
-const SETTLEMENT_DEFAULT_MODELS = "gemini-3.5-flash,gemini-3.8-flash,gemini-pro-latest,claude-sonnet-4-6";
+// Gemini quotas are per key per model, so a long list keeps settling when the flash models are busy (503) or
+// spent (429): the lite models answer on the free tier when the others do not. No Pro: the free tier never serves it.
+const SETTLEMENT_DEFAULT_MODELS =
+  "gemini-3.5-flash,gemini-3.8-flash,gemini-flash-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-lite-latest,claude-sonnet-4-6";
 
 const GEMINI_QUOTA_COOLDOWN_MS = Number(process.env.LLM_QUOTA_COOLDOWN_MS ?? "300000"); // 5 min
 const GROQ_QUOTA_COOLDOWN_MS = Number(process.env.GROQ_QUOTA_COOLDOWN_MS ?? "2700000"); // 45 min

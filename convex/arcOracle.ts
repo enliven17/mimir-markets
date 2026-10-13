@@ -21,6 +21,7 @@ import { internalAction } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { decide, fetchEvidence, type SettlementDecision } from "../agents/oracle/decide";
 import { outcomeKnownAt } from "../agents/oracle/evaluate";
+import { espnResult } from "../lib/espn";
 import { lateStakes, lateStakeSummary } from "../lib/late-stakes";
 import { sealBundle, type VerdictBundle } from "../lib/verdict-bundle";
 import type { OnchainClaim } from "../lib/solana/client";
@@ -174,8 +175,12 @@ export const tick = internalAction({
         let bundle: unknown = decision.bundle;
         // A winner only if nobody staked once the outcome was known (lib/late-stakes.ts); else everyone is refunded.
         if (side === SIDE.CREATOR_WINS || side === SIDE.CHALLENGERS_WIN) {
-          const evidence = await fetchEvidence(m.resolutionUrl);
-          const knownAt = await outcomeKnownAt({ question: m.question, resolutionUrl: m.resolutionUrl, deadline: m.deadline }, evidence.text);
+          // An ESPN game was known from kickoff (lib/espn.ts); anything else asks the model.
+          const espn = await espnResult(m.resolutionUrl);
+          const knownAt =
+            espn && Number.isFinite(espn.startAt)
+              ? espn.startAt
+              : await outcomeKnownAt({ question: m.question, resolutionUrl: m.resolutionUrl, deadline: m.deadline }, (await fetchEvidence(m.resolutionUrl)).text);
           const late = lateStakes(knownAt, await ctx.runQuery(internal.arc.stakeTimes, { kind: m.kind, marketId: m.marketId }));
           if (knownAt !== null && late.length) {
             side = SIDE.UNRESOLVABLE;

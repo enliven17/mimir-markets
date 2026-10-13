@@ -223,7 +223,7 @@ export async function adminOverview() {
 
   const lag = b?.cursorBlock != null && chainHead.data != null ? chainHead.data - b.cursorBlock : null;
   // Expected cadence per job (crons.ts); a heartbeat older than 3 periods is stale.
-  const JOBS: Record<string, number> = { "arc-sync": 0.5, "arc-oracle": 1, "arc-council": 5, "arc-creator": 60 };
+  const JOBS: Record<string, number> = { "arc-sync": 0.5, "arc-oracle": 2, "arc-council": 15, "arc-creator": 60 };
   const jobs = Object.entries(JOBS).map(([name, every]) => {
     const at = b?.heartbeats.find((h) => h.name === name)?.at ?? null;
     const ago = at ? minutes(nowMs - at) : null;
