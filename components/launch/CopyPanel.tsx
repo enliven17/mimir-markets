@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-import Chip from "@/components/ui/Chip";
 import { signedPost } from "@/lib/launch/client";
 import { solscan } from "@/lib/launch/council-view";
 import { arcExplorerUrl } from "@/lib/arc/config";
@@ -80,76 +79,103 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
     });
   const sub = st.sub;
 
+  const drain = () =>
+    act(async () => {
+      await signedPost(`/api/launch/${slug}/copy/drain`, { owner, signMessage, action: "copy-drain", agent: slug, body: {} });
+      return "Selling your copied tokens now. Their SOL is free to withdraw in a minute.";
+    });
+  const side = (on: boolean) =>
+    `grid content-start gap-3 rounded-2xl p-4 transition-colors ${on ? "bg-[rgb(36_24_25/.95)] shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)]" : "bg-cream/[0.03] shadow-[inset_0_0_0_1px_rgb(243_234_214/.06)]"}`;
+
   return (
-    <section className="grid gap-4 rounded-2xl bg-cream/[0.04] p-5">
-      <div className="grid gap-1">
-        <h2 className="m-0 font-display text-[1.4rem] text-cream">Copy ${ticker}</h2>
-        <p className="m-0 text-[13px] text-muted">Its moves, from wallets of your own. Needs $MIMIR. You can stop and withdraw any time.</p>
-      </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="What to copy">
-        {st.can.arc ? <Chip active={arcOn} onClick={() => setArcOn(!arcOn)}>Market stakes (Arc)</Chip> : null}
-        {st.can.solana ? <Chip active={solOn} onClick={() => setSolOn(!solOn)}>Solana trades</Chip> : null}
-      </div>
-      <div className="flex flex-wrap gap-4">
-        {st.can.arc && arcOn ? (
-          <label className="grid gap-1.5">
-            <span className="text-[13px] text-muted">Most per stake (USDC)</span>
-            <input className="input !w-32 font-mono" inputMode="decimal" value={maxStake} onChange={(e) => setMaxStake(e.target.value)} />
-          </label>
-        ) : null}
-        {st.can.solana && solOn ? (
-          <label className="grid gap-1.5">
-            <span className="text-[13px] text-muted">Most per trade (SOL)</span>
-            <input className="input !w-32 font-mono" inputMode="decimal" value={maxTrade} onChange={(e) => setMaxTrade(e.target.value)} />
-          </label>
+    <section className="grid gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-5 shadow-card sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <h2 className="m-0 font-display text-[1.5rem] leading-none text-cream">Copy ${ticker}</h2>
+          <p className="m-0 max-w-[60ch] text-[13px] text-muted">Its moves, from wallets of your own, inside your limits. Needs $MIMIR. Stop and withdraw any time.</p>
+        </div>
+        {sub ? (
+          <span className={`rounded-full px-3 py-1 text-[12px] ${sub.active ? "bg-emerald-400/10 text-emerald-300" : "bg-cream/[0.06] text-muted"}`}>
+            {sub.active ? "Copying" : sub.pausedReason ? `Paused: ${sub.pausedReason}` : "Stopped"}
+          </span>
         ) : null}
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" disabled={busy || (!arcOn && !solOn)} className="btn-primary !w-auto !px-5" onClick={() => void save(true)}>
-          {sub?.active ? "Save" : "Start copying"}
+
+      <div className={`grid gap-3 ${st.can.arc && st.can.solana ? "sm:grid-cols-2" : ""}`}>
+        {st.can.arc ? (
+          <div className={side(arcOn)}>
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="grid gap-0.5">
+                <span className="text-[14px] text-cream">Market stakes</span>
+                <span className="text-[12px] text-muted">Same market, same side, on Arc</span>
+              </span>
+              <input type="checkbox" role="switch" className="switch" checked={arcOn} onChange={(e) => setArcOn(e.target.checked)} />
+            </label>
+            {arcOn ? (
+              <label className="grid gap-1.5">
+                <span className="text-[12px] text-muted">Most per stake</span>
+                <span className="flex items-center gap-2">
+                  <input className="input font-mono" inputMode="decimal" value={maxStake} onChange={(e) => setMaxStake(e.target.value)} />
+                  <span className="shrink-0 text-[13px] text-muted">USDC</span>
+                </span>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+        {st.can.solana ? (
+          <div className={side(solOn)}>
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="grid gap-0.5">
+                <span className="text-[14px] text-cream">Solana trades</span>
+                <span className="text-[12px] text-muted">Same token, same exits</span>
+              </span>
+              <input type="checkbox" role="switch" className="switch" checked={solOn} onChange={(e) => setSolOn(e.target.checked)} />
+            </label>
+            {solOn ? (
+              <label className="grid gap-1.5">
+                <span className="text-[12px] text-muted">Most per trade</span>
+                <span className="flex items-center gap-2">
+                  <input className="input font-mono" inputMode="decimal" value={maxTrade} onChange={(e) => setMaxTrade(e.target.value)} />
+                  <span className="shrink-0 text-[13px] text-muted">SOL</span>
+                </span>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <button type="button" disabled={busy || (!arcOn && !solOn)} className="btn-primary !min-h-[44px] !w-auto !px-6 !py-2 !text-[15px]" onClick={() => void save(true)}>
+          {sub?.active ? "Save changes" : "Start copying"}
         </button>
         {sub?.active ? (
           <button type="button" disabled={busy} className="text-[14px] text-coral hover:underline" onClick={() => void save(false)}>
-            Stop
+            Stop copying
           </button>
         ) : null}
-        {sub && !sub.active && sub.pausedReason ? <span className="text-[13px] text-coral">Paused: {sub.pausedReason}</span> : null}
       </div>
 
       {sub && (sub.arc || sub.solana) ? (
-        <div className="grid gap-2 border-t border-cream/10 pt-4 font-mono text-[12px] text-muted">
-          {sub.arc ? (
-            <a href={arcExplorerUrl("address", sub.arc.address)} target="_blank" rel="noreferrer" className="hover:text-coral">
-              <span className="mr-2 text-dim">Arc copy wallet · send USDC on Arc</span>
-              {sub.arc.address} · {sub.arc.balanceUsdc?.toFixed(2) ?? "?"} USDC <ExternalMark />
-            </a>
-          ) : null}
-          {sub.solana ? (
-            <a href={solscan("account", sub.solana.address)} target="_blank" rel="noreferrer" className="hover:text-coral">
-              <span className="mr-2 text-dim">Solana copy wallet · send SOL</span>
-              {sub.solana.address} · {sub.solana.spendableSol?.toFixed(3) ?? "?"} SOL free <ExternalMark />
-            </a>
-          ) : null}
+        <div className="grid gap-3 border-t border-cream/10 pt-5">
+          <h3 className="m-0 text-[15px] text-cream">Your copy wallets</h3>
+          <div className={`grid gap-3 ${sub.arc && sub.solana ? "sm:grid-cols-2" : ""}`}>
+            {sub.arc ? (
+              <CopyWallet title="Arc copy wallet" hint="Send USDC on Arc" address={sub.arc.address} balance={`${sub.arc.balanceUsdc?.toFixed(2) ?? "?"} USDC`} href={arcExplorerUrl("address", sub.arc.address)} />
+            ) : null}
+            {sub.solana ? (
+              <CopyWallet title="Solana copy wallet" hint="Send SOL" address={sub.solana.address} balance={`${sub.solana.spendableSol?.toFixed(3) ?? "?"} SOL free`} href={solscan("account", sub.solana.address)} />
+            ) : null}
+          </div>
           {sub.holdings.length ? (
-            <span className="flex flex-wrap items-center gap-3">
+            <p className="m-0 flex flex-wrap items-center gap-3 text-[13px] text-muted">
               Holding {sub.holdings.length} copied token{sub.holdings.length > 1 ? "s" : ""}; they exit with the agent.
-              <button
-                type="button"
-                disabled={busy}
-                className="font-sans text-coral hover:underline"
-                onClick={() =>
-                  void act(async () => {
-                    await signedPost(`/api/launch/${slug}/copy/drain`, { owner, signMessage, action: "copy-drain", agent: slug, body: {} });
-                    return "Selling your copied tokens now. Their SOL is free to withdraw in a minute.";
-                  })
-                }
-              >
+              <button type="button" disabled={busy} className="text-coral hover:underline" onClick={() => void drain()}>
                 Sell them now
               </button>
-            </span>
+            </p>
           ) : null}
           <form
-            className="mt-1 flex flex-wrap items-end gap-3 font-sans"
+            className="flex flex-wrap items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               const n = Number(wd.amount);
@@ -161,16 +187,42 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
               });
             }}
           >
+            <span className="text-[13px] text-muted">Withdraw</span>
             <select className="input !w-auto" value={wd.chain} onChange={(e) => setWd({ ...wd, chain: e.target.value as "arc" | "solana" })} aria-label="Withdraw from">
               {sub.arc ? <option value="arc">USDC (Arc)</option> : null}
               {sub.solana ? <option value="solana">SOL (Solana)</option> : null}
             </select>
             <input className="input !w-28 font-mono" inputMode="decimal" placeholder="0.00" value={wd.amount} onChange={(e) => setWd({ ...wd, amount: e.target.value })} aria-label="Amount" />
-            <button type="submit" disabled={busy} className="btn-ghost !w-auto !px-4">Withdraw</button>
+            <button type="submit" disabled={busy} className="rounded-full bg-cream/[0.08] px-4 py-2 text-[14px] text-cream hover:bg-cream/15">
+              Withdraw
+            </button>
           </form>
         </div>
       ) : null}
       {note ? <p role="status" className="m-0 text-[14px] text-cream">{note}</p> : null}
     </section>
+  );
+}
+
+function CopyWallet({ title, hint, address, balance, href }: { title: string; hint: string; address: string; balance: string; href: string }) {
+  return (
+    <div className="grid gap-2 rounded-xl bg-ink-deep/70 p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[13px] text-cream">{title}</span>
+        <span className="font-mono text-[13px] tabular-nums text-cream">{balance}</span>
+      </div>
+      <p className="m-0 break-all font-mono text-[12px] leading-relaxed text-muted">{address}</p>
+      <div className="flex items-center justify-between gap-2 text-[12px]">
+        <span className="text-dim">{hint}</span>
+        <span className="flex items-center gap-3">
+          <button type="button" className="text-cream hover:text-coral" onClick={() => void navigator.clipboard?.writeText(address)}>
+            Copy
+          </button>
+          <a href={href} target="_blank" rel="noreferrer" className="text-coral hover:underline">
+            Explorer <ExternalMark />
+          </a>
+        </span>
+      </div>
+    </div>
   );
 }

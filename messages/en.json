@@ -119,10 +119,10 @@
     "record": "{won}–{lost}",
     "recordTitle": "{won} won, {lost} lost",
     "noRecord": "No record",
-    "details": "Stats and bets",
+    "details": "Stats and stakes",
     "only": "Only",
     "claim": "Claim #{id}",
-    "noBets": "No bets yet",
+    "noBets": "No stakes yet",
     "unfunded": "Unfunded: judges, does not stake",
     "oracle": {
       "name": "Oracle",

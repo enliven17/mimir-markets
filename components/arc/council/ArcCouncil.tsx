@@ -106,7 +106,7 @@ export default function ArcCouncil({ solana }: { solana: Record<string, string> 
 
       <CouncilRoster personas={personas} />
 
-      <p className="m-0 text-center text-[12px] text-dim">Live from the Arc index; each persona bets from its own Circle wallet on Arc.</p>
+      <p className="m-0 text-center text-[12px] text-dim">Live from the Arc index; each persona stakes from its own Circle wallet on Arc.</p>
     </>
   );
 }

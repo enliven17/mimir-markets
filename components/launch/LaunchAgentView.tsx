@@ -15,12 +15,12 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
-import { arcExplorerUrl } from "@/lib/arc/config";
 import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/council-view";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
 import FeesBlock from "./FeesBlock";
+import WalletsBlock from "./WalletsBlock";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
 type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
@@ -52,18 +52,18 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       <Link href="/launch" className="text-[14px] text-muted hover:text-cream">
         ← {t("title")}
       </Link>
-      <header className="flex flex-wrap items-center gap-5">
-        <AgentFace seed={a.seed} size={96} />
-        <div className="grid min-w-0 flex-1 gap-1.5">
+      <header className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-5">
+        <AgentFace seed={a.seed} size={96} className="rounded-2xl shadow-[inset_0_0_0_1px_rgb(243_234_214/.08)] max-sm:!h-[72px] max-sm:!w-[72px] sm:row-span-2" />
+        <div className="grid min-w-0 gap-1.5 sm:self-end">
           <h1 className="m-0 font-display text-app-h1 leading-none text-cream">{a.name}</h1>
           <p className="m-0 text-[14px] text-muted">
             <span className="mr-2 font-mono text-coral">${a.ticker}</span>
             {a.house ? t("councilBadge") : null}
           </p>
-          {a.about ? <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">{a.about}</p> : null}
         </div>
+        {a.about ? <p className="col-span-2 m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted sm:col-span-1 sm:col-start-2 sm:row-start-2 sm:self-start">{a.about}</p> : null}
         {a.mint ? (
-          <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
+          <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
             {t("buy", { ticker: a.ticker })} <ExternalMark />
           </a>
         ) : null}
@@ -77,27 +77,9 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         ) : (
           <EmptyState>{t("noToken")}</EmptyState>
         )}
-        <div className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[12px] text-muted">
-          {a.mint ? (
-            <a href={solscan("token", a.mint)} target="_blank" rel="noreferrer" className="hover:text-coral">
-              <span className="mr-2 text-dim">{t("token")}</span>
-              {short(a.mint)} <ExternalMark />
-            </a>
-          ) : null}
-          {a.wallet ? (
-            <a href={solscan("account", a.wallet)} target="_blank" rel="noreferrer" className="hover:text-coral">
-              <span className="mr-2 text-dim">Solana</span>
-              {short(a.wallet)} <ExternalMark />
-            </a>
-          ) : null}
-          {a.arc ? (
-            <a href={arcExplorerUrl("address", a.arc)} target="_blank" rel="noreferrer" className="hover:text-coral">
-              <span className="mr-2 text-dim">Arc</span>
-              {short(a.arc)} <ExternalMark />
-            </a>
-          ) : null}
-        </div>
       </section>
+
+      <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} />
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} /> : null}
       {!a.house && card ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}

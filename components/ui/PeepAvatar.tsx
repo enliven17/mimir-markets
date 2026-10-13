@@ -1,5 +1,5 @@
-/* eslint-disable @next/next/no-img-element -- remote DiceBear SVGs, tiny and uncropped */
-import { openPeepsAvatar } from "@/lib/avatars";
+/* eslint-disable @next/next/no-img-element -- inline SVG data URIs, nothing to optimise */
+import { faceImage, faceSeed } from "@/components/launch/AgentFace";
 
 type Tone = "neutral" | "accent" | "gold";
 
@@ -22,7 +22,10 @@ interface PeepAvatarProps {
   className?: string;
 }
 
-/** Open-peeps portrait (DiceBear) in the site palette on a maroon tile. */
+/**
+ * A Mimir pixel face (lib/avatar) on a dark tile. Deterministic per seed; a council persona ("council-<slug>") gets the
+ * same face as its pump.fun token. The name is kept from the open-peeps portraits it replaced.
+ */
 export default function PeepAvatar({
   seed,
   size = 32,
@@ -31,22 +34,23 @@ export default function PeepAvatar({
   tone = "neutral",
   className = "",
 }: PeepAvatarProps) {
+  const face = faceImage(faceSeed(seed), size);
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-[linear-gradient(145deg,#5b3637,#362223)] ${
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border bg-[#1c1415] ${
         shape === "circle" ? "rounded-full" : "rounded-[28%]"
       } ${TONE_BORDER[tone]} ${className}`}
       style={{ width: size, height: size }}
     >
       <img
-        src={openPeepsAvatar(seed)}
+        src={face.src}
         alt={alt ?? ""}
         aria-hidden={alt ? undefined : true}
         width={size}
         height={size}
-        loading="lazy"
         decoding="async"
-        className="h-full w-full object-cover object-top"
+        className="block h-full w-full [image-rendering:pixelated]"
+        style={{ transform: face.lift }}
       />
     </span>
   );

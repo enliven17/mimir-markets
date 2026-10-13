@@ -13,7 +13,6 @@ import { useTranslations } from "next-intl";
 
 import { SURFACE_DEEP } from "@/components/arena/surface";
 import Segmented from "@/components/ui/Segmented";
-import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { arcExplorerUrl } from "@/lib/arc/config";
@@ -141,7 +140,7 @@ function PersonaCard({
       style={{ "--i": index } as React.CSSProperties}
     >
       <div className="flex items-center gap-3">
-        {p.token ? <AgentFace seed={p.slug} size={44} /> : <PeepAvatar seed={`council-${p.slug}`} size={44} shape="square" tone={active ? "accent" : "neutral"} />}
+        <AgentFace seed={p.slug} size={44} className={active ? "ring-1 ring-coral/60" : ""} />
         <div className="min-w-0 flex-1">
           <h3 className="m-0 truncate font-display text-[1.3rem] leading-none text-cream">
             {p.token ? (

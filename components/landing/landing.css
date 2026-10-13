@@ -935,3 +935,22 @@
     scrollbar-width: none;
   }
 }
+
+/* The companion (Companion.tsx): a hop when the section changes, its line pops in. Above the phone tab bar. */
+.l-companion { --companion-bottom: 20px; }
+@media (max-width: 1023px) { .l-companion { --companion-bottom: 92px; } }
+.l-companion-hop { animation: l-companion-hop 520ms cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes l-companion-hop {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-14px); }
+  70% { transform: translateY(2px); }
+  100% { transform: translateY(0); }
+}
+.l-companion-say { animation: l-companion-say 220ms ease-out both; }
+@keyframes l-companion-say {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .l-companion-hop, .l-companion-say { animation: none; }
+}

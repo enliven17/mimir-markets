@@ -7,6 +7,7 @@ import ClaimInspector from "@/components/landing/ClaimInspector";
 import CouncilDial from "@/components/landing/CouncilDial";
 import LedgerRail from "@/components/landing/LedgerRail";
 import EdgeFog from "@/components/landing/EdgeFog";
+import CompanionMount from "@/components/landing/CompanionMount";
 import "@/components/landing/landing.css";
 import JsonLd from "@/components/seo/JsonLd";
 import { organization, pageMeta, website } from "@/lib/seo";
@@ -41,6 +42,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <CouncilDial />
         <LedgerRail />
       </div>
+      <CompanionMount />
     </LandingFeedProvider>
   );
 }

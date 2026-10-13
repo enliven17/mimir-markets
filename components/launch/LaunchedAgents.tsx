@@ -5,7 +5,6 @@ import { useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 
 import { api } from "@/convex/_generated/api";
-import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import AgentFace from "./AgentFace";
@@ -14,7 +13,17 @@ export default function LaunchedAgents() {
   const t = useTranslations("launch");
   const agents = useQuery(api.launch.list, {});
   if (agents === undefined) return <Skeleton className="h-28 w-full rounded-2xl" />;
-  if (!agents.length) return <EmptyState>{t("hostedEmpty")}</EmptyState>;
+  if (!agents.length) {
+    return (
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-cream/[0.04] p-5 shadow-[inset_0_0_0_1px_rgb(243_234_214/.06)]">
+        <AgentFace seed="njord" size={56} mood="scanning" />
+        <p className="m-0 min-w-0 flex-1 text-[15px] text-cream">{t("hostedEmpty")}</p>
+        <Link href="/launch/new" className="btn-primary !min-h-[44px] !w-auto !px-5 !py-2 !text-[15px]">
+          {t("launchCta")}
+        </Link>
+      </div>
+    );
+  }
   return (
     <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
       {agents.map((a) => (

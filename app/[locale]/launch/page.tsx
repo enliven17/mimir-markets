@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import ArcCouncil from "@/components/arc/council/ArcCouncil";
 import RegisteredAgents from "@/components/agents/RegisteredAgents";
+import CouncilMark from "@/components/launch/CouncilMark";
 import LaunchedAgents from "@/components/launch/LaunchedAgents";
 import JsonLd from "@/components/seo/JsonLd";
 import { Link } from "@/i18n/navigation";
@@ -48,9 +49,12 @@ export default async function LaunchPage() {
       </header>
 
       <section className="grid gap-4" aria-labelledby="launch-council">
-        <div className="grid gap-1">
-          <h2 id="launch-council" className="m-0 font-display text-[1.6rem] text-cream">{t("councilTitle")}</h2>
-          <p className="m-0 max-w-[62ch] text-[14px] text-muted">{t("councilLead")}</p>
+        <div className="flex items-center gap-4">
+          <CouncilMark size={44} />
+          <div className="grid min-w-0 gap-1">
+            <h2 id="launch-council" className="m-0 font-display text-[1.6rem] leading-none text-cream">{t("councilTitle")}</h2>
+            <p className="m-0 max-w-[62ch] text-[14px] text-muted">{t("councilLead")}</p>
+          </div>
         </div>
         <ArcCouncil solana={solana} />
       </section>
