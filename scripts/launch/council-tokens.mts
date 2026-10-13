@@ -5,7 +5,8 @@
  *
  *   node --env-file=.env.local --env-file=.env.mainnet.local --import tsx scripts/launch/council-tokens.mts [slug ...]
  *
- * Env: PRIVY_*, PINATA_JWT, LAUNCH_SOLANA_TREASURY, SOLANA_MAINNET_RPC; ARC_COUNCIL_WALLETS (the Convex mainnet value);
+ * Env: PRIVY_*, PINATA_JWT, LAUNCH_SOLANA_TREASURY, SOLANA_MAINNET_RPC; ARC_COUNCIL_WALLETS from the MAINNET deployment
+ * (`npx convex env get ARC_COUNCIL_WALLETS --deployment hushed-orca-915`; the dev one holds testnet wallets);
  * LAUNCH_TREASURY_KEY (base58, optional) tops a wallet up from the treasury, else an unfunded wallet is skipped.
  * Idempotent: a persona with a mint is skipped; an unconfirmed launch stops the run for a manual check.
  */

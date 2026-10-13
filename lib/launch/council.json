@@ -2,7 +2,7 @@
   "socrates": {
     "name": "Socrates",
     "ticker": "SOCRATES",
-    "arc": "0xaf4c6b5d7e6461c24c843c4dc479a5ced5cfd359",
+    "arc": "0xc88124fd6cb8eb4c4e4b0c07f51246023044ff37",
     "solana": {
       "walletId": "sk22gtumcz71k8c48axywry9",
       "address": "FdUhCG9duFyxRNKP3iRBk2pZ8fj9bQ4bLTFdBiFXEdCg"
@@ -14,7 +14,7 @@
   "optimist": {
     "name": "The Optimist",
     "ticker": "OPTIMIST",
-    "arc": "0x3e5e0259383ef4327f2b44b1067d9225d2ffefac",
+    "arc": "0xb8030d240a4f8d79e346e8d7fb19eabb46b6d7f4",
     "solana": {
       "walletId": "bvw0hk68m9dij4qvrw5m4e27",
       "address": "3LM71ai32z6bWzx1smtm2oR6FfiUUKPAXtbX1cDPaqwY"
@@ -26,7 +26,7 @@
   "pessimist": {
     "name": "The Pessimist",
     "ticker": "PESSIMIST",
-    "arc": "0x06242e0725cfd919cb362003975b3abd64ac47c0",
+    "arc": "0x724e3cc34331df870913eff37d0fb7c86ab35aec",
     "solana": {
       "walletId": "w6zxfjmcrk0xbgznngro4epz",
       "address": "4hA6zLWw4qwT9MPsqcEETM3WrznGKD65gi7qh2JD9CWn"
@@ -38,7 +38,7 @@
   "contrarian": {
     "name": "The Contrarian",
     "ticker": "CONTRARIAN",
-    "arc": "0x8ce4b2410b1a35132875dda56871649bcfd85fb4",
+    "arc": "0x20b471e236822c7ee1ccf6477d92d7566d2b1525",
     "solana": {
       "walletId": "cm0fdyvwenn8cbv5qd0o6q3y",
       "address": "77wxo8wT1BVY3R87GYf3fnEBvcdP7cMi3k7qaHud9wbu"
@@ -50,7 +50,7 @@
   "statistician": {
     "name": "The Statistician",
     "ticker": "STATS",
-    "arc": "0x8db29edfdffd9e415882695bfd4b6137e3527c63",
+    "arc": "0xd6ae45f82452ea45c2fe3196b0797bb0a42c330e",
     "solana": {
       "walletId": "mymg2mdt9j7u7gbiov6jfg56",
       "address": "4BT13MeUkYwb6STiggD9M3uAr4kZwG1TUjbqidxbY3we"
@@ -62,7 +62,7 @@
   "whale-watcher": {
     "name": "The Whale-Watcher",
     "ticker": "WHALE",
-    "arc": "0x15510bda2b1dc1aaaddf70efceea86cca57dae17",
+    "arc": "0x34c95c7f6abc916c5eec013a4572589a61db5220",
     "solana": {
       "walletId": "mmdowg4esb5o9k2n46k8m1k7",
       "address": "CC5w2VDPFF8wR4BzoncSaaHC2gMpNvoPi4NpoBkpvwdX"
@@ -74,7 +74,7 @@
   "crypto-maxi": {
     "name": "Crypto Maximalist",
     "ticker": "MAXI",
-    "arc": "0x1ad5e62abe406f57e19c6bb8f508c5e1b304bdbb",
+    "arc": "0x4ce3d934ce73a3d463f0dcf8dc81a207f326785f",
     "solana": {
       "walletId": "ix2ckuuis4o2ufh3048o2jgm",
       "address": "DPvxxPfqtSmgAoajwauesFuBY93jSrYxFBtBnHPMpyB4"
@@ -86,7 +86,7 @@
   "sports-pundit": {
     "name": "Sports Pundit",
     "ticker": "PUNDIT",
-    "arc": "0xe7c8c736997c6ba33c83d8b0d1df50d7f5150682",
+    "arc": "0xc7e9513c37a49d8607f2b2b808a699bb2a04503a",
     "solana": {
       "walletId": "i8j3nq0kvgkvrq4lyldftx6n",
       "address": "5nrBHeeS5SAytpUeQ7XyT4EDV6U2nNSwfaFvMZhX9qof"
@@ -98,7 +98,7 @@
   "weatherman": {
     "name": "The Weatherman",
     "ticker": "WEATHERMAN",
-    "arc": "0x1fcd7eadcf62fb6f3b7351647cbf27cf209639f4",
+    "arc": "0x844e668c88d33082ba1b86ed782b7c2a32b942db",
     "solana": {
       "walletId": "c3qa6pjxm793621n9alm4rr1",
       "address": "6CgrJ3zeJqZ3n643zja8K9AgLZsRp7mwP7CdPqh5XftK"
@@ -110,7 +110,7 @@
   "doomer": {
     "name": "The Doomer",
     "ticker": "DOOMER",
-    "arc": "0x5d23e74c6074a79155839a0e9e38f5abc08b3d00",
+    "arc": "0x421663bb14684a55c980791376c410011c4d2f01",
     "solana": {
       "walletId": "e090dwxxnin46hl6gk3hodbm",
       "address": "HnogGajk2pukpNcV6Ubwb5QbG3Q1VZ3Gwt6s7qBiejaw"
@@ -122,7 +122,7 @@
   "yapper": {
     "name": "The Yapper",
     "ticker": "YAPPER",
-    "arc": "0x1670a2fad045a146a216129be44c4adbf4ea8375",
+    "arc": "0x8fea6762baeb487550234a79d27f234501150eb0",
     "solana": {
       "walletId": "wm5qfub8k2yjet34n5k3myvo",
       "address": "72gh7dVbzXKhbSUStqRo84zkwxkXKAJ5pcQ4nkWzwJgq"
@@ -134,7 +134,7 @@
   "kahneman": {
     "name": "Kahneman",
     "ticker": "KAHNEMAN",
-    "arc": "0x31bf99d5f935b76e8fd291795f8fa242b3d89e8c",
+    "arc": "0xf43848add5f819b3040d7d39ce2ed85311a5b16f",
     "solana": {
       "walletId": "acfsj2iwg9rxjuog25lzx37s",
       "address": "2EYcjoPE6Xwe2JzbVZPDCCwE2B5sU8uFaQiMVeJKudet"
@@ -146,7 +146,7 @@
   "taleb": {
     "name": "Taleb",
     "ticker": "TALEB",
-    "arc": "0x9eac62a26c1d951264d9f34c4f2779929c1c54e7",
+    "arc": "0xd21b0da5669112e44fb2a704e0c30eb2b4f61c13",
     "solana": {
       "walletId": "lgp8xc3d0zia5sjvnrxfs96t",
       "address": "AbekQAJnjhd8a9JcA9RVcXD2c71238kcVur9hshXVkDa"
@@ -158,7 +158,7 @@
   "feynman": {
     "name": "Feynman",
     "ticker": "FEYNMAN",
-    "arc": "0xa5fd420dfdf6927b58a34a722f31ff23515395cc",
+    "arc": "0x68b3caad97b8dec3d580dd9101827e8d0579c50d",
     "solana": {
       "walletId": "uke86nwtt2kz6te813xeknjd",
       "address": "J4BrA6bDhEUbaH7yrP4n5GPYxWQuQtb4zuKANYsaZDmM"
@@ -170,7 +170,7 @@
   "munger": {
     "name": "Munger",
     "ticker": "MUNGER",
-    "arc": "0xc37fe1241488f996975552264d1ce1acd28f4e71",
+    "arc": "0x2c7b4de4706eda8dc52a4dfab12d6acf31d048ac",
     "solana": {
       "walletId": "izntctgy9evmz1ebkpbste9k",
       "address": "J67z64xD5aXUFrZBCX2j2TScjoYVMecCcnjXqbSTmLvf"
@@ -182,7 +182,7 @@
   "ada": {
     "name": "Ada",
     "ticker": "LOVELACE",
-    "arc": "0x2aaa8f731923e323ec118d0b6812b488686e12d9",
+    "arc": "0xd4897728bab251f3dd6f369857ae14a81e41d008",
     "solana": {
       "walletId": "l53cjx547cuzki3uipvfrlit",
       "address": "99XYqiaru9gJbofYhayNTtKX1GMQhSLo2eAMn6o4FepY"
@@ -194,7 +194,7 @@
   "meadows": {
     "name": "Meadows",
     "ticker": "MEADOWS",
-    "arc": "0xb202b3dbbad4e320665247be9a6cfc99e034cfa3",
+    "arc": "0xa7e58e672f58f3dfe963bbc0ca5c3bb6f6937abb",
     "solana": {
       "walletId": "zs9oqe9t1497lxpovejku9rf",
       "address": "6wJDUj8y8M75QsJPGWmJPxAs9aDbjrCAFTT7UUmGmxXj"
@@ -206,7 +206,7 @@
   "machiavelli": {
     "name": "Machiavelli",
     "ticker": "PRINCE",
-    "arc": "0xbc6fc9c88d43273f0361aab444cabb54ea999bd5",
+    "arc": "0x13c382404a5db5b6fc04291f7494714789fb5f47",
     "solana": {
       "walletId": "yl6aogv85tmcuxqnayfqeap3",
       "address": "J2byaLq2RERzFBp7p3dg1RgeUWMb4Ef1zqe618AvjmEC"
@@ -218,7 +218,7 @@
   "aurelius": {
     "name": "Aurelius",
     "ticker": "AURELIUS",
-    "arc": "0xc00a8ba22e83033b2e9992bd04353fe329afd13d",
+    "arc": "0x0410292eabd31a6a31e68d8fa85b98210c65bdc1",
     "solana": {
       "walletId": "n5ud97ulq2sxmg1c3gugw2nj",
       "address": "GCKgqJS7pRYvyNySnaRLT5KAQyQYM6EJgbe4rteXoSUg"
@@ -230,7 +230,7 @@
   "lao-tzu": {
     "name": "Lao Tzu",
     "ticker": "LAOTZU",
-    "arc": "0x57af5810fe9a671ce9581dc926984a16584cc4b8",
+    "arc": "0x2d006621eff64278c583c8d20e21b9208acfbadd",
     "solana": {
       "walletId": "mnj021tj3vhub58meexwj1a4",
       "address": "ChDUYzrJA21enbTPCBrH5MPZgaAfmv2Er2SJhSfSk8Ws"
