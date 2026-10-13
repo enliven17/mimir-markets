@@ -954,3 +954,72 @@
 @media (prefers-reduced-motion: reduce) {
   .l-companion-hop, .l-companion-say { animation: none; }
 }
+
+/* 2b. The Fingerprint Doctrine (DoctrineStrip.tsx): three fates of an agent, then the human's one job. */
+.l-doctrine-fates {
+  margin: 48px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.l-doctrine-fate {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 26px 24px 28px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgb(32 22 23 / 0.95), rgb(22 16 16 / 0.95));
+  box-shadow: inset 0 0 0 1px rgb(243 234 214 / 0.07), 0 14px 34px rgb(0 0 0 / 0.3);
+}
+.l-doctrine-fate.is-dead {
+  box-shadow: inset 0 0 0 1px rgb(255 81 72 / 0.35), 0 14px 34px rgb(0 0 0 / 0.3);
+}
+.l-doctrine-fate.is-dead img {
+  filter: grayscale(0.6);
+}
+.l-doctrine-tag {
+  margin: 8px 0 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+.l-doctrine-fate h3 {
+  margin: 0;
+  font-weight: inherit;
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1;
+  color: var(--cream);
+}
+.l-doctrine-fate p:last-child {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.l-doctrine-you {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  background: rgb(243 234 214 / 0.04);
+}
+.l-doctrine-you p {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+@media (max-width: 833px) {
+  .l-doctrine-fates {
+    grid-template-columns: 1fr;
+  }
+}

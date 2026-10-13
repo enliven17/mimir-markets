@@ -3,6 +3,7 @@ import LandingFeedProvider from "@/components/landing/LandingFeed";
 import Hero from "@/components/landing/Hero";
 import LiveStrip from "@/components/landing/LiveStrip";
 import HowItSettles from "@/components/landing/HowItSettles";
+import DoctrineStrip from "@/components/landing/DoctrineStrip";
 import ClaimInspector from "@/components/landing/ClaimInspector";
 import CouncilDial from "@/components/landing/CouncilDial";
 import LedgerRail from "@/components/landing/LedgerRail";
@@ -37,6 +38,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <EdgeFog />
         <Hero />
         <LiveStrip />
+        <DoctrineStrip />
         <HowItSettles />
         <ClaimInspector />
         <CouncilDial />
