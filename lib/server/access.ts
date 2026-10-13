@@ -19,6 +19,7 @@ import {
 } from "@/lib/access";
 import { insert, store, StoreConflict } from "./store";
 import { walletBalances } from "./holder";
+import { adminWallets } from "./admin";
 
 export const isInviteOnly = () => inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
 
@@ -57,7 +58,9 @@ async function memberInvites(wallet: string, grant: Grant, holdsMinimum: boolean
   type Invite = { code: string; used_by: string | null; created_at: number };
   const mine = async () => (await store().list<Invite>("access_invites", { i1: wallet })).sort((a, b) => a.created_at - b.created_at);
   let rows = await mine();
-  const want = inviteMintAllowance({ via: grant.via, grantedAt: grant.grantedAt, now, holdsMinimum, existing: rows.length, allowance, unlockMs: inviteUnlockMs() });
+  // Admins (ADMIN_WALLETS) skip the waiting period: they can mint codes from the admin panel anyway.
+  const unlockMs = adminWallets().has(wallet) ? 0 : inviteUnlockMs();
+  const want = inviteMintAllowance({ via: grant.via, grantedAt: grant.grantedAt, now, holdsMinimum, existing: rows.length, allowance, unlockMs });
   const mint = await takeFromDailyBudget(want, now);
   if (mint > 0) {
     for (let i = rows.length; i < rows.length + mint; i++) {
@@ -86,7 +89,7 @@ export async function accessStatus(wallet: string): Promise<AccessStatus> {
   }
   // Everyone who is in can bring others, once their grant has aged (and a holder still holds).
   const invites = grant ? await memberInvites(wallet, grant, isHolder) : [];
-  const unlockAt = grant ? grant.grantedAt + inviteUnlockMs() : null;
+  const unlockAt = grant && !adminWallets().has(wallet) ? grant.grantedAt + inviteUnlockMs() : null;
   return { inviteOnly: true, allowed: grant !== null, via: grant?.via ?? null, invites, minMimir, invitesUnlockAt: unlockAt && unlockAt > now ? unlockAt : null };
 }
 

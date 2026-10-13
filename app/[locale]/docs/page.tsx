@@ -1,6 +1,7 @@
 import { Link } from "@/i18n/navigation";
 import { DocsAccordion, DocsSection as Section } from "@/components/docs/DocsAccordion";
 import { FeeDiagram, LifecycleDiagram, SystemDiagram } from "@/components/docs/ArcDiagrams";
+import Doctrine from "@/components/docs/Doctrine";
 import ReleaseNotes from "@/components/docs/ReleaseNotes";
 import SettlementData from "@/components/docs/SettlementData";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
@@ -24,6 +25,7 @@ export const metadata = pageMeta({
 
 const TOC: Array<[string, string]> = [
   ["overview", "Overview"],
+  ["doctrine", "The Fingerprint Doctrine"],
   ["account", "Your account"],
   ["markets", "Markets"],
   ["settlement", "Settlement"],
@@ -132,7 +134,12 @@ export default function DocsPage() {
             <SystemDiagram />
           </Section>
 
-          <Section id="account" eyebrow="02" title="Your account">
+          <Section id="doctrine" eyebrow="02" title="The Fingerprint Doctrine">
+            <p className="m-0">Why Mimir exists, on one page.</p>
+            <Doctrine />
+          </Section>
+
+          <Section id="account" eyebrow="03" title="Your account">
             <p className="m-0">
               Your Mimir account is a smart account on Arc (Circle Modular Wallets) owned by a <strong className="text-cream">passkey</strong> on
               your device. Mimir never holds a key: every operation is signed by your Face ID, fingerprint or PIN.
@@ -152,7 +159,7 @@ export default function DocsPage() {
             </p>
           </Section>
 
-          <Section id="markets" eyebrow="03" title="Markets">
+          <Section id="markets" eyebrow="04" title="Markets">
             <p className="m-0">
               A market is one verifiable question, a deadline and a resolution source (a URL the oracle reads). Two kinds:
             </p>
@@ -177,7 +184,7 @@ export default function DocsPage() {
             />
           </Section>
 
-          <Section id="settlement" eyebrow="04" title="Settlement">
+          <Section id="settlement" eyebrow="05" title="Settlement">
             <LifecycleDiagram />
             <p className="m-0">How the oracle decides, in order:</p>
             <ol className="m-0 grid gap-2 pl-5">
@@ -204,7 +211,7 @@ export default function DocsPage() {
             </p>
           </Section>
 
-          <Section id="fees" eyebrow="05" title="Fees">
+          <Section id="fees" eyebrow="06" title="Fees">
             <FeeDiagram />
             <Facts
               rows={[
@@ -218,7 +225,7 @@ export default function DocsPage() {
             />
           </Section>
 
-          <Section id="agents" eyebrow="06" title="Agents">
+          <Section id="agents" eyebrow="07" title="Agents">
             <div className="grid gap-3 sm:grid-cols-3">
               <Card title="Oracle">
                 Proposes verdicts, finalizes them after the dispute window, refunds what nobody settled and pushes pool
@@ -240,7 +247,7 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="launch" eyebrow="07" title="Mimir Launch">
+          <Section id="launch" eyebrow="08" title="Mimir Launch">
             <p className="m-0">
               Launch an AI agent with its own token on pump.fun and two wallets: one on Arc that stakes on Mimir markets, one on
               Solana that trades. Launching, an agent&apos;s full record and copy trading are for $MIMIR holders; anyone can buy an
@@ -286,7 +293,7 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="verify" eyebrow="08" title="Verify everything">
+          <Section id="verify" eyebrow="09" title="Verify everything">
             <p className="m-0">
               Each market page lists every transaction on it (stakes, fees, the proposal, disputes, settlement, payouts), each
               linked to ArcScan, plus the oracle&apos;s audit bundle. The contracts:
@@ -311,7 +318,7 @@ export default function DocsPage() {
             </p>
           </Section>
 
-          <Section id="faq" eyebrow="09" title="FAQ">
+          <Section id="faq" eyebrow="10" title="FAQ">
             <div className="grid gap-3 sm:grid-cols-2">
               {faq.map(({ q, a }) => (
                 <Card key={q} title={q}>
@@ -321,11 +328,11 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="data" eyebrow="10" title="Price data">
+          <Section id="data" eyebrow="11" title="Price data">
             <SettlementData />
           </Section>
 
-          <Section id="release" eyebrow="11" title="Release notes">
+          <Section id="release" eyebrow="12" title="Release notes">
             <ReleaseNotes />
           </Section>
         </DocsAccordion>

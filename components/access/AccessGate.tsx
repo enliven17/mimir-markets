@@ -18,6 +18,8 @@ import { usePathname } from "@/i18n/navigation";
 import { inviteOnly, type AccessStatus } from "@/lib/access";
 import { inviteKind, xIntentUrl } from "@/lib/invite-share";
 import { ARC } from "@/lib/arc/config";
+import CouncilMark from "@/components/launch/CouncilMark";
+import { mimirTokenUrl } from "@/lib/token-config";
 
 const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
 // Only the screens that act are gated: setting up and funding the Arc account, the portfolio, creating markets and
@@ -82,20 +84,21 @@ function Gate({ children }: { children: ReactNode }) {
   if (a.status?.allowed) return <>{children}</>;
 
   const min = (a.status?.minMimir ?? 5_000_000).toLocaleString("en-US");
+  const step = !a.wallet ? 0 : !a.proven ? 1 : 2;
   let body: ReactNode;
-  if (!a.wallet) {
+  if (step === 0) {
     body = (
-      <>
-        <p className="m-0 text-[14px] leading-relaxed text-muted">Connect the Solana wallet you hold $MIMIR in, or the one you will use with an invite code.</p>
+      <div className="grid justify-items-center gap-4 text-center">
+        <p className="m-0 max-w-[40ch] text-[15px] leading-relaxed text-muted">Connect the Solana wallet you hold $MIMIR in, or the one you will use with an invite code.</p>
         <ConnectWalletButton />
-      </>
+      </div>
     );
-  } else if (!a.proven) {
+  } else if (step === 1) {
     body = (
-      <>
-        <p className="m-0 text-[14px] leading-relaxed text-muted">Sign one message to prove this wallet is yours. It moves no funds.</p>
+      <div className="grid justify-items-center gap-4 text-center">
+        <p className="m-0 max-w-[40ch] text-[15px] leading-relaxed text-muted">Sign one message to prove this wallet is yours. It moves no funds.</p>
         <button
-          className={BTN}
+          className={`${BTN} min-w-[200px]`}
           disabled={!a.canSign || busy}
           onClick={() => {
             setBusy(true);
@@ -104,49 +107,77 @@ function Gate({ children }: { children: ReactNode }) {
         >
           {busy ? "Check your wallet…" : "Sign in"}
         </button>
-      </>
+      </div>
     );
   } else {
     body = (
-      <>
-        <p className="m-0 text-[14px] leading-relaxed text-muted">
-          This wallet holds less than {min} $MIMIR. Enter an invite code from a holder to get in; you do not need $MIMIR for it.
-        </p>
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setBusy(true);
-            void a.redeem(code).finally(() => setBusy(false));
-          }}
-        >
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="MIMIR-XXXX-XXXX"
-            autoCapitalize="characters"
-            spellCheck={false}
-            className="min-w-0 flex-1 rounded-xl bg-ink-deep px-4 py-3 font-mono text-[15px] uppercase text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]"
-          />
-          <button type="submit" className={BTN} disabled={busy || code.trim().length < 15}>
-            {busy ? "Checking…" : "Enter"}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid content-start gap-3 rounded-2xl bg-cream/[0.04] p-5">
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Have an invite</p>
+          <form
+            className="grid gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setBusy(true);
+              void a.redeem(code).finally(() => setBusy(false));
+            }}
+          >
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="MIMIR-XXXX-XXXX"
+              autoCapitalize="characters"
+              spellCheck={false}
+              aria-label="Invite code"
+              className="min-w-0 rounded-xl bg-ink-deep px-4 py-3 text-center font-mono text-[16px] uppercase tracking-[0.06em] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]"
+            />
+            <button type="submit" className={BTN} disabled={busy || code.trim().length < 15}>
+              {busy ? "Checking…" : "Enter Mimir"}
+            </button>
+          </form>
+          {a.error ? <p className="m-0 text-[13px] text-danger">{a.error}</p> : null}
+        </div>
+        <div className="grid content-start gap-3 rounded-2xl bg-cream/[0.04] p-5">
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Or hold $MIMIR</p>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">
+            This wallet holds less than <span className="text-cream">{min} $MIMIR</span>. Holders get in on the spot, no code needed.
+          </p>
+          <a href={mimirTokenUrl()} target="_blank" rel="noreferrer" className="rounded-full px-5 py-2.5 text-center text-[14px] text-cream shadow-[inset_0_0_0_1px_rgb(243_234_214/.2)] hover:bg-cream/5">
+            Get $MIMIR ↗
+          </a>
+          <button type="button" onClick={() => void a.reload()} className="text-[13px] text-muted hover:text-cream">
+            I hold it now, check again
           </button>
-        </form>
-        {a.error ? <p className="m-0 text-[13px] text-danger">{a.error}</p> : null}
-      </>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto grid max-w-[560px] gap-6 py-10">
-      <header className="grid gap-2">
-        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Invite only</p>
-        <h1 className="m-0 font-display text-app-h1 text-cream">Mimir is opening in waves.</h1>
-        <p className="m-0 text-[15px] leading-relaxed text-muted">
-          Hold {min} $MIMIR on Solana to get in, or use an invite code from someone who is already in. Everyone inside gets codes to share.
-        </p>
-      </header>
-      <section className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>{body}</section>
+    <div className="grid min-h-[calc(100svh-220px)] place-items-center py-8">
+      <div className="grid w-full max-w-[640px] gap-6">
+        <header className="grid justify-items-center gap-3 text-center">
+          <CouncilMark size={64} />
+          <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Invite only</p>
+          <h1 className="m-0 font-display text-app-h1 text-cream">Mimir is opening in waves.</h1>
+          <p className="m-0 max-w-[48ch] text-[15px] leading-relaxed text-muted">
+            Hold {min} $MIMIR on Solana, or use an invite code from someone already in. Everyone inside gets codes to share.
+          </p>
+        </header>
+        <ol className="m-0 flex list-none justify-center gap-2 p-0" aria-label="Steps">
+          {["Connect", "Sign", "Get in"].map((s, i) => (
+            <li
+              key={s}
+              aria-current={i === step ? "step" : undefined}
+              className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] ${i === step ? "bg-cream text-ink" : i < step ? "bg-cream/10 text-cream" : "bg-cream/[0.04] text-dim"}`}
+            >
+              <span className="font-mono text-[11px]">{i < step ? "✓" : `0${i + 1}`}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+        <section className={`${SURFACE} grid gap-4 p-5 sm:p-7`}>{body}</section>
+      </div>
     </div>
   );
 }

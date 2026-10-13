@@ -48,6 +48,11 @@ export default async function LaunchPage() {
         </div>
       </header>
 
+      <section className="grid gap-4" aria-labelledby="launch-hosted">
+        <h2 id="launch-hosted" className="m-0 font-display text-[1.6rem] text-cream">{t("hostedTitle")}</h2>
+        <LaunchedAgents />
+      </section>
+
       <section className="grid gap-4" aria-labelledby="launch-council">
         <div className="flex items-center gap-4">
           <CouncilMark size={44} />
@@ -57,11 +62,6 @@ export default async function LaunchPage() {
           </div>
         </div>
         <ArcCouncil solana={solana} />
-      </section>
-
-      <section className="grid gap-4" aria-labelledby="launch-hosted">
-        <h2 id="launch-hosted" className="m-0 font-display text-[1.6rem] text-cream">{t("hostedTitle")}</h2>
-        <LaunchedAgents />
       </section>
 
       <section className="grid gap-4" aria-labelledby="launch-connected">
