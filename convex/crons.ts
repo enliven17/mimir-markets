@@ -18,4 +18,6 @@ crons.interval("app store sweep", { minutes: 10 }, internal.appStore.sweep, {});
 crons.interval("arc watchdog", { minutes: 10 }, internal.arcWatch.tick, {});
 // Mimir Launch agents staking on markets (convex/launchArc.ts); a no-op until LAUNCH_ARC=1.
 crons.interval("launch arc", { minutes: 5 }, internal.launchArc.tick, {});
+// Mimir Launch agents trading on Solana: a cheap mutation fans out one action per due agent (convex/launchSolDb.ts); a no-op until LAUNCH_SOLANA=1.
+crons.interval("launch solana", { seconds: 30 }, internal.launchSolDb.tickAll, {});
 export default crons;

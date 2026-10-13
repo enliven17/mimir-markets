@@ -1,5 +1,6 @@
 /** Mimir Launch: what the engine needs from the outside world (ported from snipad lib/server/ports.ts). */
-import type { Condition, DataSource } from "./types";
+import type { Condition, DataSource, RiskParams, StrategyConfig } from "./types";
+import type { IdleState } from "./worker/idle";
 
 /** One LLM call for the ranker; the router behind it is Mimir's (lib/llm.ts) or the owner's own key. */
 export type CompleteOptions = { system: string; user: string; json?: boolean; maxTokens?: number; temperature?: number };
@@ -56,3 +57,69 @@ export interface Executor {
   burn?(a: { walletId: string; wallet: string; mint: string; tokens: bigint }): Promise<string>;
 }
 
+
+// ---------- the trading worker (lib/launch/worker) ----------
+
+/** A source of candidates. `ctx.whales` for helius; adapters must not throw on network errors (return []). */
+export interface MarketSource {
+  id: DataSource;
+  candidates(ctx: { whales: string[]; signal?: AbortSignal }): Promise<Candidate[]>;
+}
+
+export interface PriceFeed {
+  /** SOL per whole token for each mint it knows; missing = unknown. */
+  prices(mints: string[]): Promise<Map<string, number>>;
+}
+
+/** What the worker reads of an agent (convex/launchSolDb.ts). Units: lamports and raw token units are bigint. */
+export interface AgentRow {
+  id: string;
+  name: string;
+  ticker: string;
+  /** Its own pump.fun token: never sold, never a candidate. */
+  mint: string | null;
+  /** Where a kill sweeps the SOL. */
+  owner: string;
+  walletId: string;
+  wallet: string;
+  status: "pending" | "live" | "paused" | "killed";
+  config: StrategyConfig;
+  risk: RiskParams;
+  createdAt: Date;
+  idle?: IdleState;
+}
+
+export interface PositionRow {
+  id: string;
+  agentId: string;
+  mint: string;
+  symbol: string;
+  tokens: bigint;
+  decimals: number;
+  costLamports: bigint;
+  entryPrice: number;
+  highPrice: number;
+  openedAt: Date;
+}
+
+export type EventKind = "scan" | "score" | "rules" | "buy" | "sell" | "hold" | "error" | "burn";
+export type SellRecord = { lamports: bigint; tokens: bigint; reason: string; sig: string };
+
+export interface Repo {
+  agent(id: string): Promise<AgentRow | null>;
+  openPositions(agentId: string): Promise<PositionRow[]>;
+  /** Idempotent on the buy sig: a persist retried after a timeout never double-books a fill. */
+  openPosition(p: Omit<PositionRow, "id" | "openedAt">, buy: { lamports: bigint; reason: string; sig: string }): Promise<PositionRow>;
+  closePosition(positionId: string, sell: SellRecord): Promise<void>;
+  /** Partial sell keeps the position open with fewer tokens. */
+  reducePosition(positionId: string, sell: SellRecord): Promise<void>;
+  setHighPrice(positionId: string, price: number): Promise<void>;
+  /** Realised PnL since UTC midnight, lamports. */
+  dailyPnl(agentId: string): Promise<bigint>;
+  logEvent(agentId: string, kind: EventKind, text: string): Promise<void>;
+  setStatus(agentId: string, status: AgentRow["status"]): Promise<void>;
+  /** Killed agent's bankroll went back to the owner; stop ticking it. */
+  markSwept(agentId: string): Promise<void>;
+  /** Idle counter / sleep state (null = awake). */
+  setIdle(agentId: string, s: Omit<IdleState, "wakeRequestedAt"> | null): Promise<void>;
+}
