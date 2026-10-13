@@ -38,3 +38,26 @@ test("a summary payload gives completion, score, winner and kickoff", () => {
   assert.match(espnResultText(r), /Los Angeles Rams 34, Buffalo Bills 37\. Winner: Buffalo Bills\./);
   assert.equal(parseEspnSummary({}), null);
 });
+
+test("'Will X beat Y?' reads the ESPN winner; a draw is a no; unclear names give nothing", async () => {
+  const { espnBeatCondition } = await import("../../lib/espn");
+  const r = (a: [string, string, boolean], b: [string, string, boolean], completed = true) => ({
+    completed, status: completed ? "Final" : "Scheduled", startAt: 0,
+    teams: [a, b].map(([name, score, winner]) => ({ name, score, winner })),
+  });
+  const nfl = r(["Los Angeles Rams", "34", false], ["Buffalo Bills", "37", true]);
+  assert.equal(espnBeatCondition("Will Los Angeles Rams beat Buffalo Bills in their NFL game on Oct 13, 2026?", nfl), false);
+  assert.equal(espnBeatCondition("Will the Bills beat the Rams?", nfl), true);
+  const draw = r(["Lens", "1", false], ["Sporting CP", "1", false]);
+  assert.equal(espnBeatCondition("Will Lens beat Sporting CP in their Champions League game on Oct 13, 2026?", draw), false);
+  assert.equal(espnBeatCondition("Will Barcelona beat Galatasaray in their Champions League game on Oct 13, 2026?", r(["Galatasaray", "0", false], ["Barcelona", "2", true])), true);
+  assert.equal(espnBeatCondition("Will Lens beat Sporting CP?", r(["Lens", "0", false], ["Sporting CP", "0", false], false)), null);
+  assert.equal(espnBeatCondition("Will Arsenal beat Chelsea?", nfl), null);
+  assert.equal(espnBeatCondition("Who wins tonight?", nfl), null);
+});
+
+test("a finished game with no winner and no clear tie is left to the normal path", async () => {
+  const { espnBeatCondition } = await import("../../lib/espn");
+  const r = { completed: true, status: "Final", startAt: 0, teams: [{ name: "Lens", score: null, winner: false }, { name: "Sporting CP", score: "1", winner: false }] };
+  assert.equal(espnBeatCondition("Will Lens beat Sporting CP?", r), null);
+});

@@ -83,3 +83,29 @@ export function espnResultText(r: EspnResult): string {
   const started = Number.isFinite(r.startAt) ? new Date(r.startAt * 1000).toISOString() : "unknown";
   return `ESPN structured result (authoritative): status ${r.status}${r.completed ? " (completed)" : ""}. ${score}.${winner ? ` Winner: ${winner}.` : r.completed ? " No winner (a draw)." : ""} Started ${started}.`;
 }
+
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Does `name` (from the question) name this ESPN team? Either contains the other, as whole words. */
+function names(name: string, team: string): boolean {
+  const a = ` ${norm(name)} `, b = ` ${norm(team)} `;
+  return a.trim().length > 2 && (b.includes(a) || a.includes(b));
+}
+
+/**
+ * For "Will X beat Y …?" on a finished ESPN game: true if X won, false if X lost or drew, null when the question is
+ * not of that form, a name does not match exactly one ESPN team, or the game is not over. The oracle then settles a
+ * Yes/No market from the score without a model (agents/oracle/decide.ts).
+ */
+export function espnBeatCondition(question: string, r: EspnResult): boolean | null {
+  if (!r.completed || r.teams.length !== 2) return null;
+  const m = /^\s*will\s+(?:the\s+)?(.+?)\s+beat\s+(?:the\s+)?(.+?)(?:\s+(?:in|on|at|this|tonight|today)\b.*|\?)\s*$/i.exec(question);
+  if (!m) return null;
+  const x = r.teams.filter((t) => names(m[1], t.name));
+  const y = r.teams.filter((t) => names(m[2], t.name));
+  if (x.length !== 1 || y.length !== 1 || x[0] === y[0]) return null;
+  if (r.teams.some((t) => t.winner)) return x[0].winner;
+  // No winner flagged: a draw only when both scores are there and equal; anything else is not for us to guess.
+  const [s1, s2] = r.teams.map((t) => t.score);
+  return s1 !== null && s2 !== null && s1 === s2 ? false : null;
+}
