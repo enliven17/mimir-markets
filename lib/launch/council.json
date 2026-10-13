@@ -1,0 +1,11 @@
+{
+  "socrates": {
+    "name": "Socrates",
+    "ticker": "SOCRATES",
+    "arc": "0xaf4c6b5d7e6461c24c843c4dc479a5ced5cfd359",
+    "solana": {
+      "walletId": "sk22gtumcz71k8c48axywry9",
+      "address": "FdUhCG9duFyxRNKP3iRBk2pZ8fj9bQ4bLTFdBiFXEdCg"
+    }
+  }
+}
