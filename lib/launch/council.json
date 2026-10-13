@@ -6,6 +6,237 @@
     "solana": {
       "walletId": "sk22gtumcz71k8c48axywry9",
       "address": "FdUhCG9duFyxRNKP3iRBk2pZ8fj9bQ4bLTFdBiFXEdCg"
-    }
+    },
+    "mint": "EDYyYcWgzcuhZZvhmpLtcLLXyv6m4yy2P3YFDfDgF6MS",
+    "sig": "5bPFAbpvSpVN7dTkescRaAi3uRhkfnHK33vhBwX5Ua5BvHifaCjyT5eAb7N4erQoHEeESoKFW3Nh4DvxyU1d4Neu",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigbnc35szs4qqifwmblxn5eevvx6bvcl5wy6owjpgwwxkkbivlyoe"
+  },
+  "optimist": {
+    "name": "The Optimist",
+    "ticker": "OPTIMIST",
+    "arc": "0x3e5e0259383ef4327f2b44b1067d9225d2ffefac",
+    "solana": {
+      "walletId": "bvw0hk68m9dij4qvrw5m4e27",
+      "address": "3LM71ai32z6bWzx1smtm2oR6FfiUUKPAXtbX1cDPaqwY"
+    },
+    "mint": "CjwKh3dUVEqw2kURZBFrafp9po4CESwGaQ8DYL8cAUy",
+    "sig": "CKAfBRDexTfCGxQ2ZaZ2NNKiKphSnnYA1cRBfXFZ9bxbTHfHwLvSCwJG9g7YoaQ2tLPP7NmVwvE9nfZQ2L4YCph",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiefq5phagkj36n2ddfm7vc7xqbrn3olxev2aesqa7koiyq43nlsye"
+  },
+  "pessimist": {
+    "name": "The Pessimist",
+    "ticker": "PESSIMIST",
+    "arc": "0x06242e0725cfd919cb362003975b3abd64ac47c0",
+    "solana": {
+      "walletId": "w6zxfjmcrk0xbgznngro4epz",
+      "address": "4hA6zLWw4qwT9MPsqcEETM3WrznGKD65gi7qh2JD9CWn"
+    },
+    "mint": "5s7mwpsrbVN35JSpmCcV5NMFsis4U5TqZzM5ymkZqJcy",
+    "sig": "5v1gHARhXUUfLbrN34WvcxjhjjRVyrnMaQxRPzGXiozrCa7U6SDXdq1QVtGEtYnBXnqxWcqL9J3uBsMVMffemcp3",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreic7isjavwlefri2qxagrsq7xnpn3k3eiwjjxfokathj5s3slk2eze"
+  },
+  "contrarian": {
+    "name": "The Contrarian",
+    "ticker": "CONTRARIAN",
+    "arc": "0x8ce4b2410b1a35132875dda56871649bcfd85fb4",
+    "solana": {
+      "walletId": "cm0fdyvwenn8cbv5qd0o6q3y",
+      "address": "77wxo8wT1BVY3R87GYf3fnEBvcdP7cMi3k7qaHud9wbu"
+    },
+    "mint": "3keyTAhapCiCTEBvTweb38qEaxbt3hneuJqWzFMAhvu3",
+    "sig": "3DnzVgdWKEL6cdbxQqNUowB5RWWas1ktusc9gVDwryRQrj4TVGPjTWZtGdkZi17zbDVJU7vcU3biE9dfjdvFQyxX",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreig26tiumsoisa44bry2gpucjkdxdzpjycdrwaeu2ehn7f6avg3tsy"
+  },
+  "statistician": {
+    "name": "The Statistician",
+    "ticker": "STATS",
+    "arc": "0x8db29edfdffd9e415882695bfd4b6137e3527c63",
+    "solana": {
+      "walletId": "mymg2mdt9j7u7gbiov6jfg56",
+      "address": "4BT13MeUkYwb6STiggD9M3uAr4kZwG1TUjbqidxbY3we"
+    },
+    "mint": "J8p6MPhcXupKpRQBJr38aue8AyWPLpGBtWZ3djvA8WmZ",
+    "sig": "4zatUioZiNJJs48J78XVr9Z3NqN8gDcXu39q8sxqbdBsQgMYEjR5tQC7uoRViNwotCAUAcwhWe9QWs7v3UCVC4C1",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiccnejgop54eufcdvideacdctdec4vusbl7z56rmgdzankizwzuxe"
+  },
+  "whale-watcher": {
+    "name": "The Whale-Watcher",
+    "ticker": "WHALE",
+    "arc": "0x15510bda2b1dc1aaaddf70efceea86cca57dae17",
+    "solana": {
+      "walletId": "mmdowg4esb5o9k2n46k8m1k7",
+      "address": "CC5w2VDPFF8wR4BzoncSaaHC2gMpNvoPi4NpoBkpvwdX"
+    },
+    "mint": "DUS76QkEXz3J432mFA4uqxWp2iW3GU2G9WT8dTLq125R",
+    "sig": "kzi3FCBpih33QCMe9sjorkLHrDx5P7qQrWTd74GPYwMB71gzzTRtysDrQ6omw5Qb1spzpSj48mGsrzYhJThE8v4",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreifjquiqsgcnlifrzvk26hkuwjwvvbh5t5zljusb4ii6d6ysuxq2q4"
+  },
+  "crypto-maxi": {
+    "name": "Crypto Maximalist",
+    "ticker": "MAXI",
+    "arc": "0x1ad5e62abe406f57e19c6bb8f508c5e1b304bdbb",
+    "solana": {
+      "walletId": "ix2ckuuis4o2ufh3048o2jgm",
+      "address": "DPvxxPfqtSmgAoajwauesFuBY93jSrYxFBtBnHPMpyB4"
+    },
+    "mint": "DhGdpTNPsYp3GFcRQufqfcQbfPuTRKB6UGHxHtsap7f6",
+    "sig": "WAXnpA9WzVDDsyi58CLRTCUd6bw397yZ2yg1hZ2txQsWxnnibZE7JZXb87NXpLBBeoqjX4nLJQHLgYBHBZUwWwU",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreibvjmuyifzr5kkbq2gyh7kjjrqvdaiyvdpbbionvt45hgyum7s3ei"
+  },
+  "sports-pundit": {
+    "name": "Sports Pundit",
+    "ticker": "PUNDIT",
+    "arc": "0xe7c8c736997c6ba33c83d8b0d1df50d7f5150682",
+    "solana": {
+      "walletId": "i8j3nq0kvgkvrq4lyldftx6n",
+      "address": "5nrBHeeS5SAytpUeQ7XyT4EDV6U2nNSwfaFvMZhX9qof"
+    },
+    "mint": "8mny112k4eEVQqEvR7bgUkHn1mm2oF9b7Rc2h6p8eVtE",
+    "sig": "3nV2YiiiDC8VYrudbsdFaACZXXuHjQfyggLkcgcse2S1nWfghY24TosrbR6N2tRByqoSLGXRj2kUpxzdeKHgc57t",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreihbuhu7zoqf6ygwfellnsskypbucs7wn7lbssdzjkfr67p745flua"
+  },
+  "weatherman": {
+    "name": "The Weatherman",
+    "ticker": "WEATHERMAN",
+    "arc": "0x1fcd7eadcf62fb6f3b7351647cbf27cf209639f4",
+    "solana": {
+      "walletId": "c3qa6pjxm793621n9alm4rr1",
+      "address": "6CgrJ3zeJqZ3n643zja8K9AgLZsRp7mwP7CdPqh5XftK"
+    },
+    "mint": "45pJbmVTnuLUe4rFxS5nw3ARJaX5EBTqsTBNHokcY36b",
+    "sig": "2iMus1va1iFoWVo6n2KnbmwMbRAHPscMfrPPedc44HUUgd78Eo7GntfFo3xjA37uz41C41qEdxh2wUBKDdYQgz1N",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreig2q4r5jsxbrn7cc3mxmacdab52lm7innbg5hmw55osfephwzbmdm"
+  },
+  "doomer": {
+    "name": "The Doomer",
+    "ticker": "DOOMER",
+    "arc": "0x5d23e74c6074a79155839a0e9e38f5abc08b3d00",
+    "solana": {
+      "walletId": "e090dwxxnin46hl6gk3hodbm",
+      "address": "HnogGajk2pukpNcV6Ubwb5QbG3Q1VZ3Gwt6s7qBiejaw"
+    },
+    "mint": "DjYzho9XDFf8fWkug84CuqLtXyckokESz1r1HWMoeFXn",
+    "sig": "3Q968N2tvRbF23Kxf6Q9fCdZgB81XBqxRNXx4XBaeHYsdvBTjRhGzXjqq1XRJGwUgScxTw25Jqxh2sCuXay2Bvte",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigtbmgopvwopxvqelfegrdlb7ekn6hfwvfi3jiezt25ds34cpotja"
+  },
+  "yapper": {
+    "name": "The Yapper",
+    "ticker": "YAPPER",
+    "arc": "0x1670a2fad045a146a216129be44c4adbf4ea8375",
+    "solana": {
+      "walletId": "wm5qfub8k2yjet34n5k3myvo",
+      "address": "72gh7dVbzXKhbSUStqRo84zkwxkXKAJ5pcQ4nkWzwJgq"
+    },
+    "mint": "7DJz9bQ6WbKHFHxvMmHnkfhnEUoA57T2XvhDhEgTdKSt",
+    "sig": "3Fz8untXCfKCAwFhioyV5yJd6kKfERUicdjD2WA55NbHD7FBoVbaggzYquwodLCgaZiWZwCeSim9CDS8AVwfibhc",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiesozwci42eli4fhw6nowox3utxdwn7tishsai63ksjkvkjqyerjy"
+  },
+  "kahneman": {
+    "name": "Kahneman",
+    "ticker": "KAHNEMAN",
+    "arc": "0x31bf99d5f935b76e8fd291795f8fa242b3d89e8c",
+    "solana": {
+      "walletId": "acfsj2iwg9rxjuog25lzx37s",
+      "address": "2EYcjoPE6Xwe2JzbVZPDCCwE2B5sU8uFaQiMVeJKudet"
+    },
+    "mint": "7BHoYk4aXRoKPozXmstRd4Gh7mbFYeWPqLoKFQG5i8YC",
+    "sig": "266ekNhTaUZvs3LwnuuQGvyG8TiBaJLS7ErNrR4QX1xztEUx3fGbxRWNXszgru4s5qXGmi8dWER9kt5vAtwUn9KV",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreieqx7yo42o3xjcyjezutzpakmoxgnrgpznjqxt7hmekl77shj5dpy"
+  },
+  "taleb": {
+    "name": "Taleb",
+    "ticker": "TALEB",
+    "arc": "0x9eac62a26c1d951264d9f34c4f2779929c1c54e7",
+    "solana": {
+      "walletId": "lgp8xc3d0zia5sjvnrxfs96t",
+      "address": "AbekQAJnjhd8a9JcA9RVcXD2c71238kcVur9hshXVkDa"
+    },
+    "mint": "43J3kefdHpfQdwBV6eD4ai4HxzFw6tS7wE5sy9icD8Qt",
+    "sig": "kahXZCYKhfZKhpJrkxJhi1kTGqJYVmeK7NmHAmZHqQf8SAWQmwzBBQjD1ooiBffK6AMVdeZD4QTZrHqU25q6mDJ",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreic23zrxlkjhed7j3cpq5glfoqydqgbw5cvran7u24n3hliupn6vja"
+  },
+  "feynman": {
+    "name": "Feynman",
+    "ticker": "FEYNMAN",
+    "arc": "0xa5fd420dfdf6927b58a34a722f31ff23515395cc",
+    "solana": {
+      "walletId": "uke86nwtt2kz6te813xeknjd",
+      "address": "J4BrA6bDhEUbaH7yrP4n5GPYxWQuQtb4zuKANYsaZDmM"
+    },
+    "mint": "6f5BztNvosqK9x7Hup6CtknRrpt9oaLRz2DWrb1ugx37",
+    "sig": "xVcgx1jbgT8MLTNJFtfMEBCrPeyEi5SiyXDAk2yAfMAA24KryeAnzHWB64y7apU2voHqbnynYgmRkPhfKegNSYd",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreihue7y62vzouwte4tkw7kxc7mkmv4duqqkf6dj7iddkspjxjz4z3m"
+  },
+  "munger": {
+    "name": "Munger",
+    "ticker": "MUNGER",
+    "arc": "0xc37fe1241488f996975552264d1ce1acd28f4e71",
+    "solana": {
+      "walletId": "izntctgy9evmz1ebkpbste9k",
+      "address": "J67z64xD5aXUFrZBCX2j2TScjoYVMecCcnjXqbSTmLvf"
+    },
+    "mint": "4es4vXcuFm6tmx4moz7Re6fBnL1iY6X31KjM3CpXVY32",
+    "sig": "5xKZdjR4EMjTz5eYaQK8Z1ajLu7aHAPQW7QLRNY3x4D6CtmiehfJfWboqXuWF84fuYbhBNEtCe1e6742PwWkoBPg",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreieh464j3yexy3jh3maf6mxivv5bufdzknmvmkr5wjysxzfm673ici"
+  },
+  "ada": {
+    "name": "Ada",
+    "ticker": "LOVELACE",
+    "arc": "0x2aaa8f731923e323ec118d0b6812b488686e12d9",
+    "solana": {
+      "walletId": "l53cjx547cuzki3uipvfrlit",
+      "address": "99XYqiaru9gJbofYhayNTtKX1GMQhSLo2eAMn6o4FepY"
+    },
+    "mint": "9LJSWrz2phoNX3E7VarqnFC2Wr4q6YpY6BzTqfjzxshJ",
+    "sig": "4vMMnQZksX8TNXKpK56pcTR33JjVriWSzSbpxCmUT6Qkf9db4QEUEZoFqyLqSnnJJ83XE54QgXuwPjABNC2chwcw",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigcelvz3j4g3mhtxwqg6yijdvqm6upbkna7xm7qhja444hfmoc73q"
+  },
+  "meadows": {
+    "name": "Meadows",
+    "ticker": "MEADOWS",
+    "arc": "0xb202b3dbbad4e320665247be9a6cfc99e034cfa3",
+    "solana": {
+      "walletId": "zs9oqe9t1497lxpovejku9rf",
+      "address": "6wJDUj8y8M75QsJPGWmJPxAs9aDbjrCAFTT7UUmGmxXj"
+    },
+    "mint": "BESheMipL1fL9uFDHzdhZjmUmJJ7dexhGY8VuUprRs5H",
+    "sig": "61N2WNPZCAd6HNsDx7P9cMZF6XnrSemg2Z9cBwb7PsdrWHc5ZJzD229gfMUsPreSUH7XRmrED5LxtsNmxKVuXSJx",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreier7ix2evjpmwsqes6yk3xli7impp2ticfjbw7xvof5xcklncwjxi"
+  },
+  "machiavelli": {
+    "name": "Machiavelli",
+    "ticker": "PRINCE",
+    "arc": "0xbc6fc9c88d43273f0361aab444cabb54ea999bd5",
+    "solana": {
+      "walletId": "yl6aogv85tmcuxqnayfqeap3",
+      "address": "J2byaLq2RERzFBp7p3dg1RgeUWMb4Ef1zqe618AvjmEC"
+    },
+    "mint": "Hs1sKXrEfh8bVqoHPqHkngWUMAFkLSDniNHXtzPnvz9C",
+    "sig": "2sXeNK3dJcMU9fuVkM4ZkHXp8B1EER4c6eqAZHzeWFgQQZKEupLeWTxfGMSksz6x85AwAtKXJG9ruBxBBitjeVj9",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreib5f2k3pb4cn6hi3rmxrzflgn6rzradtgba7sp6s3ntb2amuvwzgq"
+  },
+  "aurelius": {
+    "name": "Aurelius",
+    "ticker": "AURELIUS",
+    "arc": "0xc00a8ba22e83033b2e9992bd04353fe329afd13d",
+    "solana": {
+      "walletId": "n5ud97ulq2sxmg1c3gugw2nj",
+      "address": "GCKgqJS7pRYvyNySnaRLT5KAQyQYM6EJgbe4rteXoSUg"
+    },
+    "mint": "HeLnfERwrFdYq5fqGQVMvZ3KD9bo4ZHLZ5LMhfV7BkQK",
+    "sig": "22sNxMoZrhpQz8gfnEoRvrRzn8QFXAzWY7ThyCehnw2ayb3veUjFgRHohypzh6ohJLAQuh51pboR8yfTQAGUt6CH",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreie734kyr3ff37xqedhplps5nbdlvt5xrdg2trrif7m55mvagtfife"
+  },
+  "lao-tzu": {
+    "name": "Lao Tzu",
+    "ticker": "LAOTZU",
+    "arc": "0x57af5810fe9a671ce9581dc926984a16584cc4b8",
+    "solana": {
+      "walletId": "mnj021tj3vhub58meexwj1a4",
+      "address": "ChDUYzrJA21enbTPCBrH5MPZgaAfmv2Er2SJhSfSk8Ws"
+    },
+    "mint": "6epqZgCVK5QfuEv7azDZYnCyRtTVHs674Mid6mKLQvDL",
+    "sig": "2pfpkneCFDutvgt2csP7MdyCvR4a5AcfthBPQybi1PfUe6MoH3joHsdpmGYMJ4v2SbrXf8yjPNKNwV5qkjfABSp2",
+    "metadataUri": "https://ipfs.io/ipfs/bafkreia57x3l2rzjwpe4m4mov44s4mioato7ji3qc6a25m4qq4ob6pcc7q"
   }
 }

@@ -68,8 +68,17 @@ for (const p of COUNCIL_PERSONAS) {
       console.log(`${p.slug}: needs ${(NEED_LAMPORTS - have) / 1e9} SOL at ${r.solana.address}, skipped`);
       continue;
     }
-    const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: treasuryKey.publicKey, toPubkey: new PublicKey(r.solana.address), lamports: NEED_LAMPORTS - have }));
-    const sig = await sendAndConfirmTransaction(solana.connection, tx, [treasuryKey], { commitment: "confirmed" });
+    // A failed simulation sends nothing ("Blockhash not found" when the failover RPCs disagree): just retry it.
+    let sig = "";
+    for (let i = 0; !sig; i++) {
+      try {
+        const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: treasuryKey.publicKey, toPubkey: new PublicKey(r.solana.address), lamports: NEED_LAMPORTS - have }));
+        sig = await sendAndConfirmTransaction(solana.connection, tx, [treasuryKey], { commitment: "confirmed" });
+      } catch (err) {
+        if (i >= 2 || !/Blockhash not found/i.test(String(err))) throw err;
+        await new Promise((ok) => setTimeout(ok, 2000));
+      }
+    }
     console.log(`${p.slug}: funded ${(NEED_LAMPORTS - have) / 1e9} SOL (${sig.slice(0, 10)}…)`);
   }
   try {
