@@ -176,4 +176,95 @@ export default defineSchema({
     .index("by_i1", ["t", "i1"])
     .index("by_i2", ["t", "i2"])
     .index("by_at", ["t", "at"]),
+
+  /**
+   * Mimir Launch (lib/launch): hosted agents. Each holds a Solana wallet (Privy, policy-locked: trades and its own
+   * pump.fun token) and an Arc wallet (Circle developer-controlled: stakes on Mimir markets); each pays its own gas.
+   * Strategy, risk and market rules are validated in lib/launch before they are stored, so they are kept as plain
+   * objects here. A sealed own-key brain never leaves the server (lib/launch/byok.ts).
+   */
+  launchAgents: defineTable({
+    slug: v.string(),
+    /** The owner's Solana wallet (base58): who launched it, who withdrawals go to. */
+    owner: v.string(),
+    name: v.string(),
+    ticker: v.string(),
+    avatarSeed: v.string(),
+    thesis: v.string(),
+    status: v.union(v.literal("pending"), v.literal("live"), v.literal("paused"), v.literal("killed")),
+    brain: v.union(
+      v.object({ kind: v.literal("mimir") }),
+      v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
+    ),
+    /** Solana trading: off unless the owner turns it on with a strategy (lib/launch/types StrategyConfig + RiskParams). */
+    trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
+    /** Arc markets (lib/launch/markets MarketRules) and the most it may have staked at once, USDC. */
+    markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number() }),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
+    arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
+    /** Its pump.fun token, once launched. */
+    mint: v.optional(v.string()),
+    createdAt: v.number(),
+    /** One worker at a time per agent (snipad's lease); and a sleeping agent is skipped until then. */
+    leaseUntil: v.optional(v.number()),
+    sleepUntil: v.optional(v.number()),
+    lastTickAt: v.optional(v.number()),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_owner", ["owner"])
+    .index("by_status", ["status"]),
+
+  /** What the agent did and why, newest last: the live reasoning log on its page. */
+  launchEvents: defineTable({
+    agent: v.id("launchAgents"),
+    at: v.number(),
+    kind: v.string(),
+    text: v.string(),
+    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
+    tx: v.optional(v.string()),
+  }).index("by_agent", ["agent", "at"]),
+
+  /** Open Solana token positions (one per mint). */
+  launchPositions: defineTable({
+    agent: v.id("launchAgents"),
+    mint: v.string(),
+    symbol: v.string(),
+    tokens: v.string(),
+    costLamports: v.string(),
+    entryPriceSol: v.number(),
+    peakPriceSol: v.number(),
+    openedAt: v.number(),
+  }).index("by_agent", ["agent"]),
+
+  /** Every Solana buy and sell, with its signature (unconfirmed ones are settled by a reconciler). */
+  launchTrades: defineTable({
+    agent: v.id("launchAgents"),
+    mint: v.string(),
+    side: v.union(v.literal("buy"), v.literal("sell")),
+    lamports: v.string(),
+    tokens: v.string(),
+    sig: v.string(),
+    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("failed")),
+    pnlLamports: v.optional(v.string()),
+    reason: v.string(),
+    at: v.number(),
+  })
+    .index("by_agent", ["agent", "at"])
+    .index("by_sig", ["sig"]),
+
+  /** Stakes on Mimir markets from the agent's Arc wallet. */
+  launchStakes: defineTable({
+    agent: v.id("launchAgents"),
+    kind: v.union(v.literal("vs"), v.literal("pool")),
+    marketId: v.number(),
+    side: v.number(),
+    usdc: v.number(),
+    p: v.number(),
+    edge: v.number(),
+    why: v.string(),
+    tx: v.string(),
+    at: v.number(),
+  })
+    .index("by_agent", ["agent", "at"])
+    .index("by_market", ["kind", "marketId"]),
 });
