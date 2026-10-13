@@ -87,6 +87,8 @@ export interface AgentRow {
   risk: RiskParams;
   createdAt: Date;
   idle?: IdleState;
+  /** Lamports in the wallet that are owed (fee pools, payouts in flight, owed treasury): never traded or swept. */
+  reservedLamports?: bigint;
 }
 
 export interface PositionRow {
@@ -122,4 +124,9 @@ export interface Repo {
   markSwept(agentId: string): Promise<void>;
   /** Idle counter / sleep state (null = awake). */
   setIdle(agentId: string, s: Omit<IdleState, "wakeRequestedAt"> | null): Promise<void>;
+  /**
+   * Shutdown: the creator pool goes with the sweep, a holders pool of at least `holdersMinLamports` stays for a final
+   * airdrop. Returns what must stay in the wallet. Absent = nothing is reserved (no fee flow).
+   */
+  closeOutPools?(agentId: string, holdersMinLamports: bigint): Promise<bigint>;
 }

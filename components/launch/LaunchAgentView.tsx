@@ -20,6 +20,7 @@ import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/coun
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
+import FeesBlock from "./FeesBlock";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
 type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
@@ -99,6 +100,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       </section>
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} /> : null}
+      {!a.house && card ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <HolderSection slug={slug} />
     </div>

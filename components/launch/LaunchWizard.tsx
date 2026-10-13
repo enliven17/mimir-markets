@@ -21,8 +21,11 @@ import { LAUNCH_FEE_SOL, PRESETS, SOURCES, STRATEGIES } from "@/lib/launch/prese
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
 import AgentFace from "./AgentFace";
+import ByokGuide from "./ByokGuide";
+import FeeAllocator, { AllocationBar } from "./FeeAllocator";
+import { DEFAULT_ALLOCATION, perSol, sumsTo100, type Allocation } from "@/lib/launch/fees-view";
 
-const STEPS = ["Identity", "Brain", "Markets", "Trading", "Launch"] as const;
+const STEPS = ["Identity", "Brain", "Markets", "Trading", "Fees", "Launch"] as const;
 type Preset = keyof typeof PRESETS;
 
 const INITIAL = {
@@ -32,6 +35,7 @@ const INITIAL = {
   markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20 },
   trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
   seedSol: "0.1",
+  allocation: DEFAULT_ALLOCATION as Allocation,
 };
 type Form = typeof INITIAL;
 
@@ -51,7 +55,8 @@ function problems(step: number, f: Form): string | null {
     if (f.trading.sources.includes("helius") && (!whales.length || whales.some((w) => !B58.test(w)))) return "Add the Solana wallets to follow, one per line.";
   }
   if (step === 3 && !f.trading.enabled && !f.markets.enabled) return "Turn on markets, trading or both.";
-  if (step === 4 && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
+  if (step === 4 && !sumsTo100(f.allocation)) return "The four fee buckets must add up to 100.";
+  if (step === 5 && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
   return null;
 }
 
@@ -114,7 +119,7 @@ export default function LaunchWizard() {
   };
 
   const body = () => ({
-    name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: Number(f.seedSol),
+    name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: Number(f.seedSol), allocation: f.allocation,
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc },
@@ -226,7 +231,7 @@ export default function LaunchWizard() {
           ))}
         </ol>
         <div className="hidden items-center gap-3 rounded-2xl bg-cream/[0.04] p-4 lg:flex">
-          <AgentFace seed={seed} size={56} mood={step === 1 ? "thinking" : step === 4 ? "aiming" : "neutral"} />
+          <AgentFace seed={seed} size={56} mood={step === 1 ? "thinking" : step === 5 ? "aiming" : "neutral"} />
           <div className="min-w-0">
             <p className="m-0 truncate font-display text-[1.2rem] leading-none text-cream">{f.name || "Your agent"}</p>
             <p className="m-0 mt-1 font-mono text-[12px] text-coral">${f.ticker || "TICKER"}</p>
@@ -305,6 +310,7 @@ export default function LaunchWizard() {
                 <Chip key={p} active={f.brain === p} onClick={() => set("brain", p)}>{BYOK_PROVIDERS[p].label}</Chip>
               ))}
             </div>
+            {f.brain !== "mimir" ? <ByokGuide provider={f.brain} /> : null}
             {f.brain !== "mimir" ? (
               <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
                 <Field label={`${BYOK_PROVIDERS[f.brain].label} API key`} hint="Checked with one tiny call, then encrypted. You only ever see its last four characters again.">
@@ -413,6 +419,17 @@ export default function LaunchWizard() {
         ) : null}
 
         {step === 4 ? (
+          <fieldset className="m-0 grid gap-5 border-0 p-0">
+            <legend className="mb-2 font-display text-[1.6rem] text-cream">Where its fees go</legend>
+            <p className="m-0 text-[14px] text-muted">
+              Every trade of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> on pump.fun pays creator fees to the agent. 10% goes to the platform and 10% to AI costs; you split the other 80%. Put enough in gas &amp; bankroll and a traded agent pays its own way.
+            </p>
+            <FeeAllocator value={f.allocation} onChange={(a) => set("allocation", a)} />
+            <p className="m-0 text-[13px] text-muted">Public on its page. You can change it later: a change shows at once and applies 24 hours later.</p>
+          </fieldset>
+        ) : null}
+
+        {step === 5 ? (
           <div className="grid gap-5">
             <h2 className="m-0 font-display text-[1.6rem] text-cream">Check and launch</h2>
             <dl className="kv">
@@ -424,6 +441,11 @@ export default function LaunchWizard() {
               <dd>{f.markets.enabled ? `edge ≥ ${f.markets.minEdge} pts · up to ${f.markets.maxStakeUsdc} USDC each · ${f.markets.budgetUsdc} USDC at once` : "off"}</dd>
               <dt>Trading</dt>
               <dd>{t.enabled ? `${STRATEGIES[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · cap ${t.risk.maxDailyLossPct}%` : "off"}</dd>
+              <dt>Fees</dt>
+              <dd>
+                <AllocationBar allocation={f.allocation} className="mt-1 h-2.5 max-w-[280px]" />
+                <span className="mt-1 block text-[12px] text-muted">{perSol(f.allocation, { creator: "to you" })} per 1 SOL</span>
+              </dd>
             </dl>
             <Field label="Seed SOL" hint={`Goes to its Solana wallet: ${LAUNCH_FEE_SOL} SOL mints its token, the rest is gas and bankroll. Its Arc wallet needs USDC to stake; fund it from its page after launch.`}>
               <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
@@ -448,7 +470,7 @@ export default function LaunchWizard() {
               Continue
             </button>
           ) : publicKey ? (
-            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = problems(4, f); setError(p); if (!p) void run(); }}>
+            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = problems(5, f); setError(p); if (!p) void run(); }}>
               Sign and launch
             </button>
           ) : (

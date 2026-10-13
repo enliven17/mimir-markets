@@ -4,6 +4,9 @@ import { v } from "convex/values";
 // The Arc markets as indexed from MimirV3 (kind "vs") and MimirPool (kind "pool") by convex/arcSync.ts.
 // Amounts are wei strings (18 dp native USDC overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
+/** Mimir Launch: the owner's split of an agent's creator fees (lib/launch/fees.ts), whole percents summing to 100. */
+export const vAllocation = v.object({ bankroll: v.number(), buyback: v.number(), creatorPayout: v.number(), holders: v.number() });
+
 export const status = v.union(
   v.literal("open"),
   v.literal("active"),
@@ -228,6 +231,18 @@ export default defineSchema({
     /** Solana tick: idle/sleep bookkeeping (lib/launch/worker/idle.ts) and when a shut-down agent's SOL went back. */
     idle: v.optional(v.object({ ticks: v.number(), sleepingSince: v.optional(v.number()), checkedAt: v.optional(v.number()), wakeRequestedAt: v.optional(v.number()) })),
     sweptAt: v.optional(v.number()),
+    /**
+     * Creator fees (lib/launch/fees.ts): the owner's split of its 80% (whole percents summing to 100), a pending
+     * change that applies 24 h after it was asked for, and the two pools owed out of the wallet (never traded).
+     */
+    allocation: v.optional(vAllocation),
+    pendingAllocation: v.optional(v.object({ allocation: vAllocation, effectiveAt: v.number(), requestedAt: v.number() })),
+    creatorPool: v.optional(v.int64()),
+    holdersPool: v.optional(v.int64()),
+    feesClaimedAt: v.optional(v.number()),
+    holdersAirdropAt: v.optional(v.number()),
+    /** True while the wallet policy may be widened for a holder airdrop round (restored after). */
+    airdropPolicyOpen: v.optional(v.boolean()),
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["owner"])
@@ -316,4 +331,85 @@ export default defineSchema({
   })
     .index("by_sub", ["sub"])
     .index("by_sub_mint", ["sub", "mint"]),
+  // ---------------- Mimir Launch creator fees (lib/launch/fees.ts, airdrop.ts; convex/launchFeeDb.ts) ----------------
+
+  /** Every creator-fee claim, once per signature, with the split it was booked with. */
+  launchFeeClaims: defineTable({
+    agent: v.id("launchAgents"),
+    lamports: v.int64(),
+    split: v.object({ platform: v.int64(), llm: v.int64(), bankroll: v.int64(), buyback: v.int64(), creatorPayout: v.int64(), holders: v.int64() }),
+    allocation: vAllocation,
+    sig: v.string(),
+    at: v.number(),
+  })
+    .index("by_sig", ["sig"])
+    .index("by_agent", ["agent", "at"]),
+
+  /** The platform + AI share of a claim, owed to the treasury and paid from this record (its sig stored before broadcast). */
+  launchTreasuryTransfers: defineTable({
+    agent: v.id("launchAgents"),
+    claimSig: v.string(),
+    lamports: v.int64(),
+    status: v.union(v.literal("pending"), v.literal("sending"), v.literal("sent"), v.literal("unknown")),
+    sig: v.optional(v.string()),
+    lastValidBlockHeight: v.optional(v.number()),
+    at: v.number(),
+    doneAt: v.optional(v.number()),
+  }).index("by_agent_status", ["agent", "status"]),
+
+  /** Owner payouts from the creator pool: reserved first, sig stored before broadcast, so one is never paid twice. */
+  launchPayouts: defineTable({
+    agent: v.id("launchAgents"),
+    lamports: v.int64(),
+    status: v.union(v.literal("sending"), v.literal("sent"), v.literal("failed"), v.literal("unknown")),
+    sig: v.optional(v.string()),
+    lastValidBlockHeight: v.optional(v.number()),
+    at: v.number(),
+    doneAt: v.optional(v.number()),
+  })
+    .index("by_agent", ["agent", "at"])
+    .index("by_agent_status", ["agent", "status"]),
+
+  /** Buybacks of the agent's own token, burned. */
+  launchBurns: defineTable({
+    agent: v.id("launchAgents"),
+    mint: v.string(),
+    lamports: v.int64(),
+    tokens: v.int64(),
+    buySig: v.string(),
+    burnSig: v.string(),
+    at: v.number(),
+  })
+    .index("by_burnSig", ["burnSig"])
+    .index("by_agent", ["agent", "at"]),
+
+  /** A holder airdrop round: its total reserved from the holders pool in the write that plans it. */
+  launchHolderRounds: defineTable({
+    agent: v.id("launchAgents"),
+    total: v.int64(),
+    recipients: v.number(),
+    status: v.union(v.literal("paying"), v.literal("done")),
+    at: v.number(),
+    doneAt: v.optional(v.number()),
+  })
+    .index("by_agent", ["agent", "at"])
+    .index("by_status", ["status"]),
+
+  launchHolderBatches: defineTable({
+    round: v.id("launchHolderRounds"),
+    agent: v.id("launchAgents"),
+    idx: v.number(),
+    transfers: v.array(v.object({ to: v.string(), lamports: v.int64() })),
+    status: v.union(v.literal("planned"), v.literal("sending"), v.literal("sent"), v.literal("failed")),
+    sig: v.optional(v.string()),
+    lastValidBlockHeight: v.optional(v.number()),
+    attempts: v.optional(v.number()),
+  }).index("by_round", ["round"]),
+
+  /** Periodic holder balances: a round pays the smaller of now and a random earlier snapshot (anti-sniping). */
+  launchHolderSnapshots: defineTable({
+    agent: v.id("launchAgents"),
+    at: v.number(),
+    balances: v.array(v.object({ owner: v.string(), amount: v.int64() })),
+  }).index("by_agent_at", ["agent", "at"]),
 });

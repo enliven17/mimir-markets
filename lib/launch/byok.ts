@@ -54,7 +54,7 @@ type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 export async function byokComplete(provider: ByokProvider, apiKey: string, model: string, system: string, user: string, opts: { maxTokens?: number; temperature?: number; json?: boolean; fetch?: Fetch } = {}): Promise<string> {
   const f = opts.fetch ?? fetch;
   const maxTokens = opts.maxTokens ?? 1024, temperature = opts.temperature ?? 0;
-  const signal = AbortSignal.timeout(30_000);
+  const signal = AbortSignal.timeout(60_000); // reasoning models can think for a while
   if (provider === "anthropic") {
     const res = await f("https://api.anthropic.com/v1/messages", {
       method: "POST", signal,
@@ -112,12 +112,16 @@ export function byokRouter(agentId: string, k: SealedKey, opts: { fetch?: Fetch;
   };
 }
 
-/** One tiny call to check a key before it is saved. */
-export async function checkKey(provider: ByokProvider, apiKey: string, model: string, f?: Fetch): Promise<boolean> {
+/**
+ * One small call to check a key before it is saved: "ok", "bad-key" (the provider refused it: 401/403) or "busy"
+ * (rate limit, quota, outage: the key may be fine, it just cannot be checked now). Room for 512 tokens: reasoning
+ * models spend a few hundred thinking before they answer, and a tight cap returns an empty reply for a good key.
+ */
+export async function checkKey(provider: ByokProvider, apiKey: string, model: string, f?: Fetch): Promise<"ok" | "bad-key" | "busy"> {
   try {
-    const text = await byokComplete(provider, apiKey, model, "Reply with the single word ok.", "ok?", { maxTokens: 8, fetch: f });
-    return text.trim().length > 0;
-  } catch {
-    return false;
+    const text = await byokComplete(provider, apiKey, model, "Reply with the single word ok.", "ok?", { maxTokens: 512, fetch: f });
+    return text.trim().length > 0 ? "ok" : "busy";
+  } catch (err) {
+    return / (400|401|403|404)$/.test(err instanceof Error ? err.message : "") ? "bad-key" : "busy";
   }
 }

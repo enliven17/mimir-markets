@@ -355,3 +355,29 @@ test("sleep: a killed sleeping agent still sweeps its SOL back to the owner", as
   assert.deepEqual(calls.map((c) => c.op), ["transfer"]);
   assert.equal(state.swept, true);
 });
+
+// ---------------- creator-fee pools (lib/launch/fees.ts) ----------------
+
+test("reserved lamports (owed fee pools) are never traded: only the rest is sized", async () => {
+  const agent = agentRow({ reservedLamports: 9n * SOL });
+  const { repo } = fakeRepo(agent);
+  const { executor, calls } = fakeExecutor({ spendable: 10n * SOL });
+  const ranker = fixedRanker({ [MINT_A]: 0.9 });
+  const sources = { dexscreener: staticSource("dexscreener", [cand(MINT_A, { symbol: "AAA" })]) };
+  await tickAgent(agent, deps({ repo, executor, ranker, sources }));
+  const buy = calls.find((c) => c.op === "buy");
+  assert.ok(buy, "it still trades with the free 1 SOL");
+  assert.ok(buy.amount <= SOL, `bought ${buy.amount} with only 1 SOL free`);
+});
+
+test("shutdown sweep keeps what the pools still owe and stays unswept until they are settled", async () => {
+  const agent = agentRow({ status: "killed" });
+  const { repo, state } = fakeRepo(agent);
+  let asked: bigint | null = null;
+  repo.closeOutPools = async (_id, min) => ((asked = min), SOL / 2n);
+  const { executor, calls } = fakeExecutor({ spendable: 3n * SOL });
+  await tickAgent(agent, deps({ repo, executor, prices: staticPrices({}) }));
+  assert.equal(asked, 100_000_000n);
+  assert.deepEqual(calls.map((c) => [c.op, c.amount]), [["transfer", 3n * SOL - SOL / 2n]]);
+  assert.equal(state.swept, false);
+});

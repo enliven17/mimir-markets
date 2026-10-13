@@ -16,6 +16,8 @@ export type TickSettings = {
   maxRanked?: number;
   /** Delay between persist retries, ms (default 250). */
   retryDelayMs?: number;
+  /** Shutdown sweep: a holders pool at least this big stays for a last airdrop (default 0.1 SOL). */
+  holdersMinLamports?: bigint;
 };
 
 export type TickDeps = {

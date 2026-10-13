@@ -42,8 +42,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (!a.solana) return fail(409, "This agent has no Solana wallet.");
       const solana = getSolana();
       const lamports = BigInt(Math.floor(amount * 1e9));
-      const free = await solana.executor.spendable(a.solana.address);
-      if (lamports > free) return fail(400, `Only ${Number(free) / 1e9} SOL is free to withdraw (the rest pays fees and rent, or is in open positions).`);
+      // The fee pools (owner payouts, holder airdrops, owed treasury) sit in the same wallet but are owed: never withdrawn.
+      const [spendable, reserved] = await Promise.all([solana.executor.spendable(a.solana.address), c.client.query(api.launchFeeDb.reserved, { secret: c.secret, slug: id }).then(BigInt)]);
+      const free = spendable > reserved ? spendable - reserved : 0n;
+      if (lamports > free) return fail(400, `Only ${Number(free) / 1e9} SOL is free to withdraw (the rest pays fees and rent, is owed from its creator fees, or is in open positions).`);
       const sig = await solana.executor.transferSol({ walletId: a.solana.walletId, wallet: a.solana.address, to: g.owner, lamports });
       await c.client.mutation(api.launch.logEvent, { secret: c.secret, slug: id, kind: "rules", text: `owner withdrew ${amount} SOL (${sig.slice(0, 8)}…)` });
       return Response.json({ tx: sig });

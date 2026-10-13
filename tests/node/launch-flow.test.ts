@@ -44,7 +44,7 @@ const wallets = { solana: async () => ({ id: "w1", address: "SoLwallet111" }), a
 
 test("create: stores a pending agent with both wallets and asks for seed + launch fee", async () => {
   const f = fakeCx();
-  const r = await create(f.cx, { wallets, checkKey: async () => true }, OWNER, body());
+  const r = await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
   assert.ok(r.ok);
   assert.equal(r.fundLamports, 500_000_000n + LAUNCH_FEE_LAMPORTS);
   const a = f.agent()!;
@@ -56,11 +56,11 @@ test("create: a BYOK key is checked, then sealed to the agent's uid; a dead key 
   let made = 0;
   const w = { solana: async () => (made++, { id: "w", address: "a" }), arc: wallets.arc };
   const byok = { brain: { kind: "byok", provider: "openai", apiKey: "sk-test-1234567890abcdef" } };
-  const bad = await create(fakeCx().cx, { wallets: w, checkKey: async () => false }, OWNER, body(byok));
+  const bad = await create(fakeCx().cx, { wallets: w, checkKey: async () => "bad-key" as const }, OWNER, body(byok));
   assert.equal(bad.ok, false);
   assert.equal(made, 0);
   const f = fakeCx();
-  assert.ok((await create(f.cx, { wallets: w, checkKey: async () => true }, OWNER, body(byok))).ok);
+  assert.ok((await create(f.cx, { wallets: w, checkKey: async () => "ok" as const }, OWNER, body(byok))).ok);
   const a = f.agent()!;
   assert.equal(a.brain.last4, "cdef");
   assert.ok(!JSON.stringify(a).includes("sk-test"));
@@ -73,7 +73,7 @@ test("body: nothing turned on is refused", () => {
 
 test("launch: verifies funding, mints once, idempotent after", async () => {
   const f = fakeCx();
-  await create(f.cx, { wallets, checkKey: async () => true }, OWNER, body());
+  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
   let mints = 0;
   const deps = {
     verify: async (_c: unknown, a: { minLamports: bigint }) => (assert.equal(a.minLamports, 510_000_000n), { ok: true as const, lamports: a.minLamports }),
@@ -90,7 +90,7 @@ test("launch: verifies funding, mints once, idempotent after", async () => {
 
 test("launch: a failure that did not send releases the claim so the owner can retry", async () => {
   const f = fakeCx();
-  await create(f.cx, { wallets, checkKey: async () => true }, OWNER, body());
+  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
   const deps = { verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "x", launchToken: async () => { throw new Error("rpc down"); } };
   assert.equal((await launch(f.cx, deps, OWNER, "njord", SIG)).ok, false);
   assert.equal(f.agent()!.launch.claimedAt, undefined);

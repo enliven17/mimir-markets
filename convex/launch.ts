@@ -4,6 +4,8 @@ import { v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { secretMatches } from "../lib/internal-secrets";
+import { allocationProblem } from "../lib/launch/fees";
+import { vAllocation } from "./schema";
 
 function allowed(secret: string) {
   if (!secretMatches("launch", secret)) throw new Error("not allowed");
@@ -29,9 +31,12 @@ export const createPending = mutation({
     solana: v.object({ walletId: v.string(), address: v.string() }),
     arc: v.object({ walletId: v.string(), address: v.string() }),
     fundLamports: v.string(), description: v.string(), image: v.optional(v.string()),
+    allocation: v.optional(vAllocation),
   },
   handler: async (ctx, { secret, fundLamports, description, image, ...a }) => {
     allowed(secret);
+    const problem = a.allocation ? allocationProblem(a.allocation) : null;
+    if (problem) throw new Error(`allocation: ${problem}`);
     // Tickers may repeat (every token has its own mint); the slug in the URL stays unique: odin, odin-2, ...
     let slug = a.slug;
     for (let n = 2; await bySlug(ctx, slug); n++) {

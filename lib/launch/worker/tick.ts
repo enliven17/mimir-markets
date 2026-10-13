@@ -51,7 +51,9 @@ export async function tickAgent(agentRow: AgentRow, deps: TickDeps): Promise<Tic
 
     step = "risk";
     const [dailyPnl, walletSpendable] = await Promise.all([deps.repo.dailyPnl(agent.id), deps.executor.spendable(agent.wallet)]);
-    const spendable = walletSpendable;
+    // The fee pools sit in the same wallet but are owed: never traded.
+    const reserved = agent.reservedLamports ?? 0n;
+    const spendable = walletSpendable > reserved ? walletSpendable - reserved : 0n;
     const openCost = exits.remaining.reduce((s, p) => s + p.costLamports, 0n);
     const bankroll = spendable + openCost - dailyPnl; // ≈ equity at UTC midnight
     if (dailyCapHit(dailyPnl, bankroll, agent.risk.maxDailyLossPct)) {
@@ -161,8 +163,9 @@ async function rest(agent: AgentRow, deps: TickDeps, ctx: TickContext, now: numb
 const killExit: typeof exitDecision = (a) => ({ action: "sell", fraction: 1, reason: "agent shut down by its owner", kind: "killed", high: a.position.highPrice, pnlPct: null });
 
 /**
- * Shut down: burn whatever is left of the agent's own token (it can never be sold), send the rest of the SOL to the
- * owner, and mark the agent swept once flat.
+ * Shut down: burn whatever is left of the agent's own token (it can never be sold), close out the fee pools (the
+ * creator pool goes with the sweep; a holders pool big enough for a last airdrop stays), send the rest of the SOL to
+ * the owner, and mark the agent swept once flat and nothing is held back.
  */
 async function sweep(agent: AgentRow, deps: TickDeps, ctx: TickContext, flat: boolean) {
   const { executor } = deps;
@@ -173,13 +176,18 @@ async function sweep(agent: AgentRow, deps: TickDeps, ctx: TickContext, flat: bo
       await ctx.emit("burn", `burned the agent's remaining $${agent.ticker} (${own} units, ${burnSig.slice(0, 8)}…) on shutdown`);
     }
   }
-  const lamports = await executor.spendable(agent.wallet);
+  const keep = deps.repo.closeOutPools ? await deps.repo.closeOutPools(agent.id, deps.settings?.holdersMinLamports ?? DEFAULT_HOLDERS_MIN) : 0n;
+  const spendable = await executor.spendable(agent.wallet);
+  const lamports = spendable > keep ? spendable - keep : 0n;
   if (lamports > 1_000_000n) {
     const sig = await executor.transferSol({ walletId: agent.walletId, wallet: agent.wallet, to: agent.owner, lamports });
     await ctx.emit("rules", `returned ${fmtSol(lamports)} SOL to the owner (${sig.slice(0, 8)}…)`);
   }
-  if (flat) await deps.repo.markSwept(agent.id);
+  if (flat && keep === 0n) await deps.repo.markSwept(agent.id);
 }
+
+/** Shutdown sweep: a holders pool at least this big (0.1 SOL) stays for one last airdrop; a smaller one goes to the owner. */
+const DEFAULT_HOLDERS_MIN = 100_000_000n;
 
 /**
  * Entry price for exit rules. The fill is the truth (includes slippage) but must be on the same

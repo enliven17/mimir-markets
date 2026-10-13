@@ -58,6 +58,7 @@ let cached: ReturnType<typeof build> | null = null;
 const toAgent = (a: AgentView): AgentRow => ({
   id: a.id, name: a.name, ticker: a.ticker, mint: a.mint, owner: a.owner, walletId: a.walletId, wallet: a.wallet,
   status: a.status, config: a.config, risk: a.risk, createdAt: new Date(a.createdAt), ...(a.idle ? { idle: a.idle } : {}),
+  reservedLamports: BigInt(a.reservedLamports),
 });
 const toPosition = (p: PositionView): PositionRow => ({
   id: p.id, agentId: p.agent, mint: p.mint, symbol: p.symbol, tokens: BigInt(p.tokens), decimals: p.decimals,
@@ -97,6 +98,7 @@ function convexRepo(ctx: ActionCtx): Repo {
     setStatus: async (id, status) => void (await ctx.runMutation(internal.launchSolDb.setStatus, { id: aid(id), status })),
     markSwept: async (id) => void (await ctx.runMutation(internal.launchSolDb.markSwept, { id: aid(id) })),
     setIdle: async (id, s) => void (await ctx.runMutation(internal.launchSolDb.setIdle, { id: aid(id), idle: s })),
+    closeOutPools: (id, holdersMinLamports) => ctx.runMutation(internal.launchFeeDb.closeOutPools, { id: aid(id), holdersMinLamports }),
   };
 }
 

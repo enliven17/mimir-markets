@@ -13,6 +13,7 @@ import { api } from "@/convex/_generated/api";
 import { AVATAR_SEED_RE } from "@/lib/avatar/spec";
 import { BYOK_PROVIDERS, sealKey, type ByokProvider } from "./byok";
 import { DEFAULT_MARKET_RULES } from "./markets";
+import { allocationProblem, DEFAULT_ALLOCATION } from "./fees";
 import type { verifyFunding } from "./funding";
 import type { Cx } from "./request";
 
@@ -22,6 +23,13 @@ const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const METRICS = ["liquidityUsd", "volume1hUsd", "ageMinutes", "holders", "devHoldPct", "mcapUsd", "curvePct", "mentions1h"] as const;
 /** Convex documents are capped at 1 MB: an uploaded image stays well under it. */
 const MAX_IMAGE_CHARS = 700_000;
+
+const pctInt = z.number().int().min(0).max(100);
+/** The owner's split of its 80% of every creator-fee claim: whole percents summing to 100. */
+export const AllocationBody = z
+  .object({ bankroll: pctInt, buyback: pctInt, creatorPayout: pctInt, holders: pctInt })
+  .strict()
+  .refine((a) => allocationProblem(a) === null, { message: "The four fee buckets must add up to 100." });
 
 const Trading = z.discriminatedUnion("enabled", [
   z.object({ enabled: z.literal(false) }),
@@ -79,6 +87,8 @@ export const CreateBody = z.object({
   markets: Markets,
   // 0 is fine: it launches on the launch fee alone and trades nothing until topped up.
   seedSol: z.number().min(0).max(100),
+  /** Where the owner's 80% of every creator-fee claim goes (lib/launch/fees.ts). */
+  allocation: AllocationBody.default(DEFAULT_ALLOCATION),
 }).refine((b) => b.trading.enabled || b.markets.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] });
 export type CreateInput = z.infer<typeof CreateBody>;
 
@@ -87,7 +97,7 @@ export interface Wallets {
   solana: (owner: string) => Promise<{ id: string; address: string }>;
   arc: (slug: string) => Promise<{ id: string; address: string }>;
 }
-export type KeyCheck = (provider: ByokProvider, apiKey: string, model: string) => Promise<boolean>;
+export type KeyCheck = (provider: ByokProvider, apiKey: string, model: string) => Promise<"ok" | "bad-key" | "busy">;
 export type Launcher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string; devBuyLamports: bigint }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
 type Verify = typeof verifyFunding;
 
@@ -98,9 +108,10 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   let brain: { kind: "mimir" } | { kind: "byok"; provider: string; sealed: string; last4: string; model: string } = { kind: "mimir" };
   if (input.brain.kind === "byok") {
     const sealed = sealKey(uid, input.brain.provider, input.brain.apiKey, input.brain.model);
-    if (!(await deps.checkKey(sealed.provider, input.brain.apiKey, sealed.model))) {
-      return { ok: false as const, status: 400, error: `That ${BYOK_PROVIDERS[sealed.provider].label} key did not answer. Check the key and the model.` };
-    }
+    const label = BYOK_PROVIDERS[sealed.provider].label;
+    const check = await deps.checkKey(sealed.provider, input.brain.apiKey, sealed.model);
+    if (check === "bad-key") return { ok: false as const, status: 400, error: `${label} refused that key or model. Check both and try again.` };
+    if (check === "busy") return { ok: false as const, status: 503, error: `${label} is rate-limiting that key or is down right now, so it could not be checked. Try again in a minute.` };
     brain = { kind: "byok", ...sealed };
   }
   const t = input.trading;
@@ -120,6 +131,7 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
     markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules } },
     solana: { walletId: solana.id, address: solana.address }, arc: { walletId: arc.id, address: arc.address },
     fundLamports: fundLamports.toString(), description: input.description, ...(input.image ? { image: input.image } : {}),
+    allocation: input.allocation,
   });
   // Lost a race for the ticker after the wallets were made: they are simply never funded.
   if (!r.ok) return { ok: false as const, status: 409, error: `Too many agents named $${input.ticker}. Pick another ticker.` };

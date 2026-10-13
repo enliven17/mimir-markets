@@ -20,4 +20,9 @@ crons.interval("arc watchdog", { minutes: 10 }, internal.arcWatch.tick, {});
 crons.interval("launch arc", { minutes: 5 }, internal.launchArc.tick, {});
 // Mimir Launch agents trading on Solana: a cheap mutation fans out one action per due agent (convex/launchSolDb.ts); a no-op until LAUNCH_SOLANA=1.
 crons.interval("launch solana", { seconds: 30 }, internal.launchSolDb.tickAll, {});
+// Mimir Launch creator fees (convex/launchFeeDb.ts fans out convex/launchFees.ts): hourly claims and payouts, holder
+// snapshots every 2 h, airdrop checks every 30 min. All no-ops until LAUNCH_FEES=1.
+crons.interval("launch fees", { hours: 1 }, internal.launchFeeDb.feeAll, {});
+crons.interval("launch holder snapshots", { hours: 2 }, internal.launchFeeDb.snapshotAll, {});
+crons.interval("launch holder airdrops", { minutes: 30 }, internal.launchFeeDb.airdropAll, {});
 export default crons;

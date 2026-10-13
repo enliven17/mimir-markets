@@ -36,9 +36,13 @@ test("the router calls the owner's provider with the owner's key and parses the 
   assert.equal(seen!.key, KEY);
 });
 
-test("checkKey: a provider error means the key is not saved", async () => {
-  const bad = async () => new Response("no", { status: 401 });
-  assert.equal(await checkKey("openai", KEY, "gpt-5-mini", bad), false);
-  const good = async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
-  assert.equal(await checkKey("groq", KEY, "m", good), true);
+test("checkKey: refused, busy or ok; room for a reasoning model to think", async () => {
+  assert.equal(await checkKey("openai", KEY, "gpt-5-mini", async () => new Response("no", { status: 401 })), "bad-key");
+  assert.equal(await checkKey("gemini", KEY, "m", async () => new Response("quota", { status: 429 })), "busy");
+  let maxTokens = 0;
+  const good = async (_u: string, init: RequestInit) => ((maxTokens = JSON.parse(String(init.body)).max_tokens), new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }));
+  assert.equal(await checkKey("groq", KEY, "m", good), "ok");
+  assert.ok(maxTokens >= 256);
+  // An empty reply (a model that ran out of room) is "busy", never a saved key that cannot answer.
+  assert.equal(await checkKey("groq", KEY, "m", async () => new Response(JSON.stringify({ choices: [{ message: { content: "" } }] }), { status: 200 })), "busy");
 });

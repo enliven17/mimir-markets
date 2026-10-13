@@ -7,6 +7,7 @@ import { internalMutation, internalQuery, type QueryCtx } from "./_generated/ser
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { wakeCheckDue } from "../lib/launch/worker/idle";
+import { reservedOf } from "./launchFeeDb";
 
 const vStatus = v.union(v.literal("pending"), v.literal("live"), v.literal("paused"), v.literal("killed"));
 /** Longer than a Node action can run (10 min), so a lease never expires under a live action. */
@@ -16,10 +17,12 @@ const hasOpen = async (ctx: QueryCtx, agent: Id<"launchAgents">) =>
   (await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", agent)).first()) !== null;
 
 /** What the worker reads of an agent: never the sealed brain or the launch payload. */
-const agentView = (a: Doc<"launchAgents">) => ({
+const agentView = (a: Doc<"launchAgents">, reservedLamports = 0n) => ({
   id: a._id as string, name: a.name, ticker: a.ticker, mint: a.mint ?? null, owner: a.owner,
   walletId: a.solana?.walletId ?? "", wallet: a.solana?.address ?? "", status: a.status,
   config: a.trading.config, risk: a.trading.risk, createdAt: a.createdAt, idle: a.idle ?? null,
+  /** Owed out of the wallet (fee pools, payouts in flight, owed treasury): never traded or swept. Decimal string. */
+  reservedLamports: reservedLamports.toString(),
 });
 export type AgentView = ReturnType<typeof agentView>;
 
@@ -70,7 +73,7 @@ export const agent = internalQuery({
   args: { id: v.id("launchAgents") },
   handler: async (ctx, { id }) => {
     const a = await ctx.db.get(id);
-    return a ? agentView(a) : null;
+    return a ? agentView(a, await reservedOf(ctx.db, a)) : null;
   },
 });
 

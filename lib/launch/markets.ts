@@ -162,7 +162,7 @@ export function buildJudgePrompt(thesis: string, candidates: readonly MarketView
     ...rows.map((r) => JSON.stringify(r)),
     "</markets>",
   ].join("\n");
-  return { system: JUDGE_SYSTEM, user, json: true, temperature: 0, maxTokens: 1024 };
+  return { system: JUDGE_SYSTEM, user, json: true, temperature: 0, maxTokens: 2048 }; // room for reasoning models to think first
 }
 
 /** Step 2: P(side A) per market id. Unknown ids, bad numbers and any failure are dropped: no judgement, no stake. */
