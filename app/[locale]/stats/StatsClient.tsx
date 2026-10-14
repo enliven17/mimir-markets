@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * /stats body. Every number is read from the indexed claim feed at
- * /api/arena/claims (Neon read-index, chain fallback), polled every 5s while
- * the tab is visible; an unchanged body never re-renders.
+ * /stats body. Every number is read live from the Arc index in the backend (convex/arcViews.ts `stats`): markets,
+ * stakes and the oracle's verdicts on Arc.
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -11,12 +10,14 @@ import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
-import { usePolledJson } from "@/lib/usePolledJson";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { formatUsdcUnitsBare as usdc } from "@/lib/money";
 import { isPendingVerdict } from "@/lib/claim-status";
 
 interface ClaimRow {
   id: number;
+  kind: "vs" | "pool";
   question: string;
   category: string;
   creatorStake: string;
@@ -25,7 +26,7 @@ interface ClaimRow {
   winnerSide: number;
   confidence: number;
   createdAt: number;
-  delegated: boolean;
+  deadline: number;
 }
 
 interface ClaimsData {
@@ -92,14 +93,13 @@ export default function StatsClient() {
   const t = useTranslations("stats");
   const [shown, setShown] = useState(PAGE_ROWS);
 
-  const data = usePolledJson<ClaimsData>("/api/arena/claims", 5000, (json) => {
-    const r = json as { success: boolean; data: ClaimsData };
-    return r.success ? r.data : undefined;
-  });
+  const data: ClaimsData | undefined = useQuery(api.arcViews.stats, {});
 
   const claims = data?.claims ?? [];
   const open = claims.filter((c) => c.state <= 1);
-  const liveOnEr = open.filter((c) => c.delegated).length;
+  // Live: still taking stakes (open or active, before its deadline).
+  const now = Math.floor(Date.now() / 1000);
+  const liveOnEr = open.filter((c) => c.deadline > now).length;
   // Prefer the API aggregate (covers claims not on this page), else sum what we have.
   const openPool =
     data && data.openPool !== "0"
@@ -200,9 +200,9 @@ export default function StatsClient() {
               {settlements.slice(0, shown).map((s) => {
                 const tier = tierOf(s.confidence);
                 return (
-                  <li key={s.id} className="[contain-intrinsic-size:auto_76px] [content-visibility:auto]">
+                  <li key={`${s.kind}-${s.id}`} className="[contain-intrinsic-size:auto_76px] [content-visibility:auto]">
                     <Link
-                      href={`/arena/${s.id}`}
+                      href={`/arena/arc/${s.kind}/${s.id}`}
                       className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-cream/[0.03]"
                     >
                       <div className="min-w-0 flex-1">

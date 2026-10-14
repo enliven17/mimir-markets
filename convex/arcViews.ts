@@ -102,3 +102,33 @@ export const volumeByUser = query({
     return [...totals].map(([user, usdc]) => ({ user, usdc }));
   },
 });
+
+const STATE = { open: 0, active: 1, resolved: 2, cancelled: 3, proposed: 4, disputed: 5 } as const;
+/** 18-dp wei (string) → 6-dp USDC units, as the stats page formats them. */
+const usdcUnits = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString();
+
+/**
+ * /stats: every public market in the old claim-feed shape (state numbers, USDC units), with the confidence of its
+ * latest verdict, plus the totals. Bounded to the newest 500 markets.
+ */
+export const stats = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate);
+    const claims = [];
+    let openPool = 0n;
+    let resolved = 0;
+    for (const m of rows) {
+      const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("kind", m.kind).eq("marketId", m.marketId)).order("desc").first();
+      const state = STATE[m.status as keyof typeof STATE] ?? 0;
+      if (state <= 1) openPool += BigInt(m.stakeA) + BigInt(m.stakeB);
+      if (state === 2) resolved++;
+      claims.push({
+        id: m.marketId, kind: m.kind, question: m.question, category: m.category,
+        creatorStake: usdcUnits(m.stakeA), totalChallengerStake: usdcUnits(m.stakeB),
+        state, winnerSide: m.winner, confidence: verdict?.confidence ?? 0, createdAt: m.createdAt, deadline: m.deadline,
+      });
+    }
+    return { claims, claimCount: claims.length, totalResolved: resolved, openPool: usdcUnits(openPool.toString()) };
+  },
+});
