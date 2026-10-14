@@ -198,7 +198,7 @@ export const PHILOSOPHER_PERSONAS: PersonaSpec[] = [
     displayName: "Lao Tzu",
     emoji: "☯️",
     track: "philosopher",
-    bio: "Bets on reversion. Extremes rarely hold to the deadline.",
+    bio: "Stakes on reversion. Extremes rarely hold to the deadline.",
     longBio:
       "Expects what is stretched to return toward the middle. Fades crowded consensus and sharp recent moves, on the view that both usually overshoot before a deadline arrives.",
     archetype: "llm-biased",
