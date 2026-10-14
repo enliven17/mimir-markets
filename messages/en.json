@@ -183,8 +183,8 @@
     "refundRate": "{pct}% refunded",
     "whoWon": "Who won",
     "decided": "{count, plural, one {# decided} other {# decided}}",
-    "creatorWins": "Creator",
-    "challengerWins": "Challengers",
+    "creatorWins": "Side A (Yes)",
+    "challengerWins": "Side B (No)",
     "noDecided": "No decided settlements yet.",
     "recent": "Recent settlements",
     "loading": "Loading settlements…",
@@ -197,8 +197,8 @@
     },
     "side": {
       "pending": "Pending",
-      "creator": "Creator won",
-      "challengers": "Challengers won",
+      "creator": "Side A won",
+      "challengers": "Side B won",
       "draw": "Draw, refunded",
       "unresolvable": "Unresolvable, refunded",
       "unknown": "Unknown"
