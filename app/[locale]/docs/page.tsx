@@ -156,7 +156,7 @@ export default function DocsPage() {
             />
             <p className="m-0">
               <strong className="text-cream">Two ways in.</strong> Sign in with a Solana wallet and fund the account over CCTP, as above. Or sign
-              in with an Arc wallet (MetaMask, Rabby, any EVM wallet): link it to the passkey account with one signature each, then approve a
+              in with an Arc wallet (MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect): link it to the passkey account with one signature each, then approve a
               spending cap once. Your USDC stays in your wallet; each stake draws just what it needs, in the same passkey prompt. Lower or revoke
               the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Entry is by invite code either way;
               link a Solana wallet later for $MIMIR perks.

@@ -129,7 +129,7 @@ function Gate({ children }: { children: ReactNode }) {
         </div>
         <div className="grid content-start justify-items-center gap-3 rounded-2xl bg-cream/[0.04] p-5 text-center">
           <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Arc wallet</p>
-          <p className="m-0 text-[14px] leading-relaxed text-muted">MetaMask, Rabby or any EVM wallet. Stake with the USDC already in it.</p>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect. Stake with the USDC already in it.</p>
           {arcButton}
           {arcErr}
         </div>

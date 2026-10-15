@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { fontVariables } from "@/lib/fonts";
 import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
+import EvmConnectHost from "@/components/arc/EvmConnectHost";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -44,6 +45,7 @@ export default async function RootLayout({
         <MotionProvider>
           <SolanaWalletProviders>
             {children}
+            <EvmConnectHost />
             <Toaster
               position="bottom-center"
               toastOptions={{
