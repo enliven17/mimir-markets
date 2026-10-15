@@ -5,7 +5,8 @@
  * wei, and its entry fee: the $MIMIR holder ticket from /api/arc/fee-ticket
  * and what MimirFees already has on chain for the account. When the ticket
  * beats the on-chain rate, `withTicket` puts applyTicket in front of the bet,
- * in the same passkey prompt. Null balance = not known yet.
+ * in the same passkey prompt. Null balance = not known yet. Signed in with an Arc wallet, the balance also counts what
+ * the account may draw from that wallet (the spending cap, lib/arc/evm.ts): the session tops itself up on send.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -13,12 +14,15 @@ import { arcPublicClient, arcUsdcUnits } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import type { ArcCall } from "@/lib/arc/cctp-arc";
 import { ENTRY_FEE_BPS, type FeeTicket } from "@/lib/arc/fee-tiers";
+import { walletSpendableUnits, WEI_PER_UNIT } from "@/lib/arc/evm";
 import { applyTicketCall, MIMIR_FEES_ABI } from "@/lib/arc/markets";
 import { useArcWallet } from "../useArcWallet";
+import { readWalletFunding } from "../useEvmWallet";
 
 export function useArcAccount() {
   const wallet = useArcWallet();
   const address = wallet.session?.address ?? null;
+  const fundedFrom = address && wallet.evmBinding?.arc === address ? wallet.evmBinding.evm : null;
   const [balance, setBalance] = useState<bigint | null>(null);
   const [ticket, setTicket] = useState<FeeTicket | null>(null);
   const [onchainBps, setOnchainBps] = useState<number | null>(null);
@@ -30,8 +34,13 @@ export function useArcAccount() {
       return;
     }
     const fees = ARC.contracts.mimirFees;
-    const [units, bps] = await Promise.all([
+    const [units, fromWallet, bps] = await Promise.all([
       arcUsdcUnits(address).catch(() => null),
+      fundedFrom
+        ? readWalletFunding(fundedFrom, address)
+            .then((f) => walletSpendableUnits(f.allowanceUnits, f.walletUnits))
+            .catch(() => 0n)
+        : Promise.resolve(0n),
       fees
         ? arcPublicClient()
             .readContract({ address: fees, abi: MIMIR_FEES_ABI, functionName: "entryBps", args: [address] })
@@ -40,9 +49,9 @@ export function useArcAccount() {
         : Promise.resolve(null),
     ]);
     // 6-dp units → wei; a failed read stays unknown rather than zero.
-    setBalance(units === null ? null : units * 1_000_000_000_000n);
+    setBalance(units === null ? null : (units + fromWallet) * WEI_PER_UNIT);
     setOnchainBps(bps);
-  }, [address]);
+  }, [address, fundedFrom]);
 
   useEffect(() => {
     void reload();

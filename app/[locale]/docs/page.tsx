@@ -75,7 +75,7 @@ function Address({ label, address }: { label: string; address: string | null }) 
 /** The FAQ, rendered below and published as FAQPage structured data. */
 function docsFaq(testnet: boolean) {
   return [
-    { q: "Do I need a crypto wallet?", a: "A Solana wallet to fund your account and link your $MIMIR. Staking itself only needs your passkey." },
+    { q: "Do I need a crypto wallet?", a: "A Solana wallet or an Arc (EVM) wallet to sign in and fund your account; $MIMIR perks need a linked Solana wallet. Staking itself only needs your passkey." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -154,6 +154,13 @@ export default function DocsPage() {
                 ["Withdraw", "Back to your Solana wallet over CCTP, about 30 seconds."],
               ]}
             />
+            <p className="m-0">
+              <strong className="text-cream">Two ways in.</strong> Sign in with a Solana wallet and fund the account over CCTP, as above. Or sign
+              in with an Arc wallet (MetaMask, Rabby, any EVM wallet): link it to the passkey account with one signature each, then approve a
+              spending cap once. Your USDC stays in your wallet; each stake draws just what it needs, in the same passkey prompt. Lower or revoke
+              the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Entry is by invite code either way;
+              link a Solana wallet later for $MIMIR perks.
+            </p>
             <p className="m-0 text-[14px] text-muted">
               Set it up on the <Link href="/wallet" className={LINK}>wallet page</Link>.
             </p>

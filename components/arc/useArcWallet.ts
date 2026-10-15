@@ -6,15 +6,18 @@
  * wallet, and the actions that change them. The Circle SDK loads lazily, on
  * the first restore or action.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { useSignText } from "@/components/copy/useSignText";
-import { fetchBinding, fetchBindingByArc, postBinding, type ArcBinding } from "@/lib/arc/api-client";
+import { fetchBinding, fetchBindingByArc, fetchEvmBindingByArc, postBinding, postEvmBinding, type ArcBinding, type ArcEvmBinding } from "@/lib/arc/api-client";
 import type { ArcSession } from "@/lib/arc/account";
 import { arcBindMessage } from "@/lib/arc/bind";
 import { ARC } from "@/lib/arc/config";
+import { arcPublicClient } from "@/lib/arc/chain";
+import { arcEvmBindMessage, fundedSession } from "@/lib/arc/evm";
 import { loadArcAccount } from "@/lib/arc/lazy";
+import { readWalletFunding, signWithEvm, useEvmWallet } from "./useEvmWallet";
 
 export type BindingState = { status: "unknown" } | { status: "loaded"; binding: ArcBinding | null } | { status: "error"; error: string };
 
@@ -28,12 +31,19 @@ export interface ArcWallet {
   linked: boolean;
   /** The Solana wallet the session's account is bound to (null: none, undefined: not known yet). */
   sessionOwner: string | null | undefined;
+  /** Native Arc sign-in: the Arc (EVM) wallet connected in this browser, and the one the session's account is bound to. */
+  evm: `0x${string}` | null;
+  evmBinding: ArcEvmBinding | null | undefined;
+  /** The session's account is bound to the connected Arc wallet. */
+  evmLinked: boolean;
   busy: string | null;
   error: string | null;
   clearError(): void;
   create(): Promise<ArcSession | null>;
   login(): Promise<void>;
   link(): Promise<void>;
+  /** Bind the session's account to the connected Arc wallet: one wallet signature, one passkey signature. */
+  linkEvm(): Promise<void>;
   recover(phrase: string): Promise<void>;
   signOut(): Promise<void>;
   /** Forget this device's passkey account and create a new one (for a second Solana wallet on the same device). */
@@ -62,6 +72,8 @@ export function useArcWallet(): ArcWallet {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionOwner, setSessionOwner] = useState<string | null | undefined>(undefined);
+  const { address: evm } = useEvmWallet();
+  const [evmBinding, setEvmBinding] = useState<ArcEvmBinding | null | undefined>(undefined);
 
   // A stored public credential: rebuild the session without a prompt.
   useEffect(() => {
@@ -110,6 +122,19 @@ export function useArcWallet(): ArcWallet {
     };
   }, [sessionAddress, binding]);
 
+  // The Arc wallet the account is bound to (native sign-in): stakes draw on it when the account runs short.
+  useEffect(() => {
+    setEvmBinding(undefined);
+    if (!sessionAddress) return;
+    let cancelled = false;
+    fetchEvmBindingByArc(sessionAddress)
+      .then((b) => !cancelled && setEvmBinding(b))
+      .catch(() => !cancelled && setEvmBinding(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionAddress]);
+
   const run = useCallback(async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
     setBusy(label);
     setError(null);
@@ -150,6 +175,18 @@ export function useArcWallet(): ArcWallet {
     });
   }, [run, solana, sign, session]);
 
+  const linkEvm = useCallback(async () => {
+    await run("link", async () => {
+      if (!evm) throw new Error("Connect your Arc wallet first.");
+      if (!session) throw new Error("Create or log in to your passkey account first.");
+      const signedAt = Date.now();
+      const message = arcEvmBindMessage(evm, session.address, signedAt);
+      const evmSignature = await signWithEvm(evm, message);
+      const arcSignature = await session.signMessage(message);
+      setEvmBinding(await postEvmBinding({ evm, arc: session.address, signedAt, evmSignature, arcSignature, credentialId: session.passkey.id }));
+    });
+  }, [run, evm, session]);
+
   const recover = useCallback(
     async (phrase: string) => {
       await run("recover", async () => setSession(await (await loadArcAccount()).recoverWithPhrase(phrase, passkeyName(solana))));
@@ -171,21 +208,35 @@ export function useArcWallet(): ArcWallet {
     });
   }, [run, solana]);
 
+  // Bound to an Arc wallet: every user operation tops the account up from it (within the spending cap) when short.
+  const fundedFrom = session && evmBinding?.arc === session.address ? evmBinding.evm : null;
+  const funded = useMemo(() => {
+    if (!session || !fundedFrom) return session;
+    return fundedSession(session, fundedFrom, async () => {
+      const [accountWei, f] = await Promise.all([arcPublicClient().getBalance({ address: session.address }), readWalletFunding(fundedFrom, session.address)]);
+      return { accountWei, ...f };
+    });
+  }, [session, fundedFrom]);
+
   const bound = binding.status === "loaded" ? binding.binding : null;
   return {
     configured,
     solana,
-    session,
+    session: funded,
     restoring,
     binding,
     linked: Boolean(session && bound && bound.arc.toLowerCase() === session.address.toLowerCase()),
     sessionOwner,
+    evm,
+    evmBinding,
+    evmLinked: Boolean(evm && session && evmBinding && evmBinding.evm === evm && evmBinding.arc === session.address),
     busy,
     error,
     clearError: () => setError(null),
     create,
     login,
     link,
+    linkEvm,
     recover,
     signOut,
     startFresh,

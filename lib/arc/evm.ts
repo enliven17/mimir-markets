@@ -144,3 +144,22 @@ export const transferData = (to: Address, units: bigint): Hex => encodeFunctionD
 
 /** Send the account's USDC back to the wallet: a plain native transfer from the passkey account. */
 export const sendBackCall = (wallet: Address, wei: bigint): ArcCall => ({ to: wallet, data: "0x", value: wei });
+
+/**
+ * The passkey session, drawing from the bound wallet when it runs short: every sendCalls reads the balances fresh and
+ * runs through withWalletFunding, so stake and create forms need no change.
+ */
+export function fundedSession<S extends { address: Address; sendCalls(calls: ArcCall[]): Promise<R> }, R>(
+  session: S,
+  wallet: Address,
+  read: () => Promise<Omit<WalletFunding, "wallet" | "account">>,
+): S {
+  return {
+    ...session,
+    async sendCalls(calls: ArcCall[]) {
+      const needWei = calls.reduce((s, c) => s + (c.value ?? 0n), 0n);
+      if (needWei === 0n) return session.sendCalls(calls);
+      return session.sendCalls(withWalletFunding(calls, { wallet, account: session.address, ...(await read()) }));
+    },
+  };
+}

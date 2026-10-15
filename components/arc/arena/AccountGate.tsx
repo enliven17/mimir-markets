@@ -19,7 +19,7 @@ export default function AccountGate({ account, children }: { account: ReturnType
     return (
       <div className="grid gap-3">
         <p className="m-0 text-[14px] leading-relaxed text-muted">
-          Markets settle on Arc. Create your Arc account with a passkey (no seed phrase, no gas) and add USDC from your Solana wallet.
+          Markets settle on Arc. Create your Arc account with a passkey (no seed phrase, no gas), then add USDC from your Solana wallet or stake straight from your Arc wallet.
         </p>
         <Link href="/wallet" className={`${BTN_PRIMARY} text-center`}>
           Set up your Arc account
