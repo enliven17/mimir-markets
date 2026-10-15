@@ -27,6 +27,8 @@ import { useTranslations } from "next-intl";
 import { ArrowUpRight, ChevronDown, RotateCcw } from "@/components/icons";
 
 import Modal from "@/components/ui/Modal";
+import { toast } from "sonner";
+import { connectEvmWallet } from "@/components/arc/useEvmWallet";
 import { isUserRejection, onWalletError } from "@/lib/solana/wallet-events";
 import {
   isReady,
@@ -113,6 +115,8 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const [showInstall, setShowInstall] = useState(false);
   const [platform, setPlatform] = useState<Platform>({ mobile: false, ios: false });
   const [page, setPage] = useState({ url: "", origin: "" });
+  // The network comes first: Solana shows the wallets below, Arc hands over to ConnectKit.
+  const [network, setNetwork] = useState<"solana" | null>(null);
   const sawConnecting = useRef(false);
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
@@ -127,6 +131,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
     setError(null);
     setPending(null);
     setShowInstall(false);
+    setNetwork(null);
   }, [open]);
 
   // Connected: done.
@@ -203,8 +208,48 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const statusLabel = (option: MimirWalletOption) =>
     option.readyState === WalletReadyState.Installed ? t("detected") : t("ready");
 
+  const pickArc = () => {
+    onClose();
+    connectEvmWallet().catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : "";
+      if (!/no wallet was connected|reject|denied/i.test(msg)) toast.error(t("arcFailed"));
+    });
+  };
+
+  if (network === null)
+    return (
+      <Modal open={open} onClose={onClose} title={t("pickTitle")} variant="sheet" closeLabel={t("close")}>
+        <p className="text-[14px] leading-snug text-muted">{t("pickLead")}</p>
+        <ul className="mt-5 grid gap-2">
+          {(
+            [
+              ["solana", "/networks/solana-icon.svg", t("pickSolana"), t("pickSolanaHint"), () => setNetwork("solana")],
+              ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint"), pickArc],
+            ] as const
+          ).map(([key, icon, name, hint, onPick]) => (
+            <li key={key}>
+              <button type="button" onClick={onPick} className={rowClass}>
+                <img src={icon} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-xl" />
+                <span className="grid min-w-0 flex-1 gap-1">
+                  <span className="font-display text-[1.3rem] leading-none text-cream">{name}</span>
+                  <span className="text-[13px] leading-snug text-muted">{hint}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6 flex items-center gap-2 text-[12px] text-muted">
+          <span aria-hidden className="h-[5px] w-[5px] rounded-full bg-coral" />
+          {t("footnote")}
+        </p>
+      </Modal>
+    );
+
   return (
     <Modal open={open} onClose={onClose} title={t("sheetTitle")} variant="sheet" closeLabel={t("close")}>
+      <button type="button" onClick={() => setNetwork(null)} className="mb-2 text-[13px] text-coral hover:underline">
+        ← {t("pickBack")}
+      </button>
       <p className="text-[14px] leading-snug text-muted">{t("sheetLead")}</p>
 
       {browseable.length > 0 ? (
