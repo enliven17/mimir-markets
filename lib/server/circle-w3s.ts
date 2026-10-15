@@ -63,37 +63,58 @@ async function waitForTxHash(id: string, timeoutMs = 90_000): Promise<Hex> {
   throw new Error(`Circle tx ${id} did not confirm within ${timeoutMs} ms`);
 }
 
-export interface ContractCall {
+export type ContractCall = {
   walletId: string;
   contractAddress: `0x${string}`;
-  /** e.g. "stake(uint256,uint8,address)" */
-  abiFunctionSignature: string;
-  /** Plain values; bigints are sent as decimal strings. */
-  abiParameters: unknown[];
   /** Native USDC to attach (msg.value) as a decimal string in USDC, e.g. "2.5"; not wei. */
   amount?: string;
-}
+} & (
+  | {
+      /** e.g. "stake(uint256,uint8,address)" */
+      abiFunctionSignature: string;
+      /** Plain values; bigints are sent as decimal strings. */
+      abiParameters: unknown[];
+    }
+  /** Pre-encoded calldata, for calls whose tuples abiParameters cannot express (Argus Portal.launch). */
+  | { callData: Hex }
+);
 
 /** One contract write from a Circle wallet, waited until confirmed. Returns the tx hash. */
 export async function executeContract(c: ContractCall): Promise<Hex> {
+  return waitForTxHash(await submitContract(c));
+}
+
+/**
+ * Submits a contract write and returns Circle's transaction id at once, so a caller can record it before waiting. A
+ * fixed `idempotencyKey` (a UUID) makes a resubmit after a lost response hit the same transaction instead of a second.
+ */
+export async function submitContract(c: ContractCall, idempotencyKey: string = randomUUID()): Promise<string> {
   const body: Record<string, unknown> = {
-    idempotencyKey: randomUUID(),
+    idempotencyKey,
     entitySecretCiphertext: await entitySecretCiphertext(),
     walletId: c.walletId,
     contractAddress: c.contractAddress,
-    abiFunctionSignature: c.abiFunctionSignature,
-    abiParameters: c.abiParameters.map((p) => (typeof p === "bigint" ? p.toString() : p)),
+    ...("callData" in c
+      ? { callData: c.callData }
+      : { abiFunctionSignature: c.abiFunctionSignature, abiParameters: c.abiParameters.map((p) => (typeof p === "bigint" ? p.toString() : p)) }),
     feeLevel: "MEDIUM",
   };
   if (c.amount) body.amount = c.amount;
   const r = await circleFetch<{ data: { id: string } }>("POST", "/developer/transactions/contractExecution", body);
-  return waitForTxHash(r.data.id);
+  return r.data.id;
 }
 
+type Transfer = { walletId: string; to: `0x${string}`; amount: string; blockchain: string };
+
 /** Native USDC from a Circle wallet to any address (funding personas). */
-export async function transferNative(args: { walletId: string; to: `0x${string}`; amount: string; blockchain: string }): Promise<Hex> {
+export async function transferNative(args: Transfer): Promise<Hex> {
+  return waitForTxHash(await submitTransfer(args));
+}
+
+/** Submits a native USDC transfer and returns Circle's transaction id without waiting. */
+export async function submitTransfer(args: Transfer, idempotencyKey: string = randomUUID()): Promise<string> {
   const r = await circleFetch<{ data: { id: string } }>("POST", "/developer/transactions/transfer", {
-    idempotencyKey: randomUUID(),
+    idempotencyKey,
     entitySecretCiphertext: await entitySecretCiphertext(),
     walletId: args.walletId,
     destinationAddress: args.to,
@@ -102,8 +123,19 @@ export async function transferNative(args: { walletId: string; to: `0x${string}`
     blockchain: args.blockchain,
     feeLevel: "MEDIUM",
   });
-  return waitForTxHash(r.data.id);
+  return r.data.id;
 }
+
+/** Where a submitted Circle transaction stands: done (with its hash), failed (nothing moved) or still pending. */
+export async function circleTxState(id: string): Promise<{ state: "done"; txHash: Hex } | { state: "failed"; reason: string } | { state: "pending" }> {
+  const t = (await circleFetch<{ data: { transaction: { state: string; txHash?: string; errorReason?: string } } }>("GET", `/transactions/${id}`)).data.transaction;
+  if (TERMINAL_OK.has(t.state) && t.txHash) return { state: "done", txHash: t.txHash as Hex };
+  if (TERMINAL_BAD.has(t.state)) return { state: "failed", reason: `${t.state}: ${t.errorReason ?? "unknown"}` };
+  return { state: "pending" };
+}
+
+/** Waits for a submitted Circle transaction (see waitForTxHash). */
+export const waitForCircleTx = (id: string, timeoutMs?: number) => waitForTxHash(id, timeoutMs);
 
 /** New EOA wallets in the wallet set, one per name. */
 export async function createWallets(names: string[], blockchain: string, prefix = "mimir-council"): Promise<Array<{ id: string; address: `0x${string}`; refId: string }>> {
