@@ -63,16 +63,21 @@ async function waitForTxHash(id: string, timeoutMs = 90_000): Promise<Hex> {
   throw new Error(`Circle tx ${id} did not confirm within ${timeoutMs} ms`);
 }
 
-export interface ContractCall {
+export type ContractCall = {
   walletId: string;
   contractAddress: `0x${string}`;
-  /** e.g. "stake(uint256,uint8,address)" */
-  abiFunctionSignature: string;
-  /** Plain values; bigints are sent as decimal strings. */
-  abiParameters: unknown[];
   /** Native USDC to attach (msg.value) as a decimal string in USDC, e.g. "2.5"; not wei. */
   amount?: string;
-}
+} & (
+  | {
+      /** e.g. "stake(uint256,uint8,address)" */
+      abiFunctionSignature: string;
+      /** Plain values; bigints are sent as decimal strings. */
+      abiParameters: unknown[];
+    }
+  /** Pre-encoded calldata, for calls whose tuples abiParameters cannot express (Argus Portal.launch). */
+  | { callData: Hex }
+);
 
 /** One contract write from a Circle wallet, waited until confirmed. Returns the tx hash. */
 export async function executeContract(c: ContractCall): Promise<Hex> {
@@ -81,8 +86,9 @@ export async function executeContract(c: ContractCall): Promise<Hex> {
     entitySecretCiphertext: await entitySecretCiphertext(),
     walletId: c.walletId,
     contractAddress: c.contractAddress,
-    abiFunctionSignature: c.abiFunctionSignature,
-    abiParameters: c.abiParameters.map((p) => (typeof p === "bigint" ? p.toString() : p)),
+    ...("callData" in c
+      ? { callData: c.callData }
+      : { abiFunctionSignature: c.abiFunctionSignature, abiParameters: c.abiParameters.map((p) => (typeof p === "bigint" ? p.toString() : p)) }),
     feeLevel: "MEDIUM",
   };
   if (c.amount) body.amount = c.amount;
