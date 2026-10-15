@@ -4,6 +4,8 @@
  *      (Solana: Privy, policy-locked to trading + SOL back to the owner/treasury; Arc: a Circle wallet) and store it pending.
  *   2. launch(): the owner has sent the seed SOL to the Solana wallet; verify it on chain, then the agent wallet mints
  *      its token on pump.fun as creator and the agent goes live.
+ *   2b. launchArc(): the Argus path (chain "arc"): no SOL step; the owner tops up the agent's Arc wallet with USDC for gas,
+ *      and the agent wallet launches its token on Argus (lib/launch/argus.ts) as creator.
  * State lives in Convex (convex/launch.ts); chain work happens here. Dependencies are injected for tests.
  */
 import { randomUUID } from "node:crypto";
@@ -15,6 +17,7 @@ import { BYOK_PROVIDERS, sealKey, type ByokProvider } from "./byok";
 import { DEFAULT_MARKET_RULES } from "./markets";
 import { AGENT_MARKETS_PER_DAY_MAX } from "./agent-markets-limit";
 import { allocationProblem, DEFAULT_ALLOCATION } from "./fees";
+import { ARGUS, launchParams, type ArgusLaunched, type ArgusParams } from "./argus";
 import type { verifyFunding } from "./funding";
 import type { Cx } from "./request";
 import { reservedLaunchSlug } from "./copy-key";
@@ -93,7 +96,15 @@ export const CreateBody = z.object({
   seedSol: z.number().min(0).max(100),
   /** Where the owner's 80% of every creator-fee claim goes (lib/launch/fees.ts). */
   allocation: AllocationBody.default(DEFAULT_ALLOCATION),
-}).refine((b) => b.trading.enabled || b.markets.enabled || b.markets.create.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] });
+  /** pump.fun on Solana, or Argus on Arc (a taxed token: each side 0 to 10%, not both 0). */
+  chain: z.enum(["solana", "arc"]).default("solana"),
+  argus: z.object({ buyTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps), sellTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps) }).strict().optional(),
+})
+  .refine((b) => b.trading.enabled || b.markets.enabled || b.markets.create.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] })
+  .refine((b) => b.chain !== "arc" || (b.argus !== undefined && b.argus.buyTaxBps + b.argus.sellTaxBps > 0), { message: "An Argus token needs a buy or sell tax above 0.", path: ["argus"] })
+  .refine((b) => b.chain !== "arc" || b.allocation.holders === 0, { message: "Holder airdrops are not available on Argus yet: set holders to 0.", path: ["allocation"] })
+  // Solana trading runs on the seed SOL, which an Argus launch does not ask for.
+  .refine((b) => b.chain !== "arc" || !b.trading.enabled, { message: "Solana trading needs a pump.fun launch; an Argus agent stakes on Arc markets.", path: ["trading"] });
 export type CreateInput = z.infer<typeof CreateBody>;
 
 export interface Wallets {
@@ -131,17 +142,19 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   const { enabled, budgetUsdc, create: opens, ...rules } = input.markets;
   const solana = await deps.wallets.solana(owner);
   const arc = await deps.wallets.arc(slug);
-  const fundLamports = BigInt(Math.round(input.seedSol * 1e9)) + LAUNCH_FEE_LAMPORTS;
+  const arcLaunch = input.chain === "arc";
+  const fundLamports = arcLaunch ? 0n : BigInt(Math.round(input.seedSol * 1e9)) + LAUNCH_FEE_LAMPORTS;
   const r = await client.mutation(api.launch.createPending, {
     secret, slug, uid, owner, name: input.name, ticker: input.ticker, avatarSeed: input.avatarSeed ?? slug, thesis: input.thesis, brain, trading,
     markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules }, create: opens },
     solana: { walletId: solana.id, address: solana.address }, arc: { walletId: arc.id, address: arc.address },
     fundLamports: fundLamports.toString(), description: input.description, ...(input.image ? { image: input.image } : {}),
     allocation: input.allocation,
+    ...(arcLaunch ? { chain: "arc" as const, argus: input.argus } : {}),
   });
   // Lost a race for the ticker after the wallets were made: they are simply never funded.
   if (!r.ok) return { ok: false as const, status: 409, error: r.reason === "reserved" ? `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` : `Too many agents named $${input.ticker}. Pick another ticker.` };
-  return { ok: true as const, id: r.slug, solana: solana.address, arc: arc.address, fundLamports };
+  return { ok: true as const, id: r.slug, solana: solana.address, arc: arc.address, fundLamports, chain: input.chain, fundArcWei: arcLaunch ? ARGUS.launchGasWei : 0n };
 }
 
 export async function launch(
@@ -154,6 +167,7 @@ export async function launch(
   const a = await client.query(api.launch.forLaunch, { secret, slug: id });
   if (!a || a.owner !== owner || !a.solana || !a.launch) return { ok: false as const, status: 404, error: "No such agent." };
   if (a.mint) return { ok: true as const, mint: a.mint }; // already launched: idempotent
+  if (a.launch.chain === "arc") return { ok: false as const, status: 409, error: "This agent launches on Argus." };
   if (a.status !== "pending") return { ok: false as const, status: 409, error: `Agent is ${a.status}.` };
   const funded = await deps.verify(deps.conn, { sig: fundingSig, from: owner, to: a.solana.address, minLamports: BigInt(a.launch.fundLamports) });
   if (!funded.ok) return { ok: false as const, status: 400, error: funded.error };
@@ -196,4 +210,61 @@ export async function launch(
     }
   }
   return { ok: true as const, mint: r.mint, sig: r.sig };
+}
+
+export type ArgusLauncher = (a: { walletId: string; wallet: string; uid: string; params: ArgusParams }) => Promise<ArgusLaunched & { tx: string | null }>;
+
+/**
+ * Step 2 of an Argus launch: the agent's Arc wallet must hold the launch gas (ARGUS.launchGasWei); then the image is
+ * pinned and the wallet launches. A failed send always releases the claim: a retry is safe because the token address
+ * is fixed per agent, so a launch that did land is recovered (lib/launch/argus-chain.ts sendLaunch), never repeated.
+ */
+export async function launchArc(
+  { client, secret }: Cx,
+  deps: { balanceWei: (address: string) => Promise<bigint>; image: (avatarSeed: string) => Promise<string>; pin: (dataUrl: string, name: string) => Promise<string>; launchToken: ArgusLauncher },
+  owner: string,
+  id: string,
+) {
+  const a = await client.query(api.launch.forLaunch, { secret, slug: id });
+  if (!a || a.owner !== owner || !a.arc || !a.launch) return { ok: false as const, status: 404, error: "No such agent." };
+  if (a.token) return { ok: true as const, token: a.token.address, poolId: a.token.poolId };
+  if (a.launch.chain !== "arc" || !a.launch.argus) return { ok: false as const, status: 409, error: "This agent launches on pump.fun." };
+  if (a.status !== "pending") return { ok: false as const, status: 409, error: `Agent is ${a.status}.` };
+  const balance = await deps.balanceWei(a.arc.address);
+  if (balance < ARGUS.launchGasWei) return { ok: false as const, status: 402, error: `Send at least ${Number(ARGUS.launchGasWei / 10n ** 12n) / 1e6} USDC to the agent's Arc wallet for the launch gas, then try again.` };
+  let params: ArgusParams, imageURI: string;
+  try {
+    imageURI = await deps.pin(a.launch.image ?? (await deps.image(a.avatarSeed)), `${a.ticker}.png`);
+    params = launchParams({
+      name: a.name, symbol: a.ticker, description: a.launch.description, imageURI, ...a.launch.argus,
+      split: a.allocation ?? DEFAULT_ALLOCATION, devBuyUsdc6: 0n,
+    });
+  } catch (e) {
+    console.error("argus launch prep:", e);
+    return { ok: false as const, status: 500, error: "Could not prepare the token image. Try again." };
+  }
+  const claim = await client.mutation(api.launch.claimLaunch, { secret, slug: id });
+  if (claim !== true) return { ok: false as const, status: 409, error: "Launch already in progress." };
+  let r: Awaited<ReturnType<ArgusLauncher>>;
+  try {
+    r = await deps.launchToken({ walletId: a.arc.walletId, wallet: a.arc.address, uid: a.uid, params });
+  } catch (e) {
+    await client.mutation(api.launch.releaseLaunch, { secret, slug: id });
+    await client.mutation(api.launch.logEvent, { secret, slug: id, kind: "error", text: `Argus launch failed: ${String((e as Error)?.message ?? e).slice(0, 200)}` });
+    return { ok: false as const, status: 502, error: "The launch did not go through. Retrying is safe: a token that did launch is picked up, never made twice." };
+  }
+  const token = { address: r.token, poolId: r.poolId, splitter: r.splitter, hook: r.hook, locker: r.locker, creatorBps: params.p.creatorBps, ...(r.tx ? { tx: r.tx } : {}) };
+  for (let i = 0; ; i++) {
+    try {
+      await client.mutation(api.launch.recordArgusLaunch, { secret, slug: id, token });
+      break;
+    } catch (e) {
+      if (i >= 4) {
+        console.error(`RECONCILE: launch agent ${id} launched ${r.token} on Argus (tx ${r.tx}) but it could not be recorded`, e);
+        return { ok: false as const, status: 500, error: `Your token was created (${r.token}) but we could not save it. Do not retry; contact support with this address.` };
+      }
+      await new Promise((ok) => setTimeout(ok, 300 * 2 ** i));
+    }
+  }
+  return { ok: true as const, token: r.token, poolId: r.poolId };
 }

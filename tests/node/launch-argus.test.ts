@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { decodeFunctionData, encodeAbiParameters, encodeEventTopics, keccak256, type Hex } from "viem";
 
 import { ARGUS, ARGUS_ABI, argusAllocation, claimSplit, decodeLaunch, encodeLaunch, hookAddressFor, launchParams, mineHookSalt, priceUsdc, tokenSalt } from "../../lib/launch/argus";
+import { argusFeeRound, feeKey, ZERO_FEES, type ArgusFeeAgent, type ArgusFeeDeps, type ArgusFeeState } from "../../lib/launch/argus-fees";
 import { DEFAULT_ALLOCATION } from "../../lib/launch/fees";
 
 const CREATOR = "0xc88124fd6cb8eb4c4e4b0c07f51246023044ff37";
@@ -58,9 +59,9 @@ test("encodeLaunch round-trips and decodeLaunch reads the Portal's events", () =
   const token = "0x9BBde5ef54604e06524605b42b20120Ab366E8DD", poolId: Hex = keccak256("0x02");
   const hook = "0x2Eab7E25EdACd4c3ba8C378c0Bb20eAA6E046044", locker = "0x1111111111111111111111111111111111111111", splitter = "0xAb7AC90eC5f1fcE657265E03469671fb0A71309A";
   const logs = [
-    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "TokenCreated", args: { token, creator: CREATOR } }) as Hex[],
+    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "TokenCreated", args: { token, creator: CREATOR } }) as [Hex, ...Hex[]],
       data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "bytes32" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "string" }], ["Socrates", "SOCRATES", poolId, "ipfs://bafy", "", "", ""]) },
-    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "PartsDeployed", args: { token } }) as Hex[],
+    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "PartsDeployed", args: { token } }) as [Hex, ...Hex[]],
       data: encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "address" }], [locker, hook, splitter]) },
   ];
   assert.deepEqual(decodeLaunch(logs), { token, poolId, hook, locker, splitter });
@@ -73,4 +74,70 @@ test("priceUsdc reads USDC per token from sqrtPriceX96 with USDC as currency0", 
   const p = priceUsdc(sqrt, "0x9BBde5ef54604e06524605b42b20120Ab366E8DD");
   assert.ok(Math.abs(p - 2.5e-6) / 2.5e-6 < 1e-9);
   assert.equal(priceUsdc(0n, ARGUS.usdc), 0);
+});
+
+// ───────────────────────────── the fee round
+
+function feeHarness(over: Partial<ArgusFeeDeps> = {}, fees: ArgusFeeState | null = null) {
+  const sent: Array<{ kind: string; key: string; amount?: bigint }> = [];
+  const agent: ArgusFeeAgent = { id: "a1", ticker: "SOC", walletId: "w", wallet: CREATOR, splitter: "0xs", locker: "0xl", creatorBps: 8444, split: DEFAULT_ALLOCATION, fees };
+  const deps: ArgusFeeDeps = {
+    claimable6: async () => 759_960_000n,
+    poke: async () => undefined,
+    submitClaim: async (_a, key) => (sent.push({ kind: "claim", key }), `c${sent.length}`),
+    submitTreasury: async (_a, amount, key) => (sent.push({ kind: "treasury", key, amount }), `c${sent.length}`),
+    state: async () => ({ state: "pending" }),
+    wait: async (id) => `0xtx${id}`,
+    save: async () => undefined,
+    event: async () => undefined,
+    now: 100 * 86_400_000, intervalMs: 86_400_000, minClaim6: 2_000_000n, minTreasury6: 1_000_000n,
+    ...over,
+  };
+  return { agent, deps, sent };
+}
+
+test("a fee round claims, books Mimir's 20% of revenue as owed, then sends it to the treasury", async () => {
+  const h = feeHarness();
+  const f = await argusFeeRound(h.agent, h.deps);
+  assert.deepEqual(h.sent.map((s) => s.kind), ["claim", "treasury"]);
+  assert.equal(h.sent[1].amount, 200_000_000n); // 10% platform + 10% AI of 1,000 USDC revenue
+  assert.equal(f.claimed6, "759960000");
+  assert.equal(f.owedTreasury6, "0");
+  assert.equal(f.paidTreasury6, "200000000");
+  assert.equal(f.pending, undefined);
+});
+
+test("an unconfirmed send stays pending and is settled next round, never sent twice", async () => {
+  const h = feeHarness({ wait: async () => { throw new Error("timeout"); } });
+  const f1 = await argusFeeRound(h.agent, h.deps);
+  assert.equal(f1.pending?.step, "claim");
+  assert.equal(h.sent.length, 1);
+  // Next round, still in flight: nothing new is sent.
+  const f2 = await argusFeeRound({ ...h.agent, fees: f1 }, { ...h.deps, now: h.deps.now + 3_600_000 });
+  assert.deepEqual(f2, f1);
+  assert.equal(h.sent.length, 1);
+  // Then Circle reports it done: booked once, and the treasury share goes out.
+  const h2 = feeHarness({ state: async () => ({ state: "done", txHash: "0xabc" }) });
+  const f3 = await argusFeeRound({ ...h2.agent, fees: f1 }, { ...h2.deps, now: h.deps.now + 7_200_000 });
+  assert.deepEqual(h2.sent.map((s) => s.kind), ["treasury"]);
+  assert.equal(f3.claimed6, "759960000");
+  assert.equal(f3.paidTreasury6, "200000000");
+});
+
+test("a failed send is dropped and nothing is booked; the interval and minimum gate the claim", async () => {
+  const fees: ArgusFeeState = { ...ZERO_FEES, owedTreasury6: "500000", lastRoundAt: 100 * 86_400_000, pending: { step: "treasury", circleId: "x", amount6: "500000", at: 0 } };
+  const h = feeHarness({ state: async () => ({ state: "failed", reason: "DENIED" }) }, fees);
+  const f = await argusFeeRound(h.agent, h.deps);
+  assert.equal(f.pending, undefined);
+  assert.equal(f.owedTreasury6, "500000");
+  assert.equal(h.sent.length, 0); // claimed today already, and 0.5 USDC owed is under the minimum
+  const small = feeHarness({ claimable6: async () => 1_000_000n });
+  await argusFeeRound(small.agent, small.deps);
+  assert.equal(small.sent.length, 0);
+});
+
+test("feeKey is a stable UUID per ledger step", () => {
+  assert.match(feeKey("a1", "treasury", "0"), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(feeKey("a1", "treasury", "0"), feeKey("a1", "treasury", "0"));
+  assert.notEqual(feeKey("a1", "treasury", "0"), feeKey("a1", "treasury", "200000000"));
 });

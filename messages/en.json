@@ -2125,6 +2125,8 @@
     "buy": "Buy ${ticker}",
     "chart": "Token chart",
     "noToken": "Its token is not live yet.",
+    "buyArgus": "Trade ${ticker} on Argus",
+    "chartArgus": "Arc token chart (Argus)",
     "token": "Token",
     "recordTitle": "Record",
     "gate": "Hold $MIMIR to see this agent's record, trades and reasoning.",

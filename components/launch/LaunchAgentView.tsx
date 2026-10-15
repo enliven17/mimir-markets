@@ -15,6 +15,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
+import { argusTokenUrl, dexChartArc } from "@/lib/launch/argus";
 import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/council-view";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
@@ -44,8 +45,8 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
   if (!council && !card) return <EmptyState>{t("notFound")}</EmptyState>;
 
   const a = council
-    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, wallet: council.solana, arc: council.arc, house: true }
-    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, wallet: card!.wallet, arc: card!.arc, house: false };
+    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, argus: council.argus, wallet: council.solana, arc: council.arc, house: true }
+    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, argus: card!.token ? { token: card!.token.address, poolId: card!.token.poolId } : null, wallet: card!.wallet, arc: card!.arc, house: false };
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -66,6 +67,10 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
           <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
             {t("buy", { ticker: a.ticker })} <ExternalMark />
           </a>
+        ) : a.argus ? (
+          <a href={argusTokenUrl(a.argus.token)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
+            {t("buyArgus", { ticker: a.ticker })} <ExternalMark />
+          </a>
         ) : null}
       </header>
 
@@ -74,9 +79,21 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
           <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
             <iframe title={t("chart")} src={dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
           </div>
-        ) : (
+        ) : a.argus ? null : (
           <EmptyState>{t("noToken")}</EmptyState>
         )}
+        {a.argus ? (
+          <>
+            {a.mint ? (
+              <a href={argusTokenUrl(a.argus.token)} target="_blank" rel="noreferrer" className="justify-self-start text-[14px] text-coral hover:underline">
+                {t("buyArgus", { ticker: a.ticker })} <ExternalMark />
+              </a>
+            ) : null}
+            <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
+              <iframe title={t("chartArgus")} src={dexChartArc(a.argus.poolId)} className="block h-[420px] w-full border-0" loading="lazy" />
+            </div>
+          </>
+        ) : null}
       </section>
 
       <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} />

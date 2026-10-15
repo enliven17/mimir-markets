@@ -2,9 +2,9 @@
  * Mimir Launch on Argus, the chain side: pin the token image, ask the Portal for the two miner inputs, mine the hook
  * salt, simulate the launch, and (with a Circle wallet) send it. Node only. See ./argus.ts for the protocol notes.
  */
-import { decodeFunctionData, type Address, type Hex, type PublicClient } from "viem";
+import { decodeFunctionData, parseAbiItem, type Address, type Hex, type PublicClient } from "viem";
 
-import { ARGUS, ARGUS_ABI, encodeLaunch, mineHookSalt, tokenSalt, type ArgusParams } from "./argus";
+import { ARGUS, ARGUS_ABI, decodeLaunch, encodeLaunch, mineHookSalt, tokenSalt, type ArgusLaunched, type ArgusParams } from "./argus";
 
 const PINATA_URL = "https://uploads.pinata.cloud/v3/files";
 const DATA_URL = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -65,3 +65,40 @@ export async function simulateLaunch(client: PublicClient, prep: PreparedLaunch)
 
 /** simulateContract takes args, not raw data: decode what encodeLaunch produced so both paths send the same bytes. */
 const decodeArgs = (data: Hex) => decodeFunctionData({ abi: ARGUS_ABI, data }).args as never;
+
+/**
+ * The whole launch from an agent wallet: prepare, simulate (a revert costs nothing), send through `execute` (the
+ * agent's Circle wallet), read the addresses from the receipt. Idempotent per agent: the token address is fixed by
+ * its uid, so when it already has code a retry recovers the earlier launch instead of sending (which would revert).
+ */
+export async function sendLaunch(client: PublicClient, creator: Address, agentUid: string, params: ArgusParams, execute: (callData: Hex) => Promise<Hex>): Promise<ArgusLaunched & { tx: Hex | null }> {
+  const prep = await prepareLaunch(client, creator, agentUid, params);
+  if ((await client.getCode({ address: prep.token }))?.length) return { ...(await findLaunch(client, prep.token)), tx: null };
+  await simulateLaunch(client, prep);
+  const tx = await execute(prep.data);
+  const receipt = await client.waitForTransactionReceipt({ hash: tx });
+  if (receipt.status !== "success") throw new Error(`launch reverted: ${tx}`);
+  const launched = decodeLaunch(receipt.logs);
+  if (!launched) throw new Error(`launch ${tx} landed but its events were not found`);
+  return { ...launched, tx };
+}
+
+const PARTS_EVENT = parseAbiItem("event PartsDeployed(address indexed token, address locker, address hook, address splitter)");
+const CREATED_EVENT = parseAbiItem("event TokenCreated(address indexed token, address indexed creator, string name, string symbol, bytes32 poolId, string imageURI, string website, string twitter, string telegram)");
+
+/**
+ * A launched token's parts from its Portal events, looking back up to `maxBlocks` in RPC-sized windows.
+ * ponytail: a linear scan, fine for recovering a launch from the last few hours; index launches if that ever grows.
+ */
+export async function findLaunch(client: PublicClient, token: Address, maxBlocks = 200_000n): Promise<ArgusLaunched> {
+  const head = await client.getBlockNumber();
+  const floor = head - maxBlocks > ARGUS.portalStartBlock ? head - maxBlocks : ARGUS.portalStartBlock;
+  for (let to = head; to >= floor; to -= 10_000n) {
+    const from = to - 9_999n > floor ? to - 9_999n : floor;
+    const [parts] = await client.getLogs({ address: ARGUS.portal, event: PARTS_EVENT, args: { token }, fromBlock: from, toBlock: to });
+    if (!parts) continue;
+    const [created] = await client.getLogs({ address: ARGUS.portal, event: CREATED_EVENT, args: { token }, fromBlock: parts.blockNumber, toBlock: parts.blockNumber });
+    if (created) return { token, poolId: created.args.poolId!, hook: parts.args.hook!, locker: parts.args.locker!, splitter: parts.args.splitter! };
+  }
+  throw new Error(`token ${token} exists but its launch was not found in the last ${maxBlocks} blocks: reconcile by hand`);
+}

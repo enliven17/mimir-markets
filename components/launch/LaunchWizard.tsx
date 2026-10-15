@@ -4,7 +4,8 @@
  * /launch/new: launch a hosted agent (ported from snipad's LaunchWizard, in Mimir's look). Five steps: who it is,
  * its brain, Mimir markets on Arc, Solana trading (optional), then review. Launching is three wallet actions, each
  * safe to retry: sign the agent (the server makes its two wallets), send the seed SOL, sign the launch (it mints
- * its token on pump.fun).
+ * its token on pump.fun). An Argus launch (chain "arc") swaps the SOL step for a little USDC in its Arc wallet, and the
+ * token goes live on Argus with a buy and sell tax.
  */
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -26,7 +27,9 @@ import ByokGuide from "./ByokGuide";
 import FeeAllocator, { AllocationBar } from "./FeeAllocator";
 import { DEFAULT_ALLOCATION, perSol, sumsTo100, type Allocation } from "@/lib/launch/fees-view";
 
-const STEPS = ["Identity", "Brain", "Markets", "Trading", "Fees", "Launch"] as const;
+const STEPS = ["Identity", "Brain", "Markets", "Trading", "Token", "Launch"] as const;
+/** What the agent's Arc wallet must hold to launch on Argus (lib/launch/argus.ts ARGUS.launchGasWei). */
+const ARGUS_GAS_USDC = 0.15;
 type Preset = keyof typeof PRESETS;
 
 const INITIAL = {
@@ -37,6 +40,8 @@ const INITIAL = {
   trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
   seedSol: "0.1",
   allocation: DEFAULT_ALLOCATION as Allocation,
+  chain: "solana" as "solana" | "arc",
+  argus: { buyTaxPct: 2, sellTaxPct: 2 },
 };
 type Form = typeof INITIAL;
 
@@ -57,7 +62,12 @@ function problems(step: number, f: Form): string | null {
   }
   if (step === 3 && !f.trading.enabled && !f.markets.enabled && !f.markets.opens) return "Turn on markets, trading or both.";
   if (step === 4 && !sumsTo100(f.allocation)) return "The four fee buckets must add up to 100.";
-  if (step === 5 && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
+  if (step === 4 && f.chain === "arc") {
+    if (f.trading.enabled) return "Solana trading needs a pump.fun launch. Turn trading off, or launch on pump.fun.";
+    if (f.allocation.holders > 0) return "Holder airdrops are not on Argus yet: set holders to 0.";
+    if (f.argus.buyTaxPct + f.argus.sellTaxPct === 0) return "An Argus token needs a buy or sell tax above 0.";
+  }
+  if (step === 5 && f.chain === "solana" && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
   return null;
 }
 
@@ -88,7 +98,8 @@ function Range({ label, value, min, max, step = 1, unit, onChange, hint }: { lab
 }
 
 const DEPLOY = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on pump.fun"] as const;
-type Deploy = { at: number; error: string | null; id?: string; wallet?: string; fund?: bigint; sig?: string; mint?: string };
+const DEPLOY_ARGUS = ["Sign the agent: Mimir makes its Solana and Arc wallets", `Send ${ARGUS_GAS_USDC} USDC on Arc to its Arc wallet for the launch gas`, "Sign the launch: its token goes live on Argus"] as const;
+type Deploy = { at: number; error: string | null; id?: string; wallet?: string; arc?: string; fund?: bigint; sig?: string; mint?: string };
 
 export default function LaunchWizard() {
   const [step, setStep] = useState(0);
@@ -120,7 +131,8 @@ export default function LaunchWizard() {
   };
 
   const body = () => ({
-    name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: Number(f.seedSol), allocation: f.allocation,
+    name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: f.chain === "arc" ? 0 : Number(f.seedSol), allocation: f.allocation,
+    chain: f.chain, ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
@@ -139,8 +151,22 @@ export default function LaunchWizard() {
       const owner = publicKey.toBase58();
       if (!d.id) {
         put({ at: 0 });
-        const r = await signedPost<{ id: string; solana: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
-        put({ id: r.id, wallet: r.solana, fund: BigInt(r.fundLamports) });
+        const r = await signedPost<{ id: string; solana: string; arc: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
+        put({ id: r.id, wallet: r.solana, arc: r.arc, fund: BigInt(r.fundLamports) });
+      }
+      if (f.chain === "arc") {
+        // The owner tops up its Arc wallet from their Arc account; the launch call says so until the USDC is there.
+        put({ at: 1 });
+        try {
+          const r = await signedPost<{ token: string }>(`/api/launch/${d.id}/launch`, { owner, signMessage, action: "launch", agent: d.id!, body: {} });
+          put({ mint: r.token, at: DEPLOY_ARGUS.length });
+        } catch (e) {
+          const msg = String((e as Error).message);
+          if (/USDC to the agent's Arc wallet/.test(msg)) throw new Error(`Send ${ARGUS_GAS_USDC} USDC on Arc to ${d.arc}, then retry.`);
+          put({ at: 2 });
+          throw e;
+        }
+        return;
       }
       if (!d.sig) {
         put({ at: 1 });
@@ -171,7 +197,8 @@ export default function LaunchWizard() {
   };
 
   if (deploy) {
-    const done = deploy.at >= DEPLOY.length;
+    const steps = f.chain === "arc" ? DEPLOY_ARGUS : DEPLOY;
+    const done = deploy.at >= steps.length;
     return (
       <div className="mx-auto grid w-full max-w-[640px] gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-6 shadow-card">
         <div className="flex items-center gap-4">
@@ -182,7 +209,7 @@ export default function LaunchWizard() {
           </div>
         </div>
         <ol className="m-0 grid list-none gap-2 p-0 text-[14px]" aria-live="polite">
-          {DEPLOY.map((l, i) => (
+          {steps.map((l, i) => (
             <li key={l} className={`flex justify-between gap-4 ${i > deploy.at ? "text-dim" : "text-cream"}`}>
               <span>{l}</span>
               <span className={i < deploy.at ? "text-emerald-300" : deploy.error && i === deploy.at ? "text-coral" : "text-muted"}>
@@ -432,10 +459,33 @@ export default function LaunchWizard() {
 
         {step === 4 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
-            <legend className="mb-2 font-display text-[1.6rem] text-cream">Where its fees go</legend>
-            <p className="m-0 text-[14px] text-muted">
-              Every trade of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> on pump.fun pays creator fees to the agent. 10% goes to the platform and 10% to AI costs; you split the other 80%. Put enough in gas &amp; bankroll and a traded agent pays its own way.
-            </p>
+            <legend className="mb-2 font-display text-[1.6rem] text-cream">Its token and where the fees go</legend>
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Launchpad">
+              {([
+                ["solana", "pump.fun on Solana", "A bonding-curve token. Creator fees on every trade go to the agent. Needs seed SOL."],
+                ["arc", "Argus on Arc", "A USDC-paired token with a buy and sell tax. Paid in USDC on Arc, no SOL needed. No Solana trading."],
+              ] as const).map(([k, label, blurb]) => (
+                <button key={k} type="button" role="radio" aria-checked={f.chain === k} onClick={() => set("chain", k)} className={`grid gap-1 rounded-xl p-3 text-left ${f.chain === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
+                  <span className="text-[14px]">{label}</span>
+                  <span className={`text-[12px] ${f.chain === k ? "text-ink/70" : "text-muted"}`}>{blurb}</span>
+                </button>
+              ))}
+            </div>
+            {f.chain === "arc" ? (
+              <>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Range label="Buy tax" value={f.argus.buyTaxPct} min={0} max={10} step={0.5} unit="%" onChange={(v) => set("argus", { ...f.argus, buyTaxPct: v })} />
+                  <Range label="Sell tax" value={f.argus.sellTaxPct} min={0} max={10} step={0.5} unit="%" onChange={(v) => set("argus", { ...f.argus, sellTaxPct: v })} />
+                </div>
+                <p className="m-0 text-[14px] text-muted">
+                  Every buy and sell of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> pays its tax plus the pool&apos;s 1% fee in USDC. Argus keeps 10%, the platform 10% and AI costs 10%; you split the other 70%. Your buyback share burns on chain; bankroll and payout land in its Arc wallet. Holder airdrops are not on Argus yet, so keep holders at 0.
+                </p>
+              </>
+            ) : (
+              <p className="m-0 text-[14px] text-muted">
+                Every trade of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> on pump.fun pays creator fees to the agent. 10% goes to the platform and 10% to AI costs; you split the other 80%. Put enough in gas &amp; bankroll and a traded agent pays its own way.
+              </p>
+            )}
             <FeeAllocator value={f.allocation} onChange={(a) => set("allocation", a)} />
             <p className="m-0 text-[13px] text-muted">Public on its page. You can change it later: a change shows at once and applies 24 hours later.</p>
           </fieldset>
@@ -456,16 +506,22 @@ export default function LaunchWizard() {
               </dd>
               <dt>Trading</dt>
               <dd>{t.enabled ? `${STRATEGIES[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · cap ${t.risk.maxDailyLossPct}%` : "off"}</dd>
+              <dt>Token</dt>
+              <dd>{f.chain === "arc" ? `Argus on Arc · ${f.argus.buyTaxPct}% buy / ${f.argus.sellTaxPct}% sell tax` : "pump.fun on Solana"}</dd>
               <dt>Fees</dt>
               <dd>
                 <AllocationBar allocation={f.allocation} className="mt-1 h-2.5 max-w-[280px]" />
-                <span className="mt-1 block text-[12px] text-muted">{perSol(f.allocation, { creator: "to you" })} per 1 SOL</span>
+                {f.chain === "solana" ? <span className="mt-1 block text-[12px] text-muted">{perSol(f.allocation, { creator: "to you" })} per 1 SOL</span> : null}
               </dd>
             </dl>
+            {f.chain === "arc" ? (
+              <p className="m-0 text-[14px] text-cream">After you sign, send {ARGUS_GAS_USDC} USDC on Arc to its Arc wallet: it pays the launch gas. No SOL needed.</p>
+            ) : (<>
             <Field label="Seed SOL" hint={`Goes to its Solana wallet: ${LAUNCH_FEE_SOL} SOL mints its token, the rest is gas and bankroll. Its Arc wallet needs USDC to stake; fund it from its page after launch.`}>
               <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
             </Field>
             <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + LAUNCH_FEE_SOL).toFixed(3)} SOL.</p>
+            </>)}
             <p className="m-0 text-[13px] text-muted">It stakes and trades real funds on mainnet and can lose them. You can pause it, withdraw part of its funds or shut it down any time from its page.</p>
           </div>
         ) : null}

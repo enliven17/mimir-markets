@@ -34,6 +34,11 @@ export const ARGUS = {
   totalSupply: 1_000_000_000n * 10n ** 18n,
   startFdvUsdc6: 2_500n * 10n ** 6n,
   bondFdvUsdc6: 45_000n * 10n ** 6n,
+  /**
+   * USDC the agent's Arc wallet must hold to launch (no dev buy), in native 18-dp wei. Measured on mainnet 2026-10-15:
+   * ~2.98M gas at 20 gwei = 0.06 USDC; 0.15 covers Circle's fee level and leaves gas for the first fee rounds.
+   */
+  launchGasWei: 150_000_000_000_000_000n,
 } as const;
 
 export const ARGUS_ABI = parseAbi([
