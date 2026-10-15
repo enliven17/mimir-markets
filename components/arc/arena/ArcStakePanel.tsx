@@ -135,7 +135,7 @@ export default function ArcStakePanel({
         ) : null}
 
         <p className="m-0 text-[12px] text-dim">
-          Arc balance: {account.balance === null ? "-" : usd(account.balance)}
+          {account.split ? `Account: ${usd(account.split.account)} · From your wallet: ${usd(account.split.wallet)}` : `Arc balance: ${account.balance === null ? "-" : usd(account.balance)}`}
           {account.tier === 0 ? " · Hold 5M+ $MIMIR for a 0.25% fee, 10M+ for 0.1%" : ""}
         </p>
 

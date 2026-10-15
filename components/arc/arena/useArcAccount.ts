@@ -24,12 +24,15 @@ export function useArcAccount() {
   const address = wallet.session?.address ?? null;
   const fundedFrom = address && wallet.evmBinding?.arc === address ? wallet.evmBinding.evm : null;
   const [balance, setBalance] = useState<bigint | null>(null);
+  // Shown apart, in wei: what sits in the passkey account and what it may still draw from the Arc wallet.
+  const [split, setSplit] = useState<{ account: bigint; wallet: bigint } | null>(null);
   const [ticket, setTicket] = useState<FeeTicket | null>(null);
   const [onchainBps, setOnchainBps] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     if (!address) {
       setBalance(null);
+      setSplit(null);
       setOnchainBps(null);
       return;
     }
@@ -50,6 +53,7 @@ export function useArcAccount() {
     ]);
     // 6-dp units → wei; a failed read stays unknown rather than zero.
     setBalance(units === null ? null : (units + fromWallet) * WEI_PER_UNIT);
+    setSplit(units === null || !fundedFrom ? null : { account: units * WEI_PER_UNIT, wallet: fromWallet * WEI_PER_UNIT });
     setOnchainBps(bps);
   }, [address, fundedFrom]);
 
@@ -88,5 +92,5 @@ export function useArcAccount() {
     [needsTicket, ticket],
   );
 
-  return { wallet, session: wallet.session, address, balance, reload, entryBps, tier, withTicket };
+  return { wallet, session: wallet.session, address, balance, split, reload, entryBps, tier, withTicket };
 }

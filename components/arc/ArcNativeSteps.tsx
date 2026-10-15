@@ -141,9 +141,9 @@ export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
           </div>
           {funds ? (
             <p className="m-0 text-[13px] text-muted">
-              You can stake up to{" "}
-              <span className="text-cream">{formatUsdcUnits(funds.account + walletSpendableUnits(funds.allowance, funds.wallet))} USDC</span> right
-              now.
+              In your passkey account: <span className="text-cream">{formatUsdcUnits(funds.account)} USDC</span>
+              <br />
+              It can still draw from your wallet: <span className="text-cream">{formatUsdcUnits(walletSpendableUnits(funds.allowance, funds.wallet))} USDC</span>
             </p>
           ) : null}
 
