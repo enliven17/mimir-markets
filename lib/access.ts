@@ -1,8 +1,9 @@
 /**
  * Invite-only access (mainnet launch). Open to everyone on testnet; invite-only
  * on mainnet unless NEXT_PUBLIC_INVITE_ONLY says otherwise ("1" forces it on,
- * "0" off). A wallet gets in by holding the minimum $MIMIR on Solana or by
- * redeeming an invite code (no $MIMIR needed). Everyone who is in gets
+ * "0" off). A wallet (Solana, or an Arc wallet for native Arc sign-in) gets in
+ * by redeeming an invite code; $MIMIR buys fee perks, not entry. Wallets let in
+ * earlier for holding $MIMIR keep their access. Everyone who is in gets
  * invitesPerUser() codes of their own; raising MIMIR_INVITES_PER_USER later
  * (2 → 3) tops every member up on their next visit. Pure and isomorphic.
  */
@@ -54,25 +55,12 @@ export function inviteDailyCap(env: Record<string, string | undefined> = process
   return Number.isInteger(n) && n >= 0 ? n : 200;
 }
 
-/** A holder's grant is re-checked against the balance after this long (7 days). */
-export const HOLDER_RECHECK_MS = 7 * 86_400_000;
-
 /**
- * How many new codes a member may be issued now. Codes are not a reward for passing $MIMIR around: a grant must be
- * `unlockMs` old first, and a holder must still hold the minimum when the codes are issued, so moving the same tokens
- * from wallet to wallet yields one wallet's codes per unlock period, not two per hop.
+ * How many new codes a member may be issued now: a grant must be `unlockMs` old first, so a fresh wallet can't be
+ * spun up just to mint codes.
  */
-export function inviteMintAllowance(a: {
-  via: "holder" | "invite";
-  grantedAt: number;
-  now: number;
-  holdsMinimum: boolean;
-  existing: number;
-  allowance: number;
-  unlockMs: number;
-}): number {
+export function inviteMintAllowance(a: { grantedAt: number; now: number; existing: number; allowance: number; unlockMs: number }): number {
   if (a.existing >= a.allowance) return 0;
   if (a.now - a.grantedAt < a.unlockMs) return 0;
-  if (a.via === "holder" && !a.holdsMinimum) return 0;
   return a.allowance - a.existing;
 }

@@ -15,7 +15,7 @@ at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana 
                                        + Gas Station          ▲   │                 │
                                                               └───┘ payouts          │ events
  USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn
- $MIMIR balance ──▶ fee ticket (lower entry fee), invite-only access                 ▼
+ $MIMIR balance ──▶ fee ticket (lower entry fee); entry is by invite code            ▼
                                                               the backend: indexer, oracle, council, creator
 ```
 
@@ -34,10 +34,14 @@ at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana 
 - **Recover:** at sign-up the user downloads a 12-word recovery file and confirms it. The words derive an EOA added as
   a second owner of the smart account; with them a new passkey can be put on the same account. Lose both and the
   account is gone.
-- **Invite-only (mainnet):** a wallet holding `MIMIR_ACCESS_MIN` $MIMIR (default 5M) gets in; anyone else needs a
-  code. Every member gets `MIMIR_INVITES_PER_USER` codes (default 2; raising it tops everyone up). Off on testnet
-  unless `NEXT_PUBLIC_INVITE_ONLY=1`. The bind route enforces it, so skipping the UI gains nothing
-  (`lib/server/access.ts`, `components/access/AccessGate.tsx`).
+- **Invite-only (mainnet):** entry is by invite code, from a Solana wallet or (native Arc sign-in) an Arc wallet.
+  Holding $MIMIR no longer lets a wallet in by itself; wallets let in that way earlier keep their access. $MIMIR sets
+  fee perks, read from a Solana wallet linked to the account. Every member gets `MIMIR_INVITES_PER_USER` codes
+  (default 2; raising it tops everyone up). Off on testnet unless `NEXT_PUBLIC_INVITE_ONLY=1`. The bind routes enforce
+  it, so skipping the UI gains nothing (`lib/server/access.ts`, `components/access/AccessGate.tsx`).
+- **Native Arc sign-in:** an Arc (EVM) wallet instead of a Solana one. It signs once to bind to the passkey account
+  (`lib/arc/evm.ts`, `/api/arc/evm-bind`) and approves a USDC spending cap for it; a stake that needs more than the
+  account holds pulls the shortfall with `transferFrom` in the same passkey operation. No deposit needed.
 
 ## Moving money
 

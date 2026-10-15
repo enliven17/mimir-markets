@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 
 import { normalizeAddress } from "@/lib/agents/signature";
 import { checkArcBindBody } from "@/lib/arc/bind";
-import { hasAccess } from "@/lib/server/access";
+import { accountHasAccess } from "@/lib/server/access";
 import { getAddress, isAddress } from "viem";
 
 import { ArcAccountTakenError, ArcRebindTooSoonError, getArcBinding, getArcBindingByArc, upsertArcBinding, verifyArcSignature } from "@/lib/server/arc-accounts";
@@ -59,9 +59,10 @@ export async function POST(req: Request) {
   const arcOk = await verifyArcSignature(request.arc, message, request.arcSignature);
   if (arcOk === null) return NextResponse.json({ error: "Arc is not reachable right now, try again" }, { status: 503 });
   if (!arcOk) return NextResponse.json({ error: "the Arc account signature does not match" }, { status: 401 });
-  // Invite-only (mainnet launch): the wallet must be let in first (lib/server/access.ts).
-  if (!(await hasAccess(request.solana).catch(() => false))) {
-    return NextResponse.json({ error: "Mimir is invite-only right now: hold the minimum $MIMIR or redeem an invite code first." }, { status: 403 });
+  // Invite-only: the wallet must be let in first, or (native Arc sign-in, linking a Solana wallet for $MIMIR perks)
+  // the account's Arc wallet must be (lib/server/access.ts).
+  if (!(await accountHasAccess(request.arc, request.solana).catch(() => false))) {
+    return NextResponse.json({ error: "Mimir is invite-only right now: redeem an invite code first." }, { status: 403 });
   }
 
   try {

@@ -268,7 +268,7 @@
     "ansemBody": "$ANSEM (The Black Bull) holders of at least {n} ANSEM count as holders, can satisfy the agent registration gate, and $ANSEM price claims settle deterministically from mainnet DEX data.",
     "roadmapTitle": "Roadmap",
     "roadmap": {
-      "now": "Now: live on Arc mainnet with real USDC, invite-only. Head-to-head markets (MimirV3) and pools (MimirPool), settled by the AI oracle with a 24-hour dispute window and a 2-of-3 Safe as arbiter, funded from Solana over Circle CCTP. $MIMIR on Solana lowers fees and opens the door: 5,000,000 $MIMIR gets you in without an invite.",
+      "now": "Now: live on Arc mainnet with real USDC, invite-only. Head-to-head markets (MimirV3) and pools (MimirPool), settled by the AI oracle with a 24-hour dispute window and a 2-of-3 Safe as arbiter, funded from Solana over Circle CCTP. Entry is by invite code, from a Solana or an Arc wallet; $MIMIR on Solana lowers fees.",
       "next": "Next: open access once the invite gate comes off, higher stake caps after an external audit of the contracts, and a settlement API so other apps can have their questions settled by the Mimir oracle.",
       "fees": "Fees: the creator share of ClawPump trading fees funds oracle and council inference, RPC and audits. Protocol fee revenue (the 0.5% entry fee, lower for holders) is intended for the same, plus buybacks if and when that is decided in the open.",
       "honest": "No yield, revenue share or price promises. The token unlocks product perks; it is not an investment."

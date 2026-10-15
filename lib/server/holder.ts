@@ -7,6 +7,10 @@ import { ansemMint, mimirMint } from "@/lib/token-config";
 import { HOLDER_PROOF_HEADER, HOLDER_WALLET_HEADER, holderProofMessage, parseProofHeader } from "@/lib/token-proof";
 import { tierFor, tierThresholdsFromEnv, type TokenBalances, type TokenTier } from "@/lib/token-tiers";
 import { mainnetTokenBalance } from "./mainnet";
+import { verifyMessage, type Address } from "viem";
+import { arcPublicClient } from "@/lib/arc/chain";
+import { ARC } from "@/lib/arc/config";
+import { EVM_PROOF_HEADER, EVM_WALLET_HEADER, evmProofMessage, normalizeEvmAddress, parseEvmProofHeader } from "@/lib/arc/evm";
 import { allowRequest, clientIp } from "./rate-limit";
 
 /** Proofs one IP may have checked against mainnet per minute (audit P2-8). */
@@ -57,6 +61,24 @@ export function provenWallet(req: Request): string | null {
   if (!wallet || !proof) return null;
   const ok = verifyAgentSignature({ address: wallet, message: holderProofMessage(wallet, proof.signedAt), signature: proof.signature });
   return ok ? wallet : null;
+}
+
+/**
+ * The Arc (EVM) wallet a request proves it controls (x-mimir-evm + x-mimir-evm-proof, lib/arc/evm.ts), checksummed,
+ * or null. A plain wallet's signature is recovered locally; a smart wallet's (ERC-1271) is checked on Arc.
+ */
+export async function provenEvmWallet(req: Request): Promise<Address | null> {
+  const wallet = normalizeEvmAddress(req.headers.get(EVM_WALLET_HEADER));
+  const proof = parseEvmProofHeader(req.headers.get(EVM_PROOF_HEADER));
+  if (!wallet || !proof) return null;
+  const message = evmProofMessage(wallet, proof.signedAt);
+  if (await verifyMessage({ address: wallet, message, signature: proof.signature }).catch(() => false)) return wallet;
+  return (await arcPublicClient(ARC).verifyMessage({ address: wallet, message, signature: proof.signature }).catch(() => false)) ? wallet : null;
+}
+
+/** Who a request proves to be, for access and invite codes: the Solana wallet, else the Arc wallet. */
+export async function provenIdentity(req: Request): Promise<string | null> {
+  return provenWallet(req) ?? (await provenEvmWallet(req));
 }
 
 export async function provenTier(req: Request): Promise<TokenTier> {
