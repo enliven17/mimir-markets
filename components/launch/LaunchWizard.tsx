@@ -462,11 +462,15 @@ export default function LaunchWizard() {
             <legend className="mb-2 font-display text-[1.6rem] text-cream">Its token and where the fees go</legend>
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Launchpad">
               {([
-                ["solana", "pump.fun on Solana", "A bonding-curve token. Creator fees on every trade go to the agent. Needs seed SOL."],
-                ["arc", "Argus on Arc", "A USDC-paired token with a buy and sell tax. Paid in USDC on Arc, no SOL needed. No Solana trading."],
-              ] as const).map(([k, label, blurb]) => (
-                <button key={k} type="button" role="radio" aria-checked={f.chain === k} onClick={() => set("chain", k)} className={`grid gap-1 rounded-xl p-3 text-left ${f.chain === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
-                  <span className="text-[14px]">{label}</span>
+                ["solana", "pump.fun", "on Solana", "/launch/pumpfun.png", "A bonding-curve token. Creator fees on every trade go to the agent. Needs seed SOL."],
+                ["arc", "Argus", "on Arc", "/launch/argus.jpg", "A USDC-paired token with a buy and sell tax. Paid in USDC on Arc, no SOL needed. No Solana trading."],
+              ] as const).map(([k, label, chainName, logo, blurb]) => (
+                <button key={k} type="button" role="radio" aria-checked={f.chain === k} onClick={() => set("chain", k)} className={`grid grid-cols-[48px_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-xl p-3 text-left ${f.chain === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
+                  <img src={logo} alt="" width={48} height={48} className="row-span-2 h-12 w-12 rounded-full bg-white object-cover" />
+                  <span className="text-[15px]">
+                    {label} <span className={f.chain === k ? "text-ink/60" : "text-muted"}>{chainName}</span>
+                  </span>
                   <span className={`text-[12px] ${f.chain === k ? "text-ink/70" : "text-muted"}`}>{blurb}</span>
                 </button>
               ))}

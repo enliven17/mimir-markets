@@ -41,6 +41,7 @@ const usd = (n: number) => `${n < 0 ? "-" : n > 0 ? "+" : ""}${Math.abs(n).toFix
 export default function LaunchAgentView({ slug, council }: { slug: string; council: Council | null }) {
   const t = useTranslations("launch");
   const card = useQuery(api.launch.card, council ? "skip" : { slug });
+  const [chart, setChart] = useState<"solana" | "arc">("solana");
   if (!council && card === undefined) return <Skeleton className="h-72 w-full rounded-2xl" />;
   if (!council && !card) return <EmptyState>{t("notFound")}</EmptyState>;
 
@@ -63,37 +64,44 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
           </p>
         </div>
         {a.about ? <p className="col-span-2 m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted sm:col-span-1 sm:col-start-2 sm:row-start-2 sm:self-start">{a.about}</p> : null}
-        {a.mint ? (
-          <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
-            {t("buy", { ticker: a.ticker })} <ExternalMark />
-          </a>
-        ) : a.argus ? (
-          <a href={argusTokenUrl(a.argus.token)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
-            {t("buyArgus", { ticker: a.ticker })} <ExternalMark />
-          </a>
+        {a.mint || a.argus ? (
+          <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:flex-col">
+            {a.mint ? (
+              <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
+                {t("buy", { ticker: a.ticker })} <ExternalMark />
+              </a>
+            ) : null}
+            {a.argus ? (
+              <a href={argusTokenUrl(a.argus.token)} target="_blank" rel="noreferrer" className={`${a.mint ? "btn-ghost" : "btn-primary"} !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]`}>
+                {t("buyArgus", { ticker: a.ticker })} <ExternalMark />
+              </a>
+            ) : null}
+          </div>
         ) : null}
       </header>
 
       <section className="grid gap-3" aria-label={t("chart")}>
-        {a.mint ? (
-          <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
-            <iframe title={t("chart")} src={dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
+        {a.mint && a.argus ? (
+          // An agent can live on both chains (the council's Socrates is the example): one chart at a time.
+          <div className="flex gap-2" role="tablist" aria-label={t("chart")}>
+            {(["solana", "arc"] as const).map((c) => (
+              <button key={c} type="button" role="tab" aria-selected={chart === c} onClick={() => setChart(c)} className={`rounded-full px-4 py-2 text-[13px] ${chart === c ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}>
+                {c === "solana" ? "Solana · pump.fun" : "Arc · Argus"}
+              </button>
+            ))}
           </div>
-        ) : a.argus ? null : (
+        ) : null}
+        {a.mint || a.argus ? (
+          <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
+            {a.mint && (!a.argus || chart === "solana") ? (
+              <iframe key="sol" title={t("chart")} src={dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
+            ) : (
+              <iframe key="arc" title={t("chartArgus")} src={dexChartArc(a.argus!.poolId)} className="block h-[420px] w-full border-0" loading="lazy" />
+            )}
+          </div>
+        ) : (
           <EmptyState>{t("noToken")}</EmptyState>
         )}
-        {a.argus ? (
-          <>
-            {a.mint ? (
-              <a href={argusTokenUrl(a.argus.token)} target="_blank" rel="noreferrer" className="justify-self-start text-[14px] text-coral hover:underline">
-                {t("buyArgus", { ticker: a.ticker })} <ExternalMark />
-              </a>
-            ) : null}
-            <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
-              <iframe title={t("chartArgus")} src={dexChartArc(a.argus.poolId)} className="block h-[420px] w-full border-0" loading="lazy" />
-            </div>
-          </>
-        ) : null}
       </section>
 
       <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} />
