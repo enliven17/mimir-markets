@@ -220,6 +220,9 @@ export const saveVerdict = internalMutation({
   args: schema.tables.arcVerdicts.validator,
   handler: async (ctx, verdict) => {
     await ctx.db.insert("arcVerdicts", verdict);
+    // Decided: its retry row is done, so the watchdog stops counting it.
+    const tries = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("kind", verdict.kind).eq("marketId", verdict.marketId)).unique();
+    if (tries) await ctx.db.delete(tries._id);
   },
 });
 
