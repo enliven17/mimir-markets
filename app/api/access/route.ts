@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const minMimir = accessMinMimir();
   if (!isInviteOnly()) return NextResponse.json({ inviteOnly: false, allowed: true, via: "open", invites: [], minMimir });
   if (!(await allowRequest("access", clientIp(req), 30, 60_000))) return tooManyRequests(60);
-  const wallet = provenWallet(req);
+  const wallet = await provenWallet(req);
   if (!wallet) return NextResponse.json({ inviteOnly: true, allowed: false, via: null, invites: [], minMimir, needsProof: true });
   if (!storeEnabled()) return NextResponse.json({ error: "access is not available right now" }, { status: 503 });
   try {

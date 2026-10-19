@@ -3,10 +3,11 @@
  * server-side perk can use that wallet's mainnet balance.
  *
  * The browser signs `holderProofMessage` once with the connected wallet
- * (ed25519, wallet-adapter `signMessage`, base58) and sends it on requests as
+ * (ed25519, wallet-adapter `signMessage`, base58; a Robinhood Chain wallet signs
+ * EIP-191 and sends 0x hex, lib/owner.ts) and sends it on requests as
  *
- *   x-mimir-wallet: <base58 pubkey>
- *   x-mimir-proof:  <signedAt ms>.<base58 signature>
+ *   x-mimir-wallet: <base58 pubkey | 0x address>
+ *   x-mimir-proof:  <signedAt ms>.<base58 | 0x hex signature>
  *
  * It moves nothing and authorizes nothing but reading that wallet's tier. It
  * expires after HOLDER_PROOF_TTL_MS. Pure and isomorphic.
@@ -34,7 +35,7 @@ export function parseProofHeader(
   value: string | null | undefined,
   now = Date.now(),
 ): { signedAt: number; signature: string } | null {
-  const m = /^(\d{12,14})\.([1-9A-HJ-NP-Za-km-z]{64,90})$/.exec((value ?? "").trim());
+  const m = /^(\d{12,14})\.([1-9A-HJ-NP-Za-km-z]{64,90}|0x[0-9a-fA-F]{130})$/.exec((value ?? "").trim());
   if (!m) return null;
   const signedAt = Number(m[1]);
   // A little clock skew into the future is fine; a lot is not.

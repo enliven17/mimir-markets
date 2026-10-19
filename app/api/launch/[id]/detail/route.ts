@@ -32,7 +32,7 @@ async function holding(req: Request, wallet: string): Promise<Holding | "limited
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!(await allowRequest("launch-detail", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const { id } = await ctx.params;
-  const wallet = provenWallet(req);
+  const wallet = await provenWallet(req);
   if (!wallet) return Response.json({ error: GATE, gate: true }, { status: 403 });
   const h = await holding(req, wallet);
   if (h === "limited") return tooManyRequests(60);

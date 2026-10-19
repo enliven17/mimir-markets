@@ -1,5 +1,5 @@
 /**
- * GET  /api/arc/bind?solana=<base58>  the Arc account bound to that wallet (public info), 404 when none
+ * GET  /api/arc/bind?solana=<base58|0x> the Arc account bound to that wallet (Solana or Robinhood Chain) (public info), 404 when none
  * GET  /api/arc/bind?arc=<0x…>         the wallet that Arc account is bound to, 404 when none
  * POST /api/arc/bind                  { solana, arc, signedAt, solanaSignature, arcSignature, credentialId? }
  *
@@ -10,8 +10,8 @@
  */
 import { NextResponse } from "next/server";
 
-import { normalizeAddress } from "@/lib/agents/signature";
 import { checkArcBindBody } from "@/lib/arc/bind";
+import { normalizeOwner } from "@/lib/owner";
 import { hasAccess } from "@/lib/server/access";
 import { getAddress, isAddress } from "viem";
 
@@ -29,9 +29,9 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const arcParam = params.get("arc");
   const arc = arcParam && isAddress(arcParam) ? getAddress(arcParam) : null;
-  const solana = arc ? null : normalizeAddress(params.get("solana"));
+  const solana = arc ? null : normalizeOwner(params.get("solana"));
   if (arcParam && !arc) return NextResponse.json({ error: "arc must be an EVM address" }, { status: 400 });
-  if (!arc && !solana) return NextResponse.json({ error: "solana must be a Solana public key" }, { status: 400 });
+  if (!arc && !solana) return NextResponse.json({ error: "solana must be a Solana public key or a 0x wallet address" }, { status: 400 });
   if (!storeEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   try {
     const binding = arc ? await getArcBindingByArc(arc) : await getArcBinding(solana!);
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   if (!read.ok || !read.value || typeof read.value !== "object") {
     return NextResponse.json({ error: "body must be a JSON object" }, { status: read.ok ? 400 : read.status });
   }
-  const check = checkArcBindBody(read.value as Record<string, unknown>);
+  const check = await checkArcBindBody(read.value as Record<string, unknown>);
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
   if (!storeEnabled()) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
 

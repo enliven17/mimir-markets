@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { Keypair } from "@solana/web3.js";
 import { getAddress } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { signAgentMessage } from "../../lib/agents/signature";
 import { ARC_BIND_TTL_MS, arcBindMessage, checkArcBindBody, isFreshArcBind } from "../../lib/arc/bind";
@@ -43,9 +44,9 @@ test("freshness: five minutes either way", () => {
   assert.ok(!isFreshArcBind(Number.NaN, NOW));
 });
 
-test("a body signed by the Solana wallet passes, with a checksummed Arc address", () => {
+test("a body signed by the Solana wallet passes, with a checksummed Arc address", async () => {
   const kp = Keypair.generate();
-  const res = checkArcBindBody(signedBody(kp), NOW);
+  const res = await checkArcBindBody(signedBody(kp), NOW);
   assert.ok(res.ok);
   if (!res.ok) return;
   assert.equal(res.request.solana, kp.publicKey.toBase58());
@@ -54,25 +55,41 @@ test("a body signed by the Solana wallet passes, with a checksummed Arc address"
   assert.equal(res.message, arcBindMessage(kp.publicKey.toBase58(), ARC_ADDR, NOW - 1000));
 });
 
-test("the signature must come from the named wallet, over this exact message", () => {
+test("the signature must come from the named wallet, over this exact message", async () => {
   const kp = Keypair.generate();
   const other = Keypair.generate();
   // Signed by someone else.
   const stolen = signedBody(other, { solana: kp.publicKey.toBase58() });
-  assert.deepEqual(checkArcBindBody(stolen, NOW), { ok: false, status: 401, error: "the Solana signature does not match" });
+  assert.deepEqual(await checkArcBindBody(stolen, NOW), { ok: false, status: 401, error: "the wallet signature does not match" });
   // Signed for another Arc account, then pointed at this one.
   const swapped = signedBody(kp, { arc: "0x0000000000000000000000000000000000000001" });
-  assert.equal(checkArcBindBody(swapped, NOW).ok, false);
+  assert.equal((await checkArcBindBody(swapped, NOW)).ok, false);
 });
 
-test("stale, malformed and incomplete bodies are refused", () => {
+test("stale, malformed and incomplete bodies are refused", async () => {
   const kp = Keypair.generate();
-  const stale = checkArcBindBody(signedBody(kp), NOW + ARC_BIND_TTL_MS + 5000);
+  const stale = await checkArcBindBody(signedBody(kp), NOW + ARC_BIND_TTL_MS + 5000);
   assert.equal(stale.ok ? 0 : stale.status, 401);
-  assert.equal(checkArcBindBody(signedBody(kp, { solana: "nope" }), NOW).ok, false);
-  assert.equal(checkArcBindBody(signedBody(kp, { arc: "0x123" }), NOW).ok, false);
-  assert.equal(checkArcBindBody(signedBody(kp, { arcSignature: "deadbeef" }), NOW).ok, false);
+  assert.equal((await checkArcBindBody(signedBody(kp, { solana: "nope" }), NOW)).ok, false);
+  assert.equal((await checkArcBindBody(signedBody(kp, { arc: "0x123" }), NOW)).ok, false);
+  assert.equal((await checkArcBindBody(signedBody(kp, { arcSignature: "deadbeef" }), NOW)).ok, false);
   // A malformed credential id is dropped, not trusted.
-  const res = checkArcBindBody(signedBody(kp, { credentialId: "<script>" }), NOW);
+  const res = await checkArcBindBody(signedBody(kp, { credentialId: "<script>" }), NOW);
   assert.ok(res.ok && res.request.credentialId === null);
+});
+
+test("a Robinhood Chain wallet binds with an EIP-191 signature, named as such in the message", async () => {
+  const acct = privateKeyToAccount(generatePrivateKey());
+  const signedAt = NOW - 1000;
+  const message = arcBindMessage(acct.address, ARC_ADDR, signedAt);
+  assert.match(message, /^robinhood: 0x/m);
+  const body = { solana: acct.address.toLowerCase(), arc: ARC_ADDR, signedAt, solanaSignature: await acct.signMessage({ message }), arcSignature: ARC_SIG };
+  const res = await checkArcBindBody(body, NOW);
+  assert.ok(res.ok);
+  if (!res.ok) return;
+  assert.equal(res.request.solana, acct.address);
+  // Someone else's key, or a Solana-style signature, does not pass for this address.
+  const other = privateKeyToAccount(generatePrivateKey());
+  assert.equal((await checkArcBindBody({ ...body, solanaSignature: await other.signMessage({ message }) }, NOW)).ok, false);
+  assert.equal((await checkArcBindBody({ ...body, solanaSignature: "1".repeat(88) }, NOW)).ok, false);
 });

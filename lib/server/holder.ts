@@ -2,7 +2,7 @@
  * Server side of token utility: a wallet's mainnet balances and tier, and the
  * tier a request has proven with a signed holder proof (lib/token-proof.ts).
  */
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { isEvmOwner, normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { ansemMint, mimirMint } from "@/lib/token-config";
 import { HOLDER_PROOF_HEADER, HOLDER_WALLET_HEADER, holderProofMessage, parseProofHeader } from "@/lib/token-proof";
 import { tierFor, tierThresholdsFromEnv, type TokenBalances, type TokenTier } from "@/lib/token-tiers";
@@ -33,6 +33,8 @@ function markRead(wallet: string): void {
 }
 
 export async function walletBalances(wallet: string): Promise<TokenBalances> {
+  // The tokens are Solana mints: a Robinhood Chain wallet holds none of them.
+  if (isEvmOwner(wallet)) return { mimir: 0, ansem: 0 };
   const mint = mimirMint();
   const [mimir, ansem] = await Promise.all([
     mint ? mainnetTokenBalance(wallet, mint) : Promise.resolve(0),
@@ -51,16 +53,16 @@ export async function walletTier(wallet: string): Promise<{ tier: TokenTier; bal
  * Never throws: a bad proof or an unreachable RPC just means no perk.
  */
 /** The wallet a request proves it controls (the signed holder proof headers), or null. Reads no balance. */
-export function provenWallet(req: Request): string | null {
-  const wallet = normalizeAddress(req.headers.get(HOLDER_WALLET_HEADER));
+export async function provenWallet(req: Request): Promise<string | null> {
+  const wallet = normalizeOwner(req.headers.get(HOLDER_WALLET_HEADER));
   const proof = parseProofHeader(req.headers.get(HOLDER_PROOF_HEADER));
   if (!wallet || !proof) return null;
-  const ok = verifyAgentSignature({ address: wallet, message: holderProofMessage(wallet, proof.signedAt), signature: proof.signature });
+  const ok = await verifyOwnerSignature({ address: wallet, message: holderProofMessage(wallet, proof.signedAt), signature: proof.signature });
   return ok ? wallet : null;
 }
 
 export async function provenTier(req: Request): Promise<TokenTier> {
-  const wallet = provenWallet(req);
+  const wallet = await provenWallet(req);
   if (!wallet) return "none";
   // Every new wallet costs mainnet RPC reads: cap them per IP before the
   // first call, so fresh wallets cannot burn the RPC credit. A wallet read in
@@ -86,5 +88,5 @@ export async function provenTier(req: Request): Promise<TokenTier> {
 export async function rateIdentity(req: Request): Promise<{ key: string; tier: TokenTier; pool: string }> {
   const tier = await provenTier(req);
   if (tier === "none") return { key: clientIp(req), tier, pool: "all" };
-  return { key: `wallet:${normalizeAddress(req.headers.get(HOLDER_WALLET_HEADER))}`, tier, pool: "holders" };
+  return { key: `wallet:${normalizeOwner(req.headers.get(HOLDER_WALLET_HEADER))}`, tier, pool: "holders" };
 }

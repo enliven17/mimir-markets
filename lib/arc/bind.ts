@@ -1,28 +1,30 @@
 /**
- * Binding a Solana wallet to an Arc account (docs/ARC.md, "Accounts and identity").
+ * Binding a Solana or Robinhood Chain wallet to an Arc account (docs/ARC.md, "Accounts and identity").
  *
- * Both sides sign the same readable message: the Solana wallet (ed25519,
- * wallet-adapter `signMessage`, base58) and the passkey smart account (EIP-191
+ * Both sides sign the same readable message: the owner wallet (Solana: ed25519,
+ * wallet-adapter `signMessage`, base58; Robinhood: EIP-191 personal_sign, lib/owner.ts) and the passkey smart account (EIP-191
  * through ERC-1271, or ERC-6492 while the account is not deployed yet). The
- * Solana signature proves who is binding; the Arc signature proves the Arc
+ * owner's signature proves who is binding; the Arc signature proves the Arc
  * account is theirs, so nobody can bind (and squat) someone else's account.
  *
  * The message carries `signedAt`; the server accepts it for ARC_BIND_TTL_MS.
  * Pure and isomorphic: the Arc signature needs an Arc RPC call, so the server
  * checks it separately (lib/server/arc-accounts.ts `verifyArcSignature`).
  */
-import { normalizeAddress, verifyAgentSignature } from "../agents/signature";
+import { isEvmOwner, normalizeOwner, verifyOwnerSignature } from "../owner";
 import { normalizeArcAddress } from "./encoding";
 
 export const ARC_BIND_TTL_MS = 5 * 60_000;
 
+/** `solana` is the owner wallet; a 0x owner is a Robinhood Chain wallet and is named so in the message. */
 export function arcBindMessage(solana: string, arc: string, signedAt: number): string {
+  const evm = isEvmOwner(solana);
   return [
     "Mimir Arc account",
-    `solana: ${solana}`,
+    `${evm ? "robinhood" : "solana"}: ${solana}`,
     `arc: ${arc}`,
     `signedAt: ${signedAt}`,
-    "This links your Solana wallet to your Arc account on Mimir. It moves no funds.",
+    `This links your ${evm ? "Robinhood" : "Solana"} wallet to your Arc account on Mimir. It moves no funds.`,
   ].join("\n");
 }
 
@@ -32,6 +34,7 @@ export function isFreshArcBind(signedAt: number, now = Date.now()): boolean {
 }
 
 export interface ArcBindRequest {
+  /** The owner wallet: a Solana key or a 0x Robinhood Chain address (lib/owner.ts). */
   solana: string;
   arc: `0x${string}`;
   signedAt: number;
@@ -48,12 +51,12 @@ const CREDENTIAL_ID = /^[A-Za-z0-9_-]{16,512}$/;
 const HEX_SIGNATURE = /^0x[0-9a-fA-F]{130,20000}$/;
 
 /**
- * Shape, freshness and the Solana signature. The Arc signature is only
+ * Shape, freshness and the owner's signature. The Arc signature is only
  * checked for shape here.
  */
-export function checkArcBindBody(body: Record<string, unknown>, now = Date.now()): ArcBindCheck {
-  const solana = normalizeAddress(body.solana);
-  if (!solana) return { ok: false, status: 400, error: "solana must be a Solana public key" };
+export async function checkArcBindBody(body: Record<string, unknown>, now = Date.now()): Promise<ArcBindCheck> {
+  const solana = normalizeOwner(body.solana);
+  if (!solana) return { ok: false, status: 400, error: "solana must be a Solana public key or a 0x wallet address" };
   const arc = normalizeArcAddress(body.arc);
   if (!arc) return { ok: false, status: 400, error: "arc must be an EVM address" };
   const signedAt = Number(body.signedAt);
@@ -66,8 +69,8 @@ export function checkArcBindBody(body: Record<string, unknown>, now = Date.now()
     typeof body.credentialId === "string" && CREDENTIAL_ID.test(body.credentialId) ? body.credentialId : null;
   const message = arcBindMessage(solana, arc, signedAt);
   const solanaSignature = String(body.solanaSignature ?? "");
-  if (!verifyAgentSignature({ address: solana, message, signature: solanaSignature })) {
-    return { ok: false, status: 401, error: "the Solana signature does not match" };
+  if (!(await verifyOwnerSignature({ address: solana, message, signature: solanaSignature }))) {
+    return { ok: false, status: 401, error: "the wallet signature does not match" };
   }
   return {
     ok: true,
