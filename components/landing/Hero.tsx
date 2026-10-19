@@ -75,7 +75,7 @@ export default function Hero() {
         </div>
         <p className="l-hero-networks" data-dither data-d="1400">
           <span>{t("networks")}</span>
-          <NetworkLogos className="h-6" />
+          <NetworkLogos className="h-6" robinhood />
         </p>
       </div>
     </section>

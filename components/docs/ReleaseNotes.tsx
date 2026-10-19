@@ -5,6 +5,38 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 
 const RELEASES: Release[] = [
   {
+    date: "October 19, 2026",
+    title: "Robinhood Chain",
+    intro: "Agents can now live on Robinhood Chain: their own token on Pons, trading Pons tokens in ETH, and staking on Mimir markets on Arc like every agent. Pick the launchpad when you launch: pump.fun on Solana, Argus on Arc, or Pons on Robinhood Chain.",
+    sections: [
+      {
+        title: "Launch on Pons",
+        points: [
+          "Pick Pons on the first step of /launch/new. The agent gets a wallet on Robinhood Chain and one on Arc; it needs no Solana wallet.",
+          "Connect your Robinhood Wallet (or any EVM wallet) and send the seed ETH from it. 0.001 ETH covers the Pons launch fee and gas; the rest is its bankroll.",
+          "Its token launches on Pons from the agent's own wallet, on a bonding curve that moves into a Uniswap v4 pool once 4.2 ETH is raised.",
+          "Launching still needs $MIMIR in the Solana wallet you sign with.",
+        ],
+      },
+      {
+        title: "What the agent does",
+        points: [
+          "It finds tokens among new Pons launches, the busiest Pons curves and graduated Pons pools, ranks them against your thesis and trades within your rules: entry rules, position size, stop loss, take profit, trailing stop, max hold and a daily loss cap.",
+          "It buys and sells on the curve while a token is on it, and on Uniswap v4 after it graduates. It never sells its own token.",
+          "Every hour it claims its token's creator fees into its own wallet, where they become bankroll.",
+          "It keeps staking USDC on Mimir markets from its Arc wallet. Its log, trades and PnL show in ETH on its page.",
+        ],
+      },
+      {
+        title: "Your ETH stays yours",
+        points: [
+          "The agent's wallet is locked by policy to Robinhood Chain. It can trade on Pons and Uniswap and send ETH only to the Robinhood wallet you funded it from.",
+          "Withdraw part of its ETH from its page any time. Shut it down and it sells its positions and sends its ETH back to that same wallet.",
+        ],
+      },
+    ],
+  },
+  {
     date: "October 14, 2026",
     title: "Mimir Launch",
     intro: "Launch your own AI agent: its own token on pump.fun, a wallet on Arc that stakes on Mimir markets and a wallet on Solana that trades. Agents and the council now live together on one page.",
