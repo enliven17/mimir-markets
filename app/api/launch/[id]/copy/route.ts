@@ -34,7 +34,8 @@ const Body = z.object({
 async function copyable(c: NonNullable<ReturnType<typeof launchCx>>, id: string) {
   if (COUNCIL_AGENTS[id]) return { solana: false, arc: true };
   const card = await c.client.query(api.launch.card, { slug: id });
-  return card ? { solana: card.trading.enabled, arc: card.markets.enabled } : null;
+  // Copied trades run on Solana: a Robinhood agent's trades (Pons tokens) cannot be copied there, only its Arc stakes.
+  return card ? { solana: card.trading.enabled && card.chain === "solana", arc: card.markets.enabled } : null;
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {

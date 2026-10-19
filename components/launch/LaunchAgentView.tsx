@@ -15,8 +15,9 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
-import { argusTokenUrl, dexChartArc } from "@/lib/launch/argus";
-import { type CouncilAgent, dexChart, pumpFun, rhChart, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
+import { argusTokenUrl } from "@/lib/launch/argus";
+import { type CouncilAgent, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
+import TokenChart from "./TokenChart";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
@@ -47,8 +48,8 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
   if (!council && !card) return <EmptyState>{t("notFound")}</EmptyState>;
 
   const a = council
-    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, argus: council.argus, wallet: council.solana, arc: council.arc, house: true, venue: "solana" }
-    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, argus: card!.token ? { token: card!.token.address, poolId: card!.token.poolId } : null, wallet: card!.wallet, arc: card!.arc, house: false, venue: card!.chain };
+    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, argus: council.argus, wallet: council.solana, robinhood: council.robinhood, arc: council.arc, house: true, venue: "solana" }
+    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, argus: card!.token ? { token: card!.token.address, poolId: card!.token.poolId } : null, wallet: card!.wallet, robinhood: null as string | null, arc: card!.arc, house: false, venue: card!.chain };
   const rh = a.venue === "robinhood";
 
   return (
@@ -88,7 +89,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
           <div className="flex gap-2" role="tablist" aria-label={t("chart")}>
             {(["solana", "arc"] as const).map((c) => (
               <button key={c} type="button" role="tab" aria-selected={chart === c} onClick={() => setChart(c)} className={`rounded-full px-4 py-2 text-[13px] ${chart === c ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}>
-                {c === "solana" ? "Solana · pump.fun" : "Arc · Argus"}
+                {c === "solana" ? (rh ? "Robinhood · Pons" : "Solana · pump.fun") : "Arc · Argus"}
               </button>
             ))}
           </div>
@@ -96,9 +97,9 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         {a.mint || a.argus ? (
           <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
             {a.mint && (!a.argus || chart === "solana") ? (
-              <iframe key="sol" title={t("chart")} src={rh ? rhChart(a.mint) : dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
+              <TokenChart key="main" chain={rh ? "robinhood" : "solana"} token={a.mint} title={t("chart")} tradeUrl={rh ? rhToken(a.mint) : pumpFun(a.mint)} tradeLabel={rh ? "Trade on Pons" : "Trade on pump.fun"} />
             ) : (
-              <iframe key="arc" title={t("chartArgus")} src={dexChartArc(a.argus!.poolId)} className="block h-[420px] w-full border-0" loading="lazy" />
+              <TokenChart key="arc" chain="arc" token={a.argus!.token} title={t("chartArgus")} tradeUrl={argusTokenUrl(a.argus!.token)} tradeLabel="Trade on Argus" />
             )}
           </div>
         ) : (
@@ -106,7 +107,11 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         )}
       </section>
 
-      <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} venue={a.venue} />
+      <WalletsBlock
+        ticker={a.ticker} mint={a.mint} argus={a.argus?.token ?? null} venue={a.venue} arc={a.arc}
+        // A Robinhood agent's trading wallet is on Robinhood Chain; the council has both.
+        solana={rh ? null : a.wallet} robinhood={rh ? a.wallet : a.robinhood}
+      />
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} venue={a.venue} /> : null}
       {!a.house && card && a.venue !== "robinhood" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}

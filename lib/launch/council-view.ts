@@ -14,12 +14,14 @@ export interface CouncilAgent {
   mint: string | null;
   /** Its Argus token on Arc, once launched (scripts/argus/socrates-launch.mts). */
   argus: { token: string; poolId: string } | null;
+  /** Its Robinhood Chain wallet (scripts/launch/council-robinhood.mts). */
+  robinhood: string | null;
 }
 
-type Raw = { name: string; ticker: string; arc: string | null; solana?: { address: string }; mint?: string; argus?: { token: string; poolId: string } };
+type Raw = { name: string; ticker: string; arc: string | null; solana?: { address: string }; robinhood?: { address: string }; mint?: string; argus?: { token: string; poolId: string } };
 
 export const COUNCIL_AGENTS: Record<string, CouncilAgent> = Object.fromEntries(
-  Object.entries(data as Record<string, Raw>).map(([slug, r]) => [slug, { slug, name: r.name, ticker: r.ticker, solana: r.solana?.address ?? null, arc: r.arc, mint: r.mint ?? null, argus: r.argus ? { token: r.argus.token, poolId: r.argus.poolId } : null }]),
+  Object.entries(data as Record<string, Raw>).map(([slug, r]) => [slug, { slug, name: r.name, ticker: r.ticker, solana: r.solana?.address ?? null, arc: r.arc, mint: r.mint ?? null, argus: r.argus ? { token: r.argus.token, poolId: r.argus.poolId } : null, robinhood: r.robinhood?.address ?? null }]),
 );
 
 /** Mainnet links: launch agents live on Solana mainnet whatever cluster the rest of the site reads. */

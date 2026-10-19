@@ -21,6 +21,11 @@
       "sellTaxBps": 200,
       "creatorBps": 8444,
       "burnBps": 1556
+    },
+    "robinhood": {
+      "walletId": "su5fxcfqky71mbseew1pfyxl",
+      "address": "0xbb0D4FE8AB1287a330D18e149865b9957C2defF0",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
     }
   },
   "optimist": {
@@ -33,7 +38,12 @@
     },
     "mint": "CjwKh3dUVEqw2kURZBFrafp9po4CESwGaQ8DYL8cAUy",
     "sig": "CKAfBRDexTfCGxQ2ZaZ2NNKiKphSnnYA1cRBfXFZ9bxbTHfHwLvSCwJG9g7YoaQ2tLPP7NmVwvE9nfZQ2L4YCph",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreiefq5phagkj36n2ddfm7vc7xqbrn3olxev2aesqa7koiyq43nlsye"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiefq5phagkj36n2ddfm7vc7xqbrn3olxev2aesqa7koiyq43nlsye",
+    "robinhood": {
+      "walletId": "smfiehw63r3lebnbbse3903o",
+      "address": "0x3d6a0251a6d9dF07922950dF3D750EFE9AF51FD1",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "pessimist": {
     "name": "The Pessimist",
@@ -45,7 +55,12 @@
     },
     "mint": "5s7mwpsrbVN35JSpmCcV5NMFsis4U5TqZzM5ymkZqJcy",
     "sig": "5v1gHARhXUUfLbrN34WvcxjhjjRVyrnMaQxRPzGXiozrCa7U6SDXdq1QVtGEtYnBXnqxWcqL9J3uBsMVMffemcp3",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreic7isjavwlefri2qxagrsq7xnpn3k3eiwjjxfokathj5s3slk2eze"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreic7isjavwlefri2qxagrsq7xnpn3k3eiwjjxfokathj5s3slk2eze",
+    "robinhood": {
+      "walletId": "l3xr9uea6vj1q65oi6ldobap",
+      "address": "0x39566FB36780360f9543529e6Be13ED7067a26B0",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "contrarian": {
     "name": "The Contrarian",
@@ -57,7 +72,12 @@
     },
     "mint": "3keyTAhapCiCTEBvTweb38qEaxbt3hneuJqWzFMAhvu3",
     "sig": "3DnzVgdWKEL6cdbxQqNUowB5RWWas1ktusc9gVDwryRQrj4TVGPjTWZtGdkZi17zbDVJU7vcU3biE9dfjdvFQyxX",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreig26tiumsoisa44bry2gpucjkdxdzpjycdrwaeu2ehn7f6avg3tsy"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreig26tiumsoisa44bry2gpucjkdxdzpjycdrwaeu2ehn7f6avg3tsy",
+    "robinhood": {
+      "walletId": "u10atd842bmxff4pfjdz038s",
+      "address": "0xc0352d27E705bAE9ECa9a61cA555885E93daF117",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "statistician": {
     "name": "The Statistician",
@@ -69,7 +89,12 @@
     },
     "mint": "J8p6MPhcXupKpRQBJr38aue8AyWPLpGBtWZ3djvA8WmZ",
     "sig": "4zatUioZiNJJs48J78XVr9Z3NqN8gDcXu39q8sxqbdBsQgMYEjR5tQC7uoRViNwotCAUAcwhWe9QWs7v3UCVC4C1",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreiccnejgop54eufcdvideacdctdec4vusbl7z56rmgdzankizwzuxe"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiccnejgop54eufcdvideacdctdec4vusbl7z56rmgdzankizwzuxe",
+    "robinhood": {
+      "walletId": "s2rsgrpvk8sf167oily7zv62",
+      "address": "0x67df16fbd805fE70d33a72ef9b0d8B6b6821ca2c",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "whale-watcher": {
     "name": "The Whale-Watcher",
@@ -81,7 +106,12 @@
     },
     "mint": "DUS76QkEXz3J432mFA4uqxWp2iW3GU2G9WT8dTLq125R",
     "sig": "kzi3FCBpih33QCMe9sjorkLHrDx5P7qQrWTd74GPYwMB71gzzTRtysDrQ6omw5Qb1spzpSj48mGsrzYhJThE8v4",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreifjquiqsgcnlifrzvk26hkuwjwvvbh5t5zljusb4ii6d6ysuxq2q4"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreifjquiqsgcnlifrzvk26hkuwjwvvbh5t5zljusb4ii6d6ysuxq2q4",
+    "robinhood": {
+      "walletId": "pm9h24bmk9tyqn9l0rmgep1c",
+      "address": "0x0F52BBD74369BE9610BCD0E63E5d70c1Fd4b0343",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "crypto-maxi": {
     "name": "Crypto Maximalist",
@@ -93,7 +123,12 @@
     },
     "mint": "DhGdpTNPsYp3GFcRQufqfcQbfPuTRKB6UGHxHtsap7f6",
     "sig": "WAXnpA9WzVDDsyi58CLRTCUd6bw397yZ2yg1hZ2txQsWxnnibZE7JZXb87NXpLBBeoqjX4nLJQHLgYBHBZUwWwU",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreibvjmuyifzr5kkbq2gyh7kjjrqvdaiyvdpbbionvt45hgyum7s3ei"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreibvjmuyifzr5kkbq2gyh7kjjrqvdaiyvdpbbionvt45hgyum7s3ei",
+    "robinhood": {
+      "walletId": "yrdvy7m8t6o2f546zmwvcdfd",
+      "address": "0x9EfeC87D309425233E69D88fAb9c7D39f5A20B7A",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "sports-pundit": {
     "name": "Sports Pundit",
@@ -105,7 +140,12 @@
     },
     "mint": "8mny112k4eEVQqEvR7bgUkHn1mm2oF9b7Rc2h6p8eVtE",
     "sig": "3nV2YiiiDC8VYrudbsdFaACZXXuHjQfyggLkcgcse2S1nWfghY24TosrbR6N2tRByqoSLGXRj2kUpxzdeKHgc57t",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreihbuhu7zoqf6ygwfellnsskypbucs7wn7lbssdzjkfr67p745flua"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreihbuhu7zoqf6ygwfellnsskypbucs7wn7lbssdzjkfr67p745flua",
+    "robinhood": {
+      "walletId": "kvvj5btdqjnpuh419lcc3uxs",
+      "address": "0xA769AfaeBA8768855e393aA738805f62bE1388F5",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "weatherman": {
     "name": "The Weatherman",
@@ -117,7 +157,12 @@
     },
     "mint": "45pJbmVTnuLUe4rFxS5nw3ARJaX5EBTqsTBNHokcY36b",
     "sig": "2iMus1va1iFoWVo6n2KnbmwMbRAHPscMfrPPedc44HUUgd78Eo7GntfFo3xjA37uz41C41qEdxh2wUBKDdYQgz1N",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreig2q4r5jsxbrn7cc3mxmacdab52lm7innbg5hmw55osfephwzbmdm"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreig2q4r5jsxbrn7cc3mxmacdab52lm7innbg5hmw55osfephwzbmdm",
+    "robinhood": {
+      "walletId": "vl6bw3ltzi7cilvw070secys",
+      "address": "0x1D9F90A16756665587aeA1282C65b1e3d1fd557a",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "doomer": {
     "name": "The Doomer",
@@ -129,7 +174,12 @@
     },
     "mint": "DjYzho9XDFf8fWkug84CuqLtXyckokESz1r1HWMoeFXn",
     "sig": "3Q968N2tvRbF23Kxf6Q9fCdZgB81XBqxRNXx4XBaeHYsdvBTjRhGzXjqq1XRJGwUgScxTw25Jqxh2sCuXay2Bvte",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreigtbmgopvwopxvqelfegrdlb7ekn6hfwvfi3jiezt25ds34cpotja"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigtbmgopvwopxvqelfegrdlb7ekn6hfwvfi3jiezt25ds34cpotja",
+    "robinhood": {
+      "walletId": "kk9nivnc38o2bb0aqvyc5v69",
+      "address": "0xe905Faad7f4b27a58d19BdF517dB67B3dcFEab96",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "yapper": {
     "name": "The Yapper",
@@ -141,7 +191,12 @@
     },
     "mint": "7DJz9bQ6WbKHFHxvMmHnkfhnEUoA57T2XvhDhEgTdKSt",
     "sig": "3Fz8untXCfKCAwFhioyV5yJd6kKfERUicdjD2WA55NbHD7FBoVbaggzYquwodLCgaZiWZwCeSim9CDS8AVwfibhc",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreiesozwci42eli4fhw6nowox3utxdwn7tishsai63ksjkvkjqyerjy"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreiesozwci42eli4fhw6nowox3utxdwn7tishsai63ksjkvkjqyerjy",
+    "robinhood": {
+      "walletId": "nxr8kj62gqq9sv3ubdqi6zm0",
+      "address": "0x4a83D3D3D575a82F2991D6180344170524CA426e",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "kahneman": {
     "name": "Kahneman",
@@ -153,7 +208,12 @@
     },
     "mint": "7BHoYk4aXRoKPozXmstRd4Gh7mbFYeWPqLoKFQG5i8YC",
     "sig": "266ekNhTaUZvs3LwnuuQGvyG8TiBaJLS7ErNrR4QX1xztEUx3fGbxRWNXszgru4s5qXGmi8dWER9kt5vAtwUn9KV",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreieqx7yo42o3xjcyjezutzpakmoxgnrgpznjqxt7hmekl77shj5dpy"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreieqx7yo42o3xjcyjezutzpakmoxgnrgpznjqxt7hmekl77shj5dpy",
+    "robinhood": {
+      "walletId": "xphllmdrgwamlmvggsbsxvcq",
+      "address": "0x40610a5D2fC4f99A644538dDC979Cfd755c85b7B",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "taleb": {
     "name": "Taleb",
@@ -165,7 +225,12 @@
     },
     "mint": "43J3kefdHpfQdwBV6eD4ai4HxzFw6tS7wE5sy9icD8Qt",
     "sig": "kahXZCYKhfZKhpJrkxJhi1kTGqJYVmeK7NmHAmZHqQf8SAWQmwzBBQjD1ooiBffK6AMVdeZD4QTZrHqU25q6mDJ",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreic23zrxlkjhed7j3cpq5glfoqydqgbw5cvran7u24n3hliupn6vja"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreic23zrxlkjhed7j3cpq5glfoqydqgbw5cvran7u24n3hliupn6vja",
+    "robinhood": {
+      "walletId": "l1enod910lv7csgjzhsn0tk5",
+      "address": "0x99D7c427c189550Be31416616897fa59334DD328",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "feynman": {
     "name": "Feynman",
@@ -177,7 +242,12 @@
     },
     "mint": "6f5BztNvosqK9x7Hup6CtknRrpt9oaLRz2DWrb1ugx37",
     "sig": "xVcgx1jbgT8MLTNJFtfMEBCrPeyEi5SiyXDAk2yAfMAA24KryeAnzHWB64y7apU2voHqbnynYgmRkPhfKegNSYd",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreihue7y62vzouwte4tkw7kxc7mkmv4duqqkf6dj7iddkspjxjz4z3m"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreihue7y62vzouwte4tkw7kxc7mkmv4duqqkf6dj7iddkspjxjz4z3m",
+    "robinhood": {
+      "walletId": "q2zxxdez92w23yu5qauom4ff",
+      "address": "0x5454b83529dB760bbdA1E2F429B7166d654EA2cB",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "munger": {
     "name": "Munger",
@@ -189,7 +259,12 @@
     },
     "mint": "4es4vXcuFm6tmx4moz7Re6fBnL1iY6X31KjM3CpXVY32",
     "sig": "5xKZdjR4EMjTz5eYaQK8Z1ajLu7aHAPQW7QLRNY3x4D6CtmiehfJfWboqXuWF84fuYbhBNEtCe1e6742PwWkoBPg",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreieh464j3yexy3jh3maf6mxivv5bufdzknmvmkr5wjysxzfm673ici"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreieh464j3yexy3jh3maf6mxivv5bufdzknmvmkr5wjysxzfm673ici",
+    "robinhood": {
+      "walletId": "cxskesarzytpnr7ldm6vc7hn",
+      "address": "0x9e79Cb4AB21Ec3EeDF4b8B4C8e02b2E382e8372f",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "ada": {
     "name": "Ada",
@@ -201,7 +276,12 @@
     },
     "mint": "9LJSWrz2phoNX3E7VarqnFC2Wr4q6YpY6BzTqfjzxshJ",
     "sig": "4vMMnQZksX8TNXKpK56pcTR33JjVriWSzSbpxCmUT6Qkf9db4QEUEZoFqyLqSnnJJ83XE54QgXuwPjABNC2chwcw",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreigcelvz3j4g3mhtxwqg6yijdvqm6upbkna7xm7qhja444hfmoc73q"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigcelvz3j4g3mhtxwqg6yijdvqm6upbkna7xm7qhja444hfmoc73q",
+    "robinhood": {
+      "walletId": "my6dzoc9p0veefjlhn9u8gr5",
+      "address": "0x848FC1Eacc1015dcA413B686b9E901Ed88Dde087",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "meadows": {
     "name": "Meadows",
@@ -213,7 +293,12 @@
     },
     "mint": "BESheMipL1fL9uFDHzdhZjmUmJJ7dexhGY8VuUprRs5H",
     "sig": "61N2WNPZCAd6HNsDx7P9cMZF6XnrSemg2Z9cBwb7PsdrWHc5ZJzD229gfMUsPreSUH7XRmrED5LxtsNmxKVuXSJx",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreier7ix2evjpmwsqes6yk3xli7impp2ticfjbw7xvof5xcklncwjxi"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreier7ix2evjpmwsqes6yk3xli7impp2ticfjbw7xvof5xcklncwjxi",
+    "robinhood": {
+      "walletId": "a5l2dy94vjk68icqbvu51kyp",
+      "address": "0x0AC60192E45F5A2d102bf4801d739e69F75b562f",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "machiavelli": {
     "name": "Machiavelli",
@@ -225,7 +310,12 @@
     },
     "mint": "Hs1sKXrEfh8bVqoHPqHkngWUMAFkLSDniNHXtzPnvz9C",
     "sig": "2sXeNK3dJcMU9fuVkM4ZkHXp8B1EER4c6eqAZHzeWFgQQZKEupLeWTxfGMSksz6x85AwAtKXJG9ruBxBBitjeVj9",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreib5f2k3pb4cn6hi3rmxrzflgn6rzradtgba7sp6s3ntb2amuvwzgq"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreib5f2k3pb4cn6hi3rmxrzflgn6rzradtgba7sp6s3ntb2amuvwzgq",
+    "robinhood": {
+      "walletId": "d6ww0efaz144peaftghnojp6",
+      "address": "0xB44ED10738C888642A12Afe9d6d244deaf5f1Ca6",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "aurelius": {
     "name": "Aurelius",
@@ -237,7 +327,12 @@
     },
     "mint": "HeLnfERwrFdYq5fqGQVMvZ3KD9bo4ZHLZ5LMhfV7BkQK",
     "sig": "22sNxMoZrhpQz8gfnEoRvrRzn8QFXAzWY7ThyCehnw2ayb3veUjFgRHohypzh6ohJLAQuh51pboR8yfTQAGUt6CH",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreie734kyr3ff37xqedhplps5nbdlvt5xrdg2trrif7m55mvagtfife"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreie734kyr3ff37xqedhplps5nbdlvt5xrdg2trrif7m55mvagtfife",
+    "robinhood": {
+      "walletId": "fariigeb6p4k7vclo5a6vkcl",
+      "address": "0xe61fbC2D45A67EcA2df9E38260Abe32077968E13",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   },
   "lao-tzu": {
     "name": "Lao Tzu",
@@ -249,6 +344,11 @@
     },
     "mint": "6epqZgCVK5QfuEv7azDZYnCyRtTVHs674Mid6mKLQvDL",
     "sig": "2pfpkneCFDutvgt2csP7MdyCvR4a5AcfthBPQybi1PfUe6MoH3joHsdpmGYMJ4v2SbrXf8yjPNKNwV5qkjfABSp2",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreia57x3l2rzjwpe4m4mov44s4mioato7ji3qc6a25m4qq4ob6pcc7q"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreia57x3l2rzjwpe4m4mov44s4mioato7ji3qc6a25m4qq4ob6pcc7q",
+    "robinhood": {
+      "walletId": "nv20g7y2idga32hn4yz10wgc",
+      "address": "0x967b954648F28D113201CBCb1f7F4B1C81e8603A",
+      "payout": "0xeF4E91f4aC6DD809aD16512EC662043466bb1c33"
+    }
   }
 }
