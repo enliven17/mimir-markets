@@ -1,6 +1,7 @@
 /**
  * POST /api/launch/:id/withdraw { chain, amount }: part (or all) of an agent's free balance back to its owner, signed
- * by the owner. Solana: SOL to the owner's wallet (the wallet's Privy policy allows nothing else). Arc: USDC to the
+ * by the owner. Solana: SOL to the owner's wallet (the wallet's Privy policy allows nothing else). Robinhood: ETH to the
+ * owner's payout address recorded at creation (the only payee its policy allows besides the treasury). Arc: USDC to the
  * Arc account bound to the owner's wallet, never to an address from the request. Open positions and stakes stay put.
  */
 import { z } from "zod";
@@ -10,6 +11,7 @@ import { ARC } from "@/lib/arc/config";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { getSolana } from "@/lib/launch/solana/env";
+import { getRobinhood } from "@/lib/launch/robinhood/env";
 import { getArcBinding } from "@/lib/server/arc-accounts";
 import { transferNative } from "@/lib/server/circle-w3s";
 import { allowRequest } from "@/lib/server/rate-limit";
@@ -20,7 +22,7 @@ export const maxDuration = 120; // Circle and Solana confirmations wait up to 90
 /** Left on Arc for the agent's own gas. */
 const ARC_GAS_RESERVE_WEI = 50_000_000_000_000_000n; // 0.05 USDC
 
-const Body = z.object({ chain: z.enum(["solana", "arc"]), amount: z.number().positive().max(1_000_000) });
+const Body = z.object({ chain: z.enum(["solana", "robinhood", "arc"]), amount: z.number().positive().max(1_000_000) });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -28,7 +30,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!g.ok) return g.res;
   if (!(await allowRequest("launch-withdraw", g.owner, 10, 10 * 60_000))) return fail(429, "Too many withdrawals. Wait a few minutes.");
   const parsed = Body.safeParse(g.body);
-  if (!parsed.success) return fail(400, "chain must be solana or arc, with a positive amount");
+  if (!parsed.success) return fail(400, "chain must be solana, robinhood or arc, with a positive amount");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
   const a = await c.client.query(api.launch.forLaunch, { secret: c.secret, slug: id });
@@ -49,6 +51,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const sig = await solana.executor.transferSol({ walletId: a.solana.walletId, wallet: a.solana.address, to: g.owner, lamports });
       await c.client.mutation(api.launch.logEvent, { secret: c.secret, slug: id, kind: "rules", text: `owner withdrew ${amount} SOL (${sig.slice(0, 8)}…)` });
       return Response.json({ tx: sig });
+    }
+    if (chain === "robinhood") {
+      if (!a.robinhood) return fail(409, "This agent has no Robinhood Chain wallet.");
+      const rh = getRobinhood();
+      const gwei = BigInt(Math.floor(amount * 1e9));
+      // Spendable already keeps the gas reserve; Robinhood agents have no fee pools owed out of the wallet.
+      const free = await rh.executor.spendable(a.robinhood.address);
+      if (gwei > free) return fail(400, `Only ${Number(free) / 1e9} ETH is free to withdraw (the rest pays gas or is in open positions).`);
+      const tx = await rh.executor.transferSol({ walletId: a.robinhood.walletId, wallet: a.robinhood.address, to: a.robinhood.payout, lamports: gwei });
+      await c.client.mutation(api.launch.logEvent, { secret: c.secret, slug: id, kind: "rules", text: `owner withdrew ${amount} ETH on Robinhood Chain (${tx.slice(0, 10)}…)` });
+      return Response.json({ tx });
     }
     if (!a.arc) return fail(409, "This agent has no Arc wallet.");
     const to = (await getArcBinding(g.owner))?.arc;
