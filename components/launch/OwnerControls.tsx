@@ -6,11 +6,14 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 import { signedPost } from "@/lib/launch/client";
 
-export default function OwnerControls({ slug, owner, status }: { slug: string; owner: string; status: string }) {
+const COIN: Record<string, { unit: string; chain: string }> = { solana: { unit: "SOL", chain: "Solana" }, robinhood: { unit: "ETH", chain: "Robinhood Chain" } };
+
+export default function OwnerControls({ slug, owner, status, venue = "solana" }: { slug: string; owner: string; status: string; venue?: string }) {
+  const coin = COIN[venue] ?? null;
   const { publicKey, signMessage } = useWallet();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [chain, setChain] = useState<"solana" | "arc">("solana");
+  const [chain, setChain] = useState<"solana" | "robinhood" | "arc">(venue === "robinhood" ? "robinhood" : venue === "arc" ? "arc" : "solana");
   const [amount, setAmount] = useState("");
   if (!publicKey || publicKey.toBase58() !== owner || !signMessage) return null;
 
@@ -26,7 +29,7 @@ export default function OwnerControls({ slug, owner, status }: { slug: string; o
     }
   };
   const post = <T,>(path: string, action: "status" | "withdraw", body: unknown) => signedPost<T>(`/api/launch/${slug}/${path}`, { owner, signMessage, action, agent: slug, body });
-  const setStatus = (s: "live" | "paused" | "killed") => act(async () => (await post("status", "status", { status: s }), s === "killed" ? "Shutting down: it sells its positions and sends its SOL back to you." : s === "paused" ? "Paused." : "Running again."));
+  const setStatus = (s: "live" | "paused" | "killed") => act(async () => (await post("status", "status", { status: s }), s === "killed" ? (coin ? `Shutting down: it sells its positions and sends its ${coin.unit} back to you.` : "Shut down: it stakes no more.") : s === "paused" ? "Paused." : "Running again."));
 
   return (
     <section className="grid gap-4 rounded-2xl bg-cream/[0.04] p-5">
@@ -43,7 +46,7 @@ export default function OwnerControls({ slug, owner, status }: { slug: string; o
             disabled={busy}
             className="text-[14px] text-coral hover:underline"
             onClick={() => {
-              if (window.confirm("Shut it down for good? It sells its Solana positions and returns its SOL to you. Arc stakes settle on their own.")) void setStatus("killed");
+              if (window.confirm(coin ? `Shut it down for good? It sells its ${coin.chain} positions and returns its ${coin.unit} to you. Arc stakes settle on their own.` : "Shut it down for good? It stops staking. Arc stakes settle on their own.")) void setStatus("killed");
             }}
           >
             Shut down
@@ -65,15 +68,18 @@ export default function OwnerControls({ slug, owner, status }: { slug: string; o
       >
         <label className="grid gap-1.5">
           <span className="text-[13px] text-muted">Withdraw</span>
-          <select className="input !w-auto" value={chain} onChange={(e) => setChain(e.target.value as "solana" | "arc")}>
-            <option value="solana">SOL (Solana)</option>
+          <select className="input !w-auto" value={chain} onChange={(e) => setChain(e.target.value as "solana" | "robinhood" | "arc")}>
+            {coin ? <option value={venue}>{coin.unit} ({coin.chain})</option> : null}
             <option value="arc">USDC (Arc)</option>
           </select>
         </label>
         <input className="input !w-32 font-mono" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" />
         <button type="submit" disabled={busy} className="btn-primary !w-auto !px-5">Withdraw</button>
       </form>
-      <p className="m-0 text-[12px] text-muted">SOL goes to this wallet; USDC goes to the Arc account linked to it.</p>
+      <p className="m-0 text-[12px] text-muted">
+        {venue === "robinhood" ? "ETH goes to the Robinhood wallet you launched it from" : venue === "arc" ? "" : "SOL goes to this wallet"}
+        {venue === "arc" ? "USDC goes to the Arc account linked to your wallet." : "; USDC goes to the Arc account linked to it."}
+      </p>
       {note ? <p role="status" className="m-0 text-[14px] text-cream">{note}</p> : null}
     </section>
   );

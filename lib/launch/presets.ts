@@ -24,3 +24,22 @@ export const PRESETS: Record<"trending" | "whale" | "social", { sources: DataSou
 
 /** What the agent wallet keeps for minting its token (flow.ts LAUNCH_FEE_LAMPORTS, server-only). */
 export const LAUNCH_FEE_SOL = 0.01;
+
+/** Robinhood Chain (convex/launchRh.ts): the Pons sources run under the engine's "pumpfun" / "dexscreener" ids. */
+export const RH_SOURCES: Partial<Record<DataSource, string>> = {
+  pumpfun: "Pons launches",
+  dexscreener: "Graduated Pons pools",
+};
+
+export const RH_STRATEGIES: Partial<Record<Strategy, { label: string; blurb: string }>> = {
+  trending: { label: "Graduated", blurb: "Pons tokens already trading on Uniswap, with real volume." },
+  sniper: { label: "Fresh launches", blurb: "New Pons tokens early on their curve, once buyers show up." },
+};
+
+export const RH_PRESETS: Record<"trending" | "sniper", { sources: DataSource[]; entry: Condition[] }> = {
+  trending: { sources: ["dexscreener"], entry: [{ metric: "liquidityUsd", op: ">", value: 20_000 }, { metric: "volume1hUsd", op: ">", value: 2_000 }] },
+  sniper: { sources: ["pumpfun"], entry: [{ metric: "ageMinutes", op: "<", value: 60 }, { metric: "curvePct", op: ">", value: 5 }, { metric: "volume1hUsd", op: ">", value: 300 }] },
+};
+
+/** What the owner sends on top of the seed for a Robinhood launch (flow.ts RH_LAUNCH_FEE_WEI: Pons fee + gas). */
+export const RH_LAUNCH_FEE_ETH = 0.001;

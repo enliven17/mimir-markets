@@ -120,6 +120,27 @@ function restore() {
   silent().catch(() => remember(null));
 }
 
+/** Put the wallet on Robinhood Chain (adding the network if it does not know it yet). */
+async function onRobinhoodChain(p: Eip1193) {
+  const chainId = toHex(ROBINHOOD_CHAIN.id);
+  try {
+    await p.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+  } catch (err) {
+    if ((err as { code?: number })?.code !== 4902) throw err;
+    await p.request({
+      method: "wallet_addEthereumChain",
+      params: [{ chainId, chainName: ROBINHOOD_CHAIN.name, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: [ROBINHOOD_CHAIN.rpcUrl], blockExplorerUrls: [ROBINHOOD_CHAIN.explorer] }],
+    });
+  }
+}
+
+/** A plain ETH transfer on Robinhood Chain from the connected wallet. Returns the tx hash. */
+async function sendEthRobinhood(to: string, wei: bigint): Promise<`0x${string}`> {
+  if (!provider || !state.address) throw new Error("Connect your Robinhood wallet first.");
+  await onRobinhoodChain(provider);
+  return (await provider.request({ method: "eth_sendTransaction", params: [{ from: state.address, to, value: toHex(wei) }] })) as `0x${string}`;
+}
+
 async function signRobinhood(text: string): Promise<string> {
   if (!provider || !state.address) throw new Error("Connect your Robinhood wallet first.");
   return (await provider.request({ method: "personal_sign", params: [toHex(text), state.address] })) as string;
@@ -140,5 +161,6 @@ export function useRobinhoodWallet() {
     connect: connectRobinhood,
     disconnect: disconnectRobinhood,
     sign: s.address ? signRobinhood : null,
+    sendEth: s.address ? sendEthRobinhood : null,
   };
 }

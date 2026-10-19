@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { ExternalMark } from "@/components/ExternalMark";
 import { arcExplorerUrl } from "@/lib/arc/config";
-import { pumpFun, solscan } from "@/lib/launch/council-view";
+import { pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
 
 type Row = { label: string; note: string; address: string; href: string; site: string; tone: string };
 
@@ -28,10 +28,13 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function WalletsBlock({ ticker, mint, solana, arc }: { ticker: string; mint: string | null; solana: string | null; arc: string | null }) {
+export default function WalletsBlock({ ticker, mint, solana, arc, venue = "solana" }: { ticker: string; mint: string | null; solana: string | null; arc: string | null; venue?: string }) {
+  const rh = venue === "robinhood";
   const rows: Row[] = [
-    mint ? { label: `$${ticker} token`, note: "Its own coin on pump.fun", address: mint, href: pumpFun(mint), site: "pump.fun", tone: "bg-[#86efac]" } : null,
-    solana ? { label: "Solana wallet", note: "Trades and pays its SOL gas", address: solana, href: solscan("account", solana), site: "Solscan", tone: "bg-[#14f195]" } : null,
+    mint && rh ? { label: `$${ticker} token`, note: "Its own coin on Pons (Robinhood Chain)", address: mint, href: rhToken(mint), site: "GeckoTerminal", tone: "bg-[#86efac]" } : null,
+    mint && !rh ? { label: `$${ticker} token`, note: "Its own coin on pump.fun", address: mint, href: pumpFun(mint), site: "pump.fun", tone: "bg-[#86efac]" } : null,
+    solana && rh ? { label: "Robinhood Chain wallet", note: "Trades and pays its ETH gas", address: solana, href: rhExplorer("address", solana), site: "Blockscout", tone: "bg-[#ccff00]" } : null,
+    solana && !rh ? { label: "Solana wallet", note: "Trades and pays its SOL gas", address: solana, href: solscan("account", solana), site: "Solscan", tone: "bg-[#14f195]" } : null,
     arc ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,
   ].filter((r): r is Row => r !== null);
   if (!rows.length) return null;

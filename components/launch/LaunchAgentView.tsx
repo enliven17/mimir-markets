@@ -15,7 +15,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
-import { type CouncilAgent, dexChart, pumpFun, solscan } from "@/lib/launch/council-view";
+import { type CouncilAgent, dexChart, pumpFun, rhChart, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
@@ -26,6 +26,7 @@ type Council = CouncilAgent & { displayName: string; bio: string };
 type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
 type Detail = {
   agent: null | {
+    venue?: string;
     events: { at: number; kind: string; text: string; chain: string | null; tx: string | null }[];
     solana: { pnlLamports: string; wins: number; losses: number; trades: number; open: { mint: string; symbol: string; costLamports: string }[] };
     recentTrades: { mint: string; side: string; lamports: string; sig: string; pnlLamports: string | null; reason: string; at: number }[];
@@ -44,8 +45,9 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
   if (!council && !card) return <EmptyState>{t("notFound")}</EmptyState>;
 
   const a = council
-    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, wallet: council.solana, arc: council.arc, house: true }
-    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, wallet: card!.wallet, arc: card!.arc, house: false };
+    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, wallet: council.solana, arc: council.arc, house: true, venue: "solana" }
+    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, wallet: card!.wallet, arc: card!.arc, house: false, venue: card!.venue };
+  const rh = a.venue === "robinhood";
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -63,7 +65,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         </div>
         {a.about ? <p className="col-span-2 m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted sm:col-span-1 sm:col-start-2 sm:row-start-2 sm:self-start">{a.about}</p> : null}
         {a.mint ? (
-          <a href={pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
+          <a href={rh ? rhToken(a.mint) : pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary col-span-2 !min-h-[46px] !px-5 !py-2.5 !text-[15px] sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:!w-auto">
             {t("buy", { ticker: a.ticker })} <ExternalMark />
           </a>
         ) : null}
@@ -72,17 +74,17 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       <section className="grid gap-3" aria-label={t("chart")}>
         {a.mint ? (
           <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
-            <iframe title={t("chart")} src={dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
+            <iframe title={t("chart")} src={rh ? rhChart(a.mint) : dexChart(a.mint)} className="block h-[420px] w-full border-0" loading="lazy" />
           </div>
         ) : (
           <EmptyState>{t("noToken")}</EmptyState>
         )}
       </section>
 
-      <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} />
+      <WalletsBlock ticker={a.ticker} mint={a.mint} solana={a.wallet} arc={a.arc} venue={a.venue} />
 
-      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} /> : null}
-      {!a.house && card ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}
+      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} venue={a.venue} /> : null}
+      {!a.house && card && a.venue === "solana" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <HolderSection slug={slug} />
     </div>
@@ -135,6 +137,8 @@ function HolderSection({ slug }: { slug: string }) {
   const won = bets.filter((b) => b.outcome === "won").length;
   const lost = bets.filter((b) => b.outcome === "lost").length;
   const s = detail.agent?.solana;
+  const rhAgent = detail.agent?.venue === "robinhood";
+  const unit = rhAgent ? "ETH" : "SOL";
   return (
     <section className="grid gap-5">
       <h2 className="m-0 font-display text-[1.4rem] text-cream">{t("recordTitle")}</h2>
@@ -143,7 +147,7 @@ function HolderSection({ slug }: { slug: string }) {
         <StripCell label={t("winRate")} value={won + lost ? `${Math.round((won / (won + lost)) * 100)}%` : "-"} />
         <StripCell label={t("arcPnl")} value={`${usd(bets.reduce((x, b) => x + b.pnl, 0))} USDC`} />
         <StripCell label={t("atRisk")} value={`${bets.filter((b) => b.outcome === "open").reduce((x, b) => x + b.usdc, 0).toFixed(2)} USDC`} />
-        {s ? <StripCell label={t("solPnl")} value={`${sol(s.pnlLamports)} SOL`} /> : null}
+        {s ? <StripCell label={t("solPnl")} value={`${sol(s.pnlLamports)} ${unit}`} /> : null}
         {s ? <StripCell label={t("solRecord")} value={`${s.wins}/${s.losses}`} /> : null}
       </Strip>
 
@@ -175,10 +179,10 @@ function HolderSection({ slug }: { slug: string }) {
               <ul className="m-0 grid list-none gap-1.5 p-0 text-[13px]">
                 {detail.agent.recentTrades.map((tr) => (
                   <li key={tr.sig} className="flex items-baseline justify-between gap-3">
-                    <a href={solscan("tx", tr.sig)} target="_blank" rel="noreferrer" className="min-w-0 truncate text-muted hover:text-coral">
+                    <a href={rhAgent ? rhExplorer("tx", tr.sig) : solscan("tx", tr.sig)} target="_blank" rel="noreferrer" className="min-w-0 truncate text-muted hover:text-coral">
                       <span className="text-cream">{tr.side}</span> {short(tr.mint)} · {tr.reason}
                     </a>
-                    <span className="shrink-0 font-mono tabular-nums text-cream">{sol(tr.pnlLamports ?? tr.lamports)} SOL</span>
+                    <span className="shrink-0 font-mono tabular-nums text-cream">{sol(tr.pnlLamports ?? tr.lamports)} {unit}</span>
                   </li>
                 ))}
               </ul>

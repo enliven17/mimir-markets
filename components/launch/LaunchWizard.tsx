@@ -1,23 +1,28 @@
 "use client";
 
 /**
- * /launch/new: launch a hosted agent (ported from snipad's LaunchWizard, in Mimir's look). Five steps: who it is,
- * its brain, Mimir markets on Arc, Solana trading (optional), then review. Launching is three wallet actions, each
- * safe to retry: sign the agent (the server makes its two wallets), send the seed SOL, sign the launch (it mints
- * its token on pump.fun).
+ * /launch/new: launch a hosted agent (ported from snipad's LaunchWizard, in Mimir's look). First where it lives
+ * (lib/launch/flow.ts venues): Arc markets only, Solana with a pump.fun token, or Robinhood Chain with a Pons token.
+ * Then who it is, its brain, Mimir markets on Arc, trading (optional), fees, review. Launching is up to three wallet
+ * actions, each safe to retry: sign the agent (the server makes its wallets), send the seed (SOL from the Solana
+ * wallet, or ETH from the connected Robinhood wallet), sign the launch. An Arc-only agent is live after the first.
  */
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { createPublicClient, http } from "viem";
 
 import Chip from "@/components/ui/Chip";
 import Slider from "@/components/ui/Slider";
 import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
+import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
+import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
+import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
 import { Link } from "@/i18n/navigation";
 import { BODIES, COLOURS, EYES, PALETTE, avatarFromSeed, encodeAvatarSeed, type AvatarPicks } from "@/lib/avatar";
 import { BYOK_PROVIDERS, type ByokProvider } from "@/lib/launch/byok-providers";
 import { signedPost } from "@/lib/launch/client";
-import { LAUNCH_FEE_SOL, PRESETS, SOURCES, STRATEGIES } from "@/lib/launch/presets";
+import { LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
 import { AGENT_MARKETS_PER_DAY_MAX } from "@/lib/launch/agent-markets-limit";
@@ -27,9 +32,21 @@ import FeeAllocator, { AllocationBar } from "./FeeAllocator";
 import { DEFAULT_ALLOCATION, perSol, sumsTo100, type Allocation } from "@/lib/launch/fees-view";
 
 const STEPS = ["Identity", "Brain", "Markets", "Trading", "Fees", "Launch"] as const;
-type Preset = keyof typeof PRESETS;
+type Venue = "arc" | "solana" | "robinhood";
+type Preset = keyof typeof PRESETS | keyof typeof RH_PRESETS;
+const presetsFor = (v: Venue): Partial<Record<Preset, { sources: DataSource[]; entry: Condition[] }>> => (v === "robinhood" ? RH_PRESETS : PRESETS);
+const strategiesFor = (v: Venue) => (v === "robinhood" ? RH_STRATEGIES : STRATEGIES);
+const sourcesFor = (v: Venue) => (v === "robinhood" ? RH_SOURCES : SOURCES);
+const COIN = { arc: "USDC", solana: "SOL", robinhood: "ETH" } as const;
+
+const VENUES: Array<{ id: Venue; label: string; blurb: string }> = [
+  { id: "arc", label: "Arc markets", blurb: "Stakes USDC on Mimir markets. No token, nothing to fund up front." },
+  { id: "solana", label: "Solana · pump.fun", blurb: "Its own pump.fun token, trades Solana tokens, and stakes on Arc." },
+  { id: "robinhood", label: "Robinhood Chain · Pons", blurb: "Its own Pons token, trades Pons tokens in ETH, and stakes on Arc." },
+];
 
 const INITIAL = {
+  venue: "solana" as Venue,
   name: "", ticker: "", description: "", image: null as string | null, avatar: {} as AvatarPicks,
   thesis: "",
   brain: "mimir" as "mimir" | ByokProvider, apiKey: "", model: "",
@@ -53,11 +70,11 @@ function problems(step: number, f: Form): string | null {
     if (!f.trading.sources.length) return "Pick at least one source.";
     if (!f.trading.entry.length) return "Add at least one entry rule.";
     const whales = f.trading.whales.split(/\s+/).filter(Boolean);
-    if (f.trading.sources.includes("helius") && (!whales.length || whales.some((w) => !B58.test(w)))) return "Add the Solana wallets to follow, one per line.";
+    if (f.venue === "solana" && f.trading.sources.includes("helius") && (!whales.length || whales.some((w) => !B58.test(w)))) return "Add the Solana wallets to follow, one per line.";
   }
   if (step === 3 && !f.trading.enabled && !f.markets.enabled && !f.markets.opens) return "Turn on markets, trading or both.";
   if (step === 4 && !sumsTo100(f.allocation)) return "The four fee buckets must add up to 100.";
-  if (step === 5 && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return "Seed between 0 and 100 SOL.";
+  if (step === 5 && f.venue !== "arc" && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return `Seed between 0 and 100 ${COIN[f.venue]}.`;
   return null;
 }
 
@@ -87,7 +104,11 @@ function Range({ label, value, min, max, step = 1, unit, onChange, hint }: { lab
   );
 }
 
-const DEPLOY = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on pump.fun"] as const;
+const DEPLOY: Record<Venue, readonly string[]> = {
+  solana: ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on pump.fun"],
+  robinhood: ["Sign the agent: Mimir makes its Robinhood Chain and Arc wallets", "Send the seed ETH from your Robinhood wallet", "Sign the launch: its token goes live on Pons"],
+  arc: ["Sign the agent: Mimir makes its Arc wallet"],
+};
 type Deploy = { at: number; error: string | null; id?: string; wallet?: string; fund?: bigint; sig?: string; mint?: string };
 
 export default function LaunchWizard() {
@@ -98,12 +119,27 @@ export default function LaunchWizard() {
   const { publicKey, signMessage, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const { open } = useWalletSheet();
+  const rh = useRobinhoodWallet();
+  const steps = DEPLOY[f.venue];
   const seed = encodeAvatarSeed(faceBase(f), f.avatar);
   const spec = avatarFromSeed(seed);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
   const setM = (p: Partial<Form["markets"]>) => setF((x) => ({ ...x, markets: { ...x.markets, ...p } }));
   const setT = (p: Partial<Form["trading"]>) => setF((x) => ({ ...x, trading: { ...x.trading, ...p } }));
   const setRisk = (p: Partial<Form["trading"]["risk"]>) => setT({ risk: { ...f.trading.risk, ...p } });
+  /** A venue brings its own presets and sources; an Arc agent cannot trade, so it stakes. */
+  const setVenue = (venue: Venue) => {
+    const presets = presetsFor(venue === "arc" ? "solana" : venue);
+    const first = (Object.keys(presets) as Preset[])[0];
+    const p = presets[first]!;
+    setF((x) => ({
+      ...x,
+      venue,
+      markets: venue === "arc" ? { ...x.markets, enabled: true } : x.markets,
+      trading: { ...x.trading, enabled: venue === "arc" ? false : x.trading.enabled, preset: first, sources: [...p.sources], entry: p.entry.map((c) => ({ ...c })) },
+    }));
+  };
+  const venuePresets = presetsFor(f.venue);
 
   const go = (to: number) => {
     const p = to > step ? problems(step, f) : null;
@@ -120,6 +156,7 @@ export default function LaunchWizard() {
   };
 
   const body = () => ({
+    venue: f.venue, ...(f.venue === "robinhood" && rh.address ? { payout: rh.address } : {}),
     name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: Number(f.seedSol), allocation: f.allocation,
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
@@ -139,15 +176,25 @@ export default function LaunchWizard() {
       const owner = publicKey.toBase58();
       if (!d.id) {
         put({ at: 0 });
-        const r = await signedPost<{ id: string; solana: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
-        put({ id: r.id, wallet: r.solana, fund: BigInt(r.fundLamports) });
+        if (f.venue === "robinhood" && !rh.address) throw new Error("Connect your Robinhood wallet: it funds the agent and gets its ETH back.");
+        const r = await signedPost<{ id: string; solana: string | null; robinhood: string | null; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
+        put({ id: r.id, wallet: (f.venue === "robinhood" ? r.robinhood : r.solana) ?? undefined, fund: BigInt(r.fundLamports) });
       }
+      // An Arc-only agent has no token: it is live once it exists.
+      if (f.venue === "arc") return put({ at: steps.length });
       if (!d.sig) {
         put({ at: 1 });
-        const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: new PublicKey(d.wallet!), lamports: d.fund! }));
-        const sig = await sendTransaction(tx, connection);
-        put({ sig });
-        await connection.confirmTransaction(sig, "confirmed");
+        if (f.venue === "robinhood") {
+          if (!rh.sendEth) throw new Error("Connect your Robinhood wallet to send the seed ETH.");
+          const hash = await rh.sendEth(d.wallet!, d.fund!);
+          put({ sig: hash });
+          await createPublicClient({ transport: http(ROBINHOOD_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
+        } else {
+          const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: new PublicKey(d.wallet!), lamports: d.fund! }));
+          const sig = await sendTransaction(tx, connection);
+          put({ sig });
+          await connection.confirmTransaction(sig, "confirmed");
+        }
       }
       if (!d.mint) {
         put({ at: 2 });
@@ -163,7 +210,7 @@ export default function LaunchWizard() {
           }
         }
       }
-      put({ at: DEPLOY.length });
+      put({ at: steps.length });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Launch failed.";
       put({ error: /reject|denied|cancel/i.test(msg) ? "You declined it in your wallet." : msg });
@@ -171,7 +218,7 @@ export default function LaunchWizard() {
   };
 
   if (deploy) {
-    const done = deploy.at >= DEPLOY.length;
+    const done = deploy.at >= steps.length;
     return (
       <div className="mx-auto grid w-full max-w-[640px] gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-6 shadow-card">
         <div className="flex items-center gap-4">
@@ -182,7 +229,7 @@ export default function LaunchWizard() {
           </div>
         </div>
         <ol className="m-0 grid list-none gap-2 p-0 text-[14px]" aria-live="polite">
-          {DEPLOY.map((l, i) => (
+          {steps.map((l, i) => (
             <li key={l} className={`flex justify-between gap-4 ${i > deploy.at ? "text-dim" : "text-cream"}`}>
               <span>{l}</span>
               <span className={i < deploy.at ? "text-emerald-300" : deploy.error && i === deploy.at ? "text-coral" : "text-muted"}>
@@ -244,6 +291,25 @@ export default function LaunchWizard() {
         {step === 0 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
             <legend className="mb-2 font-display text-[1.6rem] text-cream">Who is it?</legend>
+            <div className="grid gap-2">
+              <span className="text-[14px] text-cream">Where it lives</span>
+              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Where it lives">
+                {VENUES.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={f.venue === v.id}
+                    onClick={() => setVenue(v.id)}
+                    className={`grid content-start gap-1 rounded-xl p-3 text-left ${f.venue === v.id ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}
+                  >
+                    <span className="text-[14px]">{v.label}</span>
+                    <span className={`text-[12px] ${f.venue === v.id ? "text-ink/70" : "text-muted"}`}>{v.blurb}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="text-[12px] text-muted">Pick one. Every agent can stake on Mimir markets on Arc; the token and the trading live where you choose.</span>
+            </div>
             <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
               <Field label="Name">
                 <input className="input" value={f.name} maxLength={32} onChange={(e) => set("name", e.target.value)} placeholder="Njord" />
@@ -252,7 +318,7 @@ export default function LaunchWizard() {
                 <input className="input font-mono" value={f.ticker} maxLength={10} onChange={(e) => set("ticker", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="NJORD" />
               </Field>
             </div>
-            <Field label="Token description" hint="Shown on pump.fun.">
+            <Field label="Token description" hint={f.venue === "robinhood" ? "Shown on Pons." : f.venue === "arc" ? "Shown on its page (an Arc agent has no token)." : "Shown on pump.fun."}>
               <textarea className="input min-h-[5rem]" rows={3} maxLength={280} value={f.description} onChange={(e) => set("description", e.target.value)} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
@@ -372,25 +438,29 @@ export default function LaunchWizard() {
 
         {step === 3 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
-            <legend className="mb-2 font-display text-[1.6rem] text-cream">Solana trading</legend>
-            <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
-              <span className="text-[14px] text-cream">Trade tokens on Solana under your strategy (optional)</span>
-              <input type="checkbox" role="switch" className="switch" checked={t.enabled} onChange={(e) => setT({ enabled: e.target.checked })} />
-            </label>
-            {t.enabled ? (
+            <legend className="mb-2 font-display text-[1.6rem] text-cream">{f.venue === "robinhood" ? "Robinhood Chain trading" : f.venue === "arc" ? "Trading" : "Solana trading"}</legend>
+            {f.venue === "arc" ? (
+              <p className="m-0 text-[14px] text-muted">An Arc agent only stakes on Mimir markets. To trade tokens too, pick Solana or Robinhood Chain on the first step.</p>
+            ) : (
+              <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
+                <span className="text-[14px] text-cream">{f.venue === "robinhood" ? "Trade Pons tokens on Robinhood Chain under your strategy (optional)" : "Trade tokens on Solana under your strategy (optional)"}</span>
+                <input type="checkbox" role="switch" className="switch" checked={t.enabled} onChange={(e) => setT({ enabled: e.target.checked })} />
+              </label>
+            )}
+            {t.enabled && f.venue !== "arc" ? (
               <>
                 <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Preset">
-                  {(Object.keys(PRESETS) as Preset[]).map((k) => (
-                    <button key={k} type="button" aria-pressed={t.preset === k} onClick={() => setT({ preset: k, sources: [...PRESETS[k].sources], entry: PRESETS[k].entry.map((c) => ({ ...c })) })} className={`grid gap-1 rounded-xl p-3 text-left ${t.preset === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
-                      <span className="text-[14px]">{STRATEGIES[k]?.label}</span>
-                      <span className={`text-[12px] ${t.preset === k ? "text-ink/70" : "text-muted"}`}>{STRATEGIES[k]?.blurb}</span>
+                  {(Object.keys(venuePresets) as Preset[]).map((k) => (
+                    <button key={k} type="button" aria-pressed={t.preset === k} onClick={() => setT({ preset: k, sources: [...venuePresets[k]!.sources], entry: venuePresets[k]!.entry.map((c) => ({ ...c })) })} className={`grid gap-1 rounded-xl p-3 text-left ${t.preset === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
+                      <span className="text-[14px]">{strategiesFor(f.venue)[k]?.label}</span>
+                      <span className={`text-[12px] ${t.preset === k ? "text-ink/70" : "text-muted"}`}>{strategiesFor(f.venue)[k]?.blurb}</span>
                     </button>
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sources">
-                  {(Object.keys(SOURCES) as DataSource[]).map((s) => {
+                  {(Object.keys(sourcesFor(f.venue)) as DataSource[]).map((s) => {
                     const on = t.sources.includes(s);
-                    return <Chip key={s} active={on} onClick={() => setT({ sources: on ? t.sources.filter((x) => x !== s) : [...t.sources, s] })}>{SOURCES[s]}</Chip>;
+                    return <Chip key={s} active={on} onClick={() => setT({ sources: on ? t.sources.filter((x) => x !== s) : [...t.sources, s] })}>{sourcesFor(f.venue)[s]}</Chip>;
                   })}
                 </div>
                 {t.sources.includes("helius") ? (
@@ -433,11 +503,20 @@ export default function LaunchWizard() {
         {step === 4 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
             <legend className="mb-2 font-display text-[1.6rem] text-cream">Where its fees go</legend>
+            {f.venue === "arc" ? (
+              <p className="m-0 text-[14px] text-muted">An Arc agent has no token, so there are no creator fees to split. Its winnings stay in its Arc wallet until you withdraw them.</p>
+            ) : f.venue === "robinhood" ? (
+              <p className="m-0 text-[14px] text-muted">
+                Every trade of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> on Pons pays its creator share to the agent. It claims them into its own wallet every hour, where they become bankroll; you withdraw ETH from its page any time.
+              </p>
+            ) : null}
+            {f.venue === "solana" ? (<>
             <p className="m-0 text-[14px] text-muted">
               Every trade of <span className="font-mono text-cream">${f.ticker || "TICKER"}</span> on pump.fun pays creator fees to the agent. 10% goes to the platform and 10% to AI costs; you split the other 80%. Put enough in gas &amp; bankroll and a traded agent pays its own way.
             </p>
             <FeeAllocator value={f.allocation} onChange={(a) => set("allocation", a)} />
             <p className="m-0 text-[13px] text-muted">Public on its page. You can change it later: a change shows at once and applies 24 hours later.</p>
+            </>) : null}
           </fieldset>
         ) : null}
 
@@ -456,16 +535,39 @@ export default function LaunchWizard() {
               </dd>
               <dt>Trading</dt>
               <dd>{t.enabled ? `${STRATEGIES[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · cap ${t.risk.maxDailyLossPct}%` : "off"}</dd>
-              <dt>Fees</dt>
-              <dd>
-                <AllocationBar allocation={f.allocation} className="mt-1 h-2.5 max-w-[280px]" />
-                <span className="mt-1 block text-[12px] text-muted">{perSol(f.allocation, { creator: "to you" })} per 1 SOL</span>
-              </dd>
+              <dt>Lives on</dt>
+              <dd>{VENUES.find((v) => v.id === f.venue)?.label}</dd>
+              {f.venue === "solana" ? (
+                <>
+                  <dt>Fees</dt>
+                  <dd>
+                    <AllocationBar allocation={f.allocation} className="mt-1 h-2.5 max-w-[280px]" />
+                    <span className="mt-1 block text-[12px] text-muted">{perSol(f.allocation, { creator: "to you" })} per 1 SOL</span>
+                  </dd>
+                </>
+              ) : null}
             </dl>
-            <Field label="Seed SOL" hint={`Goes to its Solana wallet: ${LAUNCH_FEE_SOL} SOL mints its token, the rest is gas and bankroll. Its Arc wallet needs USDC to stake; fund it from its page after launch.`}>
-              <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
-            </Field>
-            <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + LAUNCH_FEE_SOL).toFixed(3)} SOL.</p>
+            {f.venue === "solana" ? (
+              <>
+                <Field label="Seed SOL" hint={`Goes to its Solana wallet: ${LAUNCH_FEE_SOL} SOL mints its token, the rest is gas and bankroll. Its Arc wallet needs USDC to stake; fund it from its page after launch.`}>
+                  <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
+                </Field>
+                <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + LAUNCH_FEE_SOL).toFixed(3)} SOL.</p>
+              </>
+            ) : f.venue === "robinhood" ? (
+              <>
+                <Field label="Seed ETH" hint={`Sent from your Robinhood wallet to its Robinhood Chain wallet: ${RH_LAUNCH_FEE_ETH} ETH pays the Pons launch and gas, the rest is bankroll. When you shut it down, its ETH comes back to the same Robinhood wallet. Its Arc wallet needs USDC to stake; fund it from its page after launch.`}>
+                  <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
+                </Field>
+                <div className="grid gap-2 rounded-xl bg-cream/[0.04] p-4">
+                  <span className="text-[14px] text-cream">Your Robinhood wallet</span>
+                  <RobinhoodConnect />
+                </div>
+                <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + RH_LAUNCH_FEE_ETH).toFixed(4)} ETH on Robinhood Chain.</p>
+              </>
+            ) : (
+              <p className="m-0 text-[14px] text-cream">Nothing to send now. After it is created, fund its Arc wallet with USDC from its page so it can stake.</p>
+            )}
             <p className="m-0 text-[13px] text-muted">It stakes and trades real funds on mainnet and can lose them. You can pause it, withdraw part of its funds or shut it down any time from its page.</p>
           </div>
         ) : null}
