@@ -29,6 +29,7 @@ import { ArrowUpRight, ChevronDown, RotateCcw } from "@/components/icons";
 import Modal from "@/components/ui/Modal";
 import { toast } from "sonner";
 import { connectEvmWallet } from "@/components/arc/useEvmWallet";
+import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
 import { isUserRejection, onWalletError } from "@/lib/solana/wallet-events";
 import {
   isReady,
@@ -114,6 +115,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const [error, setError] = useState<RowError | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [platform, setPlatform] = useState<Platform>({ mobile: false, ios: false });
+  const robinhood = useRobinhoodWallet();
   const [page, setPage] = useState({ url: "", origin: "" });
   // The network comes first: Solana shows the wallets below, Arc hands over to ConnectKit.
   const [network, setNetwork] = useState<"solana" | null>(null);
@@ -208,6 +210,20 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const statusLabel = (option: MimirWalletOption) =>
     option.readyState === WalletReadyState.Installed ? t("detected") : t("ready");
 
+  // Robinhood Wallet over WalletConnect on Robinhood Chain (or its own in-app browser, which injects it): it signs in
+  // like a Solana wallet does (components/robinhood/useRobinhoodWallet.ts), then links a passkey account on /wallet.
+  const pickRobinhood = () => {
+    onClose();
+    const injected = platform.mobile && typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
+    robinhood.connect(injected ? "injected" : "walletconnect").then(
+      () => toast.success(t("robinhoodConnected"), { action: { label: t("robinhoodSetup"), onClick: () => window.location.assign("/wallet") } }),
+      (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "";
+      if (!/reject|denied|cancel|closed/i.test(msg)) toast.error(t("robinhoodFailed"));
+      },
+    );
+  };
+
   const pickArc = () => {
     onClose();
     connectEvmWallet().catch((e: unknown) => {
@@ -225,6 +241,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
             [
               ["solana", "/networks/solana-icon.svg", t("pickSolana"), t("pickSolanaHint"), () => setNetwork("solana")],
               ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint"), pickArc],
+              ["robinhood", "/networks/robinhood-icon.svg", t("pickRobinhood"), t("pickRobinhoodHint"), pickRobinhood],
             ] as const
           ).map(([key, icon, name, hint, onPick]) => (
             <li key={key}>
