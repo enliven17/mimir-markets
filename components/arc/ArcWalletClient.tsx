@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /wallet body: connect the Solana wallet, create (or log in to) the passkey
+ * /wallet body: connect the Solana (or Robinhood Chain) wallet, create (or log in to) the passkey
  * Arc account, link the two, save a recovery phrase, then move USDC between
  * Solana and Arc. docs/ARC.md is the design.
  */
@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 
 import { SURFACE } from "@/components/arena/surface";
 import Skeleton from "@/components/ui/Skeleton";
+import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnits } from "@/lib/arc/encoding";
@@ -21,6 +22,7 @@ import { useArcWallet, type ArcWallet } from "./useArcWallet";
 
 const short = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
 const BTN_PRIMARY = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
+const walletName = (w: ArcWallet) => (w.ownerKind === "robinhood" ? "Robinhood wallet" : "Solana wallet");
 const BTN_SECONDARY = "press rounded-full bg-panel-raised px-5 py-2.5 text-[14px] text-cream disabled:opacity-60";
 
 export default function ArcWalletClient() {
@@ -32,7 +34,7 @@ export default function ArcWalletClient() {
  * Portfolio, which shows these steps in place until the account exists.
  */
 export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolean }) {
-  const { arcUnits, solanaUnits, reload } = useArcBalances(w.session?.address ?? null, w.solana);
+  const { arcUnits, solanaUnits, reload } = useArcBalances(w.session?.address ?? null, w.ownerKind === "solana" ? w.solana : null);
   const [recovery, setRecovery] = useState<RecoveryFlag>(null);
   const clusterMismatch = ARC.solana.cluster !== SOLANA_CLUSTER;
 
@@ -66,7 +68,7 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
           </p>
           <h1 className="m-0 font-display text-app-h1 text-cream">Your Arc wallet.</h1>
           <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">
-            Your Solana wallet stays your identity. Your Arc account is a smart wallet unlocked by a passkey: your device&apos;s Face ID,
+            Your Solana or Robinhood wallet stays your identity. Your Arc account is a smart wallet unlocked by a passkey: your device&apos;s Face ID,
             fingerprint or PIN. Mimir never holds a key, and gas on Arc is sponsored. USDC moves between Solana and Arc through Circle&apos;s CCTP.
           </p>
         </header>
@@ -83,12 +85,18 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
         {/* The wallet chip's menu opens below the button: let it out of the card instead of clipping it. */}
         <section aria-labelledby="arc-step-solana" className={`${SURFACE} !overflow-visible z-10 grid content-start gap-3 p-5 sm:p-6`}>
           <h2 id="arc-step-solana" className="m-0 text-[1.2rem] leading-none text-cream">
-            1. Solana wallet
+            1. Your wallet
           </h2>
-          <p className="m-0 text-[14px] text-muted">Who you are on Mimir, and where your USDC comes from.</p>
+          <p className="m-0 text-[14px] text-muted">Who you are on Mimir. A Solana wallet also moves your USDC in and out.</p>
           <div className="wallet-anchor-start justify-self-start">
             <ConnectWalletButton />
           </div>
+          {w.ownerKind !== "solana" ? (
+            <>
+              <p className="m-0 text-[12px] uppercase tracking-[0.18em] text-muted">or on Robinhood Chain</p>
+              <RobinhoodConnect />
+            </>
+          ) : null}
         </section>
 
         <section aria-labelledby="arc-step-account" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
@@ -112,9 +120,13 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
           </h2>
           <dl className="m-0 grid grid-cols-2 gap-3">
             <Balance label="On Arc" units={arcUnits} />
-            <Balance label="On Solana" units={w.solana ? solanaUnits : null} placeholder={w.solana ? undefined : "connect"} />
+            {w.ownerKind === "robinhood" ? null : (
+              <Balance label="On Solana" units={w.solana ? solanaUnits : null} placeholder={w.solana ? undefined : "connect"} />
+            )}
           </dl>
-          {!w.solana ? (
+          {w.ownerKind === "robinhood" ? (
+            <p className="m-0 text-[14px] text-muted">Fund it by sending USDC on Arc to your account address above. Moving USDC from Solana needs a Solana wallet.</p>
+          ) : !w.solana ? (
             <p className="m-0 text-[14px] text-muted">Connect your Solana wallet to deposit or withdraw.</p>
           ) : !w.linked ? (
             <p className="m-0 text-[14px] text-muted">Link your Arc account to this Solana wallet first (step 2).</p>
@@ -191,7 +203,7 @@ function AccountBody({ w }: { w: ArcWallet }) {
             </button>
           ) : null}
         </div>
-        {!w.solana ? <p className="m-0 text-[12px] text-muted">Connect your Solana wallet first (step 1).</p> : null}
+        {!w.solana ? <p className="m-0 text-[12px] text-muted">Connect your wallet first (step 1).</p> : null}
         <button
           type="button"
           aria-expanded={showRecover}
@@ -223,12 +235,12 @@ function AccountBody({ w }: { w: ArcWallet }) {
       </p>
       {w.linked ? (
         <p className="m-0 text-[14px] text-cream" data-testid="arc-linked">
-          Linked to your Solana wallet <span className="font-mono">{short(w.solana ?? "")}</span>.
+          Linked to your {walletName(w)} <span className="font-mono">{short(w.solana ?? "")}</span>.
         </p>
       ) : w.solana && w.sessionOwner && w.sessionOwner !== w.solana ? (
         <div className="grid gap-2">
           <p className="m-0 text-[13px] text-coral">
-            This Arc account belongs to your other Solana wallet ({short(w.sessionOwner)}). Each wallet gets its own Arc account.
+            This Arc account belongs to your other wallet ({short(w.sessionOwner)}). Each wallet gets its own Arc account.
           </p>
           <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.startFresh()} className={`${BTN_PRIMARY} justify-self-start`}>
             {w.busy === "create" ? "Follow your device's prompt…" : "Create a new Arc account for this wallet"}
@@ -239,16 +251,16 @@ function AccountBody({ w }: { w: ArcWallet }) {
         <div className="grid gap-2">
           {bound ? (
             <p className="m-0 text-[13px] text-coral">
-              This Solana wallet is linked to a different Arc account ({short(bound.arc)}). Linking replaces it.
+              This {walletName(w)} is linked to a different Arc account ({short(bound.arc)}). Linking replaces it.
             </p>
           ) : null}
           <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.link()} className={`${BTN_PRIMARY} justify-self-start`}>
-            {w.busy === "link" ? "Sign in your wallet, then your passkey…" : "Link to your Solana wallet"}
+            {w.busy === "link" ? "Sign in your wallet, then your passkey…" : `Link to your ${walletName(w)}`}
           </button>
-          <p className="m-0 text-[12px] text-muted">Two free signatures, no transaction: your Solana wallet, then your passkey.</p>
+          <p className="m-0 text-[12px] text-muted">Two free signatures, no transaction: your {walletName(w)}, then your passkey.</p>
         </div>
       ) : (
-        <p className="m-0 text-[13px] text-muted">Connect your Solana wallet to link it.</p>
+        <p className="m-0 text-[13px] text-muted">Connect your wallet to link it.</p>
       )}
       <button
         type="button"

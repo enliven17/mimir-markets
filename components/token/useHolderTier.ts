@@ -9,6 +9,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import bs58 from "bs58";
 
+import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
+
 import {
   HOLDER_PROOF_HEADER,
   HOLDER_WALLET_HEADER,
@@ -62,7 +64,11 @@ function loadTier(wallet: string): Promise<TierState | null> {
 
 export function useHolderTier() {
   const { publicKey, signMessage } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const robinhood = useRobinhoodWallet();
+  // The Solana wallet when there is one, else a Robinhood Chain wallet (lib/owner.ts): it can prove itself, never holds a tier.
+  const solana = publicKey?.toBase58() ?? null;
+  const wallet = solana ?? robinhood.address;
+  const signRobinhood = solana ? null : robinhood.sign;
   const [state, setState] = useState<TierState | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [proven, setProven] = useState(false);
@@ -72,6 +78,7 @@ export function useHolderTier() {
     setLoaded(false);
     setProven(wallet ? readProof(wallet) !== null : false);
     if (!wallet) return;
+    if (!solana) return setLoaded(true);
     let live = true;
     loadTier(wallet).then((v) => {
       if (!live) return;
@@ -81,19 +88,20 @@ export function useHolderTier() {
     return () => {
       live = false;
     };
-  }, [wallet]);
+  }, [wallet, solana]);
 
   const prove = useCallback(async () => {
-    if (!wallet || !signMessage) throw new Error("this wallet cannot sign messages");
+    if (!wallet || !(signRobinhood ?? signMessage)) throw new Error("this wallet cannot sign messages");
     const signedAt = Date.now();
-    const sig = bs58.encode(await signMessage(new TextEncoder().encode(holderProofMessage(wallet, signedAt))));
+    const message = holderProofMessage(wallet, signedAt);
+    const sig = signRobinhood ? await signRobinhood(message) : bs58.encode(await signMessage!(new TextEncoder().encode(message)));
     try {
       localStorage.setItem(proofKey(wallet), formatProofHeader(signedAt, sig));
     } catch {
       /* storage blocked: the proof just is not remembered */
     }
     setProven(true);
-  }, [wallet, signMessage]);
+  }, [wallet, signMessage, signRobinhood]);
 
-  return { wallet, state, loaded, proven, canSign: !!signMessage, prove };
+  return { wallet, state, loaded, proven, canSign: !!(signRobinhood ?? signMessage), prove };
 }

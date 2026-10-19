@@ -74,7 +74,7 @@ export default function ArcDashboard() {
 function Body({ account, address }: { account: ReturnType<typeof useArcAccount>; address: Address }) {
   const now = useNowSec(30_000);
   const positions = useQuery(api.arc.positionsOf, { user: address });
-  const { arcUnits, solanaUnits, reload } = useArcBalances(address, account.wallet.solana);
+  const { arcUnits, solanaUnits, reload } = useArcBalances(address, account.wallet.ownerKind === "solana" ? account.wallet.solana : null);
   const parked = useParked(address);
   const { send, busy, error } = useArcSend(account.session);
 
@@ -113,7 +113,11 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
             )}
           </p>
           <p className="m-0 mt-2 text-[13px] text-muted">
-            {account.wallet.solana ? `${solanaUnits === null ? "…" : formatUsdcUnits(solanaUnits)} USDC in your Solana wallet` : "Connect your Solana wallet to move USDC in or out"}
+            {account.wallet.ownerKind === "robinhood"
+              ? "Send USDC on Arc to your account to add funds"
+              : account.wallet.solana
+                ? `${solanaUnits === null ? "…" : formatUsdcUnits(solanaUnits)} USDC in your Solana wallet`
+                : "Connect your Solana wallet to move USDC in or out"}
           </p>
         </div>
         <Link href="/wallet" className={`${BTN_PRIMARY} text-center sm:flex-none`}>

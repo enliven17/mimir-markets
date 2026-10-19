@@ -31,7 +31,7 @@ export default function ArcOnboarding() {
   }, []);
 
   const steps: Array<{ title: string; done: boolean; href: string }> = [
-    { title: "Connect your Solana wallet", done: Boolean(wallet.solana), href: "/wallet" },
+    { title: "Connect your wallet", done: Boolean(wallet.solana), href: "/wallet" },
     { title: "Create your Arc account with a passkey", done: Boolean(wallet.session), href: "/wallet" },
     { title: "Link it to your Solana wallet", done: wallet.linked, href: "/wallet" },
     { title: "Add USDC from Solana", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SURFACE } from "@/components/arena/surface";
 import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
+import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { usePathname } from "@/i18n/navigation";
 import { inviteOnly, type AccessStatus } from "@/lib/access";
@@ -91,6 +92,8 @@ function Gate({ children }: { children: ReactNode }) {
       <div className="grid justify-items-center gap-4 text-center">
         <p className="m-0 max-w-[40ch] text-[15px] leading-relaxed text-muted">Connect the Solana wallet you hold $MIMIR in, or the one you will use with an invite code.</p>
         <ConnectWalletButton />
+        <p className="m-0 text-[12px] uppercase tracking-[0.18em] text-muted">or with an invite, on Robinhood Chain</p>
+        <RobinhoodConnect />
       </div>
     );
   } else if (step === 1) {

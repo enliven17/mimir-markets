@@ -2,14 +2,15 @@
 
 /**
  * State for /wallet: the passkey session (restored silently from the stored
- * public credential), the server-side binding for the connected Solana
- * wallet, and the actions that change them. The Circle SDK loads lazily, on
+ * public credential), the server-side binding for the connected owner
+ * wallet (Solana, or else a Robinhood Chain wallet), and the actions that change them. The Circle SDK loads lazily, on
  * the first restore or action.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { useSignText } from "@/components/copy/useSignText";
+import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
 import { fetchBinding, fetchBindingByArc, postBinding, type ArcBinding } from "@/lib/arc/api-client";
 import type { ArcSession } from "@/lib/arc/account";
 import { arcBindMessage } from "@/lib/arc/bind";
@@ -20,7 +21,9 @@ export type BindingState = { status: "unknown" } | { status: "loaded"; binding: 
 
 export interface ArcWallet {
   configured: boolean;
+  /** The owner wallet: the Solana key, or else the Robinhood Chain address (lib/owner.ts). */
   solana: string | null;
+  ownerKind: "solana" | "robinhood" | null;
   session: ArcSession | null;
   restoring: boolean;
   binding: BindingState;
@@ -53,8 +56,12 @@ function describe(err: unknown): string {
 
 export function useArcWallet(): ArcWallet {
   const { publicKey } = useWallet();
-  const solana = publicKey?.toBase58() ?? null;
-  const sign = useSignText();
+  const robinhood = useRobinhoodWallet();
+  const solanaKey = publicKey?.toBase58() ?? null;
+  const solana = solanaKey ?? robinhood.address;
+  const ownerKind = solanaKey ? "solana" : robinhood.address ? "robinhood" : null;
+  const signSolana = useSignText();
+  const sign = solanaKey ? signSolana : robinhood.sign;
   const configured = Boolean(ARC.circle.clientKey);
   const [session, setSession] = useState<ArcSession | null>(null);
   const [restoring, setRestoring] = useState(configured);
@@ -139,7 +146,7 @@ export function useArcWallet(): ArcWallet {
 
   const link = useCallback(async () => {
     await run("link", async () => {
-      if (!solana || !sign) throw new Error("Connect a Solana wallet that can sign messages.");
+      if (!solana || !sign) throw new Error("Connect a wallet that can sign messages.");
       if (!session) throw new Error("Create or log in to your Arc account first.");
       const signedAt = Date.now();
       const message = arcBindMessage(solana, session.address, signedAt);
@@ -175,6 +182,7 @@ export function useArcWallet(): ArcWallet {
   return {
     configured,
     solana,
+    ownerKind,
     session,
     restoring,
     binding,
