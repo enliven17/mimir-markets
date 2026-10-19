@@ -20,7 +20,7 @@ const vBrain = v.union(
   v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
 );
 
-const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "solana" | "arc"; tx?: string } = {}) =>
+const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "solana" | "arc" | "robinhood"; tx?: string } = {}) =>
   ctx.db.insert("launchEvents", { agent, at: Date.now(), kind, text: text.slice(0, 300), ...extra });
 
 export const createPending = mutation({
@@ -29,7 +29,9 @@ export const createPending = mutation({
     brain: vBrain,
     trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
-    solana: v.object({ walletId: v.string(), address: v.string() }),
+    venue: v.optional(v.union(v.literal("solana"), v.literal("robinhood"), v.literal("arc"))),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
+    robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
     arc: v.object({ walletId: v.string(), address: v.string() }),
     fundLamports: v.string(), description: v.string(), image: v.optional(v.string()),
     allocation: v.optional(vAllocation),
@@ -46,7 +48,9 @@ export const createPending = mutation({
       if (n > 999) return { ok: false as const, reason: "taken" as const };
       slug = `${a.slug}-${n}`;
     }
-    await ctx.db.insert("launchAgents", { ...a, slug, status: "pending", createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}) } });
+    // An Arc-only agent has no token to launch: it is live as soon as it exists (it stakes once its Arc wallet has USDC).
+    const status = a.venue === "arc" ? "live" : "pending";
+    await ctx.db.insert("launchAgents", { ...a, slug, status, createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}) } });
     return { ok: true as const, slug };
   },
 });
@@ -56,7 +60,7 @@ export const forLaunch = query({
   handler: async (ctx, { secret, slug }) => {
     allowed(secret);
     const a = await bySlug(ctx, slug);
-    return a && { owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null, solana: a.solana ?? null, arc: a.arc ?? null, launch: a.launch ?? null };
+    return a && { owner: a.owner, venue: a.venue ?? "solana", name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null, solana: a.solana ?? null, robinhood: a.robinhood ?? null, arc: a.arc ?? null, launch: a.launch ?? null };
   },
 });
 
@@ -97,9 +101,10 @@ export const recordLaunch = mutation({
     if (!a.launch.claimedAt) throw new Error("launch not claimed");
     if (a.mint && a.mint !== mint) throw new Error(`agent already has mint ${a.mint}`);
     if (a.mint) return;
-    // The uploaded image is on IPFS now: drop it from the record.
+    // The uploaded image is on IPFS now (pump.fun) or no longer needed (Pons reads its logo URL once): drop it.
     await ctx.db.patch(a._id, { mint, status: a.status === "killed" ? "killed" : "live", launch: { ...a.launch, image: undefined, metadataUri, sig } });
-    await log(ctx, a._id, "rules", `launched $${a.ticker} on pump.fun, getting to work`, { chain: "solana", tx: sig });
+    const rh = a.venue === "robinhood";
+    await log(ctx, a._id, "rules", `launched $${a.ticker} on ${rh ? "Pons (Robinhood Chain)" : "pump.fun"}, getting to work`, { chain: rh ? "robinhood" : "solana", tx: sig });
   },
 });
 
@@ -120,7 +125,11 @@ export const setStatus = mutation({
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner || a.status === "killed" || (a.status === "pending" && status !== "killed")) return false;
     await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined, idle: undefined } : {}) });
-    await log(ctx, a._id, "rules", status === "killed" ? "shut down by its owner: closing Solana positions and returning its SOL (Arc stakes settle on their own; withdraw USDC any time)" : `${status === "live" ? "resumed" : "paused"} by its owner`);
+    const coin = a.venue === "robinhood" ? { chain: "Robinhood Chain", unit: "ETH" } : { chain: "Solana", unit: "SOL" };
+    const shutdown = a.venue === "arc"
+      ? "shut down by its owner: no new stakes (open Arc stakes settle on their own; withdraw USDC any time)"
+      : `shut down by its owner: closing ${coin.chain} positions and returning its ${coin.unit} (Arc stakes settle on their own; withdraw USDC any time)`;
+    await log(ctx, a._id, "rules", status === "killed" ? shutdown : `${status === "live" ? "resumed" : "paused"} by its owner`);
     return true;
   },
 });
@@ -131,7 +140,8 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   trading: { enabled: a.trading.enabled }, markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc },
-  wallet: a.solana?.address ?? null, arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
+  venue: a.venue ?? "solana", wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.solana?.address) ?? null, payout: a.robinhood?.payout ?? null,
+  arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
   fundLamports: a.status === "pending" ? (a.launch?.fundLamports ?? null) : null,
 });
 

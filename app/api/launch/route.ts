@@ -1,6 +1,7 @@
 /**
  * POST /api/launch                 step 1 of a launch (signed by the owner, lib/launch/auth.ts): validate, make the
- *                                  agent's two wallets, store it pending. Returns where to send the seed SOL.
+ *                                  agent's wallets (Solana or Robinhood Chain by venue, plus Arc), store it pending.
+ *                                  Returns where to send the seed (SOL, or ETH on Robinhood; nothing for Arc-only).
  * GET  /api/launch?owner=<base58>  that wallet's agents (public views).
  */
 import { api } from "@/convex/_generated/api";
@@ -11,6 +12,8 @@ import { CreateBody, create } from "@/lib/launch/flow";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { agentWalletPolicy } from "@/lib/launch/solana/policy";
 import { getSolana } from "@/lib/launch/solana/env";
+import { robinhoodAgentPolicy } from "@/lib/launch/robinhood/policy";
+import { getRobinhood } from "@/lib/launch/robinhood/env";
 import { ARC } from "@/lib/arc/config";
 import { createWallets } from "@/lib/server/circle-w3s";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -52,6 +55,10 @@ export async function POST(req: Request) {
       checkKey: (p, k, m) => checkKey(p, k, m),
       wallets: {
         solana: (owner) => solana.privy.createWalletWithPolicy((address) => agentWalletPolicy({ wallet: address, creator: owner, treasury: solana.treasury })),
+        robinhood: (payout) => {
+          const rh = getRobinhood();
+          return rh.privy.createWalletWithPolicy((address) => robinhoodAgentPolicy(address, payout, rh.treasury), "ethereum");
+        },
         arc: async (slug) => {
           const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
           return { id: w.id, address: w.address };
@@ -59,7 +66,7 @@ export async function POST(req: Request) {
       },
     }, g.owner, parsed.data);
     if (!r.ok) return fail(r.status, r.error);
-    return Response.json({ id: r.id, solana: r.solana, arc: r.arc, fundLamports: r.fundLamports.toString() });
+    return Response.json({ id: r.id, venue: r.venue, solana: r.solana, robinhood: r.robinhood, arc: r.arc, fundLamports: r.fundLamports.toString() });
   } catch (e) {
     console.error("[launch] create failed:", e);
     const msg = e instanceof Error ? e.message : "";

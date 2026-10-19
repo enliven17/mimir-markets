@@ -3,7 +3,7 @@
 import bs58 from "bs58";
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
-export type Provider = "privy" | "pumpportal" | "pinata" | "jupiter" | "solana";
+export type Provider = "privy" | "pumpportal" | "pinata" | "jupiter" | "solana" | "robinhood";
 
 export class SolanaError extends Error {
   readonly provider: Provider;

@@ -69,7 +69,7 @@ const SWEEP_ONLY = {
   risk: { slippageBps: 300, positionPct: 5, stopLossPct: 20, takeProfitPct: 50, maxDailyLossPct: 20 },
 } as const;
 
-function convexRepo(ctx: ActionCtx): Repo {
+export function convexRepo(ctx: ActionCtx): Repo {
   const aid = (id: string) => id as Id<"launchAgents">;
   const pid = (id: string) => id as Id<"launchPositions">;
   const sell = async (id: string, s: { lamports: bigint; tokens: bigint; reason: string; sig: string }, close: boolean) => {
@@ -119,7 +119,7 @@ function copyFanout(ctx: ActionCtx): CopyFanout {
  * The agent's ranker. On the owner's key a failed call pauses the agent with an event: Mimir's keys never stand in
  * for it silently. Mimir AI failures are just "no trade this tick".
  */
-function rankerFor(b: { uid: string; brain: { kind: "mimir" } | SealedKey & { kind: "byok" } }, repo: Repo, agentId: string, l: Log): Ranker {
+export function rankerFor(b: { uid: string; brain: { kind: "mimir" } | SealedKey & { kind: "byok" } }, repo: Repo, agentId: string, l: Log): Ranker {
   if (b.brain.kind !== "byok") return createRanker(platformRouter, { onError: (err) => l.warn("ranker failed", { agentId, err: publicError(err) }) });
   let failed: unknown = null;
   const inner = createRanker(byokRouter(b.uid, b.brain as SealedKey), { onError: (err) => (failed = err) });

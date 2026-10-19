@@ -81,7 +81,15 @@ export function createRobinhoodExecutor(d: RobinhoodExecutorDeps) {
     const signed = await d.privy.signEvmTransaction(walletId, tx);
     const hash = await client.sendRawTransaction({ serializedTransaction: signed });
     await onSigned?.(hash);
-    const receipt = await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
+    let receipt: TransactionReceipt;
+    try {
+      receipt = await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
+    } catch (err) {
+      // Broadcast but not seen confirmed: it may still land, so callers must not treat this as "did not happen".
+      const e = new Error(`transaction ${hash} was sent but not confirmed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)}`);
+      e.name = "AmbiguousSendError";
+      throw e;
+    }
     if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted`);
     return receipt;
   }

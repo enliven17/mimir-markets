@@ -22,7 +22,7 @@ function fakeCx() {
       agent = { ...a, status: "pending", launch: { fundLamports: a.fundLamports, description: a.description, image: a.image } };
       return { ok: true, slug: a.slug };
     },
-    "launch:forLaunch": () => agent && { owner: agent.owner, name: agent.name, ticker: agent.ticker, avatarSeed: agent.avatarSeed, status: agent.status, mint: agent.mint ?? null, solana: agent.solana, launch: agent.launch },
+    "launch:forLaunch": () => agent && { owner: agent.owner, venue: agent.venue ?? "solana", name: agent.name, ticker: agent.ticker, avatarSeed: agent.avatarSeed, status: agent.status, mint: agent.mint ?? null, solana: agent.solana ?? null, robinhood: agent.robinhood ?? null, launch: agent.launch },
     "launch:claimLaunch": () => (agent!.launch.claimedAt ? false : ((agent!.launch.claimedAt = 1), true)),
     "launch:releaseLaunch": () => void (agent!.launch.claimedAt = undefined),
     "launch:recordLaunch": (a) => void Object.assign(agent!, { mint: a.mint, status: "live" }),
@@ -108,4 +108,46 @@ test("auth: the signed message binds action, agent and body; stale signatures ar
   assert.ok(!verifyAgentSignature({ address: owner, message: launchMessage({ ...m, agent: "odin" }), signature }));
   assert.ok(!verifyAgentSignature({ address: owner, message: launchMessage({ ...m, action: "status" }), signature }));
   assert.ok(!isFreshLaunchSig(Date.now() - 6 * 60_000));
+});
+
+const PAYOUT = "0x00000000000000000000000000000000000beef1";
+const rhWallets = { ...wallets, robinhood: async () => ({ id: "rh1", address: "0x00000000000000000000000000000000000a9e17" }) };
+
+test("robinhood: needs the owner's Robinhood address, makes an EVM wallet and asks for seed + fee in wei", async () => {
+  assert.equal(CreateBody.safeParse({ ...body(), venue: "robinhood" }).success, false);
+  const f = fakeCx();
+  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "robinhood", payout: PAYOUT }));
+  assert.ok(r.ok);
+  assert.equal(r.fundLamports, 500_000_000_000_000_000n + 1_000_000_000_000_000n);
+  const a = f.agent()!;
+  assert.equal(a.solana, undefined);
+  assert.deepEqual(a.robinhood, { walletId: "rh1", address: "0x00000000000000000000000000000000000a9e17", payout: "0x00000000000000000000000000000000000bEEf1" });
+});
+
+test("robinhood: launch verifies ETH from the payout address and launches on Pons, not pump.fun", async () => {
+  const f = fakeCx();
+  await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "robinhood", payout: PAYOUT }));
+  let pumped = 0;
+  let seen: { from: string; to: string } | null = null;
+  const deps = {
+    verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "data:image/png;base64,AA==",
+    launchToken: async () => (pumped++, { mint: "x", sig: "x", metadataUri: "x" }),
+    robinhood: () => ({
+      verify: async (_c: unknown, a: { from: string; to: string }) => ((seen = a), { ok: true as const, wei: 1n }),
+      client: {} as any,
+      launchToken: async () => ({ mint: "0x0000000000000000000000000000000000000Bee", sig: "0xhash", metadataUri: "ipfs://logo" }),
+    }),
+  };
+  const r = await launch(f.cx, deps, OWNER, "njord", `0x${"a".repeat(64)}`);
+  assert.deepEqual([r.ok, r.ok && r.mint, pumped], [true, "0x0000000000000000000000000000000000000Bee", 0]);
+  assert.deepEqual(seen, { hash: `0x${"a".repeat(64)}`, from: "0x00000000000000000000000000000000000bEEf1", to: "0x00000000000000000000000000000000000a9e17", minWei: 501_000_000_000_000_000n });
+});
+
+test("arc: markets only, no trading wallet, nothing to fund", async () => {
+  assert.equal(CreateBody.safeParse({ ...body({ venue: "arc" }), trading: { enabled: true } }).success, false);
+  const f = fakeCx();
+  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "arc" }));
+  assert.ok(r.ok);
+  assert.equal(r.fundLamports, 0n);
+  assert.deepEqual([f.agent()!.solana, f.agent()!.robinhood, f.agent()!.venue], [undefined, undefined, "arc"]);
 });

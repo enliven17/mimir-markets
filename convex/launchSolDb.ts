@@ -17,9 +17,13 @@ const hasOpen = async (ctx: QueryCtx, agent: Id<"launchAgents">) =>
   (await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", agent)).first()) !== null;
 
 /** What the worker reads of an agent: never the sealed brain or the launch payload. */
+/** The wallet the agent trades from: its Robinhood Chain wallet on that venue, else its Solana one. */
+export const tradingWallet = (a: Doc<"launchAgents">) => (a.venue === "robinhood" ? a.robinhood : a.venue === "arc" ? undefined : a.solana);
+
 const agentView = (a: Doc<"launchAgents">, reservedLamports = 0n) => ({
-  id: a._id as string, name: a.name, ticker: a.ticker, mint: a.mint ?? null, owner: a.owner,
-  walletId: a.solana?.walletId ?? "", wallet: a.solana?.address ?? "", status: a.status,
+  // `owner` is where a shutdown sweep pays: the owner's Solana wallet, or on Robinhood its payout address.
+  id: a._id as string, name: a.name, ticker: a.ticker, mint: a.mint ?? null, owner: a.venue === "robinhood" ? (a.robinhood?.payout ?? "") : a.owner,
+  walletId: tradingWallet(a)?.walletId ?? "", wallet: tradingWallet(a)?.address ?? "", status: a.status,
   config: a.trading.config, risk: a.trading.risk, createdAt: a.createdAt, idle: a.idle ?? null,
   /** Owed out of the wallet (fee pools, payouts in flight, owed treasury): never traded or swept. Decimal string. */
   reservedLamports: reservedLamports.toString(),
@@ -41,7 +45,10 @@ export type PositionView = ReturnType<typeof positionView>;
 export const tickAll = internalMutation({
   args: {},
   handler: async (ctx) => {
-    if (process.env.MIMIR_BACKEND_OFF === "1" || process.env.LAUNCH_SOLANA !== "1") return 0;
+    if (process.env.MIMIR_BACKEND_OFF === "1") return 0;
+    const solanaOn = process.env.LAUNCH_SOLANA === "1";
+    const robinhoodOn = process.env.LAUNCH_ROBINHOOD === "1";
+    if (!solanaOn && !robinhoodOn) return 0;
     const now = Date.now();
     // ponytail: 500 per status in creation order; swept killed agents stay "killed", so past ~500 kills give them their own status.
     const of = (status: Doc<"launchAgents">["status"]) => ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).take(500);
@@ -52,8 +59,15 @@ export const tickAll = internalMutation({
     let n = 0;
     for (const a of due) {
       // A shut-down agent is swept even with trading off: its own token burned, its SOL back to the owner.
-      if ((!a.trading.enabled && a.status !== "killed") || !a.solana || !a.mint || (a.leaseUntil ?? 0) > now) continue;
-      await ctx.scheduler.runAfter(0, internal.launchSol.tickOne, { id: a._id });
+      if ((!a.trading.enabled && a.status !== "killed") || !tradingWallet(a) || !a.mint || (a.leaseUntil ?? 0) > now) continue;
+      // Each venue has its own action and its own switch (LAUNCH_SOLANA, LAUNCH_ROBINHOOD).
+      if (a.venue === "robinhood") {
+        if (!robinhoodOn) continue;
+        await ctx.scheduler.runAfter(0, internal.launchRh.tickOne, { id: a._id });
+      } else {
+        if (!solanaOn) continue;
+        await ctx.scheduler.runAfter(0, internal.launchSol.tickOne, { id: a._id });
+      }
       n++;
     }
     return n;
@@ -183,6 +197,20 @@ export const setIdle = internalMutation({
     if (!a) return null;
     // Keeps a wake request that landed mid-tick, so it still earns its check.
     await ctx.db.patch(id, { idle: idle === null ? undefined : { ...idle, ...(a.idle?.wakeRequestedAt !== undefined ? { wakeRequestedAt: a.idle.wakeRequestedAt } : {}) } });
+    return null;
+  },
+});
+
+/** Robinhood agents claim their own token's creator fees into the wallet (convex/launchRh.ts): when they last did. */
+export const feesClaimedAt = internalQuery({
+  args: { id: v.id("launchAgents") },
+  handler: async (ctx, { id }) => (await ctx.db.get(id))?.feesClaimedAt ?? null,
+});
+
+export const markFeesClaimed = internalMutation({
+  args: { id: v.id("launchAgents") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.patch(id, { feesClaimedAt: Date.now() });
     return null;
   },
 });

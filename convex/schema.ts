@@ -207,9 +207,19 @@ export default defineSchema({
       /** Opening its own markets (lib/launch/agent-markets.ts): off unless the owner turns it on; gas from its Arc wallet. */
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
+    /**
+     * Where it lives (absent = solana): "solana" launches a pump.fun token and trades on Solana, "robinhood" launches a
+     * Pons token and trades on Robinhood Chain (lib/launch/robinhood), "arc" has no token and only stakes on markets.
+     */
+    venue: v.optional(v.union(v.literal("solana"), v.literal("robinhood"), v.literal("arc"))),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
+    /**
+     * Robinhood Chain wallet (Privy, chain_type ethereum, policy-locked: lib/launch/robinhood/policy.ts) and the
+     * owner's own Robinhood address it pays back to: the launch must be funded from it, a shutdown sweeps ETH to it.
+     */
+    robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
-    /** Its pump.fun token, once launched. */
+    /** Its token once launched: the pump.fun mint, or the Pons token address (checksummed) on Robinhood Chain. */
     mint: v.optional(v.string()),
     /** Random id bound into the sealed BYOK key (lib/launch/byok AAD), fixed for the agent's life. */
     uid: v.string(),
@@ -217,6 +227,7 @@ export default defineSchema({
     house: v.optional(v.string()),
     /** The launch: SOL the owner must send (lamports, decimal string), the token text, and the claim that lets one request mint. */
     launch: v.optional(v.object({
+      /** What the owner must send before launch, in the venue's native base unit (lamports; wei on Robinhood). */
       fundLamports: v.string(),
       description: v.string(),
       /** An uploaded token image (data URL, capped well under the doc limit); without one the face is drawn at launch. */
@@ -261,7 +272,7 @@ export default defineSchema({
     at: v.number(),
     kind: v.string(),
     text: v.string(),
-    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
+    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood"))),
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 
