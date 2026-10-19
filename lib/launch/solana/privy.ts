@@ -18,12 +18,21 @@
 //       {version:1, method, url, body, headers:{privy-* headers}}); key is "wallet-auth:" + base64 PKCS#8.
 //       Required whenever the wallet/policy has an owner. We make the authorization key the owner of
 //       every wallet and policy we create, so the app secret alone cannot sign or change policies.
+//   https://docs.privy.io/api-reference/wallets/ethereum/eth-sign-transaction.md
+//       POST /v1/wallets/{id}/rpc {method:"eth_signTransaction", params:{transaction:{to,value,data,chain_id,nonce,...}}}
+//       -> data.signed_transaction (RLP hex). Used for Robinhood Chain wallets (chain_type "ethereum"); we broadcast.
 //   NOTE: Privy's own examples produce DER signatures (node crypto.sign, Go SignASN1, Rust to_der);
 //       WebCrypto would produce raw r||s, so node:crypto is used on purpose.
 import { createPrivateKey, createPublicKey, randomUUID, sign as cryptoSign, type KeyObject } from "node:crypto";
+import { isAddress } from "viem";
 import { z } from "zod";
 import { assertAddress, errorBody, fetchWithTimeout, SolanaError, type FetchLike } from "./util";
 import type { PolicyInput } from "./policy";
+import type { EvmPolicyInput } from "../robinhood/policy";
+
+export type ChainType = "solana" | "ethereum";
+/** An EIP-1559 transaction as Privy takes it: quantities as hex strings. */
+export type EvmTx = { to: string; value: string; data: string; chain_id: number; nonce: number; gas_limit: string; max_fee_per_gas: string; max_priority_fee_per_gas: string; type: 2 };
 
 export const SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 const BASE_URL = "https://api.privy.io";
@@ -107,11 +116,15 @@ export function createPrivy(o: PrivyOptions) {
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(tx)) throw new SolanaError("privy", "transaction must be base64", { code: "BAD_INPUT" });
   };
 
-  async function createWallet(policyIds?: string[]): Promise<{ id: string; address: string }> {
-    const w = await call("POST", "/v1/wallets", { chain_type: "solana", ...(policyIds?.length ? { policy_ids: policyIds } : {}), ...owner }, WalletSchema);
+  async function createWallet(policyIds?: string[], chainType: ChainType = "solana"): Promise<{ id: string; address: string }> {
+    const w = await call("POST", "/v1/wallets", { chain_type: chainType, ...(policyIds?.length ? { policy_ids: policyIds } : {}), ...owner }, WalletSchema);
+    if (chainType === "ethereum") {
+      if (!isAddress(w.address)) throw new SolanaError("privy", "privy wallet address is not an EVM address");
+      return { id: w.id, address: w.address };
+    }
     return { id: w.id, address: assertAddress("privy wallet address", w.address) };
   }
-  const createPolicy = (policy: PolicyInput): Promise<{ id: string }> =>
+  const createPolicy = (policy: PolicyInput | EvmPolicyInput): Promise<{ id: string }> =>
     call("POST", "/v1/policies", { ...(policy as unknown as Record<string, Json>), ...owner }, PolicySchema);
   async function setWalletPolicies(walletId: string, policyIds: string[]): Promise<void> {
     checkWalletId(walletId);
@@ -150,6 +163,14 @@ export function createPrivy(o: PrivyOptions) {
       return out.data.data.hash;
     },
 
+    /** Signs an EVM transaction (Robinhood Chain); the caller broadcasts it. Returns the RLP-encoded signed tx. */
+    async signEvmTransaction(walletId: string, transaction: EvmTx): Promise<`0x${string}`> {
+      checkWalletId(walletId);
+      const out = SignSchema.safeParse(await rpc(walletId, { method: "eth_signTransaction", params: { transaction } }));
+      if (!out.success || !/^0x[0-9a-fA-F]+$/.test(out.data.data.signed_transaction)) throw new SolanaError("privy", "eth_signTransaction returned no signed_transaction");
+      return out.data.data.signed_transaction as `0x${string}`;
+    },
+
     async signTransaction(walletId: string, txBase64: string): Promise<string> {
       checkWalletId(walletId);
       checkTx(txBase64);
@@ -159,8 +180,8 @@ export function createPrivy(o: PrivyOptions) {
     },
 
     /** Create wallet -> policy (needs the address for its WSOL account) -> attach. Throws with walletId if the policy step fails. */
-    async createWalletWithPolicy(buildPolicy: (address: string) => PolicyInput): Promise<{ id: string; address: string; policyId: string }> {
-      const wallet = await createWallet();
+    async createWalletWithPolicy(buildPolicy: (address: string) => PolicyInput | EvmPolicyInput, chainType: ChainType = "solana"): Promise<{ id: string; address: string; policyId: string }> {
+      const wallet = await createWallet(undefined, chainType);
       try {
         const { id: policyId } = await createPolicy(buildPolicy(wallet.address));
         await setWalletPolicies(wallet.id, [policyId]);
