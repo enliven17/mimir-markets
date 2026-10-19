@@ -72,7 +72,9 @@ export function createPonsSources(opts: { fetch?: FetchLike; onError?: OnError; 
   const load = async (dex: "pons-v2" | "pons-v2-dex", source: "pumpfun" | "dexscreener") => {
     const busiest = await pools(`${BASE}/${dex}/pools?page=1&sort=h24_volume_usd_desc`);
     // The curve list also takes the newest launches, which volume sorting never surfaces.
-    const fresh = dex === "pons-v2" ? (await pools(`${NEW_POOLS}?page=1`)).filter((p) => p.relationships?.dex?.data?.id === "pons-v2") : [];
+    // A failed newest-pools call (429) must not cost the busiest list: it is reported and skipped.
+    const newest = dex === "pons-v2" ? await pools(`${NEW_POOLS}?page=1`).catch((err) => (opts.onError?.("geckoterminal:new_pools", err), [] as Pool[])) : [];
+    const fresh = newest.filter((p) => p.relationships?.dex?.data?.id === "pons-v2");
     return [...fresh, ...busiest].map((p) => toCandidate(p, source, now())).filter((c): c is Candidate => c !== null);
   };
   const source = (id: "pumpfun" | "dexscreener", dex: "pons-v2" | "pons-v2-dex"): MarketSource => ({

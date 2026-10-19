@@ -162,8 +162,34 @@ export function createRobinhoodExecutor(d: RobinhoodExecutorDeps) {
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 300);
   const onSignedOf = (a: TradeArgs) => (a.onSigned ? (hash: string) => a.onSigned!(hash, 0) : undefined);
 
+  // Whether a token is a Pons V2 launch priced in ETH never changes: answer once per token per process.
+  const tradableCache = new Map<string, boolean>();
+  async function tradable(token: string): Promise<boolean> {
+    const key = token.toLowerCase();
+    const hit = tradableCache.get(key);
+    if (hit !== undefined) return hit;
+    try {
+      const l = await client.readContract({ address: PONS_FACTORY, abi: FACTORY_ABI, functionName: "getLaunchedToken", args: [addr(token)] });
+      const ok = l.exists && l.pairToken === NATIVE;
+      if (tradableCache.size > 20_000) tradableCache.clear();
+      tradableCache.set(key, ok);
+      return ok;
+    } catch {
+      return false; // unknown this time: skip it, ask again next tick
+    }
+  }
+
   const executor = {
     market,
+
+    /**
+     * Only the candidates this executor can trade: GeckoTerminal's Pons lists also carry tokens from Pons V1 and
+     * other paths, which the V2 factory does not know. Used as the tick's `enrich` step, before rules and ranking.
+     */
+    async onlyTradable<C extends { mint: string }>(candidates: C[]): Promise<C[]> {
+      const ok = await Promise.all(candidates.map((c) => tradable(c.mint)));
+      return candidates.filter((_, i) => ok[i]);
+    },
 
     async buy(a: TradeArgs & { lamports: bigint }): Promise<Fill> {
       const token = addr(a.mint);

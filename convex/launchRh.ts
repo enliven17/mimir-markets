@@ -31,6 +31,7 @@ function build(env: Record<string, string | undefined>) {
       executor: rh.executor,
       sources: { pumpfun: pons.curve, dexscreener: pons.graduated },
       prices: { prices: rh.executor.prices },
+      enrich: rh.executor.onlyTradable,
       settings: {
         threshold: threshold !== undefined && threshold >= 0 && threshold <= 1 ? threshold : undefined,
         maxOpen: Math.min(20, Math.max(1, Number(env.LAUNCH_MAX_OPEN) || 3)),
