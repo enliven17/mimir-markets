@@ -3,7 +3,8 @@
 import type { Candidate } from "../ports";
 import { isPrice } from "./sol";
 
-const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+/** A Solana mint (base58) or a Robinhood Chain token (0x, checksummed by its source so it compares exactly). */
+const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$|^0x[0-9a-fA-F]{40}$/;
 export const isMint = (s: unknown): s is string => typeof s === "string" && MINT_RE.test(s);
 
 function fill(a: Candidate, b: Candidate): Candidate {
