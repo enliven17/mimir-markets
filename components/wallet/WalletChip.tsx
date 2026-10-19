@@ -240,7 +240,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             <ExternalLink size={14} aria-hidden />
             {t("explorer")}
           </a>
-          <Link href="/dashboard" role="menuitem" data-menu-item className={menuItem} onClick={() => close(false)}>
+          <Link href="/wallet" role="menuitem" data-menu-item className={menuItem} onClick={() => close(false)}>
             <Wallet size={14} aria-hidden />
             {t("manage")}
           </Link>

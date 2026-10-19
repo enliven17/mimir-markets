@@ -2,8 +2,8 @@
 
 /**
  * First steps on Arc, shown on the Arena until done or dismissed: connect a
- * Solana wallet, create the passkey account, link the two, add USDC over CCTP,
- * place a first stake. Every step reads real state; nothing is ticked by hand.
+ * wallet, create the passkey account (linked to the wallet in the same flow),
+ * add USDC, place a first stake. Every step reads real state; nothing is ticked by hand.
  * Funding counts as done once anyone has staked (a spent balance is not a step
  * undone), and once all five are done the card is gone for good.
  */
@@ -32,9 +32,8 @@ export default function ArcOnboarding() {
 
   const steps: Array<{ title: string; done: boolean; href: string }> = [
     { title: "Connect your wallet", done: Boolean(wallet.solana), href: "/wallet" },
-    { title: "Create your Arc account with a passkey", done: Boolean(wallet.session), href: "/wallet" },
-    { title: "Link it to your Solana wallet", done: wallet.linked, href: "/wallet" },
-    { title: "Add USDC from Solana", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
+    { title: "Create your Arc account with a passkey", done: Boolean(wallet.session) && wallet.linked, href: "/wallet" },
+    { title: "Add USDC", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
     { title: "Place your first stake", done: (positions?.length ?? 0) > 0, href: "/arena" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -67,7 +66,7 @@ export default function ArcOnboarding() {
           Hide
         </button>
       </div>
-      <ol className="m-0 grid list-none gap-2 p-0 sm:grid-cols-5">
+      <ol className="m-0 grid list-none gap-2 p-0 sm:grid-cols-4">
         {steps.map((s, i) => (
           <li key={s.title} className={`rounded-xl p-3 text-[13px] ${s.done ? "bg-panel text-muted" : s === next ? "bg-panel-raised text-cream shadow-[inset_0_0_0_1px_rgb(255_81_72/.5)]" : "bg-panel text-dim"}`}>
             <span className={`mr-1.5 font-mono ${s.done ? "text-win" : "text-coral"}`}>{s.done ? "✓" : i + 1}</span>

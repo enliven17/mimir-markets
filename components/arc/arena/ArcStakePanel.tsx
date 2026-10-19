@@ -141,7 +141,7 @@ export default function ArcStakePanel({
 
         {blocker === "not-enough" ? (
           <Link href="/wallet" className={`${BTN_PRIMARY} text-center`}>
-            Add USDC from Solana
+            Add USDC
           </Link>
         ) : (
           <>

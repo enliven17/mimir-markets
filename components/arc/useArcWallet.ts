@@ -130,32 +130,63 @@ export function useArcWallet(): ArcWallet {
     }
   }, []);
 
+  const linkSession = useCallback(
+    async (s: ArcSession) => {
+      if (!solana || !sign) throw new Error("Connect a wallet that can sign messages.");
+      const signedAt = Date.now();
+      const message = arcBindMessage(solana, s.address, signedAt);
+      const solanaSignature = await sign(message);
+      const arcSignature = await s.signMessage(message);
+      const b = await postBinding({ solana, arc: s.address, signedAt, solanaSignature, arcSignature, credentialId: s.passkey.id });
+      setBinding({ status: "loaded", binding: b });
+    },
+    [solana, sign],
+  );
+
+  /**
+   * Right after a passkey is made or opened, link it in the same flow, so nobody has to find a separate step. Skipped
+   * when no wallet can sign, or when the account already has an owner (this wallet: nothing to do; another wallet: the
+   * page offers a new account instead).
+   */
+  const linkAfter = useCallback(
+    async (s: ArcSession) => {
+      if (!solana || !sign) return;
+      const owner = await fetchBindingByArc(s.address).catch(() => undefined);
+      if (owner === undefined || owner) {
+        if (owner?.solana === solana) setBinding({ status: "loaded", binding: owner });
+        return;
+      }
+      setBusy("link");
+      await linkSession(s);
+    },
+    [solana, sign, linkSession],
+  );
+
   const create = useCallback(
     () =>
       run("create", async () => {
         const s = await (await loadArcAccount()).createPasskeyAccount(passkeyName(solana));
         setSession(s);
+        await linkAfter(s);
         return s;
       }),
-    [run, solana],
+    [run, solana, linkAfter],
   );
 
   const login = useCallback(async () => {
-    await run("login", async () => setSession(await (await loadArcAccount()).loginPasskeyAccount()));
-  }, [run]);
+    await run("login", async () => {
+      const s = await (await loadArcAccount()).loginPasskeyAccount();
+      setSession(s);
+      await linkAfter(s);
+    });
+  }, [run, linkAfter]);
 
   const link = useCallback(async () => {
     await run("link", async () => {
-      if (!solana || !sign) throw new Error("Connect a wallet that can sign messages.");
       if (!session) throw new Error("Create or log in to your Arc account first.");
-      const signedAt = Date.now();
-      const message = arcBindMessage(solana, session.address, signedAt);
-      const solanaSignature = await sign(message);
-      const arcSignature = await session.signMessage(message);
-      const b = await postBinding({ solana, arc: session.address, signedAt, solanaSignature, arcSignature, credentialId: session.passkey.id });
-      setBinding({ status: "loaded", binding: b });
+      await linkSession(session);
     });
-  }, [run, solana, sign, session]);
+  }, [run, session, linkSession]);
 
   const recover = useCallback(
     async (phrase: string) => {
@@ -174,9 +205,11 @@ export function useArcWallet(): ArcWallet {
       const mod = await loadArcAccount();
       mod.clearStoredPasskey();
       setSession(null);
-      setSession(await mod.createPasskeyAccount(passkeyName(solana)));
+      const s = await mod.createPasskeyAccount(passkeyName(solana));
+      setSession(s);
+      await linkAfter(s);
     });
-  }, [run, solana]);
+  }, [run, solana, linkAfter]);
 
   const bound = binding.status === "loaded" ? binding.binding : null;
   return {

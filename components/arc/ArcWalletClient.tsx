@@ -183,6 +183,11 @@ function AccountBody({ w }: { w: ArcWallet }) {
         <p className="m-0 text-[14px] text-muted">
           A passkey is a sign-in key kept on your device and unlocked with Face ID, a fingerprint or your PIN. It signs everything you do on Arc.
         </p>
+        <ol className="m-0 grid list-none gap-1 p-0 text-[13px] text-muted">
+          <li><span className="mr-2 font-mono text-coral">1</span>Your device asks for Face ID, a fingerprint or your PIN.</li>
+          <li><span className="mr-2 font-mono text-coral">2</span>Your {walletName(w)} signs once to link the account. Free, no transaction.</li>
+          <li><span className="mr-2 font-mono text-coral">3</span>Your passkey confirms the link. Done.</li>
+        </ol>
         {bound ? (
           <p className="m-0 text-[14px] text-cream">
             This wallet is linked to Arc account <span className="font-mono">{short(bound.arc)}</span>. Log in with its passkey.
@@ -195,7 +200,7 @@ function AccountBody({ w }: { w: ArcWallet }) {
             </button>
           ) : null}
           <button type="button" disabled={!w.solana || Boolean(w.busy)} onClick={() => void w.create()} className={bound ? BTN_SECONDARY : BTN_PRIMARY}>
-            {w.busy === "create" ? "Follow your device's prompt…" : bound ? "Start a new account" : "Create your Arc account"}
+            {w.busy === "create" ? "Follow your device's prompt…" : w.busy === "link" ? "Approve in your wallet…" : bound ? "Start a new account" : "Create your Arc account"}
           </button>
           {!bound ? (
             <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.login()} className={BTN_SECONDARY}>

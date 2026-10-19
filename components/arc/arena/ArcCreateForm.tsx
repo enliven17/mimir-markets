@@ -258,7 +258,7 @@ export default function ArcCreateForm() {
         <AccountGate account={account}>
           {problem === "not-enough" ? (
             <Link href="/wallet" className={`${BTN_PRIMARY} text-center`}>
-              Add USDC from Solana
+              Add USDC
             </Link>
           ) : (
             <>
