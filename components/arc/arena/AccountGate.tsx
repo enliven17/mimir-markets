@@ -41,7 +41,7 @@ export default function AccountGate({ account, children }: { account: ReturnType
       <p className="m-0 text-[14px] leading-relaxed text-muted">
         {wallet.solana
           ? "One-time setup: your device makes a passkey (Face ID, fingerprint or PIN), then your wallet signs once to link it. No seed phrase, no gas."
-          : "To stake, connect your wallet first. Then a passkey on this device becomes your Arc account: no seed phrase, no gas."}
+          : "Markets settle on Arc. Connect your wallet, and a passkey on this device becomes your Arc account (no seed phrase, no gas); or stake straight from an Arc wallet."}
       </p>
       {wallet.solana ? (
         <button type="button" disabled={Boolean(wallet.busy)} onClick={() => void wallet.create()} className={BTN_PRIMARY}>
@@ -57,7 +57,7 @@ export default function AccountGate({ account, children }: { account: ReturnType
           I already have a passkey
         </button>
         <Link href="/wallet" className={BTN_QUIET}>
-          Robinhood wallet or recovery
+          Arc wallet, Robinhood or recovery
         </Link>
       </div>
       {wallet.error ? (

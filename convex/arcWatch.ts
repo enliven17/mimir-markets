@@ -122,7 +122,8 @@ export const tick = internalAction({
           text: `⚖️ Dispute on ${d.kind} #${d.marketId} "${d.question.slice(0, 120)}". The Safe must rule (resolveDispute) before ${utc(d.refundAt)} UTC, or everyone is refunded.`,
         });
 
-      // 4. A market the oracle keeps failing on (reported at 6 tries, again at 12).
+      // 4. A market the oracle keeps failing on (reported at 6 tries, again at 12). Waiting on a game still in play is a
+      // deferral, not a failure: only a try that ended in an error counts (arcWatchDb).
       for (const s of snap.stuck)
         problems.push({ key: `stuck:${s.kind}:${s.marketId}:${s.attempts >= 12 ? 12 : 6}`, ttlMs: 7 * 24 * HOUR, text: `⚠️ The oracle has failed ${s.attempts}× on ${s.kind} #${s.marketId}: ${s.lastError.slice(0, 300)}` });
 

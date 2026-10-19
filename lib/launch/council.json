@@ -9,7 +9,19 @@
     },
     "mint": "EDYyYcWgzcuhZZvhmpLtcLLXyv6m4yy2P3YFDfDgF6MS",
     "sig": "5bPFAbpvSpVN7dTkescRaAi3uRhkfnHK33vhBwX5Ua5BvHifaCjyT5eAb7N4erQoHEeESoKFW3Nh4DvxyU1d4Neu",
-    "metadataUri": "https://ipfs.io/ipfs/bafkreigbnc35szs4qqifwmblxn5eevvx6bvcl5wy6owjpgwwxkkbivlyoe"
+    "metadataUri": "https://ipfs.io/ipfs/bafkreigbnc35szs4qqifwmblxn5eevvx6bvcl5wy6owjpgwwxkkbivlyoe",
+    "argus": {
+      "token": "0x9BBde5ef54604e06524605b42b20120Ab366E8DD",
+      "poolId": "0xa206a27d11eaff6612d4d09649365d8ebf6aed035871c6eb7c4226978cd1abb1",
+      "hook": "0x2Eab7E25EdACd4c3ba8C378c0Bb20eAA6E046044",
+      "locker": "0xCE2BC098faDc33db8C8d4b8f0723c429dabb8558",
+      "splitter": "0xAb7AC90eC5f1fcE657265E03469671fb0A71309A",
+      "tx": "0xb78355a0673497590e104c4fec905916aae926cc98756b3984664fe931d23aa8",
+      "buyTaxBps": 200,
+      "sellTaxBps": 200,
+      "creatorBps": 8444,
+      "burnBps": 1556
+    }
   },
   "optimist": {
     "name": "The Optimist",

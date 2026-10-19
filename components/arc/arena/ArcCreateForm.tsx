@@ -269,7 +269,7 @@ export default function ArcCreateForm() {
             </>
           )}
           {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
-          <p className="m-0 text-[12px] text-dim">Arc balance: {account.balance === null ? "-" : usd(account.balance)}</p>
+          <p className="m-0 text-[12px] text-dim">{account.split ? `Account: ${usd(account.split.account)} · From your wallet: ${usd(account.split.wallet)}` : `Arc balance: ${account.balance === null ? "-" : usd(account.balance)}`}</p>
         </AccountGate>
       </section>
     </div>

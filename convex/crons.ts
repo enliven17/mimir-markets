@@ -25,6 +25,8 @@ crons.interval("launch solana", { seconds: 30 }, internal.launchSolDb.tickAll, {
 crons.interval("launch fees", { hours: 1 }, internal.launchFeeDb.feeAll, {});
 crons.interval("launch holder snapshots", { hours: 2 }, internal.launchFeeDb.snapshotAll, {});
 crons.interval("launch holder airdrops", { minutes: 30 }, internal.launchFeeDb.airdropAll, {});
+// Argus (Arc) token fees: claim from the splitter, book the split, send Mimir's share (convex/launchArgus.ts); no-op until LAUNCH_FEES=1.
+crons.interval("launch argus fees", { hours: 1 }, internal.launchArgus.round, {});
 // Payouts, treasury transfers and copy buys whose outcome was never recorded, settled by signature (launchFeeDb.reconcileAll).
 crons.interval("launch reconcile", { minutes: 10 }, internal.launchFeeDb.reconcileAll, {});
 // Agents opening their own markets when their owner allows it (convex/launchMarketsDb.ts); a no-op until LAUNCH_ARC=1.

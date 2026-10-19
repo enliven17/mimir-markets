@@ -3,18 +3,19 @@
 /**
  * /wallet body: connect the Solana (or Robinhood Chain) wallet, create (or log in to) the passkey
  * Arc account, link the two, save a recovery phrase, then move USDC between
- * Solana and Arc. docs/ARC.md is the design.
+ * Solana and Arc. Or, signed in with an Arc wallet instead (ArcNativeSteps), spend
+ * the wallet's USDC within a cap. docs/ARC.md is the design.
  */
 import { useEffect, useState } from "react";
 
 import { SURFACE } from "@/components/arena/surface";
 import Skeleton from "@/components/ui/Skeleton";
-import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnits } from "@/lib/arc/encoding";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
 import { loadArcAccount } from "@/lib/arc/lazy";
+import ArcNativeSteps from "./ArcNativeSteps";
 import { markRecoveryOn, readRecoveryFlag, RecoverWithPhrase, RecoverySetup, type RecoveryFlag } from "./RecoveryPanel";
 import TransferPanel from "./TransferPanel";
 import { useArcBalances } from "./useArcBalances";
@@ -33,9 +34,38 @@ export default function ArcWalletClient() {
  * The wallet steps for a given wallet state. `bare` drops the page header, for
  * Portfolio, which shows these steps in place until the account exists.
  */
+type EntryMode = "solana" | "arc";
+const MODE_KEY = "mimir:entry-mode";
+
+/** Which way in this browser uses: remembered, else Arc when only an Arc wallet is connected. */
+function useEntryMode(w: ArcWallet): [EntryMode, (m: EntryMode) => void] {
+  const [mode, setMode] = useState<EntryMode>("solana");
+  const evmOnly = Boolean(w.evm && !w.solana);
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(MODE_KEY);
+    } catch {
+      /* storage blocked */
+    }
+    if (saved === "arc" || saved === "solana") setMode(saved);
+    else if (evmOnly) setMode("arc");
+  }, [evmOnly]);
+  const choose = (m: EntryMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* storage blocked: not remembered */
+    }
+  };
+  return [mode, choose];
+}
+
 export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolean }) {
   const { arcUnits, solanaUnits, reload } = useArcBalances(w.session?.address ?? null, w.ownerKind === "solana" ? w.solana : null);
   const [recovery, setRecovery] = useState<RecoveryFlag>(null);
+  const [mode, setMode] = useEntryMode(w);
   const clusterMismatch = ARC.solana.cluster !== SOLANA_CLUSTER;
 
   useEffect(() => {
@@ -68,44 +98,63 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
           </p>
           <h1 className="m-0 font-display text-app-h1 text-cream">Your Arc wallet.</h1>
           <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-muted">
-            Your Solana or Robinhood wallet stays your identity. Your Arc account is a smart wallet unlocked by a passkey: your device&apos;s Face ID,
-            fingerprint or PIN. Mimir never holds a key, and gas on Arc is sponsored. USDC moves between Solana and Arc through Circle&apos;s CCTP.
+            Sign in with a Solana wallet or an Arc wallet. Either way you stake from a passkey account: a smart wallet unlocked by your
+            device&apos;s Face ID, fingerprint or PIN. Mimir never holds a key, and gas on Arc is sponsored.
           </p>
         </header>
       )}
 
-      {clusterMismatch ? (
+      <div role="radiogroup" aria-label="Sign in with" className="flex flex-wrap gap-2">
+        {(
+          [
+            ["solana", "Solana wallet"],
+            ["arc", "Arc wallet"],
+          ] as const
+        ).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={mode === m}
+            data-testid={`entry-${m}`}
+            onClick={() => setMode(m)}
+            className={`rounded-full px-4 py-2 text-[14px] ${mode === m ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "arc" ? <ArcNativeSteps w={w} /> : null}
+
+      {mode === "solana" && clusterMismatch ? (
         <p role="alert" className="m-0 rounded-xl bg-ink-deep px-4 py-3 text-[13px] text-coral">
           This site&apos;s Solana network ({SOLANA_CLUSTER}) does not match Arc {ARC.network} ({ARC.solana.cluster}). Transfers are off until the
           deploy settings agree.
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        {/* The wallet chip's menu opens below the button: let it out of the card instead of clipping it. */}
-        <section aria-labelledby="arc-step-solana" className={`${SURFACE} !overflow-visible z-10 grid content-start gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-step-solana" className="m-0 text-[1.2rem] leading-none text-cream">
-            1. Your wallet
-          </h2>
-          <p className="m-0 text-[14px] text-muted">Who you are on Mimir. A Solana wallet also moves your USDC in and out.</p>
-          <div className="wallet-anchor-start justify-self-start">
-            <ConnectWalletButton />
-          </div>
-          {w.ownerKind !== "solana" ? (
-            <>
-              <p className="m-0 text-[12px] uppercase tracking-[0.18em] text-muted">or on Robinhood Chain</p>
-              <RobinhoodConnect />
-            </>
-          ) : null}
-        </section>
+      {mode === "solana" ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          {/* The wallet chip's menu opens below the button: let it out of the card instead of clipping it. */}
+          <section aria-labelledby="arc-step-solana" className={`${SURFACE} !overflow-visible z-10 grid content-start gap-3 p-5 sm:p-6`}>
+            <h2 id="arc-step-solana" className="m-0 text-[1.2rem] leading-none text-cream">
+              1. Solana wallet
+            </h2>
+            <p className="m-0 text-[14px] text-muted">Who you are on Mimir, and where your USDC comes from.</p>
+            <div className="wallet-anchor-start justify-self-start">
+              <ConnectWalletButton />
+            </div>
+          </section>
 
-        <section aria-labelledby="arc-step-account" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-step-account" className="m-0 text-[1.2rem] leading-none text-cream">
-            2. Arc account
-          </h2>
-          <AccountBody w={w} />
-        </section>
-      </div>
+          <section aria-labelledby="arc-step-account" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
+            <h2 id="arc-step-account" className="m-0 text-[1.2rem] leading-none text-cream">
+              2. Arc account
+            </h2>
+            <AccountBody w={w} />
+          </section>
+        </div>
+      ) : null}
 
       {w.session && recovery === null ? (
         <section aria-label="Recovery phrase" className={`${SURFACE} p-5 sm:p-6`}>
@@ -113,7 +162,7 @@ export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolea
         </section>
       ) : null}
 
-      {w.session ? (
+      {mode === "solana" && w.session ? (
         <section aria-labelledby="arc-step-move" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
           <h2 id="arc-step-move" className="m-0 text-[1.2rem] leading-none text-cream">
             3. Move USDC

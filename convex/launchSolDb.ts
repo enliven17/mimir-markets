@@ -18,7 +18,7 @@ const hasOpen = async (ctx: QueryCtx, agent: Id<"launchAgents">) =>
 
 /** What the worker reads of an agent: never the sealed brain or the launch payload. */
 /** The wallet the agent trades from: its Robinhood Chain wallet on that venue, else its Solana one. */
-export const tradingWallet = (a: Doc<"launchAgents">) => (a.venue === "robinhood" ? a.robinhood : a.venue === "arc" ? undefined : a.solana);
+export const tradingWallet = (a: Doc<"launchAgents">) => (a.venue === "robinhood" ? a.robinhood : a.solana);
 
 const agentView = (a: Doc<"launchAgents">, reservedLamports = 0n) => ({
   // `owner` is where a shutdown sweep pays: the owner's Solana wallet, or on Robinhood its payout address.

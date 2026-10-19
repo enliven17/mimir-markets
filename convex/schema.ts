@@ -208,10 +208,10 @@ export default defineSchema({
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
     /**
-     * Where it lives (absent = solana): "solana" launches a pump.fun token and trades on Solana, "robinhood" launches a
-     * Pons token and trades on Robinhood Chain (lib/launch/robinhood), "arc" has no token and only stakes on markets.
+     * "robinhood": a Pons token, trading on Robinhood Chain (lib/launch/robinhood) from the wallet below. Absent: the
+     * Solana wallet trades (pump.fun agents; Argus agents keep it too, see launch.chain).
      */
-    venue: v.optional(v.union(v.literal("solana"), v.literal("robinhood"), v.literal("arc"))),
+    venue: v.optional(v.literal("robinhood")),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /**
      * Robinhood Chain wallet (Privy, chain_type ethereum, policy-locked: lib/launch/robinhood/policy.ts) and the
@@ -221,6 +221,19 @@ export default defineSchema({
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its token once launched: the pump.fun mint, or the Pons token address (checksummed) on Robinhood Chain. */
     mint: v.optional(v.string()),
+    /** Its Argus token on Arc (lib/launch/argus.ts), once launched; such an agent has no `mint`. */
+    token: v.optional(v.object({
+      chain: v.literal("arc"), address: v.string(), poolId: v.string(), splitter: v.string(), hook: v.string(), locker: v.string(),
+      creatorBps: v.number(), tx: v.optional(v.string()),
+    })),
+    /**
+     * Its Argus fee ledger in USDC6 (decimal strings): claimed from the splitter, Mimir's 20% owed and paid to the treasury,
+     * and the one Circle tx in flight, recorded before it is waited on so an unconfirmed send is settled, never repeated.
+     */
+    argusFees: v.optional(v.object({
+      claimed6: v.string(), owedTreasury6: v.string(), paidTreasury6: v.string(), lastRoundAt: v.number(),
+      pending: v.optional(v.object({ step: v.union(v.literal("claim"), v.literal("treasury")), circleId: v.string(), amount6: v.string(), at: v.number() })),
+    })),
     /** Random id bound into the sealed BYOK key (lib/launch/byok AAD), fixed for the agent's life. */
     uid: v.string(),
     /** A council persona (agents/council): Mimir's own agent, its Arc wallet is the council's Circle wallet. */
@@ -230,6 +243,9 @@ export default defineSchema({
       /** What the owner must send before launch, in the venue's native base unit (lamports; wei on Robinhood). */
       fundLamports: v.string(),
       description: v.string(),
+      /** Where its token launches: pump.fun on Solana (the default) or Argus on Arc, with the Argus taxes. */
+      chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
+      argus: v.optional(v.object({ buyTaxBps: v.number(), sellTaxBps: v.number() })),
       /** An uploaded token image (data URL, capped well under the doc limit); without one the face is drawn at launch. */
       image: v.optional(v.string()),
       claimedAt: v.optional(v.number()),

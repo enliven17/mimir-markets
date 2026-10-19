@@ -53,3 +53,32 @@ export async function postBinding(body: {
   });
   return (await json<{ binding: ArcBinding }>(res)).binding;
 }
+
+/** Native Arc sign-in: the Arc (EVM) wallet a passkey account is bound to. */
+export interface ArcEvmBinding {
+  evm: `0x${string}`;
+  arc: `0x${string}`;
+  boundAt: number;
+}
+
+export async function fetchEvmBindingByArc(arc: string): Promise<ArcEvmBinding | null> {
+  const res = await fetch(`/api/arc/evm-bind?arc=${encodeURIComponent(arc)}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  return (await json<{ binding: ArcEvmBinding }>(res)).binding;
+}
+
+export async function postEvmBinding(body: {
+  evm: string;
+  arc: string;
+  signedAt: number;
+  evmSignature: string;
+  arcSignature: string;
+  credentialId: string | null;
+}): Promise<ArcEvmBinding> {
+  const res = await fetch("/api/arc/evm-bind", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await json<{ binding: ArcEvmBinding }>(res)).binding;
+}

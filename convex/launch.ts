@@ -29,14 +29,16 @@ export const createPending = mutation({
     brain: vBrain,
     trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
-    venue: v.optional(v.union(v.literal("solana"), v.literal("robinhood"), v.literal("arc"))),
+    venue: v.optional(v.literal("robinhood")),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
     arc: v.object({ walletId: v.string(), address: v.string() }),
     fundLamports: v.string(), description: v.string(), image: v.optional(v.string()),
     allocation: v.optional(vAllocation),
+    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
+    argus: v.optional(v.object({ buyTaxBps: v.number(), sellTaxBps: v.number() })),
   },
-  handler: async (ctx, { secret, fundLamports, description, image, ...a }) => {
+  handler: async (ctx, { secret, fundLamports, description, image, chain, argus, ...a }) => {
     allowed(secret);
     const problem = a.allocation ? allocationProblem(a.allocation) : null;
     if (problem) throw new Error(`allocation: ${problem}`);
@@ -48,9 +50,7 @@ export const createPending = mutation({
       if (n > 999) return { ok: false as const, reason: "taken" as const };
       slug = `${a.slug}-${n}`;
     }
-    // An Arc-only agent has no token to launch: it is live as soon as it exists (it stakes once its Arc wallet has USDC).
-    const status = a.venue === "arc" ? "live" : "pending";
-    await ctx.db.insert("launchAgents", { ...a, slug, status, createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}) } });
+    await ctx.db.insert("launchAgents", { ...a, slug, status: "pending", createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}), ...(chain === "arc" ? { chain, argus } : {}) } });
     return { ok: true as const, slug };
   },
 });
@@ -60,20 +60,33 @@ export const forLaunch = query({
   handler: async (ctx, { secret, slug }) => {
     allowed(secret);
     const a = await bySlug(ctx, slug);
-    return a && { owner: a.owner, venue: a.venue ?? "solana", name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null, solana: a.solana ?? null, robinhood: a.robinhood ?? null, arc: a.arc ?? null, launch: a.launch ?? null };
+    return a && {
+      owner: a.owner, venue: a.venue ?? "solana", name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null,
+      solana: a.solana ?? null, robinhood: a.robinhood ?? null, arc: a.arc ?? null, launch: a.launch ?? null,
+      uid: a.uid, token: a.token ?? null, allocation: a.allocation ?? null, argusOwed6: a.argusFees?.owedTreasury6 ?? "0",
+    };
   },
 });
 
 /**
  * Only one request may mint, even on a double click. The verified funding signature is bound to this agent:
- * the same tx can be retried for it, but never fund another agent's launch.
+ * the same tx can be retried for it, but never fund another agent's launch. An Argus launch has no funding tx (the
+ * agent's Arc wallet pays its own gas), so only it may claim without one.
  */
 export const claimLaunch = mutation({
-  args: { secret: v.string(), slug: v.string(), fundingSig: v.string() },
+  args: { secret: v.string(), slug: v.string(), fundingSig: v.optional(v.string()) },
   handler: async (ctx, { secret, slug, fundingSig }): Promise<boolean | "sig-used"> => {
     allowed(secret);
     const a = await bySlug(ctx, slug);
-    if (!a || !a.launch || a.status !== "pending" || a.mint || a.launch.claimedAt) return false;
+    if (!a || !a.launch || a.status !== "pending" || a.mint || a.token) return false;
+    if (!fundingSig) {
+      // An Argus retry is safe (a landed launch is recovered, never repeated), so a claim left by a request that died
+      // mid-launch expires after 10 minutes instead of blocking the owner for good.
+      if (a.launch.chain !== "arc" || (a.launch.claimedAt && a.launch.claimedAt > Date.now() - 10 * 60_000)) return false;
+      await ctx.db.patch(a._id, { launch: { ...a.launch, claimedAt: Date.now() } });
+      return true;
+    }
+    if (a.launch.claimedAt) return false;
     const users = await ctx.db.query("launchAgents").withIndex("by_fundingSig", (q) => q.eq("fundingSig", fundingSig)).collect();
     if (users.some((u) => u._id !== a._id)) return "sig-used";
     await ctx.db.patch(a._id, { fundingSig, launch: { ...a.launch, claimedAt: Date.now() } });
@@ -87,7 +100,7 @@ export const releaseLaunch = mutation({
   handler: async (ctx, { secret, slug }) => {
     allowed(secret);
     const a = await bySlug(ctx, slug);
-    if (a?.launch && !a.mint) await ctx.db.patch(a._id, { launch: { ...a.launch, claimedAt: undefined } });
+    if (a?.launch && !a.mint && !a.token) await ctx.db.patch(a._id, { launch: { ...a.launch, claimedAt: undefined } });
   },
 });
 
@@ -105,6 +118,24 @@ export const recordLaunch = mutation({
     await ctx.db.patch(a._id, { mint, status: a.status === "killed" ? "killed" : "live", launch: { ...a.launch, image: undefined, metadataUri, sig } });
     const rh = a.venue === "robinhood";
     await log(ctx, a._id, "rules", `launched $${a.ticker} on ${rh ? "Pons (Robinhood Chain)" : "pump.fun"}, getting to work`, { chain: rh ? "robinhood" : "solana", tx: sig });
+  },
+});
+
+/** Its Argus token exists (lib/launch/flow.ts launchArc). Same rules as recordLaunch: never replaced, a kill stays a kill. */
+export const recordArgusLaunch = mutation({
+  args: {
+    secret: v.string(), slug: v.string(),
+    token: v.object({ address: v.string(), poolId: v.string(), splitter: v.string(), hook: v.string(), locker: v.string(), creatorBps: v.number(), tx: v.optional(v.string()) }),
+  },
+  handler: async (ctx, { secret, slug, token }) => {
+    allowed(secret);
+    const a = await bySlug(ctx, slug);
+    if (!a?.launch) throw new Error("no such agent");
+    if (!a.launch.claimedAt) throw new Error("launch not claimed");
+    if (a.token && a.token.address.toLowerCase() !== token.address.toLowerCase()) throw new Error(`agent already has token ${a.token.address}`);
+    if (a.token) return;
+    await ctx.db.patch(a._id, { token: { chain: "arc", ...token }, status: a.status === "killed" ? "killed" : "live", launch: { ...a.launch, image: undefined } });
+    await log(ctx, a._id, "rules", `launched $${a.ticker} on Argus (Arc), getting to work`, { chain: "arc", ...(token.tx ? { tx: token.tx } : {}) });
   },
 });
 
@@ -126,9 +157,7 @@ export const setStatus = mutation({
     if (!a || a.owner !== owner || a.status === "killed" || (a.status === "pending" && status !== "killed")) return false;
     await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined, idle: undefined } : {}) });
     const coin = a.venue === "robinhood" ? { chain: "Robinhood Chain", unit: "ETH" } : { chain: "Solana", unit: "SOL" };
-    const shutdown = a.venue === "arc"
-      ? "shut down by its owner: no new stakes (open Arc stakes settle on their own; withdraw USDC any time)"
-      : `shut down by its owner: closing ${coin.chain} positions and returning its ${coin.unit} (Arc stakes settle on their own; withdraw USDC any time)`;
+    const shutdown = `shut down by its owner: closing ${coin.chain} positions and returning its ${coin.unit} (Arc stakes settle on their own; withdraw USDC any time)`;
     await log(ctx, a._id, "rules", status === "killed" ? shutdown : `${status === "live" ? "resumed" : "paused"} by its owner`);
     return true;
   },
@@ -140,8 +169,11 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   trading: { enabled: a.trading.enabled }, markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc },
-  venue: a.venue ?? "solana", wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.solana?.address) ?? null, payout: a.robinhood?.payout ?? null,
+  // `wallet` is the wallet it trades from: Solana, or its Robinhood Chain wallet (whose ETH goes back to `payout`).
+  wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.solana?.address) ?? null, payout: a.robinhood?.payout ?? null,
   arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
+  chain: a.venue === "robinhood" ? ("robinhood" as const) : a.token ? ("arc" as const) : (a.launch?.chain ?? "solana"),
+  token: a.token ? { address: a.token.address, poolId: a.token.poolId } : null,
   fundLamports: a.status === "pending" ? (a.launch?.fundLamports ?? null) : null,
 });
 

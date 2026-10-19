@@ -18,7 +18,7 @@ function describe(err: unknown): string {
   const msg = e?.shortMessage ?? e?.message ?? "Something went wrong.";
   // The contracts' own words, when the revert reason made it through.
   if (/PoolFull/.test(msg)) return "This market is full: challengers can stake at most 5× the creator's stake.";
-  if (/BettingClosed|challenge window closed/.test(msg)) return "Betting has closed on this market.";
+  if (/BettingClosed|challenge window closed/.test(msg)) return "Staking has closed on this market.";
   if (/already challenged/.test(msg)) return "You already challenged this market.";
   return msg;
 }

@@ -112,7 +112,7 @@ The rule underneath all of this: when the oracle cannot be sure, people get thei
 
 To get the holder discount, Mimir's server checks the $MIMIR balance of your Solana wallet and signs a pass that is valid for 24 hours. The contract verifies the signature. The pass can only lower a fee, and only for the account it names. The token stays in your Solana wallet: Mimir only reads the balance and never locks or moves it.
 
-$MIMIR also opens the door at launch. Mimir starts invite-only: a wallet holding 5M $MIMIR gets in, and every member gets invite codes to share with people who hold none.
+Mimir is invite-only for now: you get in with an invite code, from a Solana wallet or an Arc wallet, and every member gets invite codes to share. $MIMIR does not open the door by itself; it lowers your fees.
 
 ## Trust, without taking our word for it
 

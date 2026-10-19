@@ -24,6 +24,8 @@ import type * as arcWatchDb from "../arcWatchDb.js";
 import type * as crons from "../crons.js";
 import type * as launch from "../launch.js";
 import type * as launchArc from "../launchArc.js";
+import type * as launchArgus from "../launchArgus.js";
+import type * as launchArgusDb from "../launchArgusDb.js";
 import type * as launchCopy from "../launchCopy.js";
 import type * as launchCopyJobs from "../launchCopyJobs.js";
 import type * as launchFeeDb from "../launchFeeDb.js";
@@ -57,6 +59,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   launch: typeof launch;
   launchArc: typeof launchArc;
+  launchArgus: typeof launchArgus;
+  launchArgusDb: typeof launchArgusDb;
   launchCopy: typeof launchCopy;
   launchCopyJobs: typeof launchCopyJobs;
   launchFeeDb: typeof launchFeeDb;

@@ -47,6 +47,8 @@ export const APP_STORE_TABLES = new Set([
   "agent_request_audit",
   "app_meta",
   "arc_accounts",
+  "arc_evm_accounts",
+  "arc_evm_owners",
   "arc_owners",
   "basket_subscriptions",
   "baskets",

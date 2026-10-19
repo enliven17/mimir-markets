@@ -114,9 +114,9 @@ const PAYOUT = "0x00000000000000000000000000000000000beef1";
 const rhWallets = { ...wallets, robinhood: async () => ({ id: "rh1", address: "0x00000000000000000000000000000000000a9e17" }) };
 
 test("robinhood: needs the owner's Robinhood address, makes an EVM wallet and asks for seed + fee in wei", async () => {
-  assert.equal(CreateBody.safeParse({ ...body(), venue: "robinhood" }).success, false);
+  assert.equal(CreateBody.safeParse({ ...body(), chain: "robinhood" }).success, false);
   const f = fakeCx();
-  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "robinhood", payout: PAYOUT }));
+  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "robinhood", payout: PAYOUT }));
   assert.ok(r.ok);
   assert.equal(r.fundLamports, 500_000_000_000_000_000n + 1_000_000_000_000_000n);
   const a = f.agent()!;
@@ -126,7 +126,7 @@ test("robinhood: needs the owner's Robinhood address, makes an EVM wallet and as
 
 test("robinhood: launch verifies ETH from the payout address and launches on Pons, not pump.fun", async () => {
   const f = fakeCx();
-  await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "robinhood", payout: PAYOUT }));
+  await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "robinhood", payout: PAYOUT }));
   let pumped = 0;
   let seen: { from: string; to: string } | null = null;
   const deps = {
@@ -141,13 +141,4 @@ test("robinhood: launch verifies ETH from the payout address and launches on Pon
   const r = await launch(f.cx, deps, OWNER, "njord", `0x${"a".repeat(64)}`);
   assert.deepEqual([r.ok, r.ok && r.mint, pumped], [true, "0x0000000000000000000000000000000000000Bee", 0]);
   assert.deepEqual(seen, { hash: `0x${"a".repeat(64)}`, from: "0x00000000000000000000000000000000000bEEf1", to: "0x00000000000000000000000000000000000a9e17", minWei: 501_000_000_000_000_000n });
-});
-
-test("arc: markets only, no trading wallet, nothing to fund", async () => {
-  assert.equal(CreateBody.safeParse({ ...body({ venue: "arc" }), trading: { enabled: true } }).success, false);
-  const f = fakeCx();
-  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ venue: "arc" }));
-  assert.ok(r.ok);
-  assert.equal(r.fundLamports, 0n);
-  assert.deepEqual([f.agent()!.solana, f.agent()!.robinhood, f.agent()!.venue], [undefined, undefined, "arc"]);
 });

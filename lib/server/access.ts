@@ -8,7 +8,6 @@ import { randomInt } from "node:crypto";
 import { ARC } from "@/lib/arc/config";
 import {
   accessMinMimir,
-  HOLDER_RECHECK_MS,
   INVITE_ALPHABET,
   inviteDailyCap,
   inviteMintAllowance,
@@ -18,8 +17,8 @@ import {
   type AccessStatus,
 } from "@/lib/access";
 import { insert, store, StoreConflict } from "./store";
-import { walletBalances } from "./holder";
 import { adminWallets } from "./admin";
+import { getArcEvmBindingByArc } from "./arc-evm-accounts";
 
 export const isInviteOnly = () => inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
 
@@ -52,7 +51,7 @@ async function takeFromDailyBudget(want: number, now: number): Promise<number> {
  * A member's codes, topped up to the current allowance (idempotent). Raising MIMIR_INVITES_PER_USER hands everyone
  * the extra codes on their next visit; lowering it hides nothing already handed out.
  */
-async function memberInvites(wallet: string, grant: Grant, holdsMinimum: boolean): Promise<AccessStatus["invites"]> {
+async function memberInvites(wallet: string, grant: Grant): Promise<AccessStatus["invites"]> {
   const allowance = invitesPerUser();
   const now = Date.now();
   type Invite = { code: string; used_by: string | null; created_at: number };
@@ -60,7 +59,7 @@ async function memberInvites(wallet: string, grant: Grant, holdsMinimum: boolean
   let rows = await mine();
   // Admins (ADMIN_WALLETS) skip the waiting period: they can mint codes from the admin panel anyway.
   const unlockMs = adminWallets().has(wallet) ? 0 : inviteUnlockMs();
-  const want = inviteMintAllowance({ via: grant.via, grantedAt: grant.grantedAt, now, holdsMinimum, existing: rows.length, allowance, unlockMs });
+  const want = inviteMintAllowance({ grantedAt: grant.grantedAt, now, existing: rows.length, allowance, unlockMs });
   const mint = await takeFromDailyBudget(want, now);
   if (mint > 0) {
     for (let i = rows.length; i < rows.length + mint; i++) {
@@ -72,23 +71,18 @@ async function memberInvites(wallet: string, grant: Grant, holdsMinimum: boolean
   return rows.map((r) => ({ code: r.code, used: r.used_by != null }));
 }
 
-/** Where `wallet` stands. A holder at or above the minimum is granted on the spot and gets its codes. */
+/**
+ * Where `wallet` stands: in only with a grant. New grants come from invite codes alone; holding $MIMIR no longer lets
+ * a wallet in by itself (it buys fee perks, lib/token-tiers.ts). Grants made earlier, holder ones included, stay.
+ * `wallet` is a Solana address or a checksummed Arc (EVM) address.
+ */
 export async function accessStatus(wallet: string): Promise<AccessStatus> {
   const minMimir = accessMinMimir();
   if (!isInviteOnly()) return { inviteOnly: false, allowed: true, via: "open", invites: [], minMimir };
-  const mimir = await walletBalances(wallet).then((b) => b.mimir).catch(() => 0);
-  const isHolder = mimir >= minMimir;
   const now = Date.now();
-  let grant = await grantOf(wallet);
-  if (!grant && isHolder) {
-    await insert("access_grants", wallet, { wallet, via: "holder", code: null, granted_at: now, checked_at: now }, { i1: "holder", at: now });
-    grant = { via: "holder", grantedAt: now, checkedAt: now };
-  } else if (grant?.via === "holder" && isHolder && now - grant.checkedAt > HOLDER_RECHECK_MS) {
-    // The balance was seen again: note it (a lapsed holder keeps access but mints no more codes).
-    await store().tx([{ op: "update", t: "access_grants", k: wallet, d: { checked_at: now } }]);
-  }
-  // Everyone who is in can bring others, once their grant has aged (and a holder still holds).
-  const invites = grant ? await memberInvites(wallet, grant, isHolder) : [];
+  const grant = await grantOf(wallet);
+  // Everyone who is in can bring others, once their grant has aged.
+  const invites = grant ? await memberInvites(wallet, grant) : [];
   const unlockAt = grant && !adminWallets().has(wallet) ? grant.grantedAt + inviteUnlockMs() : null;
   return { inviteOnly: true, allowed: grant !== null, via: grant?.via ?? null, invites, minMimir, invitesUnlockAt: unlockAt && unlockAt > now ? unlockAt : null };
 }
@@ -147,8 +141,20 @@ export async function hasAccess(wallet: string): Promise<boolean> {
   return (await accessStatus(wallet)).allowed;
 }
 
+/**
+ * Whether a passkey account belongs to someone who is in: its Solana wallet has access, or (native Arc sign-in) the
+ * Arc wallet it is bound to does. An Arc-native member who links a Solana wallet later for $MIMIR perks needs no
+ * second invite for it.
+ */
+export async function accountHasAccess(arcAccount: string, solana: string | null): Promise<boolean> {
+  if (!isInviteOnly()) return true;
+  if (solana && (await hasAccess(solana).catch(() => false))) return true;
+  const evm = await getArcEvmBindingByArc(arcAccount).catch(() => null);
+  return evm ? hasAccess(evm.evm).catch(() => false) : false;
+}
+
 /** For routes: null when `wallet` may act, else the reason to refuse with a 403 (invite-only and not in). */
 export async function accessDenied(wallet: string): Promise<string | null> {
   if (!isInviteOnly()) return null;
-  return (await hasAccess(wallet).catch(() => false)) ? null : "Mimir is invite-only: hold the minimum $MIMIR or redeem an invite code first";
+  return (await hasAccess(wallet).catch(() => false)) ? null : "Mimir is invite-only: redeem an invite code first";
 }

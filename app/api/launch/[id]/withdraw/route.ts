@@ -68,8 +68,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!to) return fail(409, "Link an Arc account to your wallet first; withdrawals go there.");
     const wei = BigInt(Math.floor(amount * 1e6)) * 1_000_000_000_000n;
     const balance = await arcPublicClient(ARC).getBalance({ address: a.arc.address as `0x${string}` });
-    const free = balance > ARC_GAS_RESERVE_WEI ? balance - ARC_GAS_RESERVE_WEI : 0n;
-    if (wei > free) return fail(400, `Only ${Number(free / 1_000_000_000_000n) / 1e6} USDC is free to withdraw (0.05 stays for gas).`);
+    // Mimir's share of its Argus fees (convex/launchArgus.ts) sits in the same wallet until the next fee round sends it.
+    const keep = ARC_GAS_RESERVE_WEI + BigInt(a.argusOwed6) * 1_000_000_000_000n;
+    const free = balance > keep ? balance - keep : 0n;
+    if (wei > free) return fail(400, `Only ${Number(free / 1_000_000_000_000n) / 1e6} USDC is free to withdraw (0.05 stays for gas, and Mimir's share of token fees is owed).`);
     const tx = await transferNative({ walletId: a.arc.walletId, to, amount: (Number(wei / 1_000_000_000_000n) / 1e6).toString(), blockchain: ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET" });
     await c.client.mutation(api.launch.logEvent, { secret: c.secret, slug: id, kind: "rules", text: `owner withdrew ${amount} USDC on Arc (${tx.slice(0, 10)}…)` });
     return Response.json({ tx });

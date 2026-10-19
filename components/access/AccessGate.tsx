@@ -2,25 +2,24 @@
 
 /**
  * Invite-only gate (mainnet launch; lib/access.ts). Off on testnet: renders the
- * page as is. On, a gated route first asks for the Solana wallet and one signed
- * proof (the holder proof, lib/token-proof.ts); then /api/access says whether
- * the wallet is in: a holder of the minimum $MIMIR is let in on the spot,
- * anyone else enters an invite code. Browsing is never gated, only the screens that
- * act (GATED). The server enforces the same rule where it
- * acts for a wallet (binding an Arc account), so skipping this UI gains nothing.
+ * page as is. On, a gated route first asks for a wallet, Solana or Arc, and one
+ * signed proof (lib/token-proof.ts, or lib/arc/evm.ts for an Arc wallet); then
+ * /api/access says whether the wallet is in, and anyone not in yet enters an
+ * invite code. Browsing is never gated, only the screens that act (GATED). The
+ * server enforces the same rule where it acts for a wallet (binding an Arc
+ * account), so skipping this UI gains nothing.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SURFACE } from "@/components/arena/surface";
+import { connectEvmWallet, evmProofHeaders, useEvmWallet } from "@/components/arc/useEvmWallet";
 import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
-import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { usePathname } from "@/i18n/navigation";
 import { inviteOnly, type AccessStatus } from "@/lib/access";
 import { inviteKind, xIntentUrl } from "@/lib/invite-share";
 import { ARC } from "@/lib/arc/config";
 import CouncilMark from "@/components/launch/CouncilMark";
-import { mimirTokenUrl } from "@/lib/token-config";
 
 const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
 // Only the screens that act are gated: setting up and funding the Arc account, the portfolio, creating markets and
@@ -28,42 +27,52 @@ const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?
 // and the account is set up on /wallet.
 const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/launch/new", "/telegram"];
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
+const BTN_GHOST = "rounded-full px-5 py-2.5 text-[14px] text-cream shadow-[inset_0_0_0_1px_rgb(243_234_214/.2)] hover:bg-cream/5 disabled:opacity-60";
 
+/**
+ * Who is asking: the proven Solana wallet, else the proven Arc wallet (native Arc sign-in). Grants and invite codes
+ * belong to that address.
+ */
 export function useAccess() {
-  const { wallet, proven, canSign, prove } = useHolderTier();
+  const { wallet: solana, proven: solanaProven, canSign, prove } = useHolderTier();
+  const evm = useEvmWallet();
+  const via: "solana" | "arc" | null = solana && solanaProven ? "solana" : evm.address && evm.proof ? "arc" : null;
+  const wallet = via === "solana" ? solana : via === "arc" ? evm.address : solana;
+  const proven = via !== null;
   const [status, setStatus] = useState<AccessStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const proofHeaders = useCallback(() => (via === "solana" ? holderProofHeaders(solana) : via === "arc" ? evmProofHeaders() : {}), [via, solana]);
 
   const reload = useCallback(async () => {
-    if (!wallet || !proven) return setStatus(null);
+    if (!via) return setStatus(null);
     try {
-      const res = await fetch("/api/access", { headers: holderProofHeaders(wallet), cache: "no-store" });
+      const res = await fetch("/api/access", { headers: proofHeaders(), cache: "no-store" });
       setStatus(res.ok ? ((await res.json()) as AccessStatus) : null);
     } catch {
       setStatus(null);
     }
-  }, [wallet, proven]);
+  }, [via, proofHeaders]);
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, wallet]);
 
   const redeem = useCallback(
     async (code: string) => {
       setError(null);
       const res = await fetch("/api/access/redeem", {
         method: "POST",
-        headers: { "content-type": "application/json", ...holderProofHeaders(wallet) },
+        headers: { "content-type": "application/json", ...proofHeaders() },
         body: JSON.stringify({ code }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string; status?: AccessStatus };
       if (!res.ok) return setError(json.error ?? "Redeeming failed.");
       if (json.status) setStatus(json.status);
     },
-    [wallet],
+    [proofHeaders],
   );
 
-  return { wallet, proven, canSign, prove, status, error, redeem, reload };
+  return { wallet, via, proven, canSign, prove, status, error, redeem, reload };
 }
 
 export default function AccessGate({ children }: { children: ReactNode }) {
@@ -82,18 +91,48 @@ function Gate({ children }: { children: ReactNode }) {
     if (fromLink?.kind === "access") setCode(fromLink.code);
   }, []);
   const [busy, setBusy] = useState(false);
+  const [arcError, setArcError] = useState<string | null>(null);
   if (a.status?.allowed) return <>{children}</>;
 
-  const min = (a.status?.minMimir ?? 5_000_000).toLocaleString("en-US");
   const step = !a.wallet ? 0 : !a.proven ? 1 : 2;
+  // Native Arc sign-in: connect and sign the proof in one go.
+  const arcButton = (
+    <button
+      type="button"
+      className={`${step === 0 ? BTN : BTN_GHOST} min-w-[200px]`}
+      disabled={busy}
+      data-testid="gate-arc-wallet"
+      onClick={() => {
+        setBusy(true);
+        setArcError(null);
+        void connectEvmWallet()
+          .catch((err: Error) => setArcError(err.message))
+          .finally(() => setBusy(false));
+      }}
+    >
+      {busy ? "Check your wallet…" : step === 0 ? "Connect Arc wallet" : "Use an Arc wallet instead"}
+    </button>
+  );
+  const arcErr = arcError ? (
+    <p role="alert" className="m-0 text-[13px] text-danger">
+      {arcError}
+    </p>
+  ) : null;
   let body: ReactNode;
   if (step === 0) {
     body = (
-      <div className="grid justify-items-center gap-4 text-center">
-        <p className="m-0 max-w-[40ch] text-[15px] leading-relaxed text-muted">Connect the Solana wallet you hold $MIMIR in, or the one you will use with an invite code.</p>
-        <ConnectWalletButton />
-        <p className="m-0 text-[12px] uppercase tracking-[0.18em] text-muted">or with an invite, on Robinhood Chain</p>
-        <RobinhoodConnect />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid content-start justify-items-center gap-3 rounded-2xl bg-cream/[0.04] p-5 text-center">
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Solana wallet</p>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">Phantom, Solflare, Backpack. Your $MIMIR lives here.</p>
+          <ConnectWalletButton />
+        </div>
+        <div className="grid content-start justify-items-center gap-3 rounded-2xl bg-cream/[0.04] p-5 text-center">
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Arc wallet</p>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect (Robinhood Wallet too). Stake with the USDC already in it.</p>
+          {arcButton}
+          {arcErr}
+        </div>
       </div>
     );
   } else if (step === 1) {
@@ -110,13 +149,15 @@ function Gate({ children }: { children: ReactNode }) {
         >
           {busy ? "Check your wallet…" : "Sign in"}
         </button>
+        {arcButton}
+        {arcErr}
       </div>
     );
   } else {
     body = (
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid content-start gap-3 rounded-2xl bg-cream/[0.04] p-5">
-          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Have an invite</p>
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Your invite</p>
           <form
             className="grid gap-2"
             onSubmit={(e) => {
@@ -141,16 +182,11 @@ function Gate({ children }: { children: ReactNode }) {
           {a.error ? <p className="m-0 text-[13px] text-danger">{a.error}</p> : null}
         </div>
         <div className="grid content-start gap-3 rounded-2xl bg-cream/[0.04] p-5">
-          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Or hold $MIMIR</p>
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">No code yet?</p>
           <p className="m-0 text-[14px] leading-relaxed text-muted">
-            This wallet holds less than <span className="text-cream">{min} $MIMIR</span>. Holders get in on the spot, no code needed.
+            Ask someone already in: every member gets codes to share. Signed in as{" "}
+            <span className="font-mono text-cream">{a.wallet ? `${a.wallet.slice(0, 6)}…${a.wallet.slice(-4)}` : ""}</span> ({a.via === "arc" ? "Arc" : "Solana"}).
           </p>
-          <a href={mimirTokenUrl()} target="_blank" rel="noreferrer" className="rounded-full px-5 py-2.5 text-center text-[14px] text-cream shadow-[inset_0_0_0_1px_rgb(243_234_214/.2)] hover:bg-cream/5">
-            Get $MIMIR ↗
-          </a>
-          <button type="button" onClick={() => void a.reload()} className="text-[13px] text-muted hover:text-cream">
-            I hold it now, check again
-          </button>
         </div>
       </div>
     );
@@ -164,7 +200,7 @@ function Gate({ children }: { children: ReactNode }) {
           <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Invite only</p>
           <h1 className="m-0 font-display text-app-h1 text-cream">Mimir is opening in waves.</h1>
           <p className="m-0 max-w-[48ch] text-[15px] leading-relaxed text-muted">
-            Hold {min} $MIMIR on Solana, or use an invite code from someone already in. Everyone inside gets codes to share.
+            Enter with an invite code from someone already in, from a Solana or an Arc wallet. Everyone inside gets codes to share.
           </p>
         </header>
         <ol className="m-0 flex list-none justify-center gap-2 p-0" aria-label="Steps">
@@ -197,7 +233,7 @@ export function InvitesPanel() {
       <section aria-label="Your invites" className={`${SURFACE} grid gap-3 p-5`}>
         <h2 className="m-0 text-[15px] text-cream">Your invite codes</h2>
         <p className="m-0 text-[13px] leading-relaxed text-muted">
-          New members get their codes 3 days after they join, so the same $MIMIR can&apos;t be passed from wallet to wallet for extra codes. Yours unlock on{" "}
+          New members get their codes 3 days after they join, so fresh wallets can&apos;t be chained for extra codes. Yours unlock on{" "}
           {new Date(at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.
         </p>
         <Countdown to={at} />

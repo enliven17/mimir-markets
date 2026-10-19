@@ -225,7 +225,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
                 ? "Payouts go straight to the winners' Arc accounts."
                 : phase === "disputed" && m.vetoed
                   ? "The owner vetoed the proposed result; the arbiter rules on it. If no ruling comes, every stake is refunded."
-                  : "Betting has closed. The oracle proposes a result, then anyone may dispute it before it settles."}
+                  : "Staking has closed. The oracle proposes a result, then anyone may dispute it before it settles."}
             </p>
           </div>
         )}

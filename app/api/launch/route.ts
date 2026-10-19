@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       },
     }, g.owner, parsed.data);
     if (!r.ok) return fail(r.status, r.error);
-    return Response.json({ id: r.id, venue: r.venue, solana: r.solana, robinhood: r.robinhood, arc: r.arc, fundLamports: r.fundLamports.toString() });
+    return Response.json({ id: r.id, chain: r.chain, solana: r.solana, robinhood: r.robinhood, arc: r.arc, fundLamports: r.fundLamports.toString(), fundArcWei: r.fundArcWei.toString() });
   } catch (e) {
     console.error("[launch] create failed:", e);
     const msg = e instanceof Error ? e.message : "";
