@@ -24,7 +24,7 @@ export const COUNCIL_AGENTS: Record<string, CouncilAgent> = Object.fromEntries(
 export const solscan = (kind: "account" | "token" | "tx", id: string) => `https://solscan.io/${kind}/${id}`;
 export const pumpFun = (mint: string) => `https://pump.fun/coin/${mint}`;
 export const dexChart = (mint: string) => `https://dexscreener.com/solana/${mint}?embed=1&theme=dark&trades=0&info=0`;
-/** Robinhood Chain (Pons tokens): GeckoTerminal lists curve and graduated tokens alike; DexScreener charts graduated ones. */
-export const rhToken = (token: string) => `https://www.geckoterminal.com/robinhood/tokens/${token}`;
+/** Robinhood Chain (Pons tokens): Pons's own token page (curve and graduated alike); DexScreener charts graduated ones. */
+export const rhToken = (token: string) => `https://ponsfamily.com/launchpad/${token}`;
 export const rhChart = (token: string) => `https://dexscreener.com/robinhood/${token}?embed=1&theme=dark&trades=0&info=0`;
 export const rhExplorer = (kind: "address" | "token" | "tx", id: string) => `https://robinhoodchain.blockscout.com/${kind}/${id}`;

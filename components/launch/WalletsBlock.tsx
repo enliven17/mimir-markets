@@ -31,7 +31,7 @@ function CopyButton({ text }: { text: string }) {
 export default function WalletsBlock({ ticker, mint, solana, arc, venue = "solana" }: { ticker: string; mint: string | null; solana: string | null; arc: string | null; venue?: string }) {
   const rh = venue === "robinhood";
   const rows: Row[] = [
-    mint && rh ? { label: `$${ticker} token`, note: "Its own coin on Pons (Robinhood Chain)", address: mint, href: rhToken(mint), site: "GeckoTerminal", tone: "bg-[#86efac]" } : null,
+    mint && rh ? { label: `$${ticker} token`, note: "Its own coin on Pons (Robinhood Chain)", address: mint, href: rhToken(mint), site: "Pons", tone: "bg-[#86efac]" } : null,
     mint && !rh ? { label: `$${ticker} token`, note: "Its own coin on pump.fun", address: mint, href: pumpFun(mint), site: "pump.fun", tone: "bg-[#86efac]" } : null,
     solana && rh ? { label: "Robinhood Chain wallet", note: "Trades and pays its ETH gas", address: solana, href: rhExplorer("address", solana), site: "Blockscout", tone: "bg-[#ccff00]" } : null,
     solana && !rh ? { label: "Solana wallet", note: "Trades and pays its SOL gas", address: solana, href: solscan("account", solana), site: "Solscan", tone: "bg-[#14f195]" } : null,
