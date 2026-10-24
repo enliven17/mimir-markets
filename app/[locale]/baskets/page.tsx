@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import StrategiesHeader from "@/components/strategies/StrategiesHeader";
 import BasketsClient from "./BasketsClient";
 import { pageMeta } from "@/lib/seo";
+import { Link } from "@/i18n/navigation";
 
 export const metadata = pageMeta({
   path: "/baskets",
@@ -17,6 +18,7 @@ export default async function BasketsPage({ params }: { params: Promise<{ locale
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <StrategiesHeader current="/baskets" lead={t("lead")} />
+      <Link href="/demo" className="text-[14px] text-coral">Try baskets in Mimir Preview with virtual funds · no wallet needed →</Link>
       <BasketsClient />
     </div>
   );

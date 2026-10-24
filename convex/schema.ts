@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { demoTables } from "./demoSchema";
 
 // The Arc markets as indexed from MimirV3 (kind "vs") and MimirPool (kind "pool") by convex/arcSync.ts.
 // Amounts are wei strings (18 dp native USDC overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
@@ -17,6 +18,7 @@ export const status = v.union(
 );
 
 export default defineSchema({
+  ...demoTables,
   arcMarkets: defineTable({
     kind,
     marketId: v.number(),

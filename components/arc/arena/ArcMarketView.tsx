@@ -20,6 +20,7 @@ import type { ArcMarketKind } from "@/lib/arc/markets";
 import RollingNumber from "@/components/motion/RollingNumber";
 import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
+import DemoMarketActivity from "@/components/demo/DemoMarketActivity";
 import ArcCouncilTakes from "./ArcCouncilTakes";
 import ArcMarketActions from "./ArcMarketActions";
 import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
@@ -159,6 +160,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
           ) : null}
         </section>
 
+        <DemoMarketActivity kind={kind} marketId={marketId} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Who is in</h2>
           <ul className="m-0 grid list-none gap-1.5 p-0">

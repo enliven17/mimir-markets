@@ -9,7 +9,7 @@
  * instead of the Solana one, takes its seed in ETH from the connected Robinhood wallet, and launches on Pons. The
  * launchpad is picked first: the trading step depends on it.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createPublicClient, http } from "viem";
@@ -25,6 +25,10 @@ import { Link } from "@/i18n/navigation";
 import { BODIES, COLOURS, EYES, PALETTE, avatarFromSeed, encodeAvatarSeed, type AvatarPicks } from "@/lib/avatar";
 import { BYOK_PROVIDERS, type ByokProvider } from "@/lib/launch/byok-providers";
 import { signedPost } from "@/lib/launch/client";
+import { demoPost } from "@/lib/demo/client";
+import { DEMO, type DemoAgent } from "@/lib/demo/types";
+import { demoLiveDraft } from "@/lib/demo/promotion";
+import DemoUpsell from "@/components/demo/DemoUpsell";
 import { LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
@@ -53,7 +57,7 @@ const INITIAL = {
   name: "", ticker: "", description: "", image: null as string | null, avatar: {} as AvatarPicks,
   thesis: "",
   brain: "mimir" as "mimir" | ByokProvider, apiKey: "", model: "",
-  markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20, opens: false, opensPerDay: 1 },
+  markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20, maxHoursToClose: 72, opens: false, opensPerDay: 1 },
   trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
   seedSol: "0.1",
   allocation: DEFAULT_ALLOCATION as Allocation,
@@ -120,18 +124,25 @@ const DEPLOY_RH = ["Sign the agent: Mimir makes its Robinhood Chain and Arc wall
 const deploySteps = (c: Chain): readonly string[] => (c === "arc" ? DEPLOY_ARGUS : c === "robinhood" ? DEPLOY_RH : DEPLOY);
 type Deploy = { at: number; error: string | null; id?: string; wallet?: string; arc?: string; fund?: bigint; sig?: string; mint?: string };
 
-export default function LaunchWizard() {
+export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(INITIAL);
   const [error, setError] = useState<string | null>(null);
   const [deploy, setDeploy] = useState<Deploy | null>(null);
+  const [upsell, setUpsell] = useState(false);
+  const [usedDemos, setUsedDemos] = useState(1);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [fromDemo, setFromDemo] = useState(false);
+  const [importedAvatar, setImportedAvatar] = useState<string | null>(null);
+  const [existingDemoId, setExistingDemoId] = useState<string | undefined>();
   const { publicKey, signMessage, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const { open } = useWalletSheet();
   const rh = useRobinhoodWallet();
-  const seed = encodeAvatarSeed(faceBase(f), f.avatar);
+  const seed = importedAvatar ?? encodeAvatarSeed(faceBase(f), f.avatar);
   const spec = avatarFromSeed(seed);
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => { if (k === "avatar") setImportedAvatar(null); setF((p) => ({ ...p, [k]: v })); };
   const setM = (p: Partial<Form["markets"]>) => setF((x) => ({ ...x, markets: { ...x.markets, ...p } }));
   const setT = (p: Partial<Form["trading"]>) => setF((x) => ({ ...x, trading: { ...x.trading, ...p } }));
   const setRisk = (p: Partial<Form["trading"]["risk"]>) => setT({ risk: { ...f.trading.risk, ...p } });
@@ -143,9 +154,48 @@ export default function LaunchWizard() {
     setF((x) => ({ ...x, chain, trading: { ...x.trading, enabled: chain === "arc" ? false : x.trading.enabled, preset: first, sources: [...p.sources], entry: p.entry.map((c) => ({ ...c })) } }));
   };
   const chainPresets = presetsFor(f.chain);
+  const flowSteps = demo ? [0, 1, 2, 3, 5] : [0, 1, 2, 3, 4, 5];
+  const stepIndex = flowSteps.indexOf(step);
+  const validate = (at: number) => demo && at === 5 ? null : problems(at, f);
+
+  useEffect(() => {
+    if (demo) {
+      let cancelled = false;
+      void fetch("/api/demo", { cache: "no-store" }).then((r) => r.json()).then((data) => {
+        if (cancelled) return;
+        const agents = data.session?.agents as DemoAgent[] | undefined;
+        if (agents) { setUsedDemos(agents.length); setExistingDemoId(agents[agents.length - 1]?.id); if (agents.length >= DEMO.maxAgents) setUpsell(true); }
+      }).catch(() => undefined);
+      return () => { cancelled = true; };
+    }
+    const id = new URLSearchParams(window.location.search).get("demo");
+    if (!id) return;
+    let cancelled = false;
+    setImporting(true);
+    void fetch("/api/demo", { cache: "no-store" }).then(async (r) => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? "Could not load your preview agent.");
+      const agent = (data.session?.agents as DemoAgent[] | undefined)?.find((a) => a.id === id);
+      if (!agent) throw new Error("This preview agent is not in your current browser session. Open it from your preview dashboard.");
+      if (cancelled) return;
+      const draft = demoLiveDraft(agent);
+      const t = draft.trading;
+      setF((f) => ({ ...f, name: draft.name, ticker: draft.ticker, thesis: draft.thesis, chain: draft.chain,
+        markets: { ...f.markets, enabled: draft.markets.enabled, categories: draft.markets.categories, minEdge: draft.markets.minEdge * 100,
+          kellyFraction: draft.markets.kellyFraction * 100, maxStakeUsdc: draft.markets.maxStakeUsdc,
+          budgetUsdc: draft.markets.budgetUsdc, maxHoursToClose: draft.markets.maxHoursToClose },
+        trading: t.enabled ? { ...f.trading, enabled: true, preset: t.strategy.preset as Preset,
+          sources: t.strategy.sources, entry: t.strategy.entry, whales: t.strategy.whales.join("\n"),
+          risk: t.risk, trailingStopPct: t.trailingStopPct, maxHoldMinutes: t.maxHoldMinutes } : { ...f.trading, enabled: false },
+      }));
+      setImportedAvatar(draft.avatarSeed); setFromDemo(true); setStep(5);
+    }).catch((e) => { if (!cancelled) setImportError(e instanceof Error ? e.message : "Could not load preview."); })
+      .finally(() => { if (!cancelled) setImporting(false); });
+    return () => { cancelled = true; };
+  }, [demo]);
 
   const go = (to: number) => {
-    const p = to > step ? problems(step, f) : null;
+    const p = to > step ? validate(step) : null;
     setError(p);
     if (!p) setStep(to);
   };
@@ -163,7 +213,7 @@ export default function LaunchWizard() {
     chain: f.chain, ...(f.chain === "robinhood" && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
-    markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
+    markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, maxHoursToClose: f.markets.maxHoursToClose, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
     trading: f.trading.enabled
       ? { enabled: true, strategy: { preset: f.trading.preset, sources: f.trading.sources, entry: f.trading.entry, whales: f.trading.whales.split(/\s+/).filter(Boolean) }, risk: f.trading.risk, trailingStopPct: f.trading.trailingStopPct, maxHoldMinutes: f.trading.maxHoldMinutes }
       : { enabled: false },
@@ -175,6 +225,14 @@ export default function LaunchWizard() {
     const put = (p: Partial<Deploy>) => setDeploy((d = { ...d, ...p }));
     put({});
     try {
+      if (demo) {
+        await demoPost({ action: "session" });
+        const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() });
+        put({ id: r.id, at: 2 });
+        setUsedDemos(r.used);
+        setUpsell(true);
+        return;
+      }
       if (!publicKey || !signMessage) throw new Error("Connect a wallet that can sign messages.");
       const owner = publicKey.toBase58();
       if (!d.id) {
@@ -232,11 +290,14 @@ export default function LaunchWizard() {
     }
   };
 
+  if (importing) return <p role="status" className="text-[14px] text-muted">Loading your preview strategy…</p>;
+  if (importError) return <div role="alert" className="grid gap-3 text-[14px] text-coral"><p className="m-0">{importError}</p><Link href="/demo">Back to your preview</Link></div>;
   if (deploy) {
-    const steps = deploySteps(f.chain);
+    const steps = demo ? ["Create your guest session", "Start your agent with virtual funds"] : deploySteps(f.chain);
     const done = deploy.at >= steps.length;
     return (
       <div className="mx-auto grid w-full max-w-[640px] gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-6 shadow-card">
+        {demo ? <DemoUpsell open={upsell} onClose={() => setUpsell(false)} agentId={deploy.id} used={usedDemos} /> : null}
         <div className="flex items-center gap-4">
           <AgentFace seed={seed} size={64} mood={done ? "won" : deploy.error ? "lost" : "thinking"} />
           <div>
@@ -264,8 +325,8 @@ export default function LaunchWizard() {
         ) : null}
         {done ? (
           <div className="flex flex-wrap items-center gap-3 border-t border-cream/10 pt-4">
-            <span className="text-[14px] text-cream">{f.name} is live. Fund its Arc wallet with USDC to let it stake.</span>
-            <Link href={`/launch/${deploy.id}`} className="btn-primary ml-auto !w-auto !px-5">
+            <span className="text-[14px] text-cream">{demo ? `${f.name} is ready with virtual funds. Its first evaluation runs within a few minutes.` : `${f.name} is live. Fund its Arc wallet with USDC to let it stake.`}</span>
+            <Link href={demo ? `/demo?agent=${deploy.id}` : `/launch/${deploy.id}`} className="btn-primary ml-auto !w-auto !px-5">
               Open its page
             </Link>
           </div>
@@ -274,6 +335,14 @@ export default function LaunchWizard() {
     );
   }
 
+  if (demo && usedDemos >= DEMO.maxAgents) return <div className="grid gap-4 rounded-2xl bg-cream/5 p-6">
+    <DemoUpsell open={upsell} onClose={() => setUpsell(false)} agentId={existingDemoId} used={usedDemos} />
+    <h2 className="m-0 font-display text-[1.5rem] text-cream">Your 3 preview agents are ready</h2>
+    <p className="m-0 text-[14px] text-muted">Keep following your preview agents or deploy one with real funds and the same rules.</p>
+    <Link href="/demo" className="text-coral">Open your preview dashboard →</Link>
+    {existingDemoId ? <Link href={`/launch/new?demo=${encodeURIComponent(existingDemoId)}`} className="btn-primary !w-auto justify-self-start !px-5">Deploy as a real agent</Link> : null}
+  </div>;
+
   const t = f.trading;
   return (
     <div className="grid gap-5 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
@@ -281,16 +350,16 @@ export default function LaunchWizard() {
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3 text-[12px] text-muted lg:hidden">
             <span>
-              Step {step + 1} of {STEPS.length}
+              Step {stepIndex + 1} of {flowSteps.length}
             </span>
             <span className="text-cream">{STEPS[step]}</span>
           </div>
           <div className="h-1 overflow-hidden rounded-full bg-cream/10 lg:hidden" aria-hidden>
-            <div className="h-full rounded-full bg-coral transition-[width] duration-300" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+            <div className="h-full rounded-full bg-coral transition-[width] duration-300" style={{ width: `${((stepIndex + 1) / flowSteps.length) * 100}%` }} />
           </div>
           <ol className="m-0 hidden list-none gap-1 p-0 lg:grid" aria-label="Steps">
-            {STEPS.map((s, i) => (
-              <li key={s}>
+            {flowSteps.map((i, index) => (
+              <li key={i}>
                 <button
                   type="button"
                   disabled={i > step}
@@ -298,8 +367,8 @@ export default function LaunchWizard() {
                   aria-current={i === step ? "step" : undefined}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] transition-colors ${i === step ? "bg-cream text-ink" : i < step ? "bg-cream/[0.06] text-cream hover:bg-cream/10" : "text-dim"}`}
                 >
-                  <span className="font-mono text-[12px]">0{i + 1}</span>
-                  <span>{s}</span>
+                  <span className="font-mono text-[12px]">0{index + 1}</span>
+                  <span>{STEPS[i]}</span>
                 </button>
               </li>
             ))}
@@ -315,11 +384,12 @@ export default function LaunchWizard() {
       </aside>
 
       <div className="grid gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-5 shadow-card sm:gap-6 sm:p-6">
+        {fromDemo ? <p className="m-0 rounded-xl bg-coral/10 p-4 text-[13px] text-cream">Your preview strategy is ready to go live. The same rules are loaded below. Choose real funding and connect your wallet to deploy.</p> : null}
         {step === 0 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Who is it?</legend>
             <div className="grid gap-2">
-              <span className="text-[14px] text-cream">Launchpad</span>
+              <span className="text-[14px] text-cream">{demo ? "Preview network" : "Launchpad"}</span>
               <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Launchpad">
                 {LAUNCHPADS.map(([k, label, chainName, logo, blurb]) => (
                   <button key={k} type="button" role="radio" aria-checked={f.chain === k} onClick={() => setChain(k)} className={`grid grid-cols-[40px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl p-3 text-left transition-colors ${f.chain === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
@@ -328,7 +398,7 @@ export default function LaunchWizard() {
                     <span className="text-[14px] leading-tight">
                       {label} <span className={f.chain === k ? "text-ink/55" : "text-muted"}>· {chainName}</span>
                     </span>
-                    <span className={`col-start-2 text-[11px] leading-snug ${f.chain === k ? "text-ink/65" : "text-muted"}`}>{blurb}</span>
+                    <span className={`col-start-2 text-[11px] leading-snug ${f.chain === k ? "text-ink/65" : "text-muted"}`}>{demo ? k === "arc" ? "Virtual USDC · Mimir markets" : `Virtual ${k === "solana" ? "SOL" : "ETH"} · paper trading` : blurb}</span>
                   </button>
                 ))}
               </div>
@@ -341,9 +411,9 @@ export default function LaunchWizard() {
                 <input className="input font-mono" value={f.ticker} maxLength={10} onChange={(e) => set("ticker", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="NJORD" />
               </Field>
             </div>
-            <Field label="Token description" hint={`Shown on ${LAUNCHPADS.find(([k]) => k === f.chain)?.[1] ?? "pump.fun"}. Optional.`}>
+            {!demo ? <Field label="Token description" hint={`Shown on ${LAUNCHPADS.find(([k]) => k === f.chain)?.[1] ?? "pump.fun"}. Optional.`}>
               <textarea className="input min-h-[4.5rem]" rows={2} maxLength={280} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="What it stands for in one or two lines." />
-            </Field>
+            </Field> : null}
             <div className="flex flex-wrap items-center gap-4 rounded-xl bg-cream/[0.04] p-4">
               {f.image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- a local preview of the upload
@@ -352,15 +422,15 @@ export default function LaunchWizard() {
                 <AgentFace seed={seed} size={72} />
               )}
               <div className="grid min-w-0 flex-1 gap-2">
-                <p className="m-0 text-[14px] text-cream">Token image</p>
+                <p className="m-0 text-[14px] text-cream">{demo ? "Agent avatar" : "Token image"}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <button type="button" className="text-[13px] text-coral hover:underline" onClick={() => set("avatar", { ...f.avatar, reroll: (f.avatar.reroll ?? 0) + 1 })}>
                     Reroll face
                   </button>
-                  <label className="cursor-pointer text-[13px] text-muted hover:text-cream">
+                  {!demo ? <label className="cursor-pointer text-[13px] text-muted hover:text-cream">
                     Upload
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" onChange={(e) => { onImage(e.target.files?.[0]); e.target.value = ""; }} />
-                  </label>
+                  </label> : null}
                   {f.image ? (
                     <button type="button" className="text-[13px] text-muted hover:text-cream" onClick={() => set("image", null)}>
                       Use face
@@ -398,13 +468,13 @@ export default function LaunchWizard() {
         {step === 1 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Its brain</legend>
-            <p className="m-0 -mt-2 text-[13px] text-muted">Mimir AI is included. Bring your own key only if you want a different model.</p>
-            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Model">
+            <p className="m-0 -mt-2 text-[13px] text-muted">{demo ? "Mimir AI evaluates your thesis within the shared preview allowance. New entries wait when the allowance is used; exit rules keep running." : "Mimir AI is included. Bring your own key only if you want a different model."}</p>
+            {!demo ? <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Model">
               <Chip active={f.brain === "mimir"} onClick={() => set("brain", "mimir")}>Mimir AI (included)</Chip>
               {(Object.keys(BYOK_PROVIDERS) as ByokProvider[]).map((p) => (
                 <Chip key={p} active={f.brain === p} onClick={() => set("brain", p)}>{BYOK_PROVIDERS[p].label}</Chip>
               ))}
-            </div>
+            </div> : null}
             {f.brain !== "mimir" ? <ByokGuide provider={f.brain} /> : null}
             {f.brain !== "mimir" ? (
               <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
@@ -427,8 +497,8 @@ export default function LaunchWizard() {
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Mimir markets</legend>
             <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
               <span className="grid gap-0.5">
-                <span className="text-[14px] text-cream">Stake from its Arc wallet</span>
-                <span className="text-[12px] text-muted">Fund USDC on its page after launch.</span>
+                <span className="text-[14px] text-cream">{demo ? "Stake virtual USDC on Mimir markets" : "Stake from its Arc wallet"}</span>
+                <span className="text-[12px] text-muted">{demo ? `${DEMO.initialUsdc.toLocaleString()} virtual USDC included. Stakes appear as preview activity on market pages.` : "Fund USDC on its page after launch."}</span>
               </span>
               <input type="checkbox" role="switch" className="switch" checked={f.markets.enabled} onChange={(e) => setM({ enabled: e.target.checked })} />
             </label>
@@ -496,7 +566,7 @@ export default function LaunchWizard() {
             {t.enabled && f.chain !== "arc" ? (
               <>
                 <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Preset">
-                  {(Object.keys(chainPresets) as Preset[]).map((k) => (
+                  {(Object.keys(chainPresets) as Preset[]).filter((k) => !demo || f.chain === "robinhood" || k === "trending").map((k) => (
                     <button key={k} type="button" aria-pressed={t.preset === k} onClick={() => setT({ preset: k, sources: [...chainPresets[k]!.sources], entry: chainPresets[k]!.entry.map((c) => ({ ...c })) })} className={`grid gap-1 rounded-xl p-3 text-left transition-colors ${t.preset === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
                       <span className="text-[14px]">{strategiesFor(f.chain)[k]?.label}</span>
                       <span className={`text-[12px] ${t.preset === k ? "text-ink/70" : "text-muted"}`}>{strategiesFor(f.chain)[k]?.blurb}</span>
@@ -509,7 +579,7 @@ export default function LaunchWizard() {
                 <Disclosure summary="Fine-tune strategy" defaultOpen={Boolean(error)}>
                   <div className="grid gap-5">
                     <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sources">
-                      {(Object.keys(sourcesFor(f.chain)) as DataSource[]).map((s) => {
+                      {(Object.keys(sourcesFor(f.chain)) as DataSource[]).filter((s) => !demo || f.chain === "robinhood" || s === "dexscreener").map((s) => {
                         const on = t.sources.includes(s);
                         return <Chip key={s} active={on} onClick={() => setT({ sources: on ? t.sources.filter((x) => x !== s) : [...t.sources, s] })}>{sourcesFor(f.chain)[s]}</Chip>;
                       })}
@@ -522,7 +592,7 @@ export default function LaunchWizard() {
                     <div className="grid gap-2">
                       <span className="text-[14px] text-cream">Enter only when</span>
                       {t.entry.map((c, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_auto_120px_auto] items-center gap-2">
+                        <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,100px)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_120px_auto]">
                           <select className="input" value={c.metric} onChange={(e) => setT({ entry: t.entry.map((x, j) => (j === i ? { ...x, metric: e.target.value as Metric } : x)) })}>
                             {(Object.keys(METRICS) as Metric[]).map((m) => <option key={m} value={m}>{METRICS[m].label}</option>)}
                           </select>
@@ -586,7 +656,21 @@ export default function LaunchWizard() {
           </fieldset>
         ) : null}
 
-        {step === 5 ? (
+        {step === 5 && demo ? (
+          <div className="grid gap-5">
+            <h2 className="m-0 font-display text-[1.5rem] text-cream">Start your preview agent</h2>
+            <dl className="kv">
+              <dt>Agent</dt><dd>{f.name} · {f.ticker}</dd>
+              <dt>Network</dt><dd>{f.chain === "robinhood" ? "Robinhood" : f.chain === "arc" ? "Arc" : "Solana"}</dd>
+              <dt>Trading</dt><dd>{t.enabled ? `SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · position ${t.risk.positionPct}%` : "Off"}</dd>
+              <dt>Markets</dt><dd>{f.markets.enabled ? `Edge ≥ ${f.markets.minEdge} pts · ${f.markets.maxStakeUsdc} USDC per market` : "Off"}</dd>
+              <dt>Virtual funds</dt><dd>{f.chain !== "arc" ? `${DEMO.initialNative} ${f.chain === "robinhood" ? "ETH" : "SOL"} + ` : ""}{DEMO.initialUsdc.toLocaleString()} USDC</dd>
+              <dt>Duration</dt><dd>7 days · evaluated every 5 minutes</dd>
+            </dl>
+            <p className="m-0 text-[13px] leading-relaxed text-muted">No wallet, token launch or deposit. Paper fills use shared market snapshots and your slippage setting. The preview supports public price feeds; wallet tracking and social feeds are available in live mode.</p>
+          </div>
+        ) : null}
+        {step === 5 && !demo ? (
           <div className="grid gap-5">
             <h2 className="m-0 font-display text-[1.5rem] text-cream">Check and launch</h2>
             <div className="flex items-center gap-4 rounded-xl bg-cream/[0.04] p-4 lg:hidden">
@@ -647,19 +731,19 @@ export default function LaunchWizard() {
 
         <div className="flex items-center justify-between border-t border-cream/10 pt-4">
           {step > 0 ? (
-            <button type="button" className="text-[14px] text-muted hover:text-cream" onClick={() => go(step - 1)}>
+            <button type="button" className="text-[14px] text-muted hover:text-cream" onClick={() => go(flowSteps[stepIndex - 1])}>
               ← Back
             </button>
           ) : (
             <span />
           )}
           {step < STEPS.length - 1 ? (
-            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => go(step + 1)}>
+            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => go(flowSteps[stepIndex + 1])}>
               Continue
             </button>
-          ) : publicKey ? (
-            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = problems(5, f); setError(p); if (!p) void run(); }}>
-              Sign and launch
+          ) : demo || publicKey ? (
+            <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = validate(5); setError(p); if (!p) void run(); }}>
+              {demo ? "Start preview agent" : "Sign and launch"}
             </button>
           ) : (
             <button type="button" className="btn-primary !w-auto !px-6" onClick={open}>

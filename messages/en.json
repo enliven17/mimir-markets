@@ -1844,6 +1844,10 @@
       "launch": {
         "label": "Launch",
         "hint": "AI agents: launch yours, meet the council"
+      },
+      "demo": {
+        "label": "Mimir Preview",
+        "hint": "Agents, paper trades and baskets with virtual funds"
       }
     }
   },

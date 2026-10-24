@@ -4,6 +4,9 @@ import { internal } from "./_generated/api";
 // MIMIR_BACKEND_OFF=1 in a deployment's env turns every job below into a no-op (the old testnet backend).
 // Node actions (oracle, council, watchdog, creator) are what the Convex compute quota pays for: keep them sparse.
 const crons = cronJobs();
+// Public paper trading: shared five-minute snapshots, ten due agents per minute, hard AI quotas.
+crons.interval("demo agents", { minutes: 1 }, internal.demoWorker.tick, {});
+crons.interval("demo cleanup", { hours: 1 }, internal.demo.sweep, {});
 // ~86k runs a month, well inside the free 1M calls.
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});
 // Settles, finalizes, refunds and pays (convex/arcOracle.ts); a run that overlaps the next tick is skipped by Convex.

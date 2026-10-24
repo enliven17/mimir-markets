@@ -19,8 +19,8 @@ import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import { AVATAR_SEED_RE } from "@/lib/avatar/spec";
 import { BYOK_PROVIDERS, sealKey, type ByokProvider } from "./byok";
+import { Trading, Markets } from "./inputs";
 import { DEFAULT_MARKET_RULES } from "./markets";
-import { AGENT_MARKETS_PER_DAY_MAX } from "./agent-markets-limit";
 import { allocationProblem, DEFAULT_ALLOCATION } from "./fees";
 import { ARGUS, launchParams, type ArgusLaunched, type ArgusParams } from "./argus";
 import type { verifyFunding } from "./funding";
@@ -32,8 +32,6 @@ import type { verifyRobinhoodFunding } from "./robinhood/funding";
 export const LAUNCH_FEE_LAMPORTS = 10_000_000n;
 /** Pons's launch fee (0.0005 ETH, read 2026-10-19) plus gas headroom for the launch and the first approvals, in wei. */
 export const RH_LAUNCH_FEE_WEI = 1_000_000_000_000_000n; // 0.001 ETH
-const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const METRICS = ["liquidityUsd", "volume1hUsd", "ageMinutes", "holders", "devHoldPct", "mcapUsd", "curvePct", "mentions1h"] as const;
 /** Convex documents are capped at 1 MB: an uploaded image stays well under it. */
 const MAX_IMAGE_CHARS = 700_000;
 
@@ -43,41 +41,6 @@ export const AllocationBody = z
   .object({ bankroll: pctInt, buyback: pctInt, creatorPayout: pctInt, holders: pctInt })
   .strict()
   .refine((a) => allocationProblem(a) === null, { message: "The four fee buckets must add up to 100." });
-
-const Trading = z.discriminatedUnion("enabled", [
-  z.object({ enabled: z.literal(false) }),
-  z.object({
-    enabled: z.literal(true),
-    strategy: z.object({
-      preset: z.enum(["trending", "whale", "sniper", "social"]),
-      sources: z.array(z.enum(["dexscreener", "pumpfun", "helius", "x", "birdeye"])).min(1).max(5),
-      entry: z.array(z.object({ metric: z.enum(METRICS), op: z.enum([">", "<"]), value: z.number().finite().min(0) })).min(1).max(8),
-      whales: z.array(z.string().regex(B58)).max(20).default([]),
-    }).refine((s) => !s.sources.includes("helius") || s.whales.length > 0, { message: "Add at least one wallet to follow.", path: ["whales"] }),
-    risk: z.object({
-      slippageBps: z.number().int().min(50).max(1000),
-      positionPct: z.number().min(1).max(25),
-      stopLossPct: z.number().min(5).max(50),
-      takeProfitPct: z.number().min(10).max(300),
-      maxDailyLossPct: z.number().min(5).max(50),
-    }),
-    trailingStopPct: z.number().min(0).max(30).default(0),
-    maxHoldMinutes: z.number().int().min(0).max(240).default(0),
-  }),
-]);
-
-const Markets = z.object({
-  enabled: z.boolean(),
-  categories: z.array(z.string().trim().min(1).max(20)).max(12).default([]),
-  minEdge: z.number().min(0.03).max(0.5).default(DEFAULT_MARKET_RULES.minEdge),
-  kellyFraction: z.number().min(0.05).max(1).default(DEFAULT_MARKET_RULES.kellyFraction),
-  maxStakeUsdc: z.number().min(0.1).max(50).default(DEFAULT_MARKET_RULES.maxStakeUsdc),
-  maxHoursToClose: z.number().min(1).max(24 * 30).default(DEFAULT_MARKET_RULES.maxHoursToClose),
-  /** The most it may have staked at once. */
-  budgetUsdc: z.number().min(0).max(10_000).default(20),
-  /** Opening its own markets (lib/launch/agent-markets.ts): off by default; gas and the seed stake from its Arc wallet. */
-  create: z.object({ enabled: z.boolean(), perDay: z.number().int().min(1).max(AGENT_MARKETS_PER_DAY_MAX) }).default({ enabled: false, perDay: 1 }),
-});
 
 const Brain = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("mimir") }),
