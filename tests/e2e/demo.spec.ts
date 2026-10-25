@@ -45,6 +45,21 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 }
 
+test.describe("public preview hydration", () => {
+  test.use({ timezoneId: "Pacific/Honolulu" });
+  test("the house detail hydrates without rendering a server-time placeholder", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await mockDemo(page);
+    const response = page.waitForResponse((r) => r.url().includes("/api/demo?view=showcase"));
+    await page.goto("/en/demo/showcase-scout");
+    await response;
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(page.getByRole("heading", { name: "Mimir Scout", exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
 test("a disconnected wallet cannot open the preview wizard or its saved dashboard", async ({ page }) => {
   await mockDemo(page, [fixtureAgent()]);
   await page.goto("/en/demo/new");
