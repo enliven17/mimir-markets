@@ -3,8 +3,8 @@ import { PREVIEW_OWNER_HEADER, previewWalletMessage } from "./auth";
 import { LAUNCH_HEADERS } from "../launch/auth";
 import type { SignMessage } from "../launch/client";
 
-export function demoGet(owner: string) {
-  return fetch("/api/demo", { cache: "no-store", headers: { [PREVIEW_OWNER_HEADER]: owner } });
+export function demoGet(owner: string, agentId?: string) {
+  return fetch(agentId ? `/api/demo?agent=${encodeURIComponent(agentId)}` : "/api/demo", { cache: "no-store", headers: { [PREVIEW_OWNER_HEADER]: owner } });
 }
 export async function authorizePreview(owner: string, signMessage: SignMessage) {
   const signedAt = Date.now();

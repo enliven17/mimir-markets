@@ -93,6 +93,16 @@ test("a session can create only three paper agents and never touches live tables
   assert.deepEqual([...b.touched].filter((t) => !t.startsWith("demo")), []);
 });
 
+test("directory responses omit price history; only the requested owned agent includes it", async () => {
+  const b = backend(); const c = credentials(); await b.run(demo.createSession, c);
+  const a = await b.run(demo.createAgent, { ...c, input });
+  const row = await b.db.get(a.id);
+  await b.db.patch(a.id, { state: { ...row.state, priceHistory: [{ mint: "token", symbol: "T", points: [{ at: 1, price: 1 }] }] } });
+  assert.equal((await b.run(demo.dashboard, c)).agents[0].state.priceHistory, undefined);
+  assert.equal((await b.run(demo.dashboard, { ...c, detail: a.id })).agents[0].state.priceHistory.length, 1);
+  assert.equal((await b.run(demo.dashboard, { ...c, detail: "another-agent" })).agents[0].state.priceHistory, undefined);
+});
+
 test("global capacity blocks new guests even if they change sessions", async () => {
   const b = backend(); await b.run(demo.createSession, credentials());
   for (let i = 0; i < DEMO.maxActiveAgents; i++) await b.db.insert("demoAgents", { expiresAt: Date.now() + 60_000 });

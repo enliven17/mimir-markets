@@ -6,8 +6,9 @@ import AgentFace from "@/components/launch/AgentFace";
 import { SURFACE } from "@/components/arena/surface";
 import { demoGet, demoPost } from "@/lib/demo/client";
 import { useWallet } from "@solana/wallet-adapter-react";
+import PreviewAgentDetails from "./PreviewAgentDetails";
 import DemoUpsell from "./DemoUpsell";
-import { DEMO, demoReturn, nativeEquity, type DemoAgent, type DemoBasket, type DemoStake } from "@/lib/demo/types";
+import { DEMO, demoReturn, type DemoAgent, type DemoBasket, type DemoStake } from "@/lib/demo/types";
 
 type Dashboard = {
   expiresAt: number; agents: DemoAgent[]; stakes: DemoStake[];
@@ -16,7 +17,6 @@ type Dashboard = {
 const number = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 const percent = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 const when = (n: number) => new Date(n).toLocaleString();
-const unit = (a: DemoAgent) => a.chain === "robinhood" ? "ETH" : "SOL";
 const inputClass = "input min-w-0";
 
 export default function DemoDashboard({ agentId }: { agentId?: string }) {
@@ -34,13 +34,13 @@ export default function DemoDashboard({ agentId }: { agentId?: string }) {
   const [upsell, setUpsell] = useState(false);
   const reload = useCallback(async () => {
     try {
-      const response = await demoGet(owner);
+      const response = await demoGet(owner, agentId);
       const result = await response.json();
       if (!response.ok) { setEnabled(result.enabled !== false); setExpired(response.status === 401); if (response.status === 401) setData(null); throw new Error(result.error ?? "Preview is unavailable."); }
       setData(result.session); setEnabled(result.enabled); setExpired(false); setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load preview."); }
     finally { setLoading(false); }
-  }, [owner]);
+  }, [owner, agentId]);
   useEffect(() => {
     void reload();
     const timer = setInterval(() => { if (document.visibilityState === "visible") void reload(); }, 60_000);
@@ -56,6 +56,14 @@ export default function DemoDashboard({ agentId }: { agentId?: string }) {
   const agent = agentId ? data?.agents.find((a) => a.id === agentId) : data?.agents[0];
   const stakes = data?.stakes.filter((s) => s.agentId === agent?.id).sort((a, b) => b.at - a.at) ?? [];
   const totalBps = Object.values(weights).reduce((sum, v) => sum + Math.round(Number(v || 0) * 100), 0);
+
+  if (agentId && agent) return <div className="grid min-w-0 gap-4">
+    {error ? <p role="alert" className="text-[13px] text-coral">{error}</p> : null}
+    <PreviewAgentDetails agent={agent} stakes={stakes} actions={<>
+      {agent.status === "live" || agent.status === "paused" ? <div className="flex gap-3 text-[12px]"><button disabled={busy} className="text-coral disabled:opacity-50" onClick={() => void act({ action: "status", id: agent.id, status: agent.status === "live" ? "paused" : "live" })}>{agent.status === "live" ? "Pause" : "Resume"}</button><button disabled={busy} className="text-muted disabled:opacity-50" onClick={() => void act({ action: "status", id: agent.id, status: "killed" })}>Shut down</button></div> : null}
+      <Link href={`/launch/new?demo=${encodeURIComponent(agent.id)}`} className="btn-primary !w-auto !px-4 !text-[12px]">Deploy as a real agent ?</Link>
+    </>} />
+  </div>;
 
   return <div className="grid min-w-0 gap-7">
     <DemoUpsell open={upsell} onClose={() => setUpsell(false)} agentId={agent?.id} used={data?.agents.length ?? 0} />
@@ -92,32 +100,6 @@ export default function DemoDashboard({ agentId }: { agentId?: string }) {
         })}
       </section> : null}
       {agentId && !agent ? <p role="alert" className="text-coral">This preview agent is not in your wallet session.</p> : null}
-      {agentId && agent ? <section className={`${SURFACE} grid min-w-0 gap-5 p-5`} aria-label="Preview agent details">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid min-w-0 gap-1"><h2 className="m-0 break-words font-display text-[1.6rem] text-cream">{agent.name}</h2><span className="text-[12px] text-muted">PREVIEW · {agent.chain} · {agent.status}{agent.nextTickAt < agent.expiresAt ? ` · next evaluation ${when(agent.nextTickAt)}` : ""}</span></div>
-          {agent.status === "live" || agent.status === "paused" ? <div className="flex gap-4 text-[13px]">
-            <button disabled={busy} className="text-coral disabled:opacity-50" onClick={() => void act({ action: "status", id: agent.id, status: agent.status === "live" ? "paused" : "live" })}>{agent.status === "live" ? "Pause" : "Resume"}</button>
-            <button disabled={busy} className="text-muted disabled:opacity-50" onClick={() => void act({ action: "status", id: agent.id, status: "killed" })}>Shut down</button>
-          </div> : null}
-        </header>
-        <Link href={`/launch/new?demo=${encodeURIComponent(agent.id)}`} className="btn-primary !w-auto justify-self-start !px-5">Deploy as a real agent</Link>
-        {agent.thesis ? <p className="m-0 text-[14px] text-muted">{agent.thesis}</p> : null}
-        <dl className="grid gap-3 text-[14px] sm:grid-cols-2 lg:grid-cols-4">
-          {agent.trading.enabled ? <><div><dt className="text-muted">Virtual cash</dt><dd className="m-0 font-mono text-cream">{number(agent.state.cash)} {unit(agent)}</dd></div><div><dt className="text-muted">Trading equity</dt><dd className="m-0 font-mono text-cream">{number(nativeEquity(agent.state))} {unit(agent)}</dd></div></> : null}
-          {agent.markets.enabled ? <><div><dt className="text-muted">Virtual USDC</dt><dd className="m-0 font-mono text-cream">{number(agent.state.usdc)}</dd></div><div><dt className="text-muted">Market P&amp;L</dt><dd className="m-0 font-mono text-cream">{number(agent.state.marketPnl)} USDC</dd></div></> : null}
-        </dl>
-        {agent.trading.config && agent.trading.risk ? <details className="text-[13px] text-muted"><summary className="cursor-pointer text-cream">Strategy &amp; risk rules</summary><p>{agent.trading.config.entry.map((c) => `${c.metric} ${c.op} ${c.value}`).join(" · ")}</p><p>Position {agent.trading.risk.positionPct}% · SL {agent.trading.risk.stopLossPct}% · TP {agent.trading.risk.takeProfitPct}% · daily loss {agent.trading.risk.maxDailyLossPct}% · trailing stop {agent.trading.config.trailingStopPct ?? "off"} · max hold {agent.trading.config.maxHoldMinutes ?? "off"}</p></details> : null}
-        {agent.state.positions.length ? <div className="grid gap-2"><h3 className="m-0 text-[14px] text-cream">Paper positions</h3>{agent.state.positions.map((p) => <div key={p.mint} className="flex flex-wrap justify-between gap-2 text-[13px] text-muted"><span>{p.symbol}</span><span>{number(p.quantity * p.price)} {unit(agent)} · {percent(p.price / p.entryPrice - 1)}</span></div>)}</div> : null}
-        <div className="grid gap-2"><h3 className="m-0 text-[14px] text-cream">Preview trades</h3>
-          {!agent.state.trades.length ? <p className="m-0 text-[13px] text-muted">No paper trades yet. Your agent waits for matching rules, a fresh price and an AI decision.</p> : null}
-          {agent.state.trades.slice(0, 20).map((t, i) => <div key={`${t.at}-${i}`} className="grid gap-1 border-t border-cream/10 py-2 text-[13px]"><div className="flex flex-wrap justify-between gap-2 text-cream"><span>{t.side.toUpperCase()} {t.symbol} · {number(t.amount)} {unit(agent)}</span><time className="text-muted">{when(t.at)}</time></div><span className="text-muted">{t.reason}{t.side === "sell" ? ` · P&L ${number(t.pnl)} ${unit(agent)}` : ""}</span></div>)}
-        </div>
-        <div className="grid gap-2"><h3 className="m-0 text-[14px] text-cream">Preview market stakes</h3>
-          {!stakes.length ? <p className="m-0 text-[13px] text-muted">No paper stakes yet. The agent waits for an eligible market and enough edge.</p> : null}
-          {stakes.map((s) => <div key={s.id} className="grid gap-1 border-t border-cream/10 py-2 text-[13px]"><Link href={`/arena/arc/pool/${s.marketId}`} className="text-coral">{s.question}</Link><span className="text-cream">{s.label} · {number(s.amount)} virtual USDC · {s.status}{s.status !== "open" ? ` · returned ${number(s.payout)}` : ""}</span><span className="text-muted">{s.why}</span></div>)}
-        </div>
-        <details className="text-[13px] text-muted"><summary className="cursor-pointer text-cream">Decision log</summary><ol className="m-0 mt-3 grid list-none gap-2 p-0">{agent.state.events.slice(0, 30).map((e, i) => <li key={`${e.at}-${i}`}><time>{when(e.at)}</time> · {e.text}</li>)}</ol></details>
-      </section> : null}
       {!agentId ? <section className={`${SURFACE} grid min-w-0 gap-4 p-5`} aria-label="Preview baskets">
         <h2 className="m-0 font-display text-[1.6rem] text-cream">Preview baskets</h2>
         <p className="m-0 text-[13px] text-muted">Combine your agents with weights. Each basket starts at 1,000 virtual USDC when you create it and tracks its agents’ returns from that point.</p>

@@ -18,10 +18,11 @@ async function session(ctx: QueryCtx | MutationCtx, hash: string) {
   if (!s || s.expiresAt <= Date.now()) throw new ConvexError({ code: "demo_session_expired" });
   return s;
 }
-export function publicAgent(a: Doc<"demoAgents">): DemoAgent {
+export function publicAgent(a: Doc<"demoAgents">, includeHistory = true): DemoAgent {
+  const { priceHistory, ...summary } = a.state as DemoState;
   return { id: a._id, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, chain: a.chain,
     status: a.expiresAt <= Date.now() ? "expired" : a.status, createdAt: a.createdAt, expiresAt: a.expiresAt,
-    nextTickAt: a.nextTickAt, trading: a.trading, markets: a.markets, state: a.state,
+    nextTickAt: a.nextTickAt, trading: a.trading, markets: a.markets, state: includeHistory ? a.state : summary,
     ...(a.showcaseKey ? { showcaseKey: a.showcaseKey } : {}) };
 }
 async function insertAgent(ctx: MutationCtx, sessionId: Id<"demoSessions">, expiresAt: number, b: z.infer<typeof DemoCreateBody>, showcaseKey?: string) {
@@ -87,11 +88,11 @@ export const createAgent = mutation({
 });
 
 export const dashboard = query({
-  args: { secret: v.string(), hash: v.string() },
-  handler: async (ctx, { secret, hash }) => {
+  args: { secret: v.string(), hash: v.string(), detail: v.optional(v.string()) },
+  handler: async (ctx, { secret, hash, detail }) => {
     allowed(secret);
     const s = await session(ctx, hash);
-    const agents = (await ctx.db.query("demoAgents").withIndex("by_session", (q) => q.eq("session", s._id)).take(DEMO.maxAgents)).map(publicAgent);
+    const agents = (await ctx.db.query("demoAgents").withIndex("by_session", (q) => q.eq("session", s._id)).take(DEMO.maxAgents)).map((a) => publicAgent(a, a._id === detail));
     const stakes = (await Promise.all(agents.map((a) => ctx.db.query("demoStakes").withIndex("by_agent", (q) => q.eq("agentId", a.id)).take(500)))).flat().map(({ _id, _creationTime, ...a }) => ({ id: _id, ...a }));
     const baskets = (await ctx.db.query("demoBaskets").withIndex("by_session", (q) => q.eq("session", s._id)).take(DEMO.maxBaskets)).map((b) => {
       const values = b.members.map((m) => {
@@ -154,10 +155,10 @@ export const marketActivity = query({
 
 /** Public house examples: safe to browse without a wallet or a guest session. */
 export const showcase = query({
-  args: {}, handler: async (ctx) => {
+  args: { key: v.optional(v.string()) }, handler: async (ctx, { key }) => {
     if (process.env.DEMO_ENABLED !== "1") return { agents: [], stakes: [] };
-    const rows = await Promise.all(SHOWCASE_AGENTS.map(({ key }) => ctx.db.query("demoAgents").withIndex("by_showcase", (q) => q.eq("showcaseKey", key)).unique()));
-    const agents = rows.filter((a): a is Doc<"demoAgents"> => a !== null).map(publicAgent);
+    const rows = await Promise.all(SHOWCASE_AGENTS.filter((a) => !key || a.key === key).map(({ key }) => ctx.db.query("demoAgents").withIndex("by_showcase", (q) => q.eq("showcaseKey", key)).unique()));
+    const agents = rows.filter((a): a is Doc<"demoAgents"> => a !== null).map((a) => publicAgent(a, !!key));
     const stakes = (await Promise.all(agents.map((a) => ctx.db.query("demoStakes").withIndex("by_agent", (q) => q.eq("agentId", a.id)).take(100)))).flat()
       .map(({ _id, _creationTime, ...s }) => ({ id: _id, ...s }));
     return { agents, stakes };

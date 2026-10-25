@@ -70,6 +70,47 @@ test("disconnecting a verified wallet hides private preview details immediately"
   await expect(page.getByRole("heading", { name: a.name, exact: true })).toHaveCount(0);
 });
 
+test("the connected wallet's own preview appears on Launch and links to its detail page", async ({ page }) => {
+  const a = { ...fixtureAgent(), name: "My Orbit Agent" };
+  await mockDemo(page, [a]);
+  await page.goto("/en/demo"); await connectPreviewWallet(page);
+  await page.goto("/en/launch");
+  const own = page.getByRole("region", { name: "Your preview agents", exact: true });
+  await expect(own.getByRole("link", { name: /My Orbit Agent/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Current paper performance" })).toHaveCount(0);
+  await own.getByRole("link", { name: /My Orbit Agent/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/demo/${a.id}$`));
+  await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await noOverflow(page);
+});
+
+test("token charts show actual quote samples, clickable buy/sell markers and another asset's position", async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem("mimir:mainnet-live-seen", "1"));
+  const a = fixtureAgent(); const start = Date.now() - 3_600_000;
+  a.state.cash = 9.75; a.state.pnl = 0.25;
+  a.state.positions = [{ mint: "asset-b", symbol: "ORBIT", quantity: 500, cost: 0.5, entryPrice: 0.001, highPrice: 0.0013, price: 0.0012, openedAt: start }];
+  a.state.trades = [
+    { mint: "asset-a", symbol: "SCOUT", at: start + 2_700_000, side: "sell", price: 0.0015, amount: 0.75, pnl: 0.25, reason: "Take profit reached" },
+    { mint: "asset-a", symbol: "SCOUT", at: start, side: "buy", price: 0.00103, amount: 0.5, pnl: 0, reason: "Momentum passed the entry rules" },
+    { mint: "asset-b", symbol: "ORBIT", at: start, side: "buy", price: 0.001, amount: 0.5, pnl: 0, reason: "Strong liquidity" },
+  ];
+  a.state.priceHistory = ["asset-a", "asset-b"].map((mint) => ({ mint, symbol: mint === "asset-a" ? "SCOUT" : "ORBIT", points: Array.from({ length: 12 }, (_, i) => ({ at: start + i * 300_000, price: 0.001 + i * 0.00004 })) }));
+  await mockDemo(page, [a]); await page.goto(`/en/demo/${a.id}`); await connectPreviewWallet(page);
+  const consent = page.getByRole("button", { name: "I understand and accept", exact: true });
+  if (await consent.isVisible()) await consent.click();
+  await page.getByRole("combobox", { name: "Chart token" }).selectOption("asset-a");
+  await expect(page.getByRole("button", { name: /Buy SCOUT at/ })).toBeVisible();
+  await page.getByRole("button", { name: /Sell SCOUT at/ }).click();
+  await expect(page.getByLabel("Selected paper fill")).toContainText("Take profit reached");
+  await expect(page.getByLabel("Selected paper fill")).toContainText("0.25 SOL");
+  await page.screenshot({ path: testInfo.outputPath("preview-trading-desk.png"), fullPage: true });
+  await page.getByRole("button", { name: "6H", exact: true }).click();
+  await page.getByRole("region", { name: "Open paper positions" }).getByRole("button", { name: /ORBIT/ }).click();
+  await expect(page.getByRole("combobox", { name: "Chart token" })).toHaveValue("asset-b");
+  await expect(page.getByRole("button", { name: /Buy ORBIT at/ })).toBeVisible();
+  await noOverflow(page);
+});
+
 test("launch opens on five limited preview examples with disclosed positive sample returns", async ({ page }) => {
   await mockDemo(page);
   await page.goto("/en/launch");

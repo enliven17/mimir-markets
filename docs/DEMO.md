@@ -72,6 +72,14 @@ provider-side monetary limit on the separate demo key for an additional spending
 - Launch shows linked cards only. Each house example has a public `/demo/showcase-<key>` detail page; private
   agents use `/demo/<id>` behind wallet verification. Strategy, performance, trades and controls live on those
   pages; `/demo` lists the connected wallet's agents and baskets.
+- Launch also lists the verified connected wallet's own agents, refreshes on focus and hides them immediately
+  on wallet disconnection. Its cards show actual paper returns rather than the house examples' illustrative returns.
+- Detail pages share a visual trading desk: token selection, a sampled price chart with clickable buy/sell fills,
+  open positions, a filtered trade table, performance cards and market position cards. Risk rules and logs are
+  collapsed. Missing history is never fabricated: legacy previews initially show fill markers until quotes collect.
+- The worker records existing shared-feed quotes for up to six held/recent tokens, retaining 144 points per token.
+  Reused/stale timestamps are not re-stamped. Chart interaction makes no external API or AI calls. Directory
+  responses omit price history; only the selected owned agent or single public house detail includes its history.
 - LaunchWizard supplies the existing strategy and risk controls. Live and demo creation share the `Trading` and
   `Markets` validators. Demo reuses the live hard-entry, sizing, exit, market eligibility, Kelly sizing, token
   ranking prompts and market judgement prompts. Its AI transport makes exactly one bounded Gemini request per credit.

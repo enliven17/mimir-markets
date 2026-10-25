@@ -18,6 +18,8 @@ export const DEMO = {
   agentAiCallsPerDay: 6,
   showcaseAiCallsPerHour: 4,
   showcaseAiCallsPerDay: 30,
+  chartTokens: 6,
+  chartPoints: 144,
 } as const;
 
 export type DemoChain = "solana" | "arc" | "robinhood";
@@ -35,10 +37,14 @@ export type DemoTrade = {
   amount: number; price: number; pnl: number; reason: string;
 };
 export type DemoEvent = { at: number; kind: string; text: string };
+export type DemoPricePoint = { at: number; price: number };
+export type DemoPriceHistory = { mint: string; symbol: string; points: DemoPricePoint[] };
 export type DemoState = {
   cash: number; usdc: number; pnl: number; marketPnl: number;
   day: number; dailyPnl: number; dayBankroll: number;
   positions: DemoPosition[]; trades: DemoTrade[]; events: DemoEvent[];
+  /** Observed shared-feed quotes only. Optional for previews created before chart tracking. */
+  priceHistory?: DemoPriceHistory[];
 };
 export type DemoAgent = DemoConfig & {
   id: string; name: string; ticker: string; avatarSeed: string; thesis: string;

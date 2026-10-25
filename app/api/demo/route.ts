@@ -20,14 +20,18 @@ export async function GET(request: Request) {
   const c = config();
   if (!c) return json({ enabled: false, error: "The preview is not enabled on this deployment." }, 503);
   if (new URL(request.url).searchParams.get("view") === "showcase") {
-    try { return json({ enabled: true, ...await c.client.query(api.demo.showcase, {}) }); }
+    const key = new URL(request.url).searchParams.get("key") ?? undefined;
+    if (key && !/^[a-z-]{2,20}$/.test(key)) return json({ error: "Unknown preview agent." }, 400);
+    try { return json({ enabled: true, ...await c.client.query(api.demo.showcase, { ...(key ? { key } : {}) }) }); }
     catch { return json({ error: "Preview examples are temporarily unavailable." }, 503); }
   }
   const token = readDemoToken(request);
   const owner = normalizeAddress(request.headers.get(PREVIEW_OWNER_HEADER));
   if (!token || !owner || !matchesDemoWallet(token, owner, c.secret)) return json({ enabled: true, walletRequired: true, error: "Connect and verify your wallet to use Mimir Preview." }, 401);
   try {
-    return json({ enabled: true, session: await c.client.query(api.demo.dashboard, { secret: c.secret, hash: sessionHash(token) }), limits: DEMO });
+    const detail = new URL(request.url).searchParams.get("agent") ?? undefined;
+    if (detail && !/^[a-z0-9]{20,64}$/.test(detail)) return json({ error: "Unknown preview agent." }, 400);
+    return json({ enabled: true, session: await c.client.query(api.demo.dashboard, { secret: c.secret, hash: sessionHash(token), ...(detail ? { detail } : {}) }), limits: DEMO });
   } catch (error) {
     return expiredDemoError(error) ? json({ error: "Your preview session expired. Start a new preview." }, 401)
       : json({ error: "Preview is temporarily unavailable. Refresh to try again." }, 503);
