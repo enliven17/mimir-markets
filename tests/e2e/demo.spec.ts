@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { registerTestWallet, connectPreviewWallet } from "./preview-wallet";
 import { SHOWCASE_AGENTS, showcasePreviews } from "../../lib/demo/showcase";
 import { DemoCreateBody } from "../../lib/demo/input";
 import { DEFAULT_MARKET_RULES } from "../../lib/launch/markets";
@@ -13,15 +14,18 @@ async function mockDemo(page: Page, initialAgents: DemoAgent[] = []) {
   const baskets: any[] = [];
   const creates: any[] = [];
   let liveCalls = 0;
+  let verified = false;
+  await page.addInitScript(registerTestWallet);
   await page.route("**/api/launch", async (route) => { liveCalls++; await route.fulfill({ status: 403, json: { error: "Live launch requires wallet signatures." } }); });
   await page.route("**/api/demo**", async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
       if (new URL(request.url()).searchParams.get("view") === "showcase") return route.fulfill({ json: { enabled: true, agents: showcasePreviews(), stakes: [] } });
+      if (!verified) return route.fulfill({ status: 401, json: { error: "Verify wallet" } });
       return route.fulfill({ json: { enabled: true, session: { expiresAt: Date.now() + DEMO.sessionMs, agents, baskets, stakes: [] } } });
     }
     const body = request.postDataJSON();
-    if (body.action === "session") return route.fulfill({ json: { ok: true } });
+    if (body.action === "session") { expect(request.headers()["x-mimir-preview-owner"]).toBeTruthy(); expect(request.headers()["x-mimir-signature"]).toBeTruthy(); verified = true; return route.fulfill({ json: { ok: true } }); }
     if (body.action === "agent") {
       const b = DemoCreateBody.parse(body.input); creates.push(body.input);
       const t = b.trading;
@@ -41,23 +45,51 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 }
 
+test("a disconnected wallet cannot open the preview wizard or its saved dashboard", async ({ page }) => {
+  await mockDemo(page, [fixtureAgent()]);
+  await page.goto("/en/demo/new");
+  await expect(page.getByRole("button", { name: "Connect wallet for Preview", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await page.goto("/en/demo");
+  await expect(page.getByRole("button", { name: "Connect wallet for Preview", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Preview agents", exact: true })).toHaveCount(0);
+  await noOverflow(page);
+});
+
+test("disconnecting a verified wallet hides private preview details immediately", async ({ page }) => {
+  const a = fixtureAgent();
+  await mockDemo(page, [a]);
+  await page.goto(`/en/demo/${a.id}`);
+  await connectPreviewWallet(page);
+  await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await page.evaluate(async () => {
+    const w = (window as unknown as { previewTestWallet: { features: Record<string, { disconnect: () => Promise<void> }> } }).previewTestWallet;
+    await w.features["standard:disconnect"].disconnect();
+  });
+  await expect(page.getByRole("button", { name: "Connect wallet for Preview", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: a.name, exact: true })).toHaveCount(0);
+});
+
 test("launch opens on five limited preview examples with disclosed positive sample returns", async ({ page }) => {
   await mockDemo(page);
   await page.goto("/en/launch");
   await expect(page.getByRole("heading", { name: "Meet our preview agents" })).toBeVisible();
-  for (const { input } of SHOWCASE_AGENTS) await expect(page.getByRole("button", { name: new RegExp(input.name) })).toBeVisible();
+  for (const { input } of SHOWCASE_AGENTS) await expect(page.getByRole("link", { name: new RegExp(input.name) })).toBeVisible();
   await expect(page.getByText("Mimir Preview · limited access · 3 free agents · 7 days", { exact: true })).toBeVisible();
   await expect(page.getByText(/Card charts and positive example returns are illustrative/)).toBeVisible();
-  await page.getByRole("button", { name: /Mimir Pioneer/ }).click();
+  await expect(page.getByRole("heading", { name: "Current paper performance" })).toHaveCount(0);
+  await page.getByRole("link", { name: /Mimir Pioneer/ }).click();
+  await expect(page).toHaveURL(/\/demo\/showcase-pioneer$/);
   await expect(page.getByRole("heading", { name: "Mimir Pioneer", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Current paper performance" })).toBeVisible();
   await noOverflow(page);
 });
 
 for (const chain of ["solana", "arc", "robinhood"] as const) {
-  test(`guest creates a ${chain} preview without a wallet and sees the go-live popup`, async ({ page }) => {
+  test(`guest creates a ${chain} preview with a verified wallet and sees the go-live popup`, async ({ page }) => {
     const state = await mockDemo(page);
     await page.goto("/en/demo/new");
+    await connectPreviewWallet(page);
     await page.getByRole("radio", { name: chain === "solana" ? /pump.fun/ : chain === "arc" ? /Argus/ : /Pons/ }).click();
     await page.getByLabel("Name", { exact: true }).fill(`Guest ${chain}`);
     await page.getByLabel("Ticker", { exact: true }).fill("GUEST");
@@ -90,10 +122,12 @@ for (const chain of ["solana", "arc", "robinhood"] as const) {
 test("guest controls and weighted preview basket work without live execution", async ({ page }) => {
   const agent = fixtureAgent();
   const state = await mockDemo(page, [agent]);
-  await page.goto("/en/demo");
+  await page.goto(`/en/demo/${agent.id}`);
+  await connectPreviewWallet(page);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   expect(state.agents[0].status).toBe("paused");
+  await page.goto("/en/demo");
   await page.getByLabel("Basket name", { exact: true }).fill("My preview mix");
   await page.getByLabel(`${agent.name} weight`, { exact: true }).fill("100");
   await page.getByRole("button", { name: "Create preview basket", exact: true }).click();
@@ -106,6 +140,7 @@ test("guest controls and weighted preview basket work without live execution", a
 test("three used preview slots show a limit popup and preserve access to existing agents", async ({ page }) => {
   await mockDemo(page, [fixtureAgent(0), fixtureAgent(1), fixtureAgent(2)]);
   await page.goto("/en/demo/new");
+    await connectPreviewWallet(page);
   await expect(page.getByRole("dialog", { name: "Your 3 preview agents are ready" })).toBeVisible();
   await page.getByRole("button", { name: "Keep exploring the preview" }).click();
   await expect(page.getByRole("link", { name: "Open your preview dashboard →" })).toBeVisible();
@@ -118,11 +153,13 @@ test("deploy-from-preview opens live review with the existing strategy, not the 
   a.trading.risk!.stopLossPct = 12;
   a.state.cash = 999;
   const state = await mockDemo(page, [a]);
+  await page.goto("/en/demo");
+  await connectPreviewWallet(page);
   await page.goto(`/en/launch/new?demo=${a.id}`);
   await expect(page.getByText("Your preview strategy is ready to go live.", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Check and launch", exact: true })).toBeVisible();
   await expect(page.getByText(/SL 12%/).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Connect wallet", exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign and launch", exact: true })).toBeVisible();
   await expect(page.getByLabel("Seed SOL", { exact: false })).toHaveValue("0.1");
   expect(state.liveCalls()).toBe(0);
   await noOverflow(page);
@@ -131,6 +168,7 @@ test("deploy-from-preview opens live review with the existing strategy, not the 
 test("the third newly created agent opens the exhausted-allowance popup", async ({ page }) => {
   await mockDemo(page, [fixtureAgent(0), fixtureAgent(1)]);
   await page.goto("/en/demo/new");
+    await connectPreviewWallet(page);
   await page.getByLabel("Name", { exact: true }).fill("Third Agent");
   await page.getByLabel("Ticker", { exact: true }).fill("THIRD");
   for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -143,7 +181,9 @@ for (const index of [2, 4]) {
   test(`live review preserves ${index === 2 ? "Arc" : "Robinhood"} settings and requires real funding`, async ({ page }) => {
     const a = fixtureAgent(index);
     await mockDemo(page, [a]);
-    await page.goto(`/en/launch/new?demo=${a.id}`);
+    await page.goto("/en/demo");
+  await connectPreviewWallet(page);
+  await page.goto(`/en/launch/new?demo=${a.id}`);
     await expect(page.getByText("Your preview strategy is ready to go live.", { exact: false })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Check and launch", exact: true })).toBeVisible();
     if (index === 2) await expect(page.getByText(/send 0.15 USDC on Arc/)).toBeVisible();

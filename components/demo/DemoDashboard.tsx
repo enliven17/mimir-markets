@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import AgentFace from "@/components/launch/AgentFace";
 import { SURFACE } from "@/components/arena/surface";
-import { demoPost } from "@/lib/demo/client";
+import { demoGet, demoPost } from "@/lib/demo/client";
+import { useWallet } from "@solana/wallet-adapter-react";
 import DemoUpsell from "./DemoUpsell";
 import { DEMO, demoReturn, nativeEquity, type DemoAgent, type DemoBasket, type DemoStake } from "@/lib/demo/types";
 
@@ -18,41 +19,41 @@ const when = (n: number) => new Date(n).toLocaleString();
 const unit = (a: DemoAgent) => a.chain === "robinhood" ? "ETH" : "SOL";
 const inputClass = "input min-w-0";
 
-export default function DemoDashboard() {
+export default function DemoDashboard({ agentId }: { agentId?: string }) {
+  const { publicKey } = useWallet();
+  const owner = publicKey?.toBase58() ?? "";
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [selected, setSelected] = useState("");
   const [basketName, setBasketName] = useState("");
   const [basketThesis, setBasketThesis] = useState("");
   const [weights, setWeights] = useState<Record<string, string>>({});
   const [upsell, setUpsell] = useState(false);
   const reload = useCallback(async () => {
     try {
-      const response = await fetch("/api/demo", { cache: "no-store" });
+      const response = await demoGet(owner);
       const result = await response.json();
       if (!response.ok) { setEnabled(result.enabled !== false); setExpired(response.status === 401); if (response.status === 401) setData(null); throw new Error(result.error ?? "Preview is unavailable."); }
       setData(result.session); setEnabled(result.enabled); setExpired(false); setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load preview."); }
     finally { setLoading(false); }
-  }, []);
+  }, [owner]);
   useEffect(() => {
     void reload();
-    setSelected(new URLSearchParams(window.location.search).get("agent") ?? "");
     const timer = setInterval(() => { if (document.visibilityState === "visible") void reload(); }, 60_000);
     return () => clearInterval(timer);
   }, [reload]);
 
   async function act(action: unknown) {
     setBusy(true); setError("");
-    try { await demoPost(action); await reload(); }
+    try { await demoPost(action, owner); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Preview request failed."); }
     finally { setBusy(false); }
   }
-  const agent = data?.agents.find((a) => a.id === selected) ?? data?.agents[0];
+  const agent = agentId ? data?.agents.find((a) => a.id === agentId) : data?.agents[0];
   const stakes = data?.stakes.filter((s) => s.agentId === agent?.id).sort((a, b) => b.at - a.at) ?? [];
   const totalBps = Object.values(weights).reduce((sum, v) => sum + Math.round(Number(v || 0) * 100), 0);
 
@@ -61,7 +62,7 @@ export default function DemoDashboard() {
     <header className="grid gap-3">
       <span className="font-mono text-[12px] uppercase tracking-widest text-coral">Mimir Preview · limited access · 7 days</span>
       <h1 className="m-0 font-display text-app-h1 text-cream">Mimir Preview</h1>
-      <p className="m-0 max-w-[68ch] text-[15px] leading-relaxed text-muted">Launch an agent with your rules, follow its paper trades and build a preview basket. Start with 10 virtual SOL or ETH and 1,000 virtual USDC. Your browser keeps your preview session for 7 days.</p>
+      <p className="m-0 max-w-[68ch] text-[15px] leading-relaxed text-muted">Launch an agent with your rules, follow its paper trades and build a preview basket. Start with 10 virtual SOL or ETH and 1,000 virtual USDC. Your verified wallet keeps its preview allowance for 7 days.</p>
       <p className="m-0 max-w-[72ch] text-[12px] leading-relaxed text-muted">Agents evaluate shared price snapshots every 5 minutes. AI decisions have a shared allowance; new entries wait when it is used. Paper fills include your slippage setting and market entry fees. Returns are simulated.</p>
       <div className="flex flex-wrap items-center gap-4">
         {enabled && (!data || data.agents.length < DEMO.maxAgents) ? <Link href="/demo/new" className="btn-primary !w-auto !px-5">Create preview agent</Link> : enabled && data ? <button className="btn-primary !w-auto !px-5" onClick={() => setUpsell(true)}>Preview limit reached · go live</button> : null}
@@ -72,25 +73,26 @@ export default function DemoDashboard() {
     {loading ? <p role="status" className="text-muted">Loading your preview…</p> : null}
     {error ? <div role="alert" className={`${SURFACE} grid gap-3 p-4 text-[14px] text-coral`}>
       <span>{error}</span>
-      {enabled ? <div className="flex gap-4"><button disabled={busy} onClick={() => void reload()} className="text-cream">Refresh</button>{expired ? <button disabled={busy} onClick={() => void act({ action: "session" })} className="text-cream">Start a new preview session</button> : null}</div> : null}
+      {enabled ? <div className="flex gap-4"><button disabled={busy} onClick={() => void reload()} className="text-cream">Refresh</button>{expired ? <button disabled={busy} onClick={() => window.location.reload()} className="text-cream">Verify your wallet again</button> : null}</div> : null}
     </div> : null}
     {!loading && !data && !error ? <section className={`${SURFACE} grid gap-3 p-6`}>
       <h2 className="m-0 font-display text-[1.5rem] text-cream">Your first agent starts here</h2>
-      <p className="m-0 text-[14px] text-muted">Up to 3 agents and 3 baskets. No wallet, token launch or deposit.</p>
+      <p className="m-0 text-[14px] text-muted">Up to 3 agents and 3 baskets. Wallet verification required. No token launch or deposit.</p>
     </section> : null}
     {data ? <>
       <p className="m-0 text-[12px] text-muted">{data.agents.length} / {DEMO.maxAgents} agents · {data.baskets.length} / {DEMO.maxBaskets} baskets · session ends {when(data.expiresAt)}</p>
-      <section aria-label="Preview agents" className="grid min-w-0 gap-3 sm:grid-cols-3">
+      {!agentId ? <section aria-label="Preview agents" className="grid min-w-0 gap-3 sm:grid-cols-3">
         {data.agents.map((a) => {
           const open = data.stakes.filter((s) => s.agentId === a.id && s.status === "open").reduce((sum, s) => sum + s.amount, 0);
-          return <button key={a.id} type="button" onClick={() => setSelected(a.id)} aria-pressed={agent?.id === a.id} className={`${SURFACE} grid min-w-0 gap-3 p-4 text-left ${agent?.id === a.id ? "ring-1 ring-coral" : ""}`}>
+          return <Link key={a.id} href={`/demo/${a.id}`} className={`${SURFACE} grid min-w-0 gap-3 p-4 text-left hover:ring-1 hover:ring-coral`}>
             <span className="flex items-center gap-3"><AgentFace seed={a.avatarSeed} size={40} /><span className="min-w-0"><span className="block truncate text-cream">{a.name}</span><span className="text-[12px] text-muted">{a.chain} · {a.status}</span></span></span>
             <span className="font-mono text-[20px] text-cream">{percent(demoReturn(a, open))}</span>
             <span className="text-[12px] text-muted">Simulated return</span>
-          </button>;
+          </Link>;
         })}
-      </section>
-      {agent ? <section className={`${SURFACE} grid min-w-0 gap-5 p-5`} aria-label="Preview agent details">
+      </section> : null}
+      {agentId && !agent ? <p role="alert" className="text-coral">This preview agent is not in your wallet session.</p> : null}
+      {agentId && agent ? <section className={`${SURFACE} grid min-w-0 gap-5 p-5`} aria-label="Preview agent details">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid min-w-0 gap-1"><h2 className="m-0 break-words font-display text-[1.6rem] text-cream">{agent.name}</h2><span className="text-[12px] text-muted">PREVIEW · {agent.chain} · {agent.status}{agent.nextTickAt < agent.expiresAt ? ` · next evaluation ${when(agent.nextTickAt)}` : ""}</span></div>
           {agent.status === "live" || agent.status === "paused" ? <div className="flex gap-4 text-[13px]">
@@ -116,7 +118,7 @@ export default function DemoDashboard() {
         </div>
         <details className="text-[13px] text-muted"><summary className="cursor-pointer text-cream">Decision log</summary><ol className="m-0 mt-3 grid list-none gap-2 p-0">{agent.state.events.slice(0, 30).map((e, i) => <li key={`${e.at}-${i}`}><time>{when(e.at)}</time> · {e.text}</li>)}</ol></details>
       </section> : null}
-      <section className={`${SURFACE} grid min-w-0 gap-4 p-5`} aria-label="Preview baskets">
+      {!agentId ? <section className={`${SURFACE} grid min-w-0 gap-4 p-5`} aria-label="Preview baskets">
         <h2 className="m-0 font-display text-[1.6rem] text-cream">Preview baskets</h2>
         <p className="m-0 text-[13px] text-muted">Combine your agents with weights. Each basket starts at 1,000 virtual USDC when you create it and tracks its agents’ returns from that point.</p>
         {data.baskets.map((b) => <div key={b.id} className="grid gap-1 rounded-xl bg-cream/5 p-4"><div className="flex flex-wrap justify-between gap-2 text-cream"><span>{b.name}</span><span className="font-mono">{number(b.nav)} USDC · {percent(b.totalReturn)}</span></div><span className="text-[12px] text-muted">{b.members.map((m) => `${data.agents.find((a) => a.id === m.agentId)?.name ?? "Agent"} ${m.weightBps / 100}%`).join(" · ")}</span>{b.thesis ? <p className="m-0 text-[13px] text-muted">{b.thesis}</p> : null}</div>)}
@@ -126,7 +128,7 @@ export default function DemoDashboard() {
           <fieldset className="m-0 grid gap-2 border-0 p-0"><legend className="mb-2 text-[13px] text-cream">Agent weights · {totalBps / 100}% / 100%</legend>{data.agents.map((a) => <label key={a.id} className="flex items-center justify-between gap-3 text-[13px] text-muted"><span className="truncate">{a.name}</span><span className="flex items-center gap-2"><input type="number" min={0} max={100} step={0.01} aria-label={`${a.name} weight`} className="input !w-24 font-mono" value={weights[a.id] ?? "0"} onChange={(e) => setWeights((w) => ({ ...w, [a.id]: e.target.value }))} />%</span></label>)}</fieldset>
           <button disabled={busy || totalBps !== 10_000 || !basketName.trim()} className="btn-primary !w-auto justify-self-start !px-5 disabled:opacity-50">Create preview basket</button>
         </form> : null}
-      </section>
+      </section> : null}
     </> : null}
   </div>;
 }

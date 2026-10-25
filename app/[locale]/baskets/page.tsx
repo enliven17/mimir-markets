@@ -18,7 +18,7 @@ export default async function BasketsPage({ params }: { params: Promise<{ locale
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <StrategiesHeader current="/baskets" lead={t("lead")} />
-      <Link href="/demo" className="text-[14px] text-coral">Try baskets in Mimir Preview with virtual funds · no wallet needed →</Link>
+      <Link href="/demo" className="text-[14px] text-coral">Try baskets in Mimir Preview · connect your wallet, use virtual funds →</Link>
       <BasketsClient />
     </div>
   );

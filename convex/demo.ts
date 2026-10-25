@@ -52,12 +52,20 @@ async function consume(ctx: MutationCtx, key: string, limit: number, windowMs: n
 }
 
 export const createSession = mutation({
-  args: { secret: v.string(), hash: v.string() },
-  handler: async (ctx, { secret, hash }) => {
+  args: { secret: v.string(), hash: v.string(), owner: v.string() },
+  handler: async (ctx, { secret, hash, owner }) => {
     allowed(secret);
-    if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("Invalid session.");
+    if (!/^[a-f0-9]{64}$/.test(hash) || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(owner)) throw new Error("Invalid wallet session.");
+    const existing = await ctx.db.query("demoSessions").withIndex("by_owner", (q) => q.eq("owner", owner)).unique();
+    if (existing && existing.expiresAt > Date.now()) {
+      if (existing.hash !== hash) await ctx.db.patch(existing._id, { hash });
+      return { ok: true };
+    }
     if (!await consume(ctx, "sessions-hour", 100, 3_600_000, Date.now())) return { error: "Preview is busy. Please try again later." };
-    await ctx.db.insert("demoSessions", { hash, expiresAt: Date.now() + DEMO.sessionMs, agentsCreated: 0, basketsCreated: 0 });
+    const value = { hash, owner, expiresAt: Date.now() + DEMO.sessionMs, agentsCreated: 0, basketsCreated: 0 };
+    // Expired agents and baskets keep their original expiry/session until cleanup; use a fresh record.
+    if (existing) await ctx.db.patch(existing._id, { owner: undefined, hash: `expired-${existing._id}` });
+    await ctx.db.insert("demoSessions", value);
     return { ok: true };
   },
 });

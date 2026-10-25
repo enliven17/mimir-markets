@@ -2,8 +2,8 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const demoTables = {
-  demoSessions: defineTable({ hash: v.string(), expiresAt: v.number(), agentsCreated: v.number(), basketsCreated: v.number() })
-    .index("by_hash", ["hash"]).index("by_expires", ["expiresAt"]),
+  demoSessions: defineTable({ hash: v.string(), owner: v.optional(v.string()), expiresAt: v.number(), agentsCreated: v.number(), basketsCreated: v.number() })
+    .index("by_hash", ["hash"]).index("by_owner", ["owner"]).index("by_expires", ["expiresAt"]),
   demoAgents: defineTable({
     session: v.id("demoSessions"), name: v.string(), ticker: v.string(), avatarSeed: v.string(), thesis: v.string(),
     chain: v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood")),

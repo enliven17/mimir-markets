@@ -1,11 +1,36 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { demoCookie, newDemoToken, readDemoToken, sameDemoOrigin, sessionHash } from "../../lib/demo/session";
+import { demoCookie, newDemoToken, readDemoToken, sameDemoOrigin, sessionHash, walletDemoToken, matchesDemoWallet } from "../../lib/demo/session";
+import { PREVIEW_OWNER_HEADER, previewWalletMessage, verifiedPreviewOwner } from "../../lib/demo/auth";
+import { LAUNCH_HEADERS } from "../../lib/launch/auth";
+import { signAgentMessage } from "../../lib/agents/signature";
+import { Keypair } from "@solana/web3.js";
 import { demoRouter } from "../../lib/demo/router";
 
 let env: NodeJS.ProcessEnv;
 beforeEach(() => { env = { ...process.env }; process.env.DEMO_GEMINI_API_KEY = "demo-key"; });
 afterEach(() => { process.env = env; });
+
+test("preview sign-in needs a fresh signature from the claimed wallet", () => {
+  const a = Keypair.generate(), b = Keypair.generate(); const owner = a.publicKey.toBase58(); const at = Date.now();
+  const request = (address: string, signedAt: number, message = previewWalletMessage(owner, signedAt)) => new Request("https://mimirmarkets.xyz/api/demo", { headers: {
+    [PREVIEW_OWNER_HEADER]: address, [LAUNCH_HEADERS.signedAt]: String(signedAt), [LAUNCH_HEADERS.signature]: signAgentMessage(message, a.secretKey),
+  } });
+  assert.equal(verifiedPreviewOwner(request(owner, at)), owner);
+  assert.equal(verifiedPreviewOwner(request(b.publicKey.toBase58(), at)), null);
+  assert.equal(verifiedPreviewOwner(request(owner, at - 600_000)), null);
+  assert.equal(verifiedPreviewOwner(request(owner, at, "Mimir Launch")), null);
+  assert.equal(verifiedPreviewOwner(new Request("https://mimirmarkets.xyz/api/demo")), null);
+});
+
+test("preview cookies are bound to a verified wallet and the server secret", () => {
+  const owner = Keypair.generate().publicKey.toBase58(); const token = walletDemoToken(owner, "secret-one");
+  assert.equal(matchesDemoWallet(token, owner, "secret-one"), true);
+  assert.equal(matchesDemoWallet(token, "another-wallet", "secret-one"), false);
+  assert.equal(matchesDemoWallet(token, owner, "secret-two"), false);
+  assert.equal(matchesDemoWallet(null, owner, "secret-one"), false);
+  assert.equal(matchesDemoWallet(newDemoToken(), owner, "secret-one"), false);
+});
 
 test("guest credentials are random, hashed at rest and sent only in a scoped HttpOnly cookie", () => {
   const token = newDemoToken();

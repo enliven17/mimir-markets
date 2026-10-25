@@ -2,6 +2,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as demo from "../../convex/demo";
 import { DEMO } from "../../lib/demo/types";
+import bs58 from "bs58";
 
 // A small indexed DB adapter exercises the actual Convex handlers. Transaction rollback mirrors Convex writes.
 function backend() {
@@ -42,11 +43,34 @@ function backend() {
   };
 }
 const secret = "test-demo-secret-123456789";
-const credentials = (hash = "a".repeat(64)) => ({ secret, hash });
+const credentials = (hash = "a".repeat(64)) => ({ secret, hash, owner: bs58.encode(Buffer.from(hash, "hex")) });
 const input = { name: "Demo", ticker: "DEMO", chain: "arc", trading: { enabled: false }, markets: { enabled: true } };
 let env: NodeJS.ProcessEnv;
 beforeEach(() => { env = { ...process.env }; process.env.DEMO_ENABLED = "1"; process.env.MIMIR_LAUNCH_SECRET = secret; delete process.env.MIMIR_BACKEND_OFF; });
 afterEach(() => { process.env = env; });
+
+test("wallet reauthentication preserves its quota even after cookies are cleared or credentials rotate", async () => {
+  const b = backend();
+  const original = credentials();
+  await b.run(demo.createSession, original);
+  for (let i = 0; i < 3; i++) await b.run(demo.createAgent, { ...original, input });
+  const rotated = { ...original, hash: "c".repeat(64) };
+  await b.run(demo.createSession, rotated);
+  assert.equal((await b.db.query("demoSessions").take(10)).length, 1);
+  assert.equal((await b.run(demo.dashboard, rotated)).agents.length, 3);
+  assert.match((await b.run(demo.createAgent, { ...rotated, input })).error, /3 agents/);
+});
+
+test("a renewed wallet session does not revive expired agents or duplicate its credential hash", async () => {
+  const b = backend(); const c = credentials();
+  await b.run(demo.createSession, c);
+  await b.run(demo.createAgent, { ...c, input });
+  const old = await b.db.query("demoSessions").withIndex("by_hash", (q: any) => q.eq("hash", c.hash)).unique();
+  await b.db.patch(old._id, { expiresAt: Date.now() - 1 });
+  await b.run(demo.createSession, c);
+  assert.deepEqual((await b.run(demo.dashboard, c)).agents, []);
+  assert.equal((await b.db.query("demoSessions").withIndex("by_owner", (q: any) => q.eq("owner", c.owner)).unique()).agentsCreated, 0);
+});
 
 test("demo writes require the server secret and an unexpired guest session", async () => {
   const b = backend();

@@ -25,7 +25,7 @@ import { Link } from "@/i18n/navigation";
 import { BODIES, COLOURS, EYES, PALETTE, avatarFromSeed, encodeAvatarSeed, type AvatarPicks } from "@/lib/avatar";
 import { BYOK_PROVIDERS, type ByokProvider } from "@/lib/launch/byok-providers";
 import { signedPost } from "@/lib/launch/client";
-import { demoPost } from "@/lib/demo/client";
+import { demoGet, demoPost } from "@/lib/demo/client";
 import { DEMO, type DemoAgent } from "@/lib/demo/types";
 import { demoLiveDraft } from "@/lib/demo/promotion";
 import DemoUpsell from "@/components/demo/DemoUpsell";
@@ -161,7 +161,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   useEffect(() => {
     if (demo) {
       let cancelled = false;
-      void fetch("/api/demo", { cache: "no-store" }).then((r) => r.json()).then((data) => {
+      void demoGet(publicKey?.toBase58() ?? "").then((r) => r.json()).then((data) => {
         if (cancelled) return;
         const agents = data.session?.agents as DemoAgent[] | undefined;
         if (agents) { setUsedDemos(agents.length); setExistingDemoId(agents[agents.length - 1]?.id); if (agents.length >= DEMO.maxAgents) setUpsell(true); }
@@ -171,8 +171,10 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     const id = new URLSearchParams(window.location.search).get("demo");
     if (!id) return;
     let cancelled = false;
+    setImportError("");
+    if (!publicKey) { setImporting(false); return; }
     setImporting(true);
-    void fetch("/api/demo", { cache: "no-store" }).then(async (r) => {
+    void demoGet(publicKey.toBase58()).then(async (r) => {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Could not load your preview agent.");
       const agent = (data.session?.agents as DemoAgent[] | undefined)?.find((a) => a.id === id);
@@ -192,7 +194,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     }).catch((e) => { if (!cancelled) setImportError(e instanceof Error ? e.message : "Could not load preview."); })
       .finally(() => { if (!cancelled) setImporting(false); });
     return () => { cancelled = true; };
-  }, [demo]);
+  }, [demo, publicKey]);
 
   const go = (to: number) => {
     const p = to > step ? validate(step) : null;
@@ -226,8 +228,8 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     put({});
     try {
       if (demo) {
-        await demoPost({ action: "session" });
-        const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() });
+        if (!publicKey) throw new Error("Connect your wallet first.");
+        const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() }, publicKey.toBase58());
         put({ id: r.id, at: 2 });
         setUsedDemos(r.used);
         setUpsell(true);
@@ -293,7 +295,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   if (importing) return <p role="status" className="text-[14px] text-muted">Loading your preview strategy…</p>;
   if (importError) return <div role="alert" className="grid gap-3 text-[14px] text-coral"><p className="m-0">{importError}</p><Link href="/demo">Back to your preview</Link></div>;
   if (deploy) {
-    const steps = demo ? ["Create your guest session", "Start your agent with virtual funds"] : deploySteps(f.chain);
+    const steps = demo ? ["Use your verified wallet session", "Start your agent with virtual funds"] : deploySteps(f.chain);
     const done = deploy.at >= steps.length;
     return (
       <div className="mx-auto grid w-full max-w-[640px] gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-6 shadow-card">
@@ -326,7 +328,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
         {done ? (
           <div className="flex flex-wrap items-center gap-3 border-t border-cream/10 pt-4">
             <span className="text-[14px] text-cream">{demo ? `${f.name} is ready with virtual funds. Its first evaluation runs within a few minutes.` : `${f.name} is live. Fund its Arc wallet with USDC to let it stake.`}</span>
-            <Link href={demo ? `/demo?agent=${deploy.id}` : `/launch/${deploy.id}`} className="btn-primary ml-auto !w-auto !px-5">
+            <Link href={demo ? `/demo/${deploy.id}` : `/launch/${deploy.id}`} className="btn-primary ml-auto !w-auto !px-5">
               Open its page
             </Link>
           </div>
@@ -667,7 +669,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
               <dt>Virtual funds</dt><dd>{f.chain !== "arc" ? `${DEMO.initialNative} ${f.chain === "robinhood" ? "ETH" : "SOL"} + ` : ""}{DEMO.initialUsdc.toLocaleString()} USDC</dd>
               <dt>Duration</dt><dd>7 days · evaluated every 5 minutes</dd>
             </dl>
-            <p className="m-0 text-[13px] leading-relaxed text-muted">No wallet, token launch or deposit. Paper fills use shared market snapshots and your slippage setting. The preview supports public price feeds; wallet tracking and social feeds are available in live mode.</p>
+            <p className="m-0 text-[13px] leading-relaxed text-muted">Your wallet verifies ownership. No token launch or deposit. Paper fills use shared market snapshots and your slippage setting. Wallet tracking and social feeds are available in live mode.</p>
           </div>
         ) : null}
         {step === 5 && !demo ? (
@@ -741,7 +743,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <button type="button" className="btn-primary !w-auto !px-6" onClick={() => go(flowSteps[stepIndex + 1])}>
               Continue
             </button>
-          ) : demo || publicKey ? (
+          ) : publicKey ? (
             <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = validate(5); setError(p); if (!p) void run(); }}>
               {demo ? "Start preview agent" : "Sign and launch"}
             </button>

@@ -1,4 +1,5 @@
 import LaunchWizard from "@/components/launch/LaunchWizard";
+import DemoWalletGate from "@/components/demo/DemoWalletGate";
 import { Link } from "@/i18n/navigation";
 import { pageMeta } from "@/lib/seo";
 
@@ -9,8 +10,8 @@ export default function DemoNewPage() {
     <header className="grid gap-2">
       <span className="font-mono text-[12px] uppercase tracking-widest text-coral">Mimir Preview · limited access · 3 free agents · 7 days</span>
       <h1 className="m-0 font-display text-app-h1 text-cream">Create a preview agent</h1>
-      <p className="m-0 max-w-[65ch] text-[14px] text-muted">Choose Solana, Arc or Robinhood. Set the same strategy and risk rules, then follow its paper trades and market stakes. No wallet or deposit needed.</p>
+      <p className="m-0 max-w-[65ch] text-[14px] text-muted">Choose Solana, Arc or Robinhood. Connect and verify your wallet, set your rules, then follow its paper trades and market stakes. All funds are virtual. No deposit needed.</p>
     </header>
-    <LaunchWizard demo />
+    <DemoWalletGate><LaunchWizard demo /></DemoWalletGate>
   </div>;
 }

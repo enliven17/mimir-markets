@@ -3,19 +3,19 @@
 The public product name is **Mimir Preview**. Existing internal `demo` API paths, tables and environment keys remain compatible.
 
 Branch: `mimir-demo-feature`. Entry points: `/en/demo` and `/en/demo/new`. The Launch page, basket directory and
-navigation link to the demo. Both demo routes are public, including when live launching requires an invite or token.
+navigation link to Preview. Preview requires wallet verification, with no invite, deposit or token holding requirement.
 
 `/en/launch` opens on the demo tab with five house strategies: Scout and Sentinel on Solana, Value and Matchday
 on Arc, and Pioneer on Robinhood. Their public previews are available immediately; the backend seeds the five
-paper agents once when enabled, then renews their lifetime without resetting their records. Guest quotas remain
+paper agents once when enabled, then renews their lifetime without resetting their records. Wallet quotas remain
 separate. The UI identifies the feature as **Mimir Preview · limited access**, with 3 free agents and 7 days of access.
 
 Positive example charts are explicitly labelled **Illustrative example return** and calculated from curated
 scenario paths in `lib/demo/showcase-samples.ts`. They never enter an agent's balances, ledger, P&L or current paper
 performance. The current paper results and real quote-based activity are displayed separately.
 
-After a guest creates an agent, a popup explains how to go live. It also explains the exhausted allowance after
-the third agent. **Deploy as a real agent** loads that guest's own agent from the current session and opens live
+After a verified wallet creates an agent, a popup explains how to go live. It also explains the exhausted allowance after
+the third agent. **Deploy as a real agent** loads that wallet's own agent from the current session and opens live
 Launch directly on the review step, preserving identity, thesis, avatar, chain, market rules and trading risk
 settings. Virtual balances and trade history do not transfer. The existing invite/holder requirements, wallet
 signatures, funding and token deployment flow still apply.
@@ -40,8 +40,8 @@ Defaults live in `lib/demo/types.ts`; they are enforced by Convex transactions, 
 
 | Resource | Limit |
 | --- | --- |
-| Guest lifetime | 7 days, fixed at session creation |
-| Agents / baskets per session | 3 / 3, lifetime counts |
+| Wallet preview lifetime | 7 days, fixed at session creation |
+| Agents / baskets per wallet | 3 / 3, lifetime counts |
 | Nonexpired demo agents across the deployment | 50, including the 5 house examples |
 | New sessions per IP | 3 per day |
 | New sessions / agents globally | 100 / 30 per hour |
@@ -63,9 +63,15 @@ provider-side monetary limit on the separate demo key for an additional spending
 
 ## Behavior
 
-- Guests use an opaque random 256-bit token in an HttpOnly, SameSite cookie, scoped to `/api/demo`; only its SHA-256
-  hash is stored. No wallet, signing key, token mint, deposit or token holding is required. Clearing cookies loses
-  access to the old session; it does not reset global limits or remove the old agents' capacity usage.
+- Creating and managing a preview requires a connected Solana wallet and a fresh message signature. Verification
+  is offline and does not require a deposit or token holdings. Replayed sign-in signatures are rejected.
+  The HttpOnly, SameSite cookie is scoped to `/api/demo` and cryptographically bound to the verified owner.
+  Private reads and writes must match that wallet; legacy anonymous cookies grant no access. Convex stores the
+  owner and token hash. Signing in again, switching browsers or clearing cookies preserves the same wallet's
+  3-agent/3-basket allowance and original seven-day expiry. Owner addresses are not included in public examples.
+- Launch shows linked cards only. Each house example has a public `/demo/showcase-<key>` detail page; private
+  agents use `/demo/<id>` behind wallet verification. Strategy, performance, trades and controls live on those
+  pages; `/demo` lists the connected wallet's agents and baskets.
 - LaunchWizard supplies the existing strategy and risk controls. Live and demo creation share the `Trading` and
   `Markets` validators. Demo reuses the live hard-entry, sizing, exit, market eligibility, Kelly sizing, token
   ranking prompts and market judgement prompts. Its AI transport makes exactly one bounded Gemini request per credit.

@@ -34,7 +34,7 @@ export default function LaunchHome({ solana }: { solana: Record<string, string> 
             {t("launchCta")}
           </Link>
           <Link href="/demo" className="text-[14px] text-coral transition-colors hover:text-cream">
-            Try the preview · no wallet needed
+            Try the preview · virtual funds
           </Link>
           <Link href="/agents/new" className="text-[14px] text-muted transition-colors hover:text-cream">
             {t("connectCta")} →

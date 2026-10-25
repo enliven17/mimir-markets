@@ -4,7 +4,10 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { launchCx } from "@/lib/launch/request";
 import { DemoCreateBody, DemoBasketBody } from "@/lib/demo/input";
 import { DEMO } from "@/lib/demo/types";
-import { demoCookie, newDemoToken, readDemoToken, sameDemoOrigin, sessionHash, expiredDemoError } from "@/lib/demo/session";
+import { demoCookie, walletDemoToken, matchesDemoWallet, readDemoToken, sameDemoOrigin, sessionHash, expiredDemoError } from "@/lib/demo/session";
+import { PREVIEW_OWNER_HEADER, verifiedPreviewOwner } from "@/lib/demo/auth";
+import { normalizeAddress } from "@/lib/agents/signature";
+import { LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS } from "@/lib/launch/auth";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { readLimitedJson } from "@/lib/server/body-limit";
 
@@ -21,7 +24,8 @@ export async function GET(request: Request) {
     catch { return json({ error: "Preview examples are temporarily unavailable." }, 503); }
   }
   const token = readDemoToken(request);
-  if (!token) return json({ enabled: true, session: null, limits: DEMO });
+  const owner = normalizeAddress(request.headers.get(PREVIEW_OWNER_HEADER));
+  if (!token || !owner || !matchesDemoWallet(token, owner, c.secret)) return json({ enabled: true, walletRequired: true, error: "Connect and verify your wallet to use Mimir Preview." }, 401);
   try {
     return json({ enabled: true, session: await c.client.query(api.demo.dashboard, { secret: c.secret, hash: sessionHash(token) }), limits: DEMO });
   } catch (error) {
@@ -47,22 +51,28 @@ export async function POST(request: Request) {
   const parsed = Action.safeParse(body.value);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message ?? "Invalid preview request." }, 400);
   const b = parsed.data;
+  const owner = normalizeAddress(request.headers.get(PREVIEW_OWNER_HEADER));
+  if (!owner) return json({ error: "Connect your wallet to use Mimir Preview." }, 401);
   let token = readDemoToken(request);
   try {
     if (b.action === "session") {
-      if (token) {
-        try {
-          await c.client.query(api.demo.dashboard, { secret: c.secret, hash: sessionHash(token) });
-          return json({ ok: true });
-        } catch (error) { if (!expiredDemoError(error)) throw error; }
-      }
+      if (verifiedPreviewOwner(request) !== owner) return json({ error: "Verify your wallet with a message signature." }, 401);
+      const signature = request.headers.get(LAUNCH_HEADERS.signature)!;
+      if (!await allowRequest("demo-wallet-signature", signature, 1, 2 * LAUNCH_SIG_TTL_MS)) return json({ error: "That signature was already used. Sign again." }, 409);
+      token = walletDemoToken(owner, c.secret);
+      const cookie = demoCookie(token, process.env.NODE_ENV === "production" || new URL(request.url).protocol === "https:");
+      // Restoring an existing wallet does not consume the new-session IP allowance.
+      try {
+        await c.client.query(api.demo.dashboard, { secret: c.secret, hash: sessionHash(token) });
+        return json({ ok: true }, 200, { "set-cookie": cookie });
+      } catch (error) { if (!expiredDemoError(error)) throw error; }
       if (!await allowRequest("demo-session-ip", clientIp(request), 3, 86_400_000)) return tooManyRequests(3600);
-      token = newDemoToken();
-      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token) });
+      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token), owner });
       if ("error" in result) return json(result, 429);
-      return json({ ok: true }, 201, { "set-cookie": demoCookie(token, process.env.NODE_ENV === "production" || new URL(request.url).protocol === "https:") });
+      return json({ ok: true }, 201, { "set-cookie": cookie });
     }
-    if (!token) return json({ error: "Start a preview session first." }, 401);
+    if (!matchesDemoWallet(token, owner, c.secret)) return json({ error: "Connect and verify your wallet first." }, 401);
+    if (!token) return json({ error: "Verify your wallet first." }, 401);
     const credentials = { secret: c.secret, hash: sessionHash(token) };
     const result = b.action === "agent" ? await c.client.mutation(api.demo.createAgent, { ...credentials, input: b.input })
       : b.action === "basket" ? await c.client.mutation(api.demo.createBasket, { ...credentials, input: b.input })
