@@ -156,6 +156,33 @@ test("token charts show actual quote samples, clickable buy/sell markers and ano
   await noOverflow(page);
 });
 
+test("sparse token history connects early fills and keeps tiny prices readable", async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem("mimir:mainnet-live-seen", "1"));
+  const a = fixtureAgent(); const start = Date.now() - 75 * 60_000;
+  a.state.trades = [
+    { mint: "kurumi", symbol: "KURUMI", at: start, side: "buy", price: 0.0000061, amount: 0.5, pnl: 0, reason: "Entry matched" },
+    { mint: "kurumi", symbol: "KURUMI", at: start + 55 * 60_000, side: "sell", price: 0.0000048, amount: 0.39, pnl: -0.11, reason: "Stop loss" },
+  ];
+  a.state.priceHistory = [{ mint: "kurumi", symbol: "KURUMI", points: [
+    [20, 0.0000065], [25, 0.0000074], [30, 0.0000072], [35, 0.0000078], [40, 0.0000083], [55, 0.0000049], [65, 0.0000051], [75, 0.000003762],
+  ].map(([minutes, price]) => ({ at: start + minutes * 60_000, price })) }];
+  await mockDemo(page, [a]);
+  await page.goto(`/en/demo/${a.id}`);
+  const consent = page.getByRole("button", { name: "I understand and accept", exact: true });
+  if (await consent.isVisible()) await consent.click();
+  const chart = page.getByRole("region", { name: "Token trading chart", exact: true });
+  await expect(chart.getByTestId("price-axis")).toContainText("0.0000");
+  await expect(chart.getByTestId("price-axis")).not.toContainText(/e[+-]\d/);
+  await expect(chart.getByText("8 quotes · 2 fills", { exact: true })).toBeVisible();
+  await expect(chart.getByText("Gaps / fills", { exact: true })).toBeVisible();
+  expect(await chart.getByTestId("price-gap").count()).toBeGreaterThan(0);
+  await chart.getByRole("button", { name: /Buy KURUMI at/ }).click();
+  await expect(page.getByLabel("Selected paper fill")).toContainText("Entry matched");
+  await page.mouse.move(0, 0);
+  await chart.screenshot({ path: testInfo.outputPath("sparse-token-history.png") });
+  await noOverflow(page);
+});
+
 test("launch opens on all preview agents with disclosed sample returns", async ({ page }) => {
   await mockDemo(page);
   await page.goto("/en/launch");

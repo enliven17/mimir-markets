@@ -36,3 +36,18 @@ export function chartWindow(token: DemoTokenChart, hours: number | null) {
   const cutoff = hours === null ? -Infinity : latest - hours * 3_600_000;
   return { points: token.points.filter((p) => p.at >= cutoff), trades: token.trades.filter((t) => t.at >= cutoff) };
 }
+
+export const chartPrice = (price: number, digits = 4) => Number.isFinite(price)
+  ? price.toLocaleString("en-US", { maximumSignificantDigits: digits, useGrouping: false, notation: "standard" }) : "—";
+
+/** Fills anchor older activity without presenting execution prices as observed market quotes. */
+export function chartTimeline(visible: Pick<DemoTokenChart, "points" | "trades">) {
+  const byTime = new Map<number, DemoPricePoint & { source: "quote" | "fill" }>();
+  for (const t of visible.trades) byTime.set(t.at, { at: t.at, price: t.price, source: "fill" });
+  // At the same timestamp the line follows the market quote, not the slippage-adjusted fill.
+  for (const p of visible.points) byTime.set(p.at, { ...p, source: "quote" });
+  const points = [...byTime.values()].sort((a, b) => a.at - b.at);
+  const segments = points.slice(1).map((to, i) => ({ from: points[i], to,
+    gap: points[i].source !== "quote" || to.source !== "quote" || to.at - points[i].at > DEMO.tickMs * 2 }));
+  return { points, segments };
+}

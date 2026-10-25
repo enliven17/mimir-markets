@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { recordDemoPrices, demoTokenCharts, chartWindow } from "../../lib/demo/charts";
+import { recordDemoPrices, demoTokenCharts, chartWindow, chartTimeline, chartPrice } from "../../lib/demo/charts";
 import { DEMO, initialDemoState } from "../../lib/demo/types";
 import type { Candidate } from "../../lib/launch/ports";
 
@@ -46,4 +46,30 @@ test("chart windows use the last recorded time and filter prices and fills toget
   assert.equal(chartWindow(chart, 1).points.length, 1);
   assert.equal(chartWindow(chart, 1).trades.length, 0);
   assert.equal(chartWindow(chart, null).trades.length, 1);
+});
+
+test("a fill predating price tracking anchors the timeline with a labelled gap", () => {
+  const state = initialDemoState(1_000);
+  state.trades = [buy()];
+  state.priceHistory = [{ mint: "token", symbol: "TOKEN", points: [{ at: 1_201_000, price: 0.001 }, { at: 1_501_000, price: 0.0012 }] }];
+  const token = demoTokenCharts(state)[0];
+  const timeline = chartTimeline(token);
+  assert.deepEqual(timeline.points[0], { at: 1_000, price: 0.00103, source: "fill" });
+  assert.equal(timeline.segments[0].gap, true);
+  assert.equal(timeline.segments[1].gap, false);
+  assert.equal(token.points.length, 2, "fill anchors must not manufacture quote history");
+});
+
+test("slippage-adjusted fills do not replace market quotes and missing snapshots stay marked", () => {
+  const timeline = chartTimeline({ trades: [buy()], points: [{ at: 1_000, price: 0.001 }, { at: 901_000, price: 0.002 }] });
+  assert.deepEqual(timeline.points[0], { at: 1_000, price: 0.001, source: "quote" });
+  assert.equal(timeline.segments[0].gap, true);
+  assert.equal(chartTimeline({ trades: [buy()], points: [] }).points[0].source, "fill");
+});
+
+test("tiny token prices use readable decimals rather than exponents or rounding to zero", () => {
+  assert.equal(chartPrice(0.000003762), "0.000003762");
+  assert.equal(chartPrice(0.00000000003762), "0.00000000003762");
+  assert.equal(chartPrice(0), "0");
+  assert.equal(chartPrice(NaN), "—");
 });
