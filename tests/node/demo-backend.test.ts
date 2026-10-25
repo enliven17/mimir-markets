@@ -103,6 +103,40 @@ test("directory responses omit price history; only the requested owned agent inc
   assert.equal((await b.run(demo.dashboard, { ...c, detail: "another-agent" })).agents[0].state.priceHistory, undefined);
 });
 
+test("public directory includes every wallet and house agents without credentials or chart histories", async () => {
+  const b = backend(); await b.run(demo.ensureShowcase, {});
+  const ids: string[] = [];
+  for (const c of [credentials(), credentials("b".repeat(64))]) {
+    await b.run(demo.createSession, c);
+    ids.push((await b.run(demo.createAgent, { ...c, input })).id);
+  }
+  const a = await b.db.get(ids[0]);
+  await b.db.patch(a._id, { state: { ...a.state, priceHistory: [{ mint: "token", symbol: "T", points: [{ at: 1, price: 1 }] }] } });
+  await b.db.insert("demoStakes", { agentId: a._id, status: "open", amount: 5 });
+  await b.db.insert("demoStakes", { agentId: a._id, status: "won", amount: 5 });
+  const directory = await b.run(demo.directory, {});
+  assert.equal(directory.agents.length, 7);
+  for (const id of ids) assert.ok(directory.agents.some((a: any) => a.id === id));
+  assert.equal(directory.stakes.length, 1);
+  assert.ok(directory.agents.every((a: any) => a.state.priceHistory === undefined));
+  const detail = await b.run(demo.directory, { agent: a._id });
+  assert.deepEqual(detail.agents.map((a: any) => a.id), [a._id]);
+  assert.equal(detail.agents[0].state.priceHistory.length, 1);
+  assert.equal(detail.stakes.length, 2);
+  for (const value of [directory, detail]) {
+    const serialized = JSON.stringify(value);
+    for (const key of ["session", "owner", "hash", "secret", "walletId", "baskets"]) assert.equal(serialized.includes(`"${key}"`), false, key);
+  }
+  // Public viewing does not confer ownership.
+  assert.ok((await b.run(demo.setStatus, { ...credentials("b".repeat(64)), id: a._id, status: "paused" })).error);
+  await b.db.patch(a._id, { expiresAt: Date.now() - 1 });
+  assert.equal((await b.run(demo.directory, {})).agents.length, 6);
+  assert.equal((await b.run(demo.directory, { agent: a._id })).agents.length, 0);
+  assert.equal((await b.run(demo.directory, { agent: "invalid" })).agents.length, 0);
+  process.env.DEMO_ENABLED = "0";
+  assert.deepEqual(await b.run(demo.directory, {}), { agents: [], stakes: [] });
+});
+
 test("global capacity blocks new guests even if they change sessions", async () => {
   const b = backend(); await b.run(demo.createSession, credentials());
   for (let i = 0; i < DEMO.maxActiveAgents; i++) await b.db.insert("demoAgents", { expiresAt: Date.now() + 60_000 });

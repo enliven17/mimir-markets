@@ -9,7 +9,7 @@ function fixtureAgent(index = 0): DemoAgent {
   const a = showcasePreviews()[index % 5];
   return { ...a, id: `j${String(index + 1).padStart(31, "0")}`, showcaseKey: undefined };
 }
-async function mockDemo(page: Page, initialAgents: DemoAgent[] = []) {
+async function mockDemo(page: Page, initialAgents: DemoAgent[] = [], communityAgents: DemoAgent[] = []) {
   const agents = structuredClone(initialAgents);
   const baskets: any[] = [];
   const creates: any[] = [];
@@ -20,7 +20,13 @@ async function mockDemo(page: Page, initialAgents: DemoAgent[] = []) {
   await page.route("**/api/demo**", async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
-      if (new URL(request.url()).searchParams.get("view") === "showcase") return route.fulfill({ json: { enabled: true, agents: showcasePreviews(), stakes: [] } });
+      const params = new URL(request.url()).searchParams;
+      if (params.get("view") === "showcase") return route.fulfill({ json: { enabled: true, agents: showcasePreviews(), stakes: [] } });
+      if (params.get("view") === "directory") {
+        const all = [...agents, ...communityAgents, ...showcasePreviews()];
+        const id = params.get("agent");
+        return route.fulfill({ json: { enabled: true, agents: id ? all.filter((a) => a.id === id) : all, stakes: [] } });
+      }
       if (!verified) return route.fulfill({ status: 401, json: { error: "Verify wallet" } });
       return route.fulfill({ json: { enabled: true, session: { expiresAt: Date.now() + DEMO.sessionMs, agents, baskets, stakes: [] } } });
     }
@@ -71,18 +77,21 @@ test("a disconnected wallet cannot open the preview wizard or its saved dashboar
   await noOverflow(page);
 });
 
-test("disconnecting a verified wallet hides private preview details immediately", async ({ page }) => {
+test("disconnecting hides owner controls while keeping public preview results visible", async ({ page }) => {
   const a = fixtureAgent();
   await mockDemo(page, [a]);
   await page.goto(`/en/demo/${a.id}`);
   await connectPreviewWallet(page);
   await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await page.evaluate(async () => {
     const w = (window as unknown as { previewTestWallet: { features: Record<string, { disconnect: () => Promise<void> }> } }).previewTestWallet;
     await w.features["standard:disconnect"].disconnect();
   });
   await expect(page.getByRole("button", { name: "Connect wallet for Preview", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: a.name, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Deploy as a real agent/ })).toHaveCount(0);
 });
 
 test("the connected wallet's own preview appears on Launch and links to its detail page", async ({ page }) => {
@@ -90,12 +99,33 @@ test("the connected wallet's own preview appears on Launch and links to its deta
   await mockDemo(page, [a]);
   await page.goto("/en/demo"); await connectPreviewWallet(page);
   await page.goto("/en/launch");
-  const own = page.getByRole("region", { name: "Your preview agents", exact: true });
+  const own = page.getByRole("region", { name: "All preview agents", exact: true });
   await expect(own.getByRole("link", { name: /My Orbit Agent/ })).toBeVisible();
+  await expect(own.getByRole("link", { name: /My Orbit Agent/ })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Current paper performance" })).toHaveCount(0);
   await own.getByRole("link", { name: /My Orbit Agent/ }).click();
   await expect(page).toHaveURL(new RegExp(`/demo/${a.id}$`));
   await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await noOverflow(page);
+});
+
+test("another wallet's agent is listed publicly with its real paper return and read-only details", async ({ page }) => {
+  const a = { ...fixtureAgent(1), name: "Community Orbit" };
+  a.markets = { ...a.markets, enabled: false };
+  a.state.cash = 9;
+  await mockDemo(page, [], [a]);
+  await page.goto("/en/launch");
+  const card = page.getByRole("region", { name: "All preview agents", exact: true }).getByRole("link", { name: /Community Orbit/ });
+  await expect(card).toContainText("-10.00%");
+  await expect(card).toContainText("Actual paper return");
+  await expect(card).not.toContainText("Illustrative");
+  await card.click();
+  await expect(page.getByRole("heading", { name: a.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await connectPreviewWallet(page);
+  await expect(page.getByRole("link", { name: /Your preview dashboard/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Deploy as a real agent/ })).toHaveCount(0);
   await noOverflow(page);
 });
 
@@ -126,13 +156,13 @@ test("token charts show actual quote samples, clickable buy/sell markers and ano
   await noOverflow(page);
 });
 
-test("launch opens on five limited preview examples with disclosed positive sample returns", async ({ page }) => {
+test("launch opens on all preview agents with disclosed sample returns", async ({ page }) => {
   await mockDemo(page);
   await page.goto("/en/launch");
-  await expect(page.getByRole("heading", { name: "Meet our preview agents" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "All preview agents" })).toBeVisible();
   for (const { input } of SHOWCASE_AGENTS) await expect(page.getByRole("link", { name: new RegExp(input.name) })).toBeVisible();
   await expect(page.getByText("Mimir Preview · limited access · 3 free agents · 7 days", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Card charts and positive example returns are illustrative/)).toBeVisible();
+  await expect(page.getByText(/Mimir example charts and example returns are labelled illustrative/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Current paper performance" })).toHaveCount(0);
   await page.getByRole("link", { name: /Mimir Pioneer/ }).click();
   await expect(page).toHaveURL(/\/demo\/showcase-pioneer$/);

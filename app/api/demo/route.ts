@@ -19,6 +19,16 @@ export async function GET(request: Request) {
   if (!await allowRequest("demo-read", clientIp(request), 60, 60_000)) return tooManyRequests(60);
   const c = config();
   if (!c) return json({ enabled: false, error: "The preview is not enabled on this deployment." }, 503);
+  const params = new URL(request.url).searchParams;
+  if (params.get("view") === "directory") {
+    const agent = params.get("agent") ?? undefined;
+    if (agent && !/^[a-z0-9]{20,64}$/.test(agent)) return json({ error: "Unknown preview agent." }, 400);
+    try {
+      const result = await c.client.query(api.demo.directory, { ...(agent ? { agent } : {}) });
+      if (agent && !result.agents.length) return json({ error: "Preview agent not found or expired." }, 404);
+      return json({ enabled: true, ...result });
+    } catch { return json({ error: "Preview agents are temporarily unavailable." }, 503); }
+  }
   if (new URL(request.url).searchParams.get("view") === "showcase") {
     const key = new URL(request.url).searchParams.get("key") ?? undefined;
     if (key && !/^[a-z-]{2,20}$/.test(key)) return json({ error: "Unknown preview agent." }, 400);

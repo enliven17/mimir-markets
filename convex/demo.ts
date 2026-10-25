@@ -165,6 +165,25 @@ export const showcase = query({
   },
 });
 
+/** Public directory and read-only detail. Wallet credentials and private baskets are never projected. */
+export const directory = query({
+  args: { agent: v.optional(v.string()) },
+  handler: async (ctx, { agent }) => {
+    if (process.env.DEMO_ENABLED !== "1") return { agents: [], stakes: [] };
+    const now = Date.now();
+    const id = agent ? ctx.db.normalizeId("demoAgents", agent) : null;
+    const row = id ? await ctx.db.get(id) : null;
+    const rows = agent ? (row && row.expiresAt > now ? [row] : [])
+      : await ctx.db.query("demoAgents").withIndex("by_expires", (q) => q.gt("expiresAt", now)).take(DEMO.maxActiveAgents);
+    const agents = rows.sort((a, b) => b.createdAt - a.createdAt).map((a) => publicAgent(a, !!agent));
+    // Listing cards need only open stake amounts for equity; the ledger belongs to detail requests.
+    const stakes = (await Promise.all(agents.map((a) => ctx.db.query("demoStakes").withIndex("by_agent", (q) => q.eq("agentId", a.id)).take(agent ? 500 : 100)))).flat()
+      .filter((s) => !!agent || s.status === "open")
+      .map(({ _id, _creationTime, ...s }) => ({ id: _id, ...s }));
+    return { agents, stakes };
+  },
+});
+
 /** Idempotent house seeding; automatic on the first enabled worker tick. No real launch or guest quota. */
 export const ensureShowcase = internalMutation({
   args: {}, handler: async (ctx) => {
