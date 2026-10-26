@@ -28,6 +28,7 @@ import { signedPost } from "@/lib/launch/client";
 import { demoGet, demoPost } from "@/lib/demo/client";
 import { DEMO, type DemoAgent } from "@/lib/demo/types";
 import { demoLiveDraft } from "@/lib/demo/promotion";
+import { trackProductEvent } from "@/lib/product-analytics";
 import DemoUpsell from "@/components/demo/DemoUpsell";
 import { LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
@@ -231,6 +232,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
         if (!publicKey) throw new Error("Connect your wallet first.");
         const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() }, publicKey.toBase58());
         put({ id: r.id, at: 2 });
+        trackProductEvent("preview_created", { mode: "paper", chain: f.chain });
         setUsedDemos(r.used);
         setUpsell(true);
         return;
@@ -242,6 +244,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
         if (f.chain === "robinhood" && !rh.address) throw new Error("Connect your Robinhood wallet: it funds the agent and gets its ETH back.");
         const r = await signedPost<{ id: string; solana: string | null; robinhood: string | null; arc: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
         put({ id: r.id, wallet: (f.chain === "robinhood" ? r.robinhood : r.solana) ?? undefined, arc: r.arc, fund: BigInt(r.fundLamports) });
+        trackProductEvent("live_agent_created", { mode: "live", chain: f.chain });
       }
       if (f.chain === "arc") {
         // The owner tops up its Arc wallet from their Arc account; the launch call says so until the USDC is there.
@@ -249,6 +252,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
         try {
           const r = await signedPost<{ token: string }>(`/api/launch/${d.id}/launch`, { owner, signMessage, action: "launch", agent: d.id!, body: {} });
           put({ mint: r.token, at: DEPLOY_ARGUS.length });
+          trackProductEvent("agent_launched", { mode: "live", chain: f.chain });
         } catch (e) {
           const msg = String((e as Error).message);
           if (/USDC to the agent's Arc wallet/.test(msg)) throw new Error(`Send ${ARGUS_GAS_USDC} USDC on Arc to ${d.arc}, then retry.`);
@@ -272,12 +276,14 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
         }
       }
       if (!d.mint) {
+        trackProductEvent("launch_funded", { mode: "live", chain: f.chain });
         put({ at: 2 });
         // The server's RPC can trail ours by a slot or two: retry "not found yet" a few times.
         for (let i = 0; ; i++) {
           try {
             const r = await signedPost<{ mint: string }>(`/api/launch/${d.id}/launch`, { owner, signMessage, action: "launch", agent: d.id!, body: { sig: d.sig } });
             put({ mint: r.mint });
+            trackProductEvent("agent_launched", { mode: "live", chain: f.chain });
             break;
           } catch (e) {
             if (i >= 4 || !/not found yet|try again in a few/i.test(String((e as Error).message))) throw e;
@@ -386,7 +392,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
       </aside>
 
       <div className="grid gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-5 shadow-card sm:gap-6 sm:p-6">
-        {fromDemo ? <p className="m-0 rounded-xl bg-coral/10 p-4 text-[13px] text-cream">Your preview strategy is ready to go live. The same rules are loaded below. Choose real funding and connect your wallet to deploy.</p> : null}
+        {fromDemo ? <p className="m-0 rounded-xl bg-coral/10 p-4 text-[13px] text-cream">Your preview rules are loaded below. Review the brain, funding and fees before signing: the live model and real fills can differ from your paper run. Virtual balances and returns are never transferred.</p> : null}
         {step === 0 ? (
           <fieldset className="m-0 grid gap-5 border-0 p-0">
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Who is it?</legend>
