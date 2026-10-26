@@ -6,7 +6,7 @@
  * one form. One passkey prompt creates and funds it; then the market page.
  */
 import { useQuery } from "convex/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseEventLogs } from "viem";
 
 import { SURFACE } from "@/components/arena/surface";
@@ -22,6 +22,7 @@ import AccountGate from "./AccountGate";
 import { BTN_PRIMARY, KIND_LABEL, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
+import { MARKET_SERIES, seriesDraft, seriesForMarket } from "@/lib/market-series";
 
 const FIELD = "w-full min-w-0 rounded-xl bg-ink-deep px-4 py-3 text-[15px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]";
 // Selects draw their own chevron inside the box: the platform arrow lands outside the rounded field on some phones.
@@ -69,9 +70,14 @@ export default function ArcCreateForm() {
   const [amount, setAmount] = useState("1");
   const [side, setSide] = useState<1 | 2>(1);
   const [stage, setStage] = useState<string | null>(null);
+  const [series, setSeries] = useState("");
+  const [threshold, setThreshold] = useState("");
+  const seriesMarkets = useQuery(api.arc.markets, series ? { limit: 500 } : "skip");
+  useEffect(() => { const id = new URLSearchParams(window.location.search).get("series"); if (MARKET_SERIES.some((s) => s.id === id)) setSeries(id!); }, []);
 
   const stake = parseUsdc(amount);
   const deadlineSec = Math.floor(new Date(deadline).getTime() / 1000);
+  const duplicate = seriesMarkets?.find((m) => m.kind === "pool" && m.deadline === deadlineSec && (m.status === "open" || m.status === "active") && seriesForMarket(m) === series);
   const contract = kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
 
   const openedToday = useQuery(api.arc.openedToday, account.address ? { creator: account.address } : "skip");
@@ -125,6 +131,14 @@ export default function ArcCreateForm() {
       </header>
 
       <section className={`${SURFACE} grid gap-5 p-5 sm:p-7`}>
+        <details open={!!series} className="grid gap-3 rounded-xl bg-panel p-4"><summary className="cursor-pointer text-[14px] text-cream">Use a daily checkpoint template</summary>
+          <div className="mt-3 grid gap-3"><label className="grid gap-1 text-[12px] text-muted">Series<select className={SELECT} value={series} onChange={(e) => setSeries(e.target.value)}><option value="">Choose a series</option>{MARKET_SERIES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="grid gap-1 text-[12px] text-muted">USD threshold<input className={FIELD} type="number" min="0.000001" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)} /></label>
+            <button type="button" className="justify-self-start text-[13px] text-coral" disabled={!series || !(Number(threshold) > 0)} onClick={() => { const draft = seriesDraft(series, Number(threshold), Date.now()); if (!draft) return; setKind("pool"); setQuestion(draft.question); setLabelA(draft.labelA); setLabelB(draft.labelB); setUrl(draft.resolutionUrl); setCategory(draft.category); setDeadline(localInput(draft.deadline)); }}>Apply template · review before signing</button>
+            <p className="m-0 text-[12px] text-muted">Side A wins if the two-source USD price is strictly above the threshold at the 12:00 UTC checkpoint. Equality belongs to Side B. Unavailable or conflicting evidence follows the market's refund/dispute process. Each occurrence requires a new signature and stake.</p>
+            {duplicate ? <Link href={`/arena/arc/pool/${duplicate.marketId}`} className="text-[13px] text-coral">An open checkpoint for this date already exists. Join it to keep liquidity together →</Link> : null}
+          </div>
+        </details>
         <div role="radiogroup" aria-label="Market type" className="grid grid-cols-2 gap-2">
           {(["vs", "pool"] as const).map((k) => (
             <button

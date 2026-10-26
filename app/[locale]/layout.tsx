@@ -17,6 +17,7 @@ import AccessGate from "@/components/access/AccessGate";
 import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
 import SkipToContentLink from "@/components/SkipToContentLink";
 import { SITE_URL } from "@/lib/site";
+import ProductAnalytics from "@/components/app/ProductAnalytics";
 
 type Props = {
   children: React.ReactNode;
@@ -78,6 +79,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         <MobileTabBar />
         <ConsentNotice />
         <RouteProgress />
+        <ProductAnalytics />
       </WalletSheetProvider>
       </ConvexClientProvider>
     </NextIntlClientProvider>

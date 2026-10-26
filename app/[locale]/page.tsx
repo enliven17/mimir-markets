@@ -11,6 +11,7 @@ import EdgeFog from "@/components/landing/EdgeFog";
 import CompanionMount from "@/components/landing/CompanionMount";
 import "@/components/landing/landing.css";
 import JsonLd from "@/components/seo/JsonLd";
+import GetStarted from "@/components/landing/GetStarted";
 import { organization, pageMeta, website } from "@/lib/seo";
 
 export const metadata = pageMeta({
@@ -37,6 +38,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <div className="landing">
         <EdgeFog />
         <Hero />
+        <GetStarted />
         <LiveStrip />
         <DoctrineStrip />
         <HowItSettles />

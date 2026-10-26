@@ -29,6 +29,8 @@ import MarketCaution from "./MarketCaution";
 import ShareMarket from "./ShareMarket";
 import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
+import SettlementTimeline from "./SettlementTimeline";
+import FollowButton from "@/components/discovery/FollowButton";
 
 /** Anyone writes this URL on-chain: link it only when it is http(s), never javascript: or data:. */
 function safeHref(url: string): string | null {
@@ -161,6 +163,8 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
         </section>
 
         <DemoMarketActivity kind={kind} marketId={marketId} />
+        <FollowButton target={`market:${kind}:${marketId}`} label="Follow market updates" />
+        <SettlementTimeline market={m} events={m.events} now={now} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Who is in</h2>
           <ul className="m-0 grid list-none gap-1.5 p-0">

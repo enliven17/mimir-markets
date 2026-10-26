@@ -16,6 +16,7 @@ import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { ARC } from "@/lib/arc/config";
 import ArcOnboarding from "../ArcOnboarding";
+import MarketSeries from "./MarketSeries";
 import { BetChip, jolt } from "./BetFx";
 import { arcPhase, BTN_PRIMARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, Split, type ArcMarket, type ArcPhase } from "./shared";
 
@@ -72,6 +73,8 @@ export default function ArcArena() {
       </header>
 
       <ArcOnboarding />
+      {markets ? <MarketSeries markets={markets} /> : null}
+      <Link href="/radar" className="justify-self-start text-[14px] text-coral">Council radar · compare forecasts and follow updates →</Link>
 
       <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
         <div role="tablist" aria-label="Markets" className="grid grid-cols-3 gap-1 rounded-full bg-panel p-1 sm:flex">
