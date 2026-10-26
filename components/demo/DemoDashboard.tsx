@@ -8,6 +8,8 @@ import { demoGet, demoPost } from "@/lib/demo/client";
 import { useWallet } from "@solana/wallet-adapter-react";
 import PreviewAgentDetails from "./PreviewAgentDetails";
 import DemoUpsell from "./DemoUpsell";
+import StrategyLab from "./StrategyLab";
+import { trackProductEvent } from "@/lib/product-analytics";
 import { DEMO, demoReturn, type DemoAgent, type DemoBasket, type DemoStake } from "@/lib/demo/types";
 
 type Dashboard = {
@@ -49,7 +51,7 @@ export default function DemoDashboard({ agentId }: { agentId?: string }) {
 
   async function act(action: unknown) {
     setBusy(true); setError("");
-    try { await demoPost(action, owner); await reload(); }
+    try { await demoPost(action, owner); if ((action as { action?: string }).action === "trial") trackProductEvent("trial_created", { mode: "paper" }); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Preview request failed."); }
     finally { setBusy(false); }
   }
@@ -88,6 +90,7 @@ export default function DemoDashboard({ agentId }: { agentId?: string }) {
       <p className="m-0 text-[14px] text-muted">Up to 3 agents and 3 baskets. Wallet verification required. No token launch or deposit.</p>
     </section> : null}
     {data ? <>
+      {!agentId ? <StrategyLab agents={data.agents} stakes={data.stakes} busy={busy} create={act} /> : null}
       <p className="m-0 text-[12px] text-muted">{data.agents.length} / {DEMO.maxAgents} agents · {data.baskets.length} / {DEMO.maxBaskets} baskets · session ends {when(data.expiresAt)}</p>
       {!agentId ? <section aria-label="Preview agents" className="grid min-w-0 gap-3 sm:grid-cols-3">
         {data.agents.map((a) => {

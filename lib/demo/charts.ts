@@ -5,7 +5,7 @@ const positive = (p: number) => Number.isFinite(p) && p > 0;
 export const tradeKey = (t: DemoTrade) => `${t.at}:${t.mint}:${t.side}`;
 
 /** Reuse the worker's existing price feed. No chart requests, AI calls or invented historical prices. */
-export function recordDemoPrices(state: DemoState, candidates: readonly Candidate[], quotedAt: number): void {
+export function recordDemoPrices(state: DemoState, candidates: readonly Candidate[], quotedAt: number, chartPoints: number = DEMO.chartPoints): void {
   if (!Number.isFinite(quotedAt) || quotedAt <= 0) return;
   const tokens = new Map<string, string>();
   for (const t of [...state.positions, ...state.trades]) if (!tokens.has(t.mint)) tokens.set(t.mint, t.symbol);
@@ -14,7 +14,7 @@ export function recordDemoPrices(state: DemoState, candidates: readonly Candidat
     const points = [...(state.priceHistory?.find((s) => s.mint === mint)?.points ?? [])];
     const price = prices.get(mint);
     if (price && quotedAt > (points.at(-1)?.at ?? 0)) points.push({ at: quotedAt, price });
-    return { mint, symbol, points: points.slice(-DEMO.chartPoints) };
+    return { mint, symbol, points: points.slice(-Math.min(864, Math.max(DEMO.chartPoints, Math.floor(chartPoints)))) };
   });
 }
 

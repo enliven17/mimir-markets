@@ -1,11 +1,11 @@
 import type { JsonRouter } from "../launch/engine/rank";
 
 /** Exactly one bounded provider request per reserved credit. No retries, fallback keys or oracle credentials. */
-export function demoRouter(reserve: () => Promise<boolean>, fetcher: typeof fetch = fetch): JsonRouter {
+export function demoRouter(reserve: () => Promise<boolean>, fetcher: typeof fetch = fetch, pinnedModel?: string): JsonRouter {
   return {
     async completeJson(o, parse) {
       const key = process.env.DEMO_GEMINI_API_KEY?.trim();
-      const model = process.env.DEMO_GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+      const model = pinnedModel ?? (process.env.DEMO_GEMINI_MODEL?.trim() || "gemini-2.5-flash");
       if (!key || !/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Preview AI is unavailable.");
       if (!await reserve()) throw new Error("Preview AI allowance reached; waiting for the next window.");
       const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {

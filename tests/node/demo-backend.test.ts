@@ -49,6 +49,24 @@ let env: NodeJS.ProcessEnv;
 beforeEach(() => { env = { ...process.env }; process.env.DEMO_ENABLED = "1"; process.env.MIMIR_LAUNCH_SECRET = secret; delete process.env.MIMIR_BACKEND_OFF; });
 afterEach(() => { process.env = env; });
 
+test("paired trials create fresh versions atomically, enforce ownership and preserve the base record", async () => {
+  const b = backend(), c = credentials(); await b.run(demo.createSession, c);
+  const base = await b.run(demo.createAgent, { ...c, input });
+  const baseModel = (await b.db.get(base.id)).strategy.model;
+  process.env.DEMO_GEMINI_MODEL = "different-default";
+  const other = credentials("b".repeat(64)); await b.run(demo.createSession, other);
+  assert.match((await b.run(demo.createTrial, { ...other, source: base.id, metric: "minEdge", a: 10, b: 20 })).error, /your session/);
+  const trial = await b.run(demo.createTrial, { ...c, source: base.id, metric: "minEdge", a: 10, b: 20 });
+  assert.equal(trial.ids.length, 2);
+  const [a, childB] = await Promise.all(trial.ids.map((id: string) => b.db.get(id)));
+  assert.equal(a.markets.rules.minEdge, .1); assert.equal(childB.markets.rules.minEdge, .2);
+  assert.equal(a.strategy.parent, base.id); assert.notEqual(a.strategy.fingerprint, childB.strategy.fingerprint);
+  assert.equal(a.strategy.model, baseModel); assert.equal(childB.strategy.model, baseModel);
+  assert.equal(a.state.pnl, 0); assert.equal(a.state.trades.length, 0);
+  assert.equal((await b.db.get(base.id)).strategy.revision, 1);
+  assert.match((await b.run(demo.createTrial, { ...c, source: base.id, metric: "minEdge", a: 10, b: 20 })).error, /two free/);
+});
+
 test("wallet reauthentication preserves its quota even after cookies are cleared or credentials rotate", async () => {
   const b = backend();
   const original = credentials();

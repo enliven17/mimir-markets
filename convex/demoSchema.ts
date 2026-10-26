@@ -2,7 +2,7 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const demoTables = {
-  demoSessions: defineTable({ hash: v.string(), owner: v.optional(v.string()), expiresAt: v.number(), agentsCreated: v.number(), basketsCreated: v.number() })
+  demoSessions: defineTable({ hash: v.string(), owner: v.optional(v.string()), expiresAt: v.number(), agentsCreated: v.number(), basketsCreated: v.number(), mimirTier: v.optional(v.union(v.literal("none"), v.literal("holder"), v.literal("backer"), v.literal("oracle-circle"))) })
     .index("by_hash", ["hash"]).index("by_owner", ["owner"]).index("by_expires", ["expiresAt"]),
   demoAgents: defineTable({
     session: v.id("demoSessions"), name: v.string(), ticker: v.string(), avatarSeed: v.string(), thesis: v.string(),
@@ -13,6 +13,8 @@ export const demoTables = {
     trading: v.any(), markets: v.any(), state: v.any(),
     aiDay: v.optional(v.number()), aiCalls: v.optional(v.number()),
     showcaseKey: v.optional(v.string()),
+    strategy: v.optional(v.object({ revision: v.number(), fingerprint: v.string(), at: v.number(), model: v.optional(v.string()), parent: v.optional(v.string()), trial: v.optional(v.string()), variant: v.optional(v.string()) })),
+    mimirTier: v.optional(v.union(v.literal("none"), v.literal("holder"), v.literal("backer"), v.literal("oracle-circle"))),
   }).index("by_session", ["session"]).index("by_due", ["nextTickAt"]).index("by_expires", ["expiresAt"]).index("by_showcase", ["showcaseKey"]),
   demoStakes: defineTable({
     agentId: v.string(), agentName: v.string(), agentSeed: v.string(), kind: v.literal("pool"), marketId: v.number(),

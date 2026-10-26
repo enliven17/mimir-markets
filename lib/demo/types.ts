@@ -1,6 +1,7 @@
 import type { Candidate } from "../launch/ports";
 import type { MarketRules, MarketView } from "../launch/markets";
 import type { RiskParams, StrategyConfig } from "../launch/types";
+import type { StrategySnapshot } from "../launch/strategy-manifest";
 
 export const DEMO = {
   sessionMs: 7 * 86_400_000,
@@ -51,6 +52,8 @@ export type DemoAgent = DemoConfig & {
   chain: DemoChain; status: DemoStatus; createdAt: number; expiresAt: number;
   nextTickAt: number; state: DemoState;
   showcaseKey?: string;
+  strategy?: StrategySnapshot;
+  benefits?: { chartPoints: number; aiCallsPerAgentDay: number };
 };
 export type DemoStake = {
   id: string; agentId: string; agentName: string; agentSeed: string;

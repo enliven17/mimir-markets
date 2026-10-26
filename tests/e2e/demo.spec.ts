@@ -43,6 +43,16 @@ async function mockDemo(page: Page, initialAgents: DemoAgent[] = [], communityAg
     }
     if (body.action === "basket") { baskets.push({ ...body.input, id: `b${baskets.length}`, createdAt: Date.now(), totalReturn: 0, nav: 1_000 }); return route.fulfill({ status: 201, json: { id: "basket1" } }); }
     if (body.action === "status") { agents.find((a) => a.id === body.id)!.status = body.status; return route.fulfill({ json: { ok: true } }); }
+    if (body.action === "trial") {
+      const source = agents.find((a) => a.id === body.source)!;
+      for (const [variant, value] of [["A", body.a], ["B", body.b]] as const) {
+        const child = structuredClone(source); child.id = `j${String(agents.length + 1).padStart(31, "0")}`; child.name = `${source.name} ${variant}`; child.state = initialDemoState(Date.now());
+        if (body.metric === "stopLossPct") child.trading.risk!.stopLossPct = value; else child.markets.rules.minEdge = value / 100;
+        child.strategy = { revision: 2, at: Date.now(), fingerprint: variant.toLowerCase().repeat(64), parent: source.id, trial: "paired-trial", variant };
+        agents.push(child);
+      }
+      return route.fulfill({ status: 201, json: { ids: agents.slice(-2).map((a) => a.id) } });
+    }
     return route.fulfill({ status: 400, json: { error: "Unexpected preview action." } });
   });
   return { agents, creates, liveCalls: () => liveCalls };
@@ -50,6 +60,19 @@ async function mockDemo(page: Page, initialAgents: DemoAgent[] = [], communityAg
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 }
+
+test("strategy lab creates a paired forward trial while preserving the original paper results", async ({ page }, info) => {
+  const source = fixtureAgent(); const data = await mockDemo(page, [source]);
+  await page.goto("/en/demo"); await connectPreviewWallet(page);
+  const lab = page.getByRole("region", { name: "Strategy lab" });
+  await expect(lab.getByRole("heading", { name: "Strategy lab" })).toBeVisible();
+  await lab.getByLabel("Variant A · %").fill("10"); await lab.getByLabel("Variant B · %").fill("20");
+  await lab.getByRole("button", { name: "Start paired paper trial" }).click();
+  await expect(lab.getByRole("row")).toHaveCount(4);
+  expect(data.agents[0].state).toEqual(source.state); expect(data.agents[1].state.trades).toEqual([]); expect(data.agents[2].state.trades).toEqual([]);
+  expect(data.liveCalls()).toBe(0);
+  await noOverflow(page); await page.screenshot({ path: info.outputPath("strategy-lab.png"), fullPage: true });
+});
 
 test.describe("public preview hydration", () => {
   test.use({ timezoneId: "Pacific/Honolulu" });
@@ -269,7 +292,7 @@ test("deploy-from-preview opens live review with the existing strategy, not the 
   await page.goto("/en/demo");
   await connectPreviewWallet(page);
   await page.goto(`/en/launch/new?demo=${a.id}`);
-  await expect(page.getByText("Your preview strategy is ready to go live.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Your preview rules are loaded below.", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Check and launch", exact: true })).toBeVisible();
   await expect(page.getByText(/SL 12%/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign and launch", exact: true })).toBeVisible();
@@ -297,7 +320,7 @@ for (const index of [2, 4]) {
     await page.goto("/en/demo");
   await connectPreviewWallet(page);
   await page.goto(`/en/launch/new?demo=${a.id}`);
-    await expect(page.getByText("Your preview strategy is ready to go live.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Your preview rules are loaded below.", { exact: false })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Check and launch", exact: true })).toBeVisible();
     if (index === 2) await expect(page.getByText(/send 0.15 USDC on Arc/)).toBeVisible();
     else await expect(page.getByLabel("Seed ETH", { exact: false })).toHaveValue("0.1");

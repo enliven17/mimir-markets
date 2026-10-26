@@ -9,6 +9,9 @@ import { demoEvent, settleDemoStake } from "../lib/demo/engine";
 import { DEFAULT_MARKET_RULES } from "../lib/launch/markets";
 import { SHOWCASE_AGENTS } from "../lib/demo/showcase";
 import type { z } from "zod";
+import { strategyFingerprint } from "../lib/launch/strategy-manifest";
+import { demoLiveDraft } from "../lib/demo/promotion";
+import { previewBenefits } from "../lib/token-benefits";
 
 function allowed(secret: string) {
   if (process.env.DEMO_ENABLED !== "1" || !secretMatches("launch", secret)) throw new Error("Preview is unavailable.");
@@ -23,16 +26,20 @@ export function publicAgent(a: Doc<"demoAgents">, includeHistory = true): DemoAg
   return { id: a._id, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, chain: a.chain,
     status: a.expiresAt <= Date.now() ? "expired" : a.status, createdAt: a.createdAt, expiresAt: a.expiresAt,
     nextTickAt: a.nextTickAt, trading: a.trading, markets: a.markets, state: includeHistory ? a.state : summary,
-    ...(a.showcaseKey ? { showcaseKey: a.showcaseKey } : {}) };
+    ...(a.showcaseKey ? { showcaseKey: a.showcaseKey } : {}), ...(a.strategy ? { strategy: a.strategy } : {}), benefits: previewBenefits(a.mimirTier ?? "none") };
 }
-async function insertAgent(ctx: MutationCtx, sessionId: Id<"demoSessions">, expiresAt: number, b: z.infer<typeof DemoCreateBody>, showcaseKey?: string) {
+async function insertAgent(ctx: MutationCtx, sessionId: Id<"demoSessions">, expiresAt: number, b: z.infer<typeof DemoCreateBody>, showcaseKey?: string, inheritedModel?: string) {
   const t = b.trading;
+  const sessionRow = await ctx.db.get(sessionId);
+  const model = inheritedModel ?? `Gemini/${process.env.DEMO_GEMINI_MODEL?.trim() || "gemini-2.5-flash"}`;
   return ctx.db.insert("demoAgents", {
     session: sessionId, name: b.name, ticker: b.ticker, avatarSeed: b.avatarSeed ?? b.ticker.toLowerCase(), thesis: b.thesis,
     chain: b.chain, status: "live", createdAt: Date.now(), expiresAt, nextTickAt: Date.now(), version: 0,
     trading: t.enabled ? { enabled: true, config: { ...t.strategy, trailingStopPct: t.trailingStopPct || null, maxHoldMinutes: t.maxHoldMinutes || null, thesis: b.thesis, liveView: "public", copyTrade: false }, risk: t.risk } : { enabled: false, config: null, risk: null },
     markets: { enabled: b.markets.enabled, budgetUsdc: b.markets.budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, categories: b.markets.categories, minEdge: b.markets.minEdge, kellyFraction: b.markets.kellyFraction, maxStakeUsdc: b.markets.maxStakeUsdc, maxHoursToClose: b.markets.maxHoursToClose } },
     state: initialDemoState(Date.now()), ...(showcaseKey ? { showcaseKey } : {}),
+    strategy: { revision: 1, fingerprint: strategyFingerprint({ thesis: b.thesis, chain: b.chain, trading: b.trading, markets: b.markets, model }), model, at: Date.now() },
+    mimirTier: sessionRow?.mimirTier ?? "none",
   });
 }
 async function control(ctx: QueryCtx | MutationCtx, key: string) {
@@ -53,8 +60,8 @@ async function consume(ctx: MutationCtx, key: string, limit: number, windowMs: n
 }
 
 export const createSession = mutation({
-  args: { secret: v.string(), hash: v.string(), owner: v.string() },
-  handler: async (ctx, { secret, hash, owner }) => {
+  args: { secret: v.string(), hash: v.string(), owner: v.string(), mimirTier: v.optional(v.union(v.literal("none"), v.literal("holder"), v.literal("backer"), v.literal("oracle-circle"))) },
+  handler: async (ctx, { secret, hash, owner, mimirTier }) => {
     allowed(secret);
     if (!/^[a-f0-9]{64}$/.test(hash) || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(owner)) throw new Error("Invalid wallet session.");
     const existing = await ctx.db.query("demoSessions").withIndex("by_owner", (q) => q.eq("owner", owner)).unique();
@@ -63,11 +70,38 @@ export const createSession = mutation({
       return { ok: true };
     }
     if (!await consume(ctx, "sessions-hour", 100, 3_600_000, Date.now())) return { error: "Preview is busy. Please try again later." };
-    const value = { hash, owner, expiresAt: Date.now() + DEMO.sessionMs, agentsCreated: 0, basketsCreated: 0 };
+    const value = { hash, owner, expiresAt: Date.now() + DEMO.sessionMs, agentsCreated: 0, basketsCreated: 0, mimirTier: mimirTier ?? "none" as const };
     // Expired agents and baskets keep their original expiry/session until cleanup; use a fresh record.
     if (existing) await ctx.db.patch(existing._id, { owner: undefined, hash: `expired-${existing._id}` });
     await ctx.db.insert("demoSessions", value);
     return { ok: true };
+  },
+});
+
+/** A fresh A/B trial. Both variants start empty together; no historical outcomes are replayed. */
+export const createTrial = mutation({
+  args: { secret: v.string(), hash: v.string(), source: v.id("demoAgents"), a: v.number(), b: v.number(), metric: v.union(v.literal("stopLossPct"), v.literal("minEdge")) },
+  handler: async (ctx, { secret, hash, source, a, b, metric }) => {
+    allowed(secret);
+    const s = await session(ctx, hash), original = await ctx.db.get(source);
+    if (!original || original.session !== s._id) return { error: "Choose an agent from your session." };
+    if (s.agentsCreated + 2 > DEMO.maxAgents) return { error: "A paired trial needs two free preview slots." };
+    if (a === b) return { error: "Choose two different settings." };
+    if ((metric === "stopLossPct" && !original.trading.enabled) || (metric === "minEdge" && !original.markets.enabled)) return { error: "That strategy sleeve is disabled." };
+    const active = await ctx.db.query("demoAgents").withIndex("by_expires", (q) => q.gt("expiresAt", Date.now())).take(DEMO.maxActiveAgents);
+    if (active.length + 2 > DEMO.maxActiveAgents || !await consume(ctx, "trials-hour", 10, 3_600_000, Date.now())) return { error: "Preview capacity reached. Try later." };
+    const base = demoLiveDraft(publicAgent(original));
+    const trial = `${source}:${Date.now()}`;
+    const ids = [];
+    for (const [variant, value] of [["A", a], ["B", b]] as const) {
+      const input = DemoCreateBody.parse({ ...base, name: `${original.name.slice(0, 29)} ${variant}`, ...(metric === "stopLossPct" && base.trading.enabled ? { trading: { ...base.trading, risk: { ...base.trading.risk, stopLossPct: value } } } : { markets: { ...base.markets, minEdge: value / 100 } }) });
+      const id = await insertAgent(ctx, s._id, s.expiresAt, input, undefined, original.strategy?.model);
+      const child = (await ctx.db.get(id))!;
+      await ctx.db.patch(id, { strategy: { ...child.strategy!, revision: (original.strategy?.revision ?? 1) + 1, parent: source, trial, variant } });
+      ids.push(id);
+    }
+    await ctx.db.patch(s._id, { agentsCreated: s.agentsCreated + 2 });
+    return { ids };
   },
 });
 
@@ -243,7 +277,7 @@ export const claimAi = internalMutation({
     const now = Date.now(), day = Math.floor(now / 86_400_000);
     if (!a || a.version !== version || a.status !== "live" || a.expiresAt <= now) return false;
     const calls = a.aiDay === day ? (a.aiCalls ?? 0) : 0;
-    if (calls >= DEMO.agentAiCallsPerDay) return false;
+    if (calls >= previewBenefits(a.mimirTier ?? "none").aiCallsPerAgentDay) return false;
     const hour = await control(ctx, "ai-hour"), daily = await control(ctx, "ai-day");
     const h = hour?.value.window === Math.floor(now / 3_600_000) ? Number(hour.value.hits) : 0;
     const d = daily?.value.window === day ? Number(daily.value.hits) : 0;

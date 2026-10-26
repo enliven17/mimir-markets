@@ -10,6 +10,9 @@ import { normalizeAddress } from "@/lib/agents/signature";
 import { LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS } from "@/lib/launch/auth";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { readLimitedJson } from "@/lib/server/body-limit";
+import { mainnetTokenBalance } from "@/lib/server/mainnet";
+import { mimirMint } from "@/lib/token-config";
+import { tierFor, tierThresholdsFromEnv } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}) => Response.json(value, { status, headers: { "cache-control": "no-store", ...headers } });
@@ -52,6 +55,7 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("session") }),
   z.object({ action: z.literal("agent"), input: DemoCreateBody }),
   z.object({ action: z.literal("basket"), input: DemoBasketBody }),
+  z.object({ action: z.literal("trial"), source: z.string().regex(/^[a-z0-9]{20,64}$/), metric: z.enum(["stopLossPct", "minEdge"]), a: z.number().finite().min(3).max(50), b: z.number().finite().min(3).max(50) }),
   z.object({ action: z.literal("status"), id: z.string().regex(/^[a-z0-9]{20,64}$/), status: z.enum(["live", "paused", "killed"]) }),
 ]);
 
@@ -81,7 +85,10 @@ export async function POST(request: Request) {
         return json({ ok: true }, 200, { "set-cookie": cookie });
       } catch (error) { if (!expiredDemoError(error)) throw error; }
       if (!await allowRequest("demo-session-ip", clientIp(request), 3, 86_400_000)) return tooManyRequests(3600);
-      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token), owner });
+      const mint = mimirMint();
+      const balance = mint ? await mainnetTokenBalance(owner, mint).catch(() => 0) : 0;
+      const mimirTier = tierFor({ mimir: balance, ansem: 0 }, tierThresholdsFromEnv());
+      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token), owner, mimirTier });
       if ("error" in result) return json(result, 429);
       return json({ ok: true }, 201, { "set-cookie": cookie });
     }
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
     if (!token) return json({ error: "Verify your wallet first." }, 401);
     const credentials = { secret: c.secret, hash: sessionHash(token) };
     const result = b.action === "agent" ? await c.client.mutation(api.demo.createAgent, { ...credentials, input: b.input })
+      : b.action === "trial" ? await c.client.mutation(api.demo.createTrial, { ...credentials, source: b.source as Id<"demoAgents">, metric: b.metric, a: b.a, b: b.b })
       : b.action === "basket" ? await c.client.mutation(api.demo.createBasket, { ...credentials, input: b.input })
       : await c.client.mutation(api.demo.setStatus, { ...credentials, id: b.id as Id<"demoAgents">, status: b.status });
     return json(result, "error" in result ? 409 : b.action === "status" ? 200 : 201);

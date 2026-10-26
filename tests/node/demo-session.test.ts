@@ -51,6 +51,13 @@ test("demo mutations reject cross-origin, opaque and missing-origin requests", (
 });
 
 const prompt = { system: "system", user: "thesis", maxTokens: 8_192 };
+test("a preview uses its recorded model after the deployment default changes", async () => {
+  process.env.DEMO_GEMINI_MODEL = "new-default";
+  let url = "";
+  const router = demoRouter(async () => true, async (u) => { url = String(u); return Response.json({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }); }, "pinned-model");
+  await router.completeJson(prompt, (v) => v);
+  assert.match(url, /models\/pinned-model:/); assert.equal(url.includes("new-default"), false);
+});
 test("exhausted AI allowance causes zero outbound requests", async () => {
   let requests = 0;
   const router = demoRouter(async () => false, async () => { requests++; return new Response(); });

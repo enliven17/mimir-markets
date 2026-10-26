@@ -54,13 +54,13 @@ export const tick = internalAction({
           const allowed = await ctx.runMutation(internal.demo.claimAi, { id: agent.id as Id<"demoAgents">, version });
           if (!allowed) aiIssue = "Preview AI allowance reached. New entries are waiting; exit rules remain active.";
           return allowed;
-        });
+        }, fetch, agent.strategy?.model?.startsWith("Gemini/") ? agent.strategy.model.slice(7) : undefined);
         const t = agent.trading;
         const passing = t.enabled && t.config && agent.status === "live" && agent.state.positions.length < DEMO.maxOpen
           ? passingCandidates(candidates.filter((c) => t.config!.sources.includes(c.source) && !agent.state.positions.some((p) => p.mint === c.mint)), t.config.entry) : [];
         const scores = passing.length ? await createRanker(router, { maxCandidates: 6, onError: () => { aiIssue ||= "Preview AI is unavailable. New entries are waiting; exit rules remain active."; } }).rank({ thesis: agent.thesis, candidates: passing }) : new Map();
         const traded = tradeDemo(agent, candidates, scores, now);
-        if (agent.trading.enabled) recordDemoPrices(traded.state, candidates, snapshot.at);
+        if (agent.trading.enabled) recordDemoPrices(traded.state, candidates, snapshot.at, agent.benefits?.chartPoints);
         const eligible = agent.status === "live" && !traded.pause && agent.markets.enabled
           ? marketCandidates(snapshot.markets, agent.markets.rules, new Set(stakes.map((s) => `pool:${s.marketId}`)), Math.floor(now / 1000)).slice(0, 6) : [];
         const judged = eligible.length ? await judgeMarkets(router, agent.thesis, eligible, Math.floor(now / 1000), 6) : new Map();
