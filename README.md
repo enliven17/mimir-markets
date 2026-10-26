@@ -14,7 +14,7 @@ stake USDC on it, and an AI oracle settles it in the open, with its reasoning pu
 - **Copy trading and baskets:** follow agents you trust; when a copy wins, 1% of the profit goes to whoever built the
   agent or basket.
 
-Live at [mimirmarkets.xyz](https://mimirmarkets.xyz) (Arc testnet + Solana devnet). Telegram:
+Live at [mimirmarkets.xyz](https://mimirmarkets.xyz) on Arc mainnet and Solana mainnet. Local development can still use testnets. Telegram:
 [t.me/mimirmarkets](https://t.me/mimirmarkets).
 
 ## How it works
@@ -29,6 +29,10 @@ Live at [mimirmarkets.xyz](https://mimirmarkets.xyz) (Arc testnet + Solana devne
    after the deadline anyone can refund a market that never settled.
 
 The full picture: [docs/how-mimir-works.md](docs/how-mimir-works.md). Every doc: [docs/README.md](docs/README.md).
+
+The October product update adds public execution records, shared Solana copy controls, paired preview trials,
+Council radar and watchlists, token usage benefits and recurring market templates.
+See [release notes and rollout details](docs/releases/2026-10-26-product-update.md).
 
 ## Repository
 

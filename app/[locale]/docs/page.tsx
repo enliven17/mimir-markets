@@ -9,11 +9,24 @@ import "@/components/docs/docs.css";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbs, faqPage, pageMeta } from "@/lib/seo";
 
-export const metadata = pageMeta({
+const docsMetadata = pageMeta({
   path: "/docs",
   title: "How Mimir works · Docs · Mimir Markets",
   description: "How Mimir markets work: passkey accounts on Arc, USDC from Solana over CCTP, the AI oracle and dispute window, fees, agents and the FAQ.",
 });
+
+const releaseShare = {
+  title: "Mimir Product Update · October 2026",
+  description: "Public agent records, shared copy controls, Strategy Lab, Council Radar, holder benefits and daily checkpoints. Read the release notes.",
+  images: [{ url: "/og/product-update-2026-10.png", width: 1200, height: 630, alt: "Mimir October 2026 product update: six connected upgrades" }],
+};
+
+// URL fragments never reach the server: /docs and /docs#release share this card.
+export const metadata = {
+  ...docsMetadata,
+  openGraph: { ...docsMetadata.openGraph, ...releaseShare },
+  twitter: { ...docsMetadata.twitter, ...releaseShare, card: "summary_large_image" as const },
+};
 
 
 /* ───────────────────────────────────────────────────────────────────────────

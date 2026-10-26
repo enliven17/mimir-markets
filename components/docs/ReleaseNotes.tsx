@@ -5,6 +5,41 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 
 const RELEASES: Release[] = [
   {
+    date: "October 26, 2026",
+    title: "Records, copy controls and discovery",
+    intro: "Inspect an agent's public execution evidence, test two settings with virtual funds, and follow markets through their resolution. Six connected improvements across Launch, Preview, the Arena and $MIMIR.",
+    sections: [
+      { title: "Public agent records", points: [
+        "Launched agents show 7/30/90-day confirmed execution counts, realized trading PnL, return on closed token cost and explorer links before the token chart. Public Arc position outcomes are shown separately in USDC, including on council pages.",
+        "Open position cost and realized PnL drawdown are named explicitly. They are not current market value or portfolio equity drawdown. Pending fills and simulated returns do not enter the real execution record; capped histories are labelled.",
+        "Paused and shut-down hosted agents remain in the directory. Detailed reasoning remains a $MIMIR benefit.",
+      ] },
+      { title: "Shared Solana copy controls", points: [
+        "Set a token cost cap, total open-cost cap, daily realized-loss cap and realized-PnL drawdown cap across your Solana copy subscriptions. Pending buys reserve the executor's spend ceiling, including fee headroom, atomically.",
+        "New copies check price deviation, a two-minute signal age and quoted liquidity. A shared per-signal liquidity ceiling limits aggregate copy demand. Missing evidence skips a buy; unknown signed buys retain their reservation until reconciliation.",
+        "Copy exits record actual proceeds and proportional remaining cost once per signature. Your recorded 30-day copy PnL appears alongside the agent's 30-day trading result, with capital and start-date differences stated. These controls do not guarantee prices or limit unrealized losses; Arc retains its separate per-stake caps.",
+      ] },
+      { title: "Strategy Lab", points: [
+        "From your Preview dashboard, fork a strategy into fresh A/B variants comparing stop loss or minimum market edge. Two free agent slots are required; each variant keeps its own virtual funds and paper results.",
+        "New previews record the settings fingerprint, configured model and revision lineage. The comparison table shows actual paper results and settings. This is forward testing with shared feeds and AI quotas, not a historical backtest.",
+        "Going live preserves the rules for review. The live brain, execution costs and required funding remain explicit, and virtual balances never become real funds.",
+      ] },
+      { title: "Council radar and watchlists", points: [
+        "/radar compares each persona's latest explicit direction. Read-only council forecasts run even with betting disabled, share the existing per-tick attempt budget, and never change stake decisions. Personas can share models and sources; counts are not independent probabilities.",
+        "Follow public markets, topics, agent forecasts and checkpoint series with a wallet signature. Your private in-app watchlist shows new forecasts, side changes, changed source evidence, hosted-agent stakes and market state changes. Followed markets receive a closing-soon reminder while the feed is open.",
+      ] },
+      { title: "Measurable $MIMIR benefits", points: [
+        "/token shows verified indexed pool entry-fee savings against a 0.5% baseline, current fee eligibility and Preview usage. Unmatched fee evidence, VS entries, gas and copy profit fees are excluded.",
+        "New Preview sessions receive per-agent daily AI caps of 6 / 8 / 10 / 12 and chart histories of 144 / 288 / 576 / 864 observed points for Standard / Holder / Backer / Oracle Circle. Verified $MIMIR holdings set the session tier; global AI budgets still apply.",
+      ] },
+      { title: "Daily checkpoints and a clearer start", points: [
+        "SOL and BTC checkpoint templates reuse a machine-readable price rule and a 12:00 UTC deadline. The Arena points to an existing matching pool; a new occurrence always needs a reviewed signature and stake.",
+        "Market pages display opening, betting close, the evidence checkpoint, the oracle proposal, dispute review and final outcome in one timeline. Payout collection remains a separate step.",
+        "The landing page offers three ways in: virtual funds, agent discovery or a market. Optional product funnel events use the existing analytics integration and distinguish paper from live activity.",
+      ] },
+    ],
+  },
+  {
     date: "October 19, 2026",
     title: "Robinhood Chain",
     intro: "Agents can now live on Robinhood Chain: their own token on Pons, trading Pons tokens in ETH, and staking on Mimir markets on Arc like every agent. Pick the launchpad when you launch: pump.fun on Solana, Argus on Arc, or Pons on Robinhood Chain.",

@@ -1,7 +1,7 @@
 # Mimir docs
 
 Markets settle on **Arc**, Circle's stablecoin chain. Your wallet and **$MIMIR** live on **Solana**; USDC moves
-between the two over Circle's CCTP. These docs describe that build (Arc testnet + Solana devnet today).
+between the two over Circle's CCTP. The product is on mainnet; testnet configuration remains available for development.
 
 Read in this order.
 
@@ -10,6 +10,7 @@ Read in this order.
 | Doc | What it is for |
 |---|---|
 | [how-mimir-works.md](how-mimir-works.md) | The plain-language overview: the problem, a market from start to finish, the oracle, agents, fees and $MIMIR. Start here. |
+| [releases/2026-10-26-product-update.md](releases/2026-10-26-product-update.md) | Public records, copy controls, Strategy Lab, radar, token benefits, daily checkpoints and deployment notes. |
 
 ## Building an agent
 

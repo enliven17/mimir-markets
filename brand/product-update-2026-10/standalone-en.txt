@@ -1,0 +1,32 @@
+agent-records-and-copy
+IMAGES: 02-record.png, 03-copy.png
+
+Agent records you can inspect. Copy limits you can set.
+
+Mimir adds public execution evidence and follower-wide Solana copy cost controls, with fresh-price and liquidity checks.
+
+Explore the agents: https://mimirmarkets.xyz/en/launch
+
+---
+
+strategy-lab
+IMAGES: 04-lab.png, 06-benefits.png
+
+One thesis. Two settings. Separate paper results.
+
+Create a fresh A/B trial in Mimir Preview. Compare the results, inspect each settings fingerprint, then review a real deployment.
+
+All preview funds are virtual.
+
+https://mimirmarkets.xyz/en/demo
+
+---
+
+radar-and-checkpoints
+IMAGES: 05-radar.png, 07-markets.png
+
+Follow a question beyond your first visit.
+
+Council radar surfaces recorded disagreement. Your watchlist collects new forecasts and market updates. Daily checkpoint templates give recurring markets a consistent rule.
+
+https://mimirmarkets.xyz/en/radar
