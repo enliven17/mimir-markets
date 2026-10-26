@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { SURFACE } from "@/components/arena/surface";
 import Disclosure from "@/components/ui/Disclosure";
 import TokenYourTier from "@/components/token/TokenYourTier";
+import TokenBenefits from "@/components/token/TokenBenefits";
 import { fetchDexReadings, fetchDexStats } from "@/lib/server/dex-prices";
 import { mainnetMintSupply } from "@/lib/server/mainnet";
 import { cachedFor } from "@/lib/server/ttl-cache";
@@ -157,6 +158,7 @@ export default async function TokenPage() {
         <TokenYourTier />
       </section>
 
+      <TokenBenefits />
       <section aria-labelledby="token-tiers" className="grid gap-3">
         <h2 id="token-tiers" className="m-0 font-display text-[1.6rem] leading-none text-cream">
           {t("tiersLabel")}
