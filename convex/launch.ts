@@ -7,6 +7,7 @@ import { secretMatches } from "../lib/internal-secrets";
 import { reservedLaunchSlug } from "../lib/launch/copy-key";
 import { allocationProblem } from "../lib/launch/fees";
 import { vAllocation } from "./schema";
+import { strategyFingerprint } from "../lib/launch/strategy-manifest";
 
 function allowed(secret: string) {
   if (!secretMatches("launch", secret)) throw new Error("not allowed");
@@ -265,6 +266,9 @@ export const recordStake = internalMutation({
   handler: async (ctx, { text, ...s }) => {
     await ctx.db.insert("launchStakes", { ...s, at: Date.now() });
     await log(ctx, s.agent, "stake", text, { chain: "arc", tx: s.tx });
+    const [a, m] = await Promise.all([ctx.db.get(s.agent), ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", s.kind).eq("marketId", s.marketId)).unique()]);
+    if (a && m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketKind: s.kind, marketId: s.marketId, category: m.category, slug: a.slug,
+      type: "agent_stake", text: `${a.name} staked on ${s.side === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
   },
 });
 
@@ -282,10 +286,42 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const out = [];
-    for (const status of ["live", "paused"] as const) {
+    for (const status of ["live", "paused", "killed"] as const) {
       out.push(...(await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).order("desc").take(100)));
     }
     return out.filter((a) => !a.house).sort((a, b) => b.createdAt - a.createdAt).map(publicView);
+  },
+});
+
+/** Public evidence only. Never exposes prompts, sealed brains, wallet IDs or private market questions. */
+export const performance = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const a = await bySlug(ctx, slug);
+    if (!a || a.status === "pending") return null;
+    const rows = await ctx.db.query("launchTrades").withIndex("by_agent", (q) => q.eq("agent", a._id).gte("at", Date.now() - 90 * 86_400_000)).order("desc").take(10_001);
+    const positions = await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", a._id)).take(100);
+    return { status: a.status, createdAt: a.createdAt, strategy: { revision: 1, at: a.createdAt, fingerprint: strategyFingerprint({ thesis: a.thesis, chain: a.venue ?? a.launch?.chain ?? "solana", trading: a.trading, markets: a.markets, model: a.brain.kind === "byok" ? `${a.brain.provider}/${a.brain.model}` : "Mimir AI routing" }) }, unit: a.venue === "robinhood" ? "ETH" : "SOL", decimals: a.venue === "robinhood" ? 18 : 9,
+      truncated: rows.length > 10_000,
+      trades: rows.slice(0, 10_000).map(({ side, status, lamports, pnlLamports, at, sig }) => ({ side, status, lamports, pnlLamports: pnlLamports ?? null, at, sig })),
+      positions: positions.map(({ mint, symbol, costLamports }) => ({ mint, symbol, costLamports })) };
+  },
+});
+
+/** Public market participation evidence; final outcomes and collected payouts remain distinct. */
+export const publicMarketRecord = query({
+  args: { address: v.string() },
+  handler: async (ctx, { address }) => {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return null;
+    const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address.toLowerCase())).take(301);
+    const records = [];
+    for (const p of rows.slice(0, 300)) {
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", p.kind).eq("marketId", p.marketId)).unique();
+      if (!m || m.isPrivate) continue;
+      const outcome = m.status === "cancelled" || (m.status === "resolved" && m.winner > 2) ? "refunded" : m.status !== "resolved" ? "open" : m.winner === p.side ? "won" : "lost";
+      records.push({ kind: p.kind, marketId: p.marketId, question: m.question, outcome, netStake: p.amount, claimed: p.claimed ?? null });
+    }
+    return { records, limited: rows.length > 300 };
   },
 });
 

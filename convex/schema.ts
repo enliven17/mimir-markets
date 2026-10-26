@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { demoTables } from "./demoSchema";
+export const vCopyRisk = v.object({ maxTokenLamports: v.string(), maxTotalLamports: v.string(), dailyLossLamports: v.string(), maxDrawdownLamports: v.string(), maxPriceDriftBps: v.number(), maxLiquidityBps: v.number() });
 
 // The Arc markets as indexed from MimirV3 (kind "vs") and MimirPool (kind "pool") by convex/arcSync.ts.
 // Amounts are wei strings (18 dp native USDC overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
@@ -119,6 +120,7 @@ export default defineSchema({
     outcome: v.union(v.literal("staked"), v.literal("abstained"), v.literal("retry"), v.literal("failed")),
     rationale: v.string(),
     confidence: v.optional(v.number()),
+    lean: v.optional(v.number()),
     amount: v.optional(v.string()),
     txHash: v.optional(v.string()),
     until: v.number(),
@@ -144,6 +146,13 @@ export default defineSchema({
 
   /** One row per indexer: the last Arc block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),
+
+  discoveryFollows: defineTable({ owner: v.string(), target: v.string(), at: v.number() }).index("by_owner", ["owner"]).index("by_owner_target", ["owner", "target"]),
+  discoverySignals: defineTable({ marketKind: kind, marketId: v.number(), category: v.string(), slug: v.optional(v.string()),
+    type: v.string(), text: v.string(), at: v.number() }).index("by_at", ["at"]),
+  councilOpinions: defineTable({ kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), evidenceHash: v.string(), at: v.number() })
+    .index("by_market", ["kind", "marketId"]).index("by_persona_market", ["slug", "kind", "marketId"]),
+  councilForecastBudgets: defineTable({ creator: v.string(), day: v.string(), calls: v.number() }).index("by_creator", ["creator"]),
 
   /** Jev's triage of a new market (lib/jev-triage.ts, convex/arcTriage.ts); empty while TYPESAFE_API_KEY is unset. */
   arcTriage: defineTable({
@@ -371,6 +380,10 @@ export default defineSchema({
     .index("by_agent_follower", ["agent", "follower"])
     .index("by_follower", ["follower"]),
 
+  copyRiskPolicies: defineTable({ follower: v.string(), policy: vCopyRisk }).index("by_follower", ["follower"]),
+  copyRiskLedgers: defineTable({ follower: v.string(), day: v.string(), dailyPnl: v.string(), pnl: v.string(), peak: v.string() }).index("by_follower", ["follower"]),
+  copyExecutionReceipts: defineTable({ sig: v.string(), sub: v.id("launchCopies"), pnl: v.string(), proceeds: v.string(), at: v.number() }).index("by_sig", ["sig"]).index("by_sub", ["sub", "at"]),
+
   /** Tokens a Solana copy wallet holds because it mirrored a buy (so its sells follow the agent's). */
   launchCopyPositions: defineTable({
     sub: v.id("launchCopies"),
@@ -394,11 +407,15 @@ export default defineSchema({
     sig: v.optional(v.string()),
     lastValidBlockHeight: v.optional(v.number()),
     note: v.optional(v.string()),
+    riskLamports: v.optional(v.string()),
+    signal: v.optional(v.string()),
     at: v.number(),
   })
     .index("by_key", ["key"])
     .index("by_status", ["status"])
-    .index("by_sub", ["sub"]),
+    .index("by_sub", ["sub"])
+    .index("by_sub_status", ["sub", "status"])
+    .index("by_signal", ["signal"]),
   // ---------------- Mimir Launch creator fees (lib/launch/fees.ts, airdrop.ts; convex/launchFeeDb.ts) ----------------
 
   /** Every creator-fee claim, once per signature, with the split it was booked with. */

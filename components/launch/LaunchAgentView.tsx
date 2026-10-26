@@ -23,6 +23,9 @@ import CopyPanel from "./CopyPanel";
 import OwnerControls from "./OwnerControls";
 import FeesBlock from "./FeesBlock";
 import WalletsBlock from "./WalletsBlock";
+import PublicPerformance from "./PublicPerformance";
+import FollowButton from "@/components/discovery/FollowButton";
+import PublicMarketRecord from "./PublicMarketRecord";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
 type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
@@ -83,6 +86,9 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         ) : null}
       </header>
 
+      <FollowButton target={`agent:${slug}`} label="Follow agent forecasts" />
+      {!a.house ? <PublicPerformance slug={slug} /> : null}
+      <PublicMarketRecord address={a.arc} />
       <section className="grid gap-3" aria-label={t("chart")}>
         {a.mint && a.argus ? (
           // An agent can live on both chains (the council's Socrates is the example): one chart at a time.

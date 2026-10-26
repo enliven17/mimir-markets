@@ -90,6 +90,12 @@ export function useHolderTier() {
     };
   }, [wallet, solana]);
 
+  useEffect(() => {
+    const syncProof = () => setProven(wallet ? readProof(wallet) !== null : false);
+    window.addEventListener("mimir-holder-proof", syncProof);
+    return () => window.removeEventListener("mimir-holder-proof", syncProof);
+  }, [wallet]);
+
   const prove = useCallback(async () => {
     if (!wallet || !(signRobinhood ?? signMessage)) throw new Error("this wallet cannot sign messages");
     const signedAt = Date.now();
@@ -101,6 +107,7 @@ export function useHolderTier() {
       /* storage blocked: the proof just is not remembered */
     }
     setProven(true);
+    window.dispatchEvent(new Event("mimir-holder-proof"));
   }, [wallet, signMessage, signRobinhood]);
 
   return { wallet, state, loaded, proven, canSign: !!(signRobinhood ?? signMessage), prove };

@@ -12,7 +12,7 @@ import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit
 
 export const dynamic = "force-dynamic";
 
-const GATE = "Hold $MIMIR to see this agent's reasoning, trades and performance.";
+const GATE = "Basic execution evidence is public. Hold $MIMIR to open detailed trades and reasoning.";
 /** A wallet's answer for a minute, so page loads do not re-read mainnet; only fresh reads count against the IP. */
 const recent = new Map<string, { h: Holding; until: number }>();
 

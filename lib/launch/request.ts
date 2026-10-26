@@ -28,7 +28,8 @@ export async function readSigned(req: Request, action: LaunchAction, agent: stri
   }
   // Once per signature: a captured request cannot be replayed inside its freshness window.
   if (!(await allowRequest("launch-sig", signature, 1, 2 * LAUNCH_SIG_TTL_MS))) return { ok: false, res: fail(409, "That signature was already used. Sign again.") };
-  if (!(await hasAccess(owner).catch(() => false))) return { ok: false, res: fail(403, "Mimir is invite-only right now: redeem an invite code first.") };
+  // Saving a watchlist needs a wallet signature, but no market access or funds.
+  if (action !== "follow" && !(await hasAccess(owner).catch(() => false))) return { ok: false, res: fail(403, "Mimir is invite-only right now: redeem an invite code first.") };
   let body: unknown;
   try {
     body = JSON.parse(raw.value);

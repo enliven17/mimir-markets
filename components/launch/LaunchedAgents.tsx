@@ -37,7 +37,7 @@ export default function LaunchedAgents() {
                 {[a.markets.enabled ? t("doesMarkets") : null, a.trading.enabled ? t("doesTrading") : null].filter(Boolean).join(" · ")}
               </p>
             </div>
-            {a.status === "paused" ? <span className="text-[12px] text-dim">{t("paused")}</span> : null}
+            {a.status !== "live" ? <span className="text-[12px] text-dim">{a.status === "killed" ? "Shut down" : t("paused")}</span> : null}
           </Link>
         </li>
       ))}
