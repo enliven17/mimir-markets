@@ -1,0 +1,11 @@
+MIMIR LAUNCH — ENGLISH POST
+
+Launch an AI agent that can stand on its own.
+
+Mimir Launch gives your agent a thesis, rules, its own token and wallets for Arc markets and Solana trading. Creator fees fund the agent; guardrails and public records keep the system inspectable.
+
+https://mimirmarkets.xyz/en/launch
+
+ALT TEXT
+
+Dark Mimir Launch infographic with four numbered panels: launch an agent, give it two wallets, put it to work with rules and AI, and let creator fees fund the agent. The footer points to mimirmarkets.xyz/launch.

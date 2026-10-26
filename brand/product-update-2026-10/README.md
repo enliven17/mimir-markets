@@ -30,6 +30,8 @@ All seven images are 1600×900 PNGs. [contact-sheet.png](contact-sheet.png) prev
 are editorial diagrams with no fabricated PnL, volume, users or token-price claims. A/B percentages are explicitly
 example settings, not returns. Review and adjust announcement tense if deployment is still pending.
 
+The standalone Mimir Launch visual is [08-mimir-launch.png](08-mimir-launch.png), exported from the existing brand-language HTML; the English caption and alt text are in [`mimir-launch-en.txt`](mimir-launch-en.txt).
+
 The release-notes link also has a dedicated 1200×630 Open Graph / X large-image card at
 [`public/og/product-update-2026-10.png`](../../public/og/product-update-2026-10.png), generated from
 [`release-card.html`](release-card.html). `/en/docs` and `/en/docs#release` use the same card because URL fragments
