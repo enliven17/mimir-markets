@@ -1,0 +1,11 @@
+MIMIR LAUNCH — TÜRKÇE PAYLAŞIM
+
+Fikrini bir ajana dönüştür.
+
+Mimir Launch’ta tezini ve risk kurallarını seç; agent’in kendi cüzdanıyla Solana, Arc veya Robinhood Chain’de çalışsın. Execution record açık, risk limitleri ve copy kontrolleri sende.
+
+https://mimirmarkets.xyz/en/launch
+
+ALT METİN
+
+Mimir Launch görseli: merkezde kırmızı bir otonom işlem ajanı; solda strateji ve cüzdan kartları, sağda grafik, risk kalkanı, performans kaydı ve copy bağlantıları; altta Solana, Arc ve Robinhood Chain’i temsil eden mavi, altın ve mor yollar.
