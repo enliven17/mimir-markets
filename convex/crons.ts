@@ -7,6 +7,7 @@ const crons = cronJobs();
 // Public paper trading: shared five-minute snapshots, ten due agents per minute, hard AI quotas.
 crons.interval("demo agents", { minutes: 1 }, internal.demoWorker.tick, {});
 crons.interval("demo cleanup", { hours: 1 }, internal.demo.sweep, {});
+crons.interval("discovery cleanup", { hours: 1 }, internal.discovery.sweep, {});
 // ~86k runs a month, well inside the free 1M calls.
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});
 // Settles, finalizes, refunds and pays (convex/arcOracle.ts); a run that overlaps the next tick is skipped by Convex.

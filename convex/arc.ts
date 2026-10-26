@@ -46,6 +46,8 @@ export const apply = internalMutation({
         : m.participants;
       if (row) await ctx.db.replace(row._id, { ...m, participants });
       else await ctx.db.insert("arcMarkets", { ...m, participants });
+      if (!m.isPrivate && (!row || row.status !== m.status)) await ctx.db.insert("discoverySignals", { marketKind: m.kind, marketId: m.marketId, category: m.category,
+        type: row ? "settlement" : "new_market", text: `${row ? `Market is ${m.status}` : "New market"}: ${m.question}`, at: Date.now() });
     }
     for (const e of events) {
       const seen = await ctx.db.query("arcEvents").withIndex("by_log", (q) => q.eq("txHash", e.txHash).eq("logIndex", e.logIndex)).unique();

@@ -32,6 +32,8 @@ import { councilWalletsFromEnv, executeContract } from "../lib/server/circle-w3s
 import { copyArcStake } from "../lib/launch/arc-copy";
 import { councilCopyKey } from "../lib/launch/copy-key";
 import { createConsoleLogger } from "../lib/launch/worker/log";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex } from "@noble/hashes/utils";
 
 const copyLog = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "council-copy" } });
 
@@ -89,7 +91,7 @@ export const tick = internalAction({
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE });
     const { mimirV3, mimirPool } = cfg.contracts;
     const wallets = councilWalletsFromEnv();
-    if (!mimirV3 || !mimirPool || !Object.keys(wallets).length) return;
+    if (!mimirV3 || !mimirPool) return;
     const dryRun = e.COUNCIL_DRY_RUN === "1";
     const client = arcPublicClient(cfg);
     const now = Math.floor(Date.now() / 1000);
@@ -123,10 +125,12 @@ export const tick = internalAction({
         if (m.creator === me || inMarket.has(me)) continue;
 
         decisions++;
+        let lean: number | undefined;
         const record = (d: { outcome: "staked" | "abstained" | "retry" | "failed"; rationale: string; confidence?: number; amount?: string; txHash?: string; until: number }) =>
-          ctx.runMutation(internal.arcCouncilDb.record, { slug: persona.slug, kind: m.kind, marketId: m.marketId, ...d });
+          ctx.runMutation(internal.arcCouncilDb.record, { slug: persona.slug, kind: m.kind, marketId: m.marketId, ...(lean !== undefined ? { lean } : {}), ...d });
         try {
           const decision = await evaluatePersonaForClaim(persona, claim, { evidenceCache, throttle, recordForecasts: false, houseCreator: houseCreator(), mainnet: cfg.network === "mainnet" });
+          lean = decision.verdict ? LEAN[decision.verdict] : undefined;
           if (!decision.shouldStake) {
             const transient = decision.skipReason === "llm-failed" || decision.skipReason === "no-evidence";
             const considered = !transient && persona.archetype !== "rule-based";
@@ -181,7 +185,6 @@ export const tick = internalAction({
 
 const TAKES_PER_TICK = Number(process.env.COUNCIL_TAKES_PER_TICK ?? 3);
 // Anyone can open markets cheaply; a creator gets this many takes a day so a bot cannot spend the backend's model quota.
-const TAKES_PER_CREATOR_DAY = Number(process.env.COUNCIL_TAKES_PER_CREATOR_DAY ?? 3);
 // Jev's category replaces a "custom" one for persona choice only when it is at least this sure.
 const JEV_CATEGORY_AT = 0.8;
 const LEAN = { CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 0, UNRESOLVABLE: 0 } as const;
@@ -202,45 +205,46 @@ function bestPersonaFor(category: string): PersonaSpec | null {
   );
 }
 
-/** One take for each open market that has none yet: one evidence fetch and one LLM call each, a few per tick. */
+/** Up to three forecast-only perspectives per market, sharing the existing per-tick call budget. */
 async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<string, EvidenceCacheEntry>, throttle: () => Promise<void>) {
   const takes = await ctx.runQuery(internal.arcCouncilDb.takenMarkets, {});
-  const taken = new Set(takes.map((t) => t.key));
-  const today = new Map<string, number>();
-  for (const t of takes) if (t.at > Date.now() - 86_400_000) today.set(t.creator, (today.get(t.creator) ?? 0) + 1);
-  const house = (JSON.parse(process.env.ARC_CREATOR_WALLET ?? "null") as { address?: string } | null)?.address?.toLowerCase();
+  const taken = new Map(takes.map((t) => [t.key, t]));
+  const radarOn = process.env.COUNCIL_RADAR !== "0";
+  const refreshMs = Math.max(30 * 60_000, Number(process.env.COUNCIL_RADAR_REEVAL_MS) || 6 * 3_600_000);
   // Jev's triage (only with TYPESAFE_API_KEY): no take on a market it is sure is spam or cannot be settled, and a
   // better category for persona choice when the creator left it as "custom".
   const triage = new Map(jevEnabled() ? (await ctx.runQuery(internal.arcTriage.all, {})).map((t) => [t.key, t]) : []);
   let written = 0;
   for (const m of markets.sort((a, b) => b.createdAt - a.createdAt)) {
     if (written >= TAKES_PER_TICK) break;
-    if (taken.has(`${m.kind}:${m.marketId}`)) continue;
+    const featured = taken.get(`${m.kind}:${m.marketId}`);
+    if (featured && !radarOn) continue;
     const creator = m.creator.toLowerCase();
-    if (creator !== house && (today.get(creator) ?? 0) >= TAKES_PER_CREATOR_DAY) continue;
     const t = triage.get(`${m.kind}:${m.marketId}`);
     if (skipTake(t)) continue;
-    const persona = bestPersonaFor(m.category === "custom" && t && t.categoryConfidence >= JEV_CATEGORY_AT ? t.category : m.category);
-    if (!persona) return;
-    try {
-      const claim = asCouncilClaim(m, []);
-      const evidence = await getOrFetchEvidence(`${m.kind}:${m.marketId}`, m.resolutionUrl, evidenceCache);
-      await throttle();
-      const v = await evaluateClaimAsPersona(persona, claim, evidence.text, { mode: "take" });
-      await ctx.runMutation(internal.arcCouncilDb.saveTake, {
-        kind: m.kind,
-        marketId: m.marketId,
-        slug: persona.slug,
-        lean: LEAN[v.verdict],
-        confidence: v.confidence,
-        text: v.explanation.slice(0, 600),
-        creator,
-      });
-      today.set(creator, (today.get(creator) ?? 0) + 1);
-      written++;
-      console.log(`[council] take on ${m.kind} #${m.marketId} by ${persona.slug}: ${v.verdict} ${v.confidence}%`);
-    } catch (err) {
-      console.warn(`[council] take on ${m.kind} #${m.marketId}:`, err instanceof Error ? err.message : err);
+    const lead = bestPersonaFor(m.category === "custom" && t && t.categoryConfidence >= JEV_CATEGORY_AT ? t.category : m.category);
+    if (!lead) return;
+    const roster = activePersonas().filter((p) => p.archetype !== "rule-based");
+    const candidates = [...new Map([lead, ...roster.filter((p) => p.slug === "statistician" || p.slug === "socrates"), ...roster.filter((p) => !p.categoryFilter)].map((p) => [p.slug, p])).values()].slice(0, radarOn ? 3 : 1);
+    const existing = radarOn ? await ctx.runQuery(internal.councilOpinions.forWorker, { kind: m.kind, marketId: m.marketId }) : [];
+    for (const persona of candidates) {
+      if (written >= TAKES_PER_TICK) break;
+      const previous = existing.find((o) => o.slug === persona.slug);
+      const lastAt = previous?.at ?? (featured?.slug === persona.slug ? featured.at : 0);
+      if (lastAt && Date.now() - lastAt < refreshMs) continue;
+      if (!await ctx.runMutation(internal.councilOpinions.claim, { creator })) break;
+      written++; // Failed calls consume the same attempt budget.
+      try {
+        const claim = asCouncilClaim(m, []);
+        const evidence = await getOrFetchEvidence(`${m.kind}:${m.marketId}`, m.resolutionUrl, evidenceCache);
+        await throttle();
+        const result = await evaluateClaimAsPersona(persona, claim, evidence.text, { mode: "take" });
+        const forecast = { kind: m.kind, marketId: m.marketId, slug: persona.slug, lean: LEAN[result.verdict], confidence: result.confidence, text: result.explanation.slice(0, 600) };
+        if (!featured && persona.slug === lead.slug) await ctx.runMutation(internal.arcCouncilDb.saveTake, { ...forecast, creator });
+        if (radarOn) await ctx.runMutation(internal.councilOpinions.record, { ...forecast, evidenceHash: bytesToHex(sha256(new TextEncoder().encode(evidence.text))) });
+      } catch (err) {
+        console.warn(`[council] forecast on ${m.kind} #${m.marketId}:`, err instanceof Error ? err.message : err);
+      }
     }
   }
 }

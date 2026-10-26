@@ -91,10 +91,13 @@ function Carousel({ children, count }: { children: ReactNode; count: number }) {
 
 export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { kind: ArcMarketKind; marketId: number; labelA: string; labelB: string }) {
   const takes = useQuery(api.arcCouncilDb.forMarket, { kind, marketId });
-  const take = useQuery(api.arcCouncilDb.takeFor, { kind, marketId });
-  if (!take && (!takes || takes.length === 0)) return null;
+  const initialTake = useQuery(api.arcCouncilDb.takeFor, { kind, marketId });
+  const opinions = useQuery(api.councilOpinions.forMarket, { kind, marketId });
+  const take = (initialTake ? opinions?.find((o) => o.slug === initialTake.slug) : opinions?.[0]) ?? initialTake;
+  const additional = opinions?.filter((o) => o.slug !== take?.slug) ?? [];
+  if (!take && (!takes || takes.length === 0) && !additional.length) return null;
   const sorted = [...(takes ?? [])].sort((a, b) => Number(b.outcome === "staked") - Number(a.outcome === "staked") || b.at - a.at);
-  const count = (take ? 1 : 0) + sorted.length;
+  const count = (take ? 1 : 0) + sorted.length + additional.length;
 
   return (
     <section aria-label="The council" className={`${SURFACE} grid gap-3 p-5`}>
@@ -102,6 +105,7 @@ export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { ki
         The council&apos;s take
         <span className="text-[11px] font-normal text-dim">An AI read, not advice</span>
       </h2>
+      <p className="m-0 text-[11px] text-muted">Recorded forecasts may share models and sources. Forecast-only views never place a stake.</p>
       <Carousel count={count}>
         {take ? (
           <article className={`${CARD} bg-panel-raised shadow-[inset_0_0_0_1px_rgb(255_81_72/.25)]`}>
@@ -119,6 +123,7 @@ export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { ki
             </p>
           </article>
         ) : null}
+        {additional.map((o) => <article key={`opinion:${o.slug}`} className={`${CARD} bg-panel`}><Who slug={o.slug} /><span className="text-[12px] text-coral">Leans {o.lean === 1 ? labelA : labelB} · forecast only</span><p className="m-0 line-clamp-4 text-[13px] text-muted">{o.text}</p><span className="text-[10px] text-dim">{new Date(o.at).toLocaleString("en-US")}</span></article>)}
         {sorted.map((t) => (
           <article key={t.slug} className={`${CARD} bg-panel`}>
             <span className="flex items-baseline justify-between gap-2 text-[13px]">

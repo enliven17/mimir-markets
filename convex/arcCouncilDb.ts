@@ -22,6 +22,7 @@ export const record = internalMutation({
     outcome: v.union(v.literal("staked"), v.literal("abstained"), v.literal("retry"), v.literal("failed")),
     rationale: v.string(),
     confidence: v.optional(v.number()),
+    lean: v.optional(v.number()),
     amount: v.optional(v.string()),
     txHash: v.optional(v.string()),
     until: v.number(),
@@ -31,6 +32,11 @@ export const record = internalMutation({
       .query("arcCouncilDecisions")
       .withIndex("by_persona_market", (q) => q.eq("slug", d.slug).eq("kind", d.kind).eq("marketId", d.marketId))
       .unique();
+    if (d.lean === 1 || d.lean === 2) {
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", d.kind).eq("marketId", d.marketId)).unique();
+      if (m && !m.isPrivate && (!prev || prev.lean !== d.lean)) await ctx.db.insert("discoverySignals", { marketKind: d.kind, marketId: d.marketId, category: m.category, slug: d.slug,
+        type: prev?.lean === 1 || prev?.lean === 2 ? "opinion_changed" : "forecast", text: `${d.slug} ${prev?.lean === 1 || prev?.lean === 2 ? "changed its view to" : "leans toward"} ${d.lean === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
+    }
     if (prev) await ctx.db.replace(prev._id, { ...d, at: Date.now() });
     else await ctx.db.insert("arcCouncilDecisions", { ...d, at: Date.now() });
   },
@@ -49,14 +55,18 @@ export const forMarket = query({
 export const takenMarkets = internalQuery({
   args: {},
   // The newest 5000 takes: older ones belong to markets long closed (writeTakes only looks at open markets).
-  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.kind}:${t.marketId}`, creator: t.creator ?? "", at: t.at })),
+  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.kind}:${t.marketId}`, creator: t.creator ?? "", slug: t.slug, at: t.at })),
 });
 
 export const saveTake = internalMutation({
   args: { kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), creator: v.string() },
   handler: async (ctx, t) => {
     const prev = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("kind", t.kind).eq("marketId", t.marketId)).first();
-    if (!prev) await ctx.db.insert("arcMarketTakes", { ...t, at: Date.now() });
+    if (!prev) {
+      await ctx.db.insert("arcMarketTakes", { ...t, at: Date.now() });
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", t.kind).eq("marketId", t.marketId)).unique();
+      if (m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketKind: t.kind, marketId: t.marketId, category: m.category, slug: t.slug, type: "forecast", text: `${t.slug} leans toward ${t.lean === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
+    }
   },
 });
 
