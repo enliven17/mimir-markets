@@ -110,7 +110,7 @@ function copyFanout(ctx: ActionCtx): CopyFanout {
     holders: (id, mint) => ctx.runQuery(internal.launchCopy.holders, { id: aid(id), mint }),
     schedule: async (j) =>
       void (j.kind === "buy"
-        ? await ctx.scheduler.runAfter(0, internal.launchCopyJobs.solBuy, { key: j.key, sub: sid(j.sub), mint: j.mint, slippageBps: j.slippageBps })
+        ? await ctx.scheduler.runAfter(0, internal.launchCopyJobs.solBuy, { key: j.key, sub: sid(j.sub), mint: j.mint, slippageBps: j.slippageBps, referencePrice: j.referencePrice, signalAt: j.signalAt })
         : await ctx.scheduler.runAfter(0, internal.launchCopyJobs.solSell, { key: j.key, sub: sid(j.sub), mint: j.mint, fraction: j.fraction, slippageBps: j.slippageBps })),
   };
 }

@@ -9,6 +9,7 @@
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import type { Executor, Fill, TradeArgs } from "../ports";
+import { buySpendCeiling } from "../spend-ceiling";
 import type { Jupiter } from "./jupiter";
 import { CU_LIMIT_MAX, WSOL_MINT } from "./jupiter";
 import { createOps } from "./ops";
@@ -92,7 +93,7 @@ export function createExecutor(d: ExecutorDeps): Executor & ReturnType<typeof cr
   const curveMinTokens = (c: { vTokens: bigint; vSol: bigint }, lamports: bigint, slippageBps: number) =>
     c.vSol + lamports === BigInt(0) ? BigInt(0) : (((lamports * c.vTokens) / (c.vSol + lamports)) * BigInt(Math.max(0, 10_000 - slippageBps - CURVE_FEE_BPS))) / BigInt(10_000);
   /** Spend ceiling of a buy: the amount + 5% for curve/pool fees + 0.02 SOL for rent and priority. */
-  const buyCeiling = (lamports: bigint) => lamports + lamports / BigInt(20) + BigInt(20_000_000);
+  const buyCeiling = buySpendCeiling;
 
   async function mintInfo(mint: string): Promise<{ program: PublicKey; decimals: number }> {
     const acc = await conn.getAccountInfo(new PublicKey(mint), "confirmed");

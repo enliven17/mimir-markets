@@ -29,7 +29,7 @@ export type HoldsCheck = (follower: string) => Promise<Holding>;
 // ---------------- fan-out: the agent's tick hands its fill to the followers ----------------
 
 export type SolJob =
-  | { kind: "buy"; key: string; sub: string; mint: string; slippageBps: number }
+  | { kind: "buy"; key: string; sub: string; mint: string; slippageBps: number; referencePrice?: number; signalAt?: number }
   | { kind: "sell"; key: string; sub: string; mint: string; fraction: number; slippageBps: number };
 
 export type CopyFanout = {
@@ -51,9 +51,9 @@ export function createMirror(f: CopyFanout, log: Log) {
     for (const s of subs) await f.schedule(job(s.id)).catch((err) => log.warn("copy job not scheduled", { agentId, subId: s.id, err }));
   };
   return {
-    async buy(agentId: string, mint: string, slippageBps: number, sig: string) {
+    async buy(agentId: string, mint: string, slippageBps: number, sig: string, reference?: { price: number; at: number }) {
       const slip = Math.min(slippageBps, COPY_MAX_SLIPPAGE_BPS);
-      await fan(agentId, () => f.solSubs(agentId), (sub) => ({ kind: "buy", key: `${sub}:buy:${sig}`, sub, mint, slippageBps: slip }));
+      await fan(agentId, () => f.solSubs(agentId), (sub) => ({ kind: "buy", key: `${sub}:buy:${sig}`, sub, mint, slippageBps: slip, ...(reference ? { referencePrice: reference.price, signalAt: reference.at } : {}) }));
     },
     /** `fraction` of each follower's holding in `mint` (>= 1 sells it all). */
     async sell(agentId: string, mint: string, fraction: number, slippageBps: number, sig: string) {
@@ -94,7 +94,9 @@ export type CopyJobStore = {
   /** Adds the bought tokens to the subscription's position once per key, and closes the job as done. */
   addFill(key: string, subId: string, mint: string, tokens: bigint, costLamports: bigint): Promise<void>;
   /** After selling: `left` of `held` remains; the row goes at 0. */
-  settleSell(subId: string, mint: string, held: bigint, left: bigint): Promise<void>;
+  settleSell(subId: string, mint: string, held: bigint, left: bigint, receipt?: { sig: string; proceeds: bigint }): Promise<void>;
+  /** Production guard: fresh quote checks, then an atomic follower-wide cost reservation. */
+  reserveRisk?(job: Extract<SolJob, { kind: "buy" }>, amount: bigint): Promise<string | null>;
   finish(key: string, status: JobStatus, note?: string): Promise<void>;
   pauseForGate(subId: string): Promise<void>;
 };
@@ -116,6 +118,10 @@ export async function runSolBuy(store: CopyJobStore, executor: SolExec, holds: H
   const have = await executor.spendable(s.wallet);
   const lamports = have < s.maxPerTradeLamports ? have : s.maxPerTradeLamports;
   if (lamports < MIN_COPY_LAMPORTS) return finish(store, job.key, "skipped", "copy wallet short");
+  if (store.reserveRisk) {
+    const problem = await store.reserveRisk(job, lamports);
+    if (problem) return finish(store, job.key, "skipped", problem);
+  }
   try {
     const fill = await executor.buy({
       walletId: s.walletId, wallet: s.wallet, mint: job.mint, lamports, slippageBps: Math.min(job.slippageBps, COPY_MAX_SLIPPAGE_BPS),
@@ -141,7 +147,7 @@ export async function runSolSell(store: CopyJobStore, executor: SolExec, log: Lo
   try {
     const fill = await executor.sell({ walletId: s.walletId, wallet: s.wallet, mint: job.mint, tokens, slippageBps: job.slippageBps });
     const sold = fill.tokens > 0n ? fill.tokens : tokens;
-    await store.settleSell(s.id, job.mint, held, held > sold ? held - sold : 0n);
+    await store.settleSell(s.id, job.mint, held, held > sold ? held - sold : 0n, { sig: fill.sig, proceeds: fill.lamports });
     return finish(store, job.key, "done");
   } catch (err) {
     log.warn("copy sell failed", { subId: s.id, mint: job.mint, err });
@@ -193,8 +199,11 @@ export async function drainCopies(
   for (const mint of mints) {
     const held = await executor.tokenBalance(s.wallet, mint);
     if (held > 0n) {
-      await executor.sell({ walletId: s.walletId, wallet: s.wallet, mint, tokens: held, slippageBps, protect: mints.filter((m) => m !== mint) });
+      const fill = await executor.sell({ walletId: s.walletId, wallet: s.wallet, mint, tokens: held, slippageBps, protect: mints.filter((m) => m !== mint) });
+      const left = held > fill.tokens ? held - fill.tokens : 0n;
+      await store.settleSell(s.id, mint, held, left, { sig: fill.sig, proceeds: fill.lamports });
       sold++;
+      continue;
     }
     await store.settleSell(s.id, mint, held, 0n);
   }

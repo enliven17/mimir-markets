@@ -9,6 +9,7 @@ import { internal } from "./_generated/api";
 import { secretMatches } from "../lib/internal-secrets";
 import { launchCopyKey } from "../lib/launch/copy-key";
 import { keepStoredWallet } from "../lib/launch/worker/copy";
+import { vCopyRisk } from "./schema";
 
 function allowed(secret: string) {
   if (!secretMatches("launch", secret)) throw new Error("not allowed");
@@ -35,7 +36,8 @@ export const forFollower = query({
     const s = await sub(ctx, agent, follower);
     if (!s) return null;
     const held = await ctx.db.query("launchCopyPositions").withIndex("by_sub", (q) => q.eq("sub", s._id)).collect();
-    return { solana: s.solana ?? null, arc: s.arc ?? null, active: s.active, pausedReason: s.pausedReason ?? null, holdings: held.map((p) => ({ mint: p.mint, tokens: p.tokens })) };
+    const receipts = await ctx.db.query("copyExecutionReceipts").withIndex("by_sub", (q) => q.eq("sub", s._id).gte("at", Date.now() - 30 * 86_400_000)).order("desc").take(1000);
+    return { solana: s.solana ?? null, arc: s.arc ?? null, active: s.active, pausedReason: s.pausedReason ?? null, realizedPnl: receipts.reduce((sum, r) => sum + BigInt(r.pnl), 0n).toString(), receiptsLimited: receipts.length === 1000, holdings: held.map((p) => ({ mint: p.mint, tokens: p.tokens })) };
   },
 });
 
@@ -45,9 +47,13 @@ export const forFollower = query({
  * Returns the stored copy wallet addresses.
  */
 export const upsert = mutation({
-  args: { secret: v.string(), agent: v.string(), follower: v.string(), solana: v.optional(vSol), arc: v.optional(vArc), active: v.boolean() },
-  handler: async (ctx, { secret, agent, follower, solana, arc, active }): Promise<{ solana: string | null; arc: string | null }> => {
+  args: { secret: v.string(), agent: v.string(), follower: v.string(), solana: v.optional(vSol), arc: v.optional(vArc), active: v.boolean(), risk: v.optional(vCopyRisk) },
+  handler: async (ctx, { secret, agent, follower, solana, arc, active, risk }): Promise<{ solana: string | null; arc: string | null }> => {
     allowed(secret);
+    if (risk) {
+      const row = await ctx.db.query("copyRiskPolicies").withIndex("by_follower", (q) => q.eq("follower", follower)).unique();
+      if (row) await ctx.db.patch(row._id, { policy: risk }); else await ctx.db.insert("copyRiskPolicies", { follower, policy: risk });
+    }
     const s = await sub(ctx, agent, follower);
     const sol = keepStoredWallet(s?.solana, solana), a = keepStoredWallet(s?.arc, arc);
     const patch = { ...(sol ? { solana: sol } : {}), ...(a ? { arc: a } : {}), active, pausedReason: undefined };
@@ -178,13 +184,28 @@ export const finish = internalMutation({
 });
 
 export const settleSell = internalMutation({
-  args: { sub: v.id("launchCopies"), mint: v.string(), held: v.string(), left: v.string() },
-  handler: async (ctx, { sub: s, mint, held: h0, left }) => {
+  args: { sub: v.id("launchCopies"), mint: v.string(), held: v.string(), left: v.string(), receipt: v.optional(v.object({ sig: v.string(), proceeds: v.string() })) },
+  handler: async (ctx, { sub: s, mint, held: h0, left, receipt }) => {
+    if (receipt && await ctx.db.query("copyExecutionReceipts").withIndex("by_sig", (q) => q.eq("sig", receipt.sig)).first()) return;
     const row = await position(ctx, s, mint);
     if (!row) return;
     const h = BigInt(h0), l = BigInt(left);
-    if (l <= 0n || h <= 0n) await ctx.db.delete(row._id);
-    else await ctx.db.patch(row._id, { tokens: l.toString(), costLamports: ((BigInt(row.costLamports) * l) / h).toString() });
+    if (h < 0n || l < 0n || l > h) throw new Error("Invalid copy sell quantities.");
+    const recorded = BigInt(row.tokens), sold = h - l > recorded ? recorded : h - l;
+    const remaining = recorded - sold;
+    if (receipt && h > 0n) {
+      const copy = await ctx.db.get(s);
+      if (!copy) throw new Error("missing copy subscription");
+      const soldCost = recorded > 0n ? BigInt(row.costLamports) * sold / recorded : 0n;
+      const result = BigInt(receipt.proceeds) - soldCost;
+      await ctx.db.insert("copyExecutionReceipts", { sig: receipt.sig, sub: s, pnl: result.toString(), proceeds: receipt.proceeds, at: Date.now() });
+      const ledger = await ctx.db.query("copyRiskLedgers").withIndex("by_follower", (q) => q.eq("follower", copy.follower)).unique();
+      const day = new Date().toISOString().slice(0, 10), pnl = BigInt(ledger?.pnl ?? "0") + result, oldPeak = BigInt(ledger?.peak ?? "0");
+      const patch = { day, dailyPnl: ((ledger?.day === day ? BigInt(ledger.dailyPnl) : 0n) + result).toString(), pnl: pnl.toString(), peak: (pnl > oldPeak ? pnl : oldPeak).toString() };
+      if (ledger) await ctx.db.patch(ledger._id, patch); else await ctx.db.insert("copyRiskLedgers", { follower: copy.follower, ...patch });
+    }
+    if (remaining <= 0n || recorded <= 0n) await ctx.db.delete(row._id);
+    else await ctx.db.patch(row._id, { tokens: remaining.toString(), costLamports: ((BigInt(row.costLamports) * remaining) / recorded).toString() });
   },
 });
 

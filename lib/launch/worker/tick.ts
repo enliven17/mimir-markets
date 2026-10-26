@@ -121,7 +121,7 @@ export async function tickAgent(agentRow: AgentRow, deps: TickDeps): Promise<Tic
       ),
     );
     await ctx.emit("buy", `bought ${label(intent.symbol, intent.mint)} for ${fmtSol(fill.lamports)} SOL (${reason})`);
-    await deps.mirror?.buy(agent.id, intent.mint, agent.risk.slippageBps, fill.sig);
+    await deps.mirror?.buy(agent.id, intent.mint, agent.risk.slippageBps, fill.sig, { price: entryPrice, at: deps.now() });
     return { ...result, bought: intent.mint };
   } catch (err) {
     deps.log.error("tick failed", { agentId: agentRow.id, step, err });

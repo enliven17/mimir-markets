@@ -28,6 +28,11 @@ const Body = z.object({
   solana: z.object({ on: z.boolean(), maxPerTradeSol: z.number().min(0.01).max(100) }).optional(),
   arc: z.object({ on: z.boolean(), maxPerStakeUsdc: z.number().min(0.1).max(50) }).optional(),
   active: z.boolean(),
+  risk: z.object({
+    maxTokenLamports: z.string().regex(/^\d{1,14}$/), maxTotalLamports: z.string().regex(/^\d{1,14}$/),
+    dailyLossLamports: z.string().regex(/^\d{1,14}$/), maxDrawdownLamports: z.string().regex(/^\d{1,14}$/),
+    maxPriceDriftBps: z.number().int().min(10).max(1000), maxLiquidityBps: z.number().int().min(1).max(100),
+  }).optional(),
 });
 
 /** What the agent does that can be copied: council personas only stake; a launched agent per its settings. */
@@ -48,6 +53,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const can = await copyable(c, id);
   if (!can) return fail(404, "No such agent.");
   const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: copyKeyFor(id), follower });
+  const risk = await c.client.query(api.copyRisk.policy, { secret: c.secret, follower });
   const [sol, usdc] = await Promise.all([
     s?.solana ? getSolana().executor.spendable(s.solana.address).then((l) => Number(l) / 1e9).catch(() => null) : null,
     s?.arc ? arcPublicClient(ARC).getBalance({ address: s.arc.address as `0x${string}` }).then((w) => Number(w) / 1e18).catch(() => null) : null,
@@ -55,9 +61,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   return Response.json(
     {
       can,
+      risk,
       sub: s && {
         active: s.active,
         pausedReason: s.pausedReason,
+        realizedPnl: s.realizedPnl, receiptsLimited: s.receiptsLimited,
         solana: s.solana && { address: s.solana.address, on: s.solana.on, maxPerTradeSol: Number(BigInt(s.solana.maxPerTradeLamports)) / 1e9, spendableSol: sol },
         arc: s.arc && { address: s.arc.address, on: s.arc.on, maxPerStakeUsdc: s.arc.maxPerStakeUsdc, balanceUsdc: usdc },
         holdings: s.holdings,
@@ -108,7 +116,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (a) a = { ...a, on: arc.on, maxPerStakeUsdc: arc.maxPerStakeUsdc };
     }
     // The stored wallets win: a racing request's fresh wallet is dropped here, never handed out.
-    const stored = await c.client.mutation(api.launchCopy.upsert, { secret: c.secret, agent: key, follower: g.owner, ...(sol ? { solana: sol } : {}), ...(a ? { arc: a } : {}), active });
+    const stored = await c.client.mutation(api.launchCopy.upsert, { secret: c.secret, agent: key, follower: g.owner, ...(sol ? { solana: sol } : {}), ...(a ? { arc: a } : {}), ...(parsed.data.risk ? { risk: parsed.data.risk } : {}), active });
     return Response.json({ ok: true, solana: stored.solana, arc: stored.arc });
   } catch (e) {
     console.error(`[launch] copy ${id} failed:`, e);

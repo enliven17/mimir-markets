@@ -11,12 +11,20 @@ import { signedPost } from "@/lib/launch/client";
 import { solscan } from "@/lib/launch/council-view";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { ExternalMark } from "@/components/ExternalMark";
+import { DEFAULT_COPY_RISK, type CopyRiskPolicy } from "@/lib/launch/copy-risk";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { tradingPerformance } from "@/lib/launch/performance";
+import { trackProductEvent } from "@/lib/product-analytics";
 
 type Status = {
+  risk: CopyRiskPolicy;
   can: { solana: boolean; arc: boolean };
   sub: null | {
     active: boolean;
     pausedReason: string | null;
+    realizedPnl: string;
+    receiptsLimited: boolean;
     solana: null | { address: string; on: boolean; maxPerTradeSol: number; spendableSol: number | null };
     arc: null | { address: string; on: boolean; maxPerStakeUsdc: number; balanceUsdc: number | null };
     holdings: { mint: string; tokens: string }[];
@@ -34,6 +42,8 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [wd, setWd] = useState({ chain: "arc" as "arc" | "solana", amount: "" });
+  const [risk, setRisk] = useState<CopyRiskPolicy>(DEFAULT_COPY_RISK);
+  const performance = useQuery(api.launch.performance, { slug });
 
   const load = useCallback(async () => {
     if (!owner) return;
@@ -41,6 +51,7 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
     if (!res?.ok) return;
     const s = (await res.json()) as Status;
     setSt(s);
+    setRisk(s.risk);
     if (s.sub) {
       setArcOn(!!s.sub.arc?.on);
       setSolOn(!!s.sub.solana?.on);
@@ -52,6 +63,12 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
     }
   }, [owner, slug]);
   useEffect(() => void load(), [load]);
+  useEffect(() => {
+    if (!owner || !st?.sub?.active) return;
+    const funded = (st.sub.solana?.spendableSol ?? 0) > 0 || (st.sub.arc?.balanceUsdc ?? 0) > 0;
+    if (!funded) return;
+    try { const key = `mimir.copy-funded:${owner}:${slug}`; if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); trackProductEvent("copy_funded", { mode: "live" }); } catch { /* Analytics never block copying. */ }
+  }, [owner, slug, st]);
 
   if (!owner || !signMessage || !st || (!st.can.arc && !st.can.solana)) return null;
 
@@ -71,10 +88,12 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
     act(async () => {
       const body = {
         active,
+        risk,
         ...(st.can.arc ? { arc: { on: arcOn, maxPerStakeUsdc: Number(maxStake) || 0.1 } } : {}),
         ...(st.can.solana ? { solana: { on: solOn, maxPerTradeSol: Number(maxTrade) || 0.01 } } : {}),
       };
       await signedPost(`/api/launch/${slug}/copy`, { owner, signMessage, action: "copy", agent: slug, body });
+      if (active && !st.sub?.active) trackProductEvent("copy_started", { mode: "live" });
       return active ? "Copying. Fund the copy wallets below." : "Stopped: no new copies. What you hold still exits with the agent.";
     });
   const sub = st.sub;
@@ -143,6 +162,22 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
           </div>
         ) : null}
       </div>
+
+      {st.can.solana ? <details className="rounded-xl bg-cream/[0.04] p-4" open>
+        <summary className="cursor-pointer text-[14px] text-cream">Your shared Solana copy limits</summary>
+        <p className="text-[12px] leading-relaxed text-muted">These settings apply across every agent you copy. Exposure uses recorded token cost; pending buys reserve the executor's full spend ceiling, including fee headroom. Loss limits use realized copy PnL recorded after this update; they do not cap unrealized losses. Exits continue when new entries stop.</p>
+        <div className="grid gap-3 sm:grid-cols-2">{([
+          ["maxTokenLamports", "Most in one token · SOL"], ["maxTotalLamports", "Most total open cost · SOL"],
+          ["dailyLossLamports", "Daily realized loss · SOL"], ["maxDrawdownLamports", "Realized PnL drawdown · SOL"],
+        ] as const).map(([key, label]) => <label key={key} className="grid gap-1 text-[12px] text-muted">{label}<input className="input font-mono" type="number" min="0" step="0.01" value={Number(risk[key]) / 1e9} onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 0 && n <= 10000) setRisk((p) => ({ ...p, [key]: String(Math.round(n * 1e9)) })); }} /></label>)}
+          <label className="grid gap-1 text-[12px] text-muted">Maximum price deviation · %<input className="input" type="number" min="0.1" max="10" step="0.1" value={risk.maxPriceDriftBps / 100} onChange={(e) => setRisk((p) => ({ ...p, maxPriceDriftBps: Math.round(Number(e.target.value) * 100) }))} /></label>
+          <label className="grid gap-1 text-[12px] text-muted">Maximum share of pool liquidity · %<input className="input" type="number" min="0.01" max="1" step="0.01" value={risk.maxLiquidityBps / 100} onChange={(e) => setRisk((p) => ({ ...p, maxLiquidityBps: Math.round(Number(e.target.value) * 100) }))} /></label>
+        </div><p className="mb-0 text-[12px] text-muted">Zero disables an amount limit. Signals expire after two minutes. Missing price or liquidity skips a new copy. These checks cannot guarantee an execution price.</p>
+      </details> : null}
+
+      {sub?.solana ? <div className="grid gap-1 text-[13px] text-muted"><span>Your recorded realized copy PnL · 30d: <strong className="font-mono text-cream">{(Number(sub.realizedPnl) / 1e9).toFixed(4)} SOL</strong>{sub.receiptsLimited ? " · latest 1,000 exits" : ""}</span>
+        {performance?.unit === "SOL" ? <span>Agent realized trading PnL · 30d: {(Number(tradingPerformance(performance.trades, performance.positions, Date.now()).periods[1].pnl) / 1e9).toFixed(4)} SOL. Different capital, start dates and fills; these totals are not like-for-like returns.</span> : null}
+      </div> : null}
 
       <div className="flex flex-wrap items-center gap-4">
         <button type="button" disabled={busy || (!arcOn && !solOn)} className="btn-primary !min-h-[44px] !w-auto !px-6 !py-2 !text-[15px]" onClick={() => void save(true)}>

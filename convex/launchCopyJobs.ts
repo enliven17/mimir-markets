@@ -17,6 +17,8 @@ import { fetchConfirmedTx, settleSignature, walletDeltas } from "../lib/launch/s
 import { drainCopies, reconcileCopyBuy, runArcCopy, runSolBuy, runSolSell, type CopyJobStore } from "../lib/launch/worker/copy";
 import { createConsoleLogger } from "../lib/launch/worker/log";
 import { executeContract } from "../lib/server/circle-w3s";
+import { createDexScreener } from "../lib/launch/market/dexscreener";
+import { createJupiterPrices } from "../lib/launch/market/jupiter";
 
 const log = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "launch-copy" } });
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -37,7 +39,20 @@ function store(ctx: ActionCtx) {
     held: async (id, mint) => BigInt(await ctx.runQuery(internal.launchCopy.held, { sub: sid(id), mint })),
     buySigned: async (key, mint, sig, lastValidBlockHeight) => void (await ctx.runMutation(internal.launchCopy.buySigned, { key, mint, sig, lastValidBlockHeight })),
     addFill: async (key, sub, mint, tokens, cost) => void (await ctx.runMutation(internal.launchCopy.addFill, { key, sub: sid(sub), mint, tokens: tokens.toString(), costLamports: cost.toString() })),
-    settleSell: async (sub, mint, held, left) => void (await ctx.runMutation(internal.launchCopy.settleSell, { sub: sid(sub), mint, held: held.toString(), left: left.toString() })),
+    settleSell: async (sub, mint, held, left, receipt) => void (await ctx.runMutation(internal.launchCopy.settleSell, { sub: sid(sub), mint, held: held.toString(), left: left.toString(), ...(receipt ? { receipt: { sig: receipt.sig, proceeds: receipt.proceeds.toString() } } : {}) })),
+    reserveRisk: async (job, amount) => {
+      const sub = await ctx.runQuery(internal.launchCopy.solSub, { sub: sid(job.sub) });
+      if (!sub) return "Copy wallet unavailable.";
+      const prices = createJupiterPrices({ apiKey: process.env.JUPITER_API_KEY, ttlMs: 0 });
+      await prices.prices([job.mint]);
+      const dex = createDexScreener({ solUsd: prices.solUsd, pairsTtlMs: 0 });
+      const quote = (await dex.source.lookup([job.mint])).get(job.mint);
+      const solUsd = prices.solUsd();
+      return await ctx.runMutation(internal.copyRisk.reserve, { key: job.key, sub: sid(job.sub), mint: job.mint, lamports: amount.toString(), quote: {
+        referencePrice: job.referencePrice, signalAt: job.signalAt, price: quote?.priceSol ?? 0,
+        liquiditySol: solUsd ? (quote?.metrics.liquidityUsd ?? 0) / solUsd : 0, checkedAt: Date.now(),
+      } });
+    },
     finish: async (key, status, note) => void (await ctx.runMutation(internal.launchCopy.finish, { key, status, ...(note ? { note } : {}) })),
     pauseForGate: async (sub) => void (await ctx.runMutation(internal.launchCopy.pauseForGate, { sub: sid(sub) })),
   };
@@ -45,7 +60,7 @@ function store(ctx: ActionCtx) {
 }
 
 export const solBuy = internalAction({
-  args: { key: v.string(), sub: v.id("launchCopies"), mint: v.string(), slippageBps: v.number() },
+  args: { key: v.string(), sub: v.id("launchCopies"), mint: v.string(), slippageBps: v.number(), referencePrice: v.optional(v.number()), signalAt: v.optional(v.number()) },
   handler: async (ctx, a): Promise<string> => {
     if (gated()) return "gated";
     try {
