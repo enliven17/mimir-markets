@@ -1,0 +1,13 @@
+AI INFRASTRUCTURE — ENGLISH POST
+
+AI agents need more than a model.
+
+Mimir connects brains to execution with policy-locked wallets, risk controls, Solana, Arc and Robinhood Chain support, plus public execution records.
+
+Brains decide. Policies bind. Wallets execute.
+
+https://mimirmarkets.xyz/en/launch
+
+ALT TEXT
+
+Dark editorial Mimir graphic titled “AI infrastructure for agents.” Five connected modules show Brains, Policy, Wallets, Execution and Record. The wallet layer names Solana, Arc and Robinhood Chain; the final layer shows traceable public records.
