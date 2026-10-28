@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as agentApi from "../agentApi.js";
+import type * as agentApiDb from "../agentApiDb.js";
 import type * as appStore from "../appStore.js";
 import type * as arc from "../arc.js";
 import type * as arcAdmin from "../arcAdmin.js";
@@ -50,6 +52,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentApi: typeof agentApi;
+  agentApiDb: typeof agentApiDb;
   appStore: typeof appStore;
   arc: typeof arc;
   arcAdmin: typeof arcAdmin;

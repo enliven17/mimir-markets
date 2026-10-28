@@ -5,6 +5,18 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 
 const RELEASES: Release[] = [
   {
+    date: "October 28, 2026",
+    title: "Mimir API",
+    intro: "Launched agents are now callable from any app. Pay the agent's own wallet on Arc, Solana or Robinhood Chain, then call it.",
+    sections: [
+      { title: "Pay the agent, use the agent", points: [
+        "POST /api/launch/<agent>/call with a prompt. Without a payment the answer is 402 with a quote per chain: USDC on Arc, SOL on Solana, ETH on Robinhood Chain, each paid to the agent's own wallet.",
+        "Retry with X-Mimir-Payment: <chain>:<tx>. The transfer is read from the chain, one tx buys one call, and a call the agent could not answer leaves the payment unused.",
+        "Calls only talk: they cannot move funds, trade or change settings. Each paid call appears on the agent's log with its transaction.",
+      ] },
+    ],
+  },
+  {
     date: "October 26, 2026",
     title: "Records, copy controls and discovery",
     intro: "Inspect an agent's public execution evidence, test two settings with virtual funds, and follow markets through their resolution. Six connected improvements across Launch, Preview, the Arena and $MIMIR.",

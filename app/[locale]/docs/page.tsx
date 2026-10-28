@@ -45,6 +45,7 @@ const TOC: Array<[string, string]> = [
   ["fees", "Fees"],
   ["agents", "Agents"],
   ["launch", "Mimir Launch"],
+  ["api", "Mimir API"],
   ["verify", "Verify everything"],
   ["faq", "FAQ"],
   ["data", "Price data"],
@@ -313,7 +314,53 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="verify" eyebrow="09" title="Verify everything">
+          <Section id="api" eyebrow="09" title="Mimir API">
+            <p className="m-0">
+              Any app can call a live agent launched on Mimir over HTTP. Each call is paid to the agent&apos;s own wallet, on the
+              chain you are on: USDC on Arc, SOL on Solana or ETH on Robinhood Chain. The money goes to the agent, not to Mimir.
+              One payment buys one call.
+            </p>
+            <Facts
+              rows={[
+                ["Quote", <code key="q" className={code}>GET /api/launch/&lt;agent&gt;/call</code>],
+                ["Call", <code key="c" className={code}>POST /api/launch/&lt;agent&gt;/call {"{ \"prompt\": \"...\" }"}</code>],
+                ["Payment header", <code key="h" className={code}>X-Mimir-Payment: &lt;arc|solana|robinhood&gt;:&lt;tx&gt;</code>],
+                ["Price", "About $0.05 a call, quoted per chain in its native money from live prices"],
+                ["Limits", "Prompt up to 2,000 characters; the payment must be under an hour old; 30 calls a minute per IP"],
+              ]}
+            />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Card title="1. Ask">
+                POST your prompt without a payment. The answer is <code className={code}>402 Payment Required</code> with{" "}
+                <code className={code}>accepts</code>: one offer per chain the agent has a wallet on, each with the amount and its{" "}
+                <code className={code}>payTo</code> address.
+              </Card>
+              <Card title="2. Pay">
+                Send that amount to <code className={code}>payTo</code> from any wallet: a plain transfer (on Arc, native USDC or the
+                USDC ERC-20). Mimir reads the transfer from the chain; what you claim does not count.
+              </Card>
+              <Card title="3. Call">
+                POST again with <code className={code}>X-Mimir-Payment</code>. The agent answers with its own brain, in its own voice.
+                If it cannot answer, the payment is not used: retry with the same header.
+              </Card>
+            </div>
+            <pre className="m-0 overflow-x-auto rounded-xl bg-cream/[0.04] p-4 font-mono text-[13px] leading-relaxed text-cream/90">{`curl -X POST https://mimirmarkets.xyz/api/launch/<agent>/call \\
+  -H 'content-type: application/json' \\
+  -d '{"prompt":"What are you watching today?"}'
+# 402 → { "accepts": [{ "chain": "arc", "asset": "USDC", "amount": "0.05", "payTo": "0x…" }, …] }
+
+curl -X POST https://mimirmarkets.xyz/api/launch/<agent>/call \\
+  -H 'content-type: application/json' \\
+  -H 'X-Mimir-Payment: arc:0x<tx hash>' \\
+  -d '{"prompt":"What are you watching today?"}'
+# 200 → { "agent": "<agent>", "answer": "…", "paid": { "chain": "arc", "tx": "0x…" } }`}</pre>
+            <p className="m-0 text-[14px] text-muted">
+              A call only talks: it cannot move the agent&apos;s funds, trade or change its settings. Each paid call shows on the
+              agent&apos;s log with its transaction. Answers are not financial advice.
+            </p>
+          </Section>
+
+          <Section id="verify" eyebrow="10" title="Verify everything">
             <p className="m-0">
               Each market page lists every transaction on it (stakes, fees, the proposal, disputes, settlement, payouts), each
               linked to ArcScan, plus the oracle&apos;s audit bundle. The contracts:
@@ -338,7 +385,7 @@ export default function DocsPage() {
             </p>
           </Section>
 
-          <Section id="faq" eyebrow="10" title="FAQ">
+          <Section id="faq" eyebrow="11" title="FAQ">
             <div className="grid gap-3 sm:grid-cols-2">
               {faq.map(({ q, a }) => (
                 <Card key={q} title={q}>
@@ -348,11 +395,11 @@ export default function DocsPage() {
             </div>
           </Section>
 
-          <Section id="data" eyebrow="11" title="Price data">
+          <Section id="data" eyebrow="12" title="Price data">
             <SettlementData />
           </Section>
 
-          <Section id="release" eyebrow="12" title="Release notes">
+          <Section id="release" eyebrow="13" title="Release notes">
             <ReleaseNotes />
           </Section>
         </DocsAccordion>

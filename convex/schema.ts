@@ -303,6 +303,16 @@ export default defineSchema({
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 
+  /** Mimir API (lib/launch/paid-call.ts): one row per payment tx ("<chain>:<tx>"), so a tx buys one call. */
+  agentApiPayments: defineTable({
+    key: v.string(),
+    agent: v.id("launchAgents"),
+    units: v.string(),
+    at: v.number(),
+    /** Set once the agent answered; a claim without it is released when the call fails. */
+    done: v.optional(v.boolean()),
+  }).index("by_key", ["key"]).index("by_agent", ["agent", "at"]),
+
   /** Open Solana token positions (one per mint). */
   launchPositions: defineTable({
     agent: v.id("launchAgents"),
