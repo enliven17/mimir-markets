@@ -1,0 +1,13 @@
+CLAIM QUALITY SCORE — ENGLISH POST
+
+A market should be easy to settle.
+
+Mimir scores 8 signals: specificity, decidability, clear positions, objective language, one outcome, source, settlement rule and time.
+
+Decidability is the gate: an unchecked question caps at 39/100.
+
+https://mimirmarkets.xyz/en/docs#release
+
+ALT TEXT
+
+Dark Mimir editorial graphic titled “Score what can be settled.” A formula card shows “SCORE = sum of passed signal weights” and explains that undecidable questions are capped at 39/100. Eight cards list the weighted signals: specific question 10, decidable question 18, clear positions 10, objective language 12, single outcome 10, usable source 15, settlement rule 15 and enough time 10. The bottom row shows Strong, Good, Fair and Weak tiers.

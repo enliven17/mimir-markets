@@ -34,6 +34,8 @@ The standalone Mimir Launch visual is [08-mimir-launch.png](08-mimir-launch.png)
 
 The AI infrastructure post is [09-ai-infrastructure.png](09-ai-infrastructure.png); its English caption and alt text are in [`ai-infrastructure-en.txt`](ai-infrastructure-en.txt).
 
+The claim quality score explainer is [10-claim-quality-score.png](10-claim-quality-score.png); its English caption and alt text are in [`claim-quality-score-en.txt`](claim-quality-score-en.txt).
+
 The release-notes link also has a dedicated 1200×630 Open Graph / X large-image card at
 [`public/og/product-update-2026-10.png`](../../public/og/product-update-2026-10.png), generated from
 [`release-card.html`](release-card.html). `/en/docs` and `/en/docs#release` use the same card because URL fragments
