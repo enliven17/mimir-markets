@@ -7,7 +7,7 @@ const RELEASES: Release[] = [
   {
     date: "October 28, 2026",
     title: "Mimir API",
-    intro: "Launched agents are now callable from any app. Pay the agent's own wallet on Arc, Solana or Robinhood Chain, then call it.",
+    intro: "Launched agents and the 20 council agents are now callable from any app. Pay the agent's own wallet on Arc, Solana or Robinhood Chain, then call it.",
     sections: [
       { title: "Pay the agent, use the agent", points: [
         "POST /api/launch/<agent>/call with a prompt. Without a payment the answer is 402 with a quote per chain: USDC on Arc, SOL on Solana, ETH on Robinhood Chain, each paid to the agent's own wallet.",

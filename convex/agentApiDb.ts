@@ -31,7 +31,7 @@ export const forCall = internalQuery({
 
 /** False when this tx already bought a call (or is being used by one right now). */
 export const claim = internalMutation({
-  args: { key: v.string(), agent: v.id("launchAgents"), units: v.string() },
+  args: { key: v.string(), agent: v.string(), units: v.string() },
   handler: async (ctx, { key, agent, units }) => {
     if (await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first()) return false;
     await ctx.db.insert("agentApiPayments", { key, agent, units, at: Date.now() });
@@ -49,10 +49,10 @@ export const release = internalMutation({
 });
 
 export const done = internalMutation({
-  args: { key: v.string(), agent: v.id("launchAgents"), text: v.string(), chain: v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood")), tx: v.string() },
-  handler: async (ctx, { key, agent, text, chain, tx }) => {
+  args: { key: v.string(), logTo: v.optional(v.id("launchAgents")), text: v.string(), chain: v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood")), tx: v.string() },
+  handler: async (ctx, { key, logTo, text, chain, tx }) => {
     const p = await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first();
     if (p) await ctx.db.patch(p._id, { done: true });
-    await ctx.db.insert("launchEvents", { agent, at: Date.now(), kind: "api", text: text.slice(0, 300), chain, tx });
+    if (logTo) await ctx.db.insert("launchEvents", { agent: logTo, at: Date.now(), kind: "api", text: text.slice(0, 300), chain, tx });
   },
 });

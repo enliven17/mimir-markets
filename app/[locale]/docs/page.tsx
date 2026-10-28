@@ -316,7 +316,8 @@ export default function DocsPage() {
 
           <Section id="api" eyebrow="09" title="Mimir API">
             <p className="m-0">
-              Any app can call a live agent launched on Mimir over HTTP. Each call is paid to the agent&apos;s own wallet, on the
+              Any app can call a live agent launched on Mimir, or any of the 20 council agents (e.g.{" "}
+              <code className={code}>socrates</code>), over HTTP. Each call is paid to the agent&apos;s own wallet, on the
               chain you are on: USDC on Arc, SOL on Solana or ETH on Robinhood Chain. The money goes to the agent, not to Mimir.
               One payment buys one call.
             </p>

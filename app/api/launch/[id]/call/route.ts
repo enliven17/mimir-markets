@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
+import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
 import { callPriceUsd, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -28,7 +29,7 @@ export const OPTIONS = () => new Response(null, { status: 204, headers: CORS });
 async function offer(id: string) {
   const c = launchCx();
   if (!c) return { res: json({ error: "Mimir API is not configured on this server." }, 503) };
-  const w = await c.client.query(api.agentApiDb.wallets, { secret: c.secret, slug: id });
+  const w = (await c.client.query(api.agentApiDb.wallets, { secret: c.secret, slug: id })) ?? (Object.hasOwn(COUNCIL_AGENTS, id) ? COUNCIL_AGENTS[id] : null);
   if (!w) return { res: json({ error: "No such live agent." }, 404) };
   const prices = await usdPrices().catch(() => null);
   if (!prices) return { res: json({ error: "Could not read prices. Try again." }, 503) };

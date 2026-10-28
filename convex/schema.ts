@@ -306,7 +306,8 @@ export default defineSchema({
   /** Mimir API (lib/launch/paid-call.ts): one row per payment tx ("<chain>:<tx>"), so a tx buys one call. */
   agentApiPayments: defineTable({
     key: v.string(),
-    agent: v.id("launchAgents"),
+    /** The agent's slug (a launched agent or a council persona). */
+    agent: v.string(),
     units: v.string(),
     at: v.number(),
     /** Set once the agent answered; a claim without it is released when the call fails. */
