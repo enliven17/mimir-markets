@@ -24,6 +24,8 @@ export const PRESETS: Record<"trending" | "whale" | "social", { sources: DataSou
 
 /** What the agent wallet keeps for minting its token (flow.ts LAUNCH_FEE_LAMPORTS, server-only). */
 export const LAUNCH_FEE_SOL = 0.01;
+/** lib/launch/flow.ts METEORA_LAUNCH_FEE_LAMPORTS: the DBC pool, vaults and metadata rent. */
+export const METEORA_LAUNCH_FEE_SOL = 0.04;
 
 /** Robinhood Chain (convex/launchRh.ts): the Pons sources run under the engine's "pumpfun" / "dexscreener" ids. */
 export const RH_SOURCES: Partial<Record<DataSource, string>> = {

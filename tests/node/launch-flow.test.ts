@@ -4,7 +4,7 @@ import { getFunctionName } from "convex/server";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 
-import { create, launch, CreateBody, LAUNCH_FEE_LAMPORTS } from "../../lib/launch/flow";
+import { create, launch, CreateBody, LAUNCH_FEE_LAMPORTS, METEORA_LAUNCH_FEE_LAMPORTS } from "../../lib/launch/flow";
 import { openKey } from "../../lib/launch/byok";
 import { isFreshLaunchSig, launchMessage } from "../../lib/launch/auth";
 import { verifyAgentSignature } from "../../lib/agents/signature";
@@ -19,7 +19,7 @@ function fakeCx() {
   let agent: Record<string, any> | null = null;
   const handlers: Record<string, (a: any) => unknown> = {
     "launch:createPending": (a) => {
-      agent = { ...a, status: "pending", launch: { fundLamports: a.fundLamports, description: a.description, image: a.image } };
+      agent = { ...a, status: "pending", launch: { fundLamports: a.fundLamports, description: a.description, image: a.image, ...(a.pad ? { pad: a.pad } : {}) } };
       return { ok: true, slug: a.slug };
     },
     "launch:forLaunch": () => agent && { owner: agent.owner, venue: agent.venue ?? "solana", name: agent.name, ticker: agent.ticker, avatarSeed: agent.avatarSeed, status: agent.status, mint: agent.mint ?? null, solana: agent.solana ?? null, robinhood: agent.robinhood ?? null, launch: agent.launch },
@@ -141,4 +141,29 @@ test("robinhood: launch verifies ETH from the payout address and launches on Pon
   const r = await launch(f.cx, deps, OWNER, "njord", `0x${"a".repeat(64)}`);
   assert.deepEqual([r.ok, r.ok && r.mint, pumped], [true, "0x0000000000000000000000000000000000000Bee", 0]);
   assert.deepEqual(seen, { hash: `0x${"a".repeat(64)}`, from: "0x00000000000000000000000000000000000bEEf1", to: "0x00000000000000000000000000000000000a9e17", minWei: 501_000_000_000_000_000n });
+});
+
+test("meteora: needs the server's config, asks for the DBC rent, and launches on Meteora", async () => {
+  const prev = process.env.LAUNCH_METEORA_CONFIG;
+  delete process.env.LAUNCH_METEORA_CONFIG;
+  let made = 0;
+  const w = { solana: async () => (made++, { id: "w1", address: "SoLwallet111" }), arc: wallets.arc };
+  const off = await create(fakeCx().cx, { wallets: w, checkKey: async () => "ok" as const }, OWNER, body({ pad: "meteora" }));
+  assert.equal(off.ok, false);
+  assert.equal(made, 0, "no wallets before the config check");
+  process.env.LAUNCH_METEORA_CONFIG = "9Sv2PBJWjUaCRkz7erUTGTyFmVG4EwiuVpB3Roc17hQq";
+  try {
+    const f = fakeCx();
+    const r = await create(f.cx, { wallets: w, checkKey: async () => "ok" as const }, OWNER, body({ pad: "meteora" }));
+    assert.ok(r.ok);
+    assert.equal(r.fundLamports, 500_000_000n + METEORA_LAUNCH_FEE_LAMPORTS);
+    let pad: unknown;
+    const deps = { verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "x", launchToken: async (a: { pad?: string }) => ((pad = a.pad), { mint: "Mint1", sig: SIG, metadataUri: "https://u" }) };
+    const l = await launch(f.cx, deps, OWNER, r.id, SIG);
+    assert.ok(l.ok);
+    assert.equal(pad, "meteora");
+  } finally {
+    if (prev === undefined) delete process.env.LAUNCH_METEORA_CONFIG;
+    else process.env.LAUNCH_METEORA_CONFIG = prev;
+  }
 });

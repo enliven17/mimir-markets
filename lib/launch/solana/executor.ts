@@ -15,6 +15,7 @@ import { CU_LIMIT_MAX, WSOL_MINT } from "./jupiter";
 import { createOps } from "./ops";
 import { ALLOWED_PROGRAMS, PROGRAMS, wsolAccount } from "./policy";
 import type { Privy } from "./privy";
+import type { Meteora } from "./meteora";
 import type { PumpPortal } from "./pumpportal";
 import { createSubmitter, simulationGuard, type Conn, type Endpoints, type RetryEvent, type Unsigned } from "./submit";
 import { lockedMintsOf } from "./locks";
@@ -33,6 +34,7 @@ export type ExecutorDeps = {
   privy: Pick<Privy, "signTransaction">;
   connection: Conn;
   pumpportal: PumpPortal;
+  meteora?: Meteora | null;
   jupiter: Jupiter;
   reserveLamports?: bigint;
   /** Cap on the Jupiter priority fee (lamports per tx). */
@@ -230,7 +232,7 @@ export function createExecutor(d: ExecutorDeps): Executor & ReturnType<typeof cr
     return Buffer.from(tx.serialize()).toString("base64");
   }
 
-  const ops = createOps({ connection: conn, pumpportal: d.pumpportal, submitter, mintInfo, tokenBalance });
+  const ops = createOps({ connection: conn, pumpportal: d.pumpportal, meteora: d.meteora, submitter, mintInfo, tokenBalance });
   /** The wallet's raw balance of `mint` (0 when it has no account). */
   async function walletTokenBalance(wallet: string, mint: string): Promise<bigint> {
     const { program } = await mintInfo(assertAddress("mint", mint));

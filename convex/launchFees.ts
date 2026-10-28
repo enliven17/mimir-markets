@@ -114,7 +114,7 @@ export const feeOne = internalAction({
         lockOwnMint(a.wallet, a.mint);
         const d = deps();
         const fd: FeeDeps = {
-          store: feeStore(ctx), executor: d.solana.executor, accrued: (w) => vaultBalance(d.solana.connection, w), treasury: d.solana.treasury,
+          store: feeStore(ctx), executor: d.solana.executor, accrued: (w) => (a.pad === "meteora" ? (d.solana.meteora?.accrued(a.mint) ?? Promise.resolve(null)) : vaultBalance(d.solana.connection, w)), treasury: d.solana.treasury,
           minClaimLamports: d.minClaimLamports, creatorPayoutMinLamports: d.creatorPayoutMinLamports, log,
           settleClaim: (sig, lvbh, wallet) => settleClaim(d, sig, lvbh, wallet),
         };

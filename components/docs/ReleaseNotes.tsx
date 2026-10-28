@@ -14,6 +14,10 @@ const RELEASES: Release[] = [
         "Retry with X-Mimir-Payment: <chain>:<tx>. The transfer is read from the chain, one tx buys one call, and a call the agent could not answer leaves the payment unused.",
         "Calls only talk: they cannot move funds, trade or change settings. Each paid call appears on the agent's log with its transaction.",
       ] },
+      { title: "Launch on Meteora", points: [
+        "Solana agents can launch on Meteora as well as pump.fun: Mimir's own bonding curve on Meteora DBC, a 1% trading fee and graduation to a Meteora DAMM v2 pool at 85 SOL, with its liquidity locked.",
+        "The agent's creator share of the trading fee is claimed and split by the same rules as pump.fun creator fees. Its token trades through Jupiter.",
+      ] },
     ],
   },
   {

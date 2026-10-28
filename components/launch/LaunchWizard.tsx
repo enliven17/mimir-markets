@@ -30,7 +30,7 @@ import { DEMO, type DemoAgent } from "@/lib/demo/types";
 import { demoLiveDraft } from "@/lib/demo/promotion";
 import { trackProductEvent } from "@/lib/product-analytics";
 import DemoUpsell from "@/components/demo/DemoUpsell";
-import { LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
+import { LAUNCH_FEE_SOL, METEORA_LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
 import { AGENT_MARKETS_PER_DAY_MAX } from "@/lib/launch/agent-markets-limit";
@@ -50,6 +50,7 @@ const sourcesFor = (c: Chain) => (c === "robinhood" ? RH_SOURCES : SOURCES);
 
 const LAUNCHPADS = [
   ["solana", "pump.fun", "Solana", "/launch/pumpfun.png", "Bonding curve · trades tokens · needs seed SOL"],
+  ["meteora", "Meteora", "Solana", "/launch/meteora.svg", "Mimir's own curve · trades tokens · needs seed SOL"],
   ["arc", "Argus", "Arc", "/launch/argus.jpg", "USDC tax token · markets only · no SOL"],
   ["robinhood", "Pons", "Robinhood", "/launch/pons.png", "Bonding curve · trades in ETH · Robinhood wallet"],
 ] as const;
@@ -63,6 +64,8 @@ const INITIAL = {
   seedSol: "0.1",
   allocation: DEFAULT_ALLOCATION as Allocation,
   chain: "solana" as Chain,
+  /** Solana's launchpad: pump.fun, or Meteora DBC on Mimir's own curve config. */
+  pad: "pump" as "pump" | "meteora",
   argus: { buyTaxPct: 2, sellTaxPct: 2 },
 };
 type Form = typeof INITIAL;
@@ -121,8 +124,9 @@ function Range({ label, value, min, max, step = 1, unit, onChange, hint }: { lab
 
 const DEPLOY = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on pump.fun"] as const;
 const DEPLOY_ARGUS = ["Sign the agent: Mimir makes its Solana and Arc wallets", `Send ${ARGUS_GAS_USDC} USDC on Arc to its Arc wallet for the launch gas`, "Sign the launch: its token goes live on Argus"] as const;
+const DEPLOY_METEORA = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on Meteora"] as const;
 const DEPLOY_RH = ["Sign the agent: Mimir makes its Robinhood Chain and Arc wallets", "Send the seed ETH from your Robinhood wallet", "Sign the launch: its token goes live on Pons"] as const;
-const deploySteps = (c: Chain): readonly string[] => (c === "arc" ? DEPLOY_ARGUS : c === "robinhood" ? DEPLOY_RH : DEPLOY);
+const deploySteps = (c: Chain, pad: Form["pad"] = "pump"): readonly string[] => (c === "arc" ? DEPLOY_ARGUS : c === "robinhood" ? DEPLOY_RH : pad === "meteora" ? DEPLOY_METEORA : DEPLOY);
 type Deploy = { at: number; error: string | null; id?: string; wallet?: string; arc?: string; fund?: bigint; sig?: string; mint?: string };
 
 export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
@@ -213,7 +217,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
 
   const body = () => ({
     name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: f.chain === "arc" ? 0 : Number(f.seedSol), allocation: f.allocation,
-    chain: f.chain, ...(f.chain === "robinhood" && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
+    chain: f.chain, ...(f.chain === "solana" ? { pad: f.pad } : {}), ...(f.chain === "robinhood" && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, maxHoursToClose: f.markets.maxHoursToClose, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
@@ -291,7 +295,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
           }
         }
       }
-      put({ at: deploySteps(f.chain).length });
+      put({ at: deploySteps(f.chain, f.pad).length });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Launch failed.";
       put({ error: /reject|denied|cancel/i.test(msg) ? "You declined it in your wallet." : msg });
@@ -301,7 +305,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   if (importing) return <p role="status" className="text-[14px] text-muted">Loading your preview strategy…</p>;
   if (importError) return <div role="alert" className="grid gap-3 text-[14px] text-coral"><p className="m-0">{importError}</p><Link href="/demo">Back to your preview</Link></div>;
   if (deploy) {
-    const steps = demo ? ["Use your verified wallet session", "Start your agent with virtual funds"] : deploySteps(f.chain);
+    const steps = demo ? ["Use your verified wallet session", "Start your agent with virtual funds"] : deploySteps(f.chain, f.pad);
     const done = deploy.at >= steps.length;
     return (
       <div className="mx-auto grid w-full max-w-[640px] gap-5 rounded-2xl bg-[rgb(27_19_20/.93)] p-6 shadow-card">
@@ -398,17 +402,20 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Who is it?</legend>
             <div className="grid gap-2">
               <span className="text-[14px] text-cream">{demo ? "Preview network" : "Launchpad"}</span>
-              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Launchpad">
-                {LAUNCHPADS.map(([k, label, chainName, logo, blurb]) => (
-                  <button key={k} type="button" role="radio" aria-checked={f.chain === k} onClick={() => setChain(k)} className={`grid grid-cols-[40px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl p-3 text-left transition-colors ${f.chain === k ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
+              <div className={`grid gap-2 ${demo ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} role="radiogroup" aria-label="Launchpad">
+                {LAUNCHPADS.filter(([k]) => !demo || k !== "meteora").map(([k, label, chainName, logo, blurb]) => {
+                  const on = k === "meteora" ? f.chain === "solana" && f.pad === "meteora" : f.chain === k && (k !== "solana" || f.pad === "pump");
+                  return (
+                  <button key={k} type="button" role="radio" aria-checked={on} onClick={() => { setChain(k === "meteora" ? "solana" : k); setF((x) => ({ ...x, pad: k === "meteora" ? "meteora" : "pump" })); }} className={`grid grid-cols-[40px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl p-3 text-left transition-colors ${on ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
                     <img src={logo} alt="" width={40} height={40} className="row-span-2 h-10 w-10 rounded-full bg-white object-cover" />
                     <span className="text-[14px] leading-tight">
-                      {label} <span className={f.chain === k ? "text-ink/55" : "text-muted"}>· {chainName}</span>
+                      {label} <span className={on ? "text-ink/55" : "text-muted"}>· {chainName}</span>
                     </span>
-                    <span className={`col-start-2 text-[11px] leading-snug ${f.chain === k ? "text-ink/65" : "text-muted"}`}>{demo ? k === "arc" ? "Virtual USDC · Mimir markets" : `Virtual ${k === "solana" ? "SOL" : "ETH"} · paper trading` : blurb}</span>
+                    <span className={`col-start-2 text-[11px] leading-snug ${on ? "text-ink/65" : "text-muted"}`}>{demo ? k === "arc" ? "Virtual USDC · Mimir markets" : `Virtual ${k === "solana" ? "SOL" : "ETH"} · paper trading` : blurb}</span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
@@ -419,7 +426,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                 <input className="input font-mono" value={f.ticker} maxLength={10} onChange={(e) => set("ticker", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="NJORD" />
               </Field>
             </div>
-            {!demo ? <Field label="Token description" hint={`Shown on ${LAUNCHPADS.find(([k]) => k === f.chain)?.[1] ?? "pump.fun"}. Optional.`}>
+            {!demo ? <Field label="Token description" hint={`Shown on ${LAUNCHPADS.find(([k]) => k === (f.chain === "solana" && f.pad === "meteora" ? "meteora" : f.chain))?.[1] ?? "pump.fun"}. Optional.`}>
               <textarea className="input min-h-[4.5rem]" rows={2} maxLength={280} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="What it stands for in one or two lines." />
             </Field> : null}
             <div className="flex flex-wrap items-center gap-4 rounded-xl bg-cream/[0.04] p-4">
@@ -725,10 +732,10 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
               </>
             ) : (
               <>
-                <Field label="Seed SOL" hint={`${LAUNCH_FEE_SOL} SOL mints the token; the rest is gas and bankroll. Fund Arc USDC from its page after launch.`}>
+                <Field label="Seed SOL" hint={`${f.pad === "meteora" ? METEORA_LAUNCH_FEE_SOL : LAUNCH_FEE_SOL} SOL mints the token; the rest is gas and bankroll. Fund Arc USDC from its page after launch.`}>
                   <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
                 </Field>
-                <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + LAUNCH_FEE_SOL).toFixed(3)} SOL.</p>
+                <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + (f.pad === "meteora" ? METEORA_LAUNCH_FEE_SOL : LAUNCH_FEE_SOL)).toFixed(3)} SOL.</p>
               </>
             )}
             <p className="m-0 text-[12px] text-muted">Real mainnet funds. Pause, withdraw or shut down any time from its page.</p>

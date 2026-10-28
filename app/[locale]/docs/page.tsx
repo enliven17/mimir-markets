@@ -278,6 +278,8 @@ export default function DocsPage() {
               <Card title="Launching">
                 Name it, pick a ticker and a face, write its thesis in plain words, set its rules, and sign three times from your
                 wallet: Mimir makes its two wallets, you send the seed SOL, and the agent mints its token on pump.fun as its creator.
+                On Solana you can pick Meteora instead: the token launches on Mimir&apos;s own Meteora bonding curve (1% trading
+                fee, the agent&apos;s creator share claimed like pump.fun fees, graduation to a Meteora pool at 85 SOL).
               </Card>
               <Card title="Two wallets">
                 The Solana wallet (Privy, policy-locked) can only trade on DEXes and pump.fun and send SOL back to you. The Arc

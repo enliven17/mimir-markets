@@ -3,6 +3,7 @@
 import { rpcConnection, stickyPool } from "./rpc-pool";
 import { createExecutor, type ExecutorDeps } from "./executor";
 import { createJupiter } from "./jupiter";
+import { meteoraFromEnv } from "./meteora";
 import { createPrivy } from "./privy";
 import { createPumpPortal } from "./pumpportal";
 import { assertAddress, SolanaError } from "./util";
@@ -33,17 +34,19 @@ export function solanaFromEnv(env: Env = process.env, extra: Partial<Pick<Execut
     priorityFeeLamports: lamportsVar(env, "PRIORITY_FEE_LAMPORTS", BigInt(100_000)),
   });
   const jupiter = createJupiter({ apiKey: env.JUPITER_API_KEY || undefined, cuPricePercentile: env.JUPITER_CU_PRICE_PERCENTILE || "high" });
+  const meteora = meteoraFromEnv(connection, env);
   const executor = createExecutor({
     privy,
     connection,
     pumpportal,
+    meteora,
     jupiter,
     reserveLamports: lamportsVar(env, "SPENDABLE_RESERVE_LAMPORTS", BigInt(10_000_000)),
     maxPriorityFeeLamports: lamportsVar(env, "MAX_PRIORITY_FEE_LAMPORTS", BigInt(1_000_000)),
     endpoints: sticky,
     ...extra,
   });
-  return { connection, sticky, privy, pumpportal, jupiter, executor, treasury };
+  return { connection, sticky, privy, pumpportal, meteora, jupiter, executor, treasury };
 }
 
 let cached: ReturnType<typeof solanaFromEnv> | null = null;

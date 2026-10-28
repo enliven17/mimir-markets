@@ -256,6 +256,8 @@ export default defineSchema({
       description: v.string(),
       /** Where its token launches: pump.fun on Solana (the default) or Argus on Arc, with the Argus taxes. */
       chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
+      /** Solana only: "meteora" launches on Meteora DBC with Mimir's config (lib/launch/solana/meteora.ts); absent = pump.fun. */
+      pad: v.optional(v.literal("meteora")),
       argus: v.optional(v.object({ buyTaxBps: v.number(), sellTaxBps: v.number() })),
       /** An uploaded token image (data URL, capped well under the doc limit); without one the face is drawn at launch. */
       image: v.optional(v.string()),

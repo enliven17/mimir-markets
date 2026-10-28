@@ -38,8 +38,9 @@ export const createPending = mutation({
     allocation: v.optional(vAllocation),
     chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
     argus: v.optional(v.object({ buyTaxBps: v.number(), sellTaxBps: v.number() })),
+    pad: v.optional(v.literal("meteora")),
   },
-  handler: async (ctx, { secret, fundLamports, description, image, chain, argus, ...a }) => {
+  handler: async (ctx, { secret, fundLamports, description, image, chain, argus, pad, ...a }) => {
     allowed(secret);
     const problem = a.allocation ? allocationProblem(a.allocation) : null;
     if (problem) throw new Error(`allocation: ${problem}`);
@@ -51,7 +52,7 @@ export const createPending = mutation({
       if (n > 999) return { ok: false as const, reason: "taken" as const };
       slug = `${a.slug}-${n}`;
     }
-    await ctx.db.insert("launchAgents", { ...a, slug, status: "pending", createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}), ...(chain === "arc" ? { chain, argus } : {}) } });
+    await ctx.db.insert("launchAgents", { ...a, slug, status: "pending", createdAt: Date.now(), launch: { fundLamports, description, ...(image ? { image } : {}), ...(chain === "arc" ? { chain, argus } : {}), ...(pad && !a.venue && chain !== "arc" ? { pad } : {}) } });
     return { ok: true as const, slug };
   },
 });
@@ -118,7 +119,7 @@ export const recordLaunch = mutation({
     // The uploaded image is on IPFS now (pump.fun) or no longer needed (Pons reads its logo URL once): drop it.
     await ctx.db.patch(a._id, { mint, status: a.status === "killed" ? "killed" : "live", launch: { ...a.launch, image: undefined, metadataUri, sig } });
     const rh = a.venue === "robinhood";
-    await log(ctx, a._id, "rules", `launched $${a.ticker} on ${rh ? "Pons (Robinhood Chain)" : "pump.fun"}, getting to work`, { chain: rh ? "robinhood" : "solana", tx: sig });
+    await log(ctx, a._id, "rules", `launched $${a.ticker} on ${rh ? "Pons (Robinhood Chain)" : a.launch.pad === "meteora" ? "Meteora" : "pump.fun"}, getting to work`, { chain: rh ? "robinhood" : "solana", tx: sig });
   },
 });
 
@@ -172,7 +173,7 @@ const publicView = (a: Doc<"launchAgents">) => ({
   trading: { enabled: a.trading.enabled }, markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc },
   // `wallet` is the wallet it trades from: Solana, or its Robinhood Chain wallet (whose ETH goes back to `payout`).
   wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.solana?.address) ?? null, payout: a.robinhood?.payout ?? null,
-  arc: a.arc?.address ?? null, mint: a.mint ?? null, createdAt: a.createdAt,
+  arc: a.arc?.address ?? null, mint: a.mint ?? null, pad: a.launch?.pad ?? null, createdAt: a.createdAt,
   chain: a.venue === "robinhood" ? ("robinhood" as const) : a.token ? ("arc" as const) : (a.launch?.chain ?? "solana"),
   token: a.token ? { address: a.token.address, poolId: a.token.poolId } : null,
   fundLamports: a.status === "pending" ? (a.launch?.fundLamports ?? null) : null,

@@ -12,6 +12,8 @@
 //     into pump.fun and takes PumpPortal's 0.5% fee inside the CPI).
 //   PumpPortal create: ComputeBudget, pump.fun (create_v2, Token-2022 mint), ATA, PumpPortal router.
 //   PumpPortal collectCreatorFee: ComputeBudget, pump.fun, ATA, pump AMM, Token (CloseAccount of WSOL).
+//   Meteora DBC create pool / claim creator trading fee (lib/launch/solana/meteora.ts): ComputeBudget, DBC
+//     (dbcij3...; it CPIs System, Token and Metaplex inside), plus ATA/Token around a claim's wrapped SOL.
 //   Jupiter /swap/v2/build: ComputeBudget, ATA, System Transfer into the taker's WSOL ATA, Token
 //     (SyncNative, CloseAccount), Jupiter v6.
 import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -29,6 +31,7 @@ export const PROGRAMS = {
   pumpAmm: "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
   /** PumpPortal's upgradeable router (upgrade authority 83CpBne2ptvfNkWvYyvmN6izKX9sas9nH7MEu6atDFPx). */
   pumpPortalRouter: "FAdo9NCw1ssek6Z6yeWzWjhLVsr8uiCwcWNUnKgzTnHe",
+  meteoraDbc: "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
 } as const;
 
 /** Every top-level program a wallet may invoke (System is limited to Transfer to the allow-list). */
@@ -41,6 +44,7 @@ export const ALLOWED_PROGRAMS: readonly string[] = [
   PROGRAMS.pump,
   PROGRAMS.pumpAmm,
   PROGRAMS.pumpPortalRouter,
+  PROGRAMS.meteoraDbc,
 ];
 
 const METHODS = ["signAndSendTransaction", "signTransaction"] as const;

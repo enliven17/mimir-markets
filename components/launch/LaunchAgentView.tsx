@@ -16,7 +16,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
 import { argusTokenUrl } from "@/lib/launch/argus";
-import { type CouncilAgent, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
+import { type CouncilAgent, meteoraToken, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
 import TokenChart from "./TokenChart";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
@@ -54,6 +54,8 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
     ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, argus: council.argus, wallet: council.solana, robinhood: council.robinhood, arc: council.arc, house: true, venue: "solana" }
     : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, argus: card!.token ? { token: card!.token.address, poolId: card!.token.poolId } : null, wallet: card!.wallet, robinhood: null as string | null, arc: card!.arc, house: false, venue: card!.chain };
   const rh = a.venue === "robinhood";
+  const meteora = !a.house && card?.pad === "meteora";
+  const tokenUrl = (mint: string) => (rh ? rhToken(mint) : meteora ? meteoraToken(mint) : pumpFun(mint));
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -73,7 +75,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         {a.mint || a.argus ? (
           <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:flex-col">
             {a.mint ? (
-              <a href={rh ? rhToken(a.mint) : pumpFun(a.mint)} target="_blank" rel="noreferrer" className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
+              <a href={tokenUrl(a.mint)} target="_blank" rel="noreferrer" className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
                 {t("buy", { ticker: a.ticker })} <ExternalMark />
               </a>
             ) : null}
@@ -103,7 +105,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         {a.mint || a.argus ? (
           <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
             {a.mint && (!a.argus || chart === "solana") ? (
-              <TokenChart key="main" chain={rh ? "robinhood" : "solana"} token={a.mint} title={t("chart")} tradeUrl={rh ? rhToken(a.mint) : pumpFun(a.mint)} tradeLabel={rh ? "Trade on Pons" : "Trade on pump.fun"} />
+              <TokenChart key="main" chain={rh ? "robinhood" : "solana"} token={a.mint} title={t("chart")} tradeUrl={tokenUrl(a.mint)} tradeLabel={rh ? "Trade on Pons" : meteora ? "Trade on Jupiter" : "Trade on pump.fun"} />
             ) : (
               <TokenChart key="arc" chain="arc" token={a.argus!.token} title={t("chartArgus")} tradeUrl={argusTokenUrl(a.argus!.token)} tradeLabel="Trade on Argus" />
             )}
@@ -114,7 +116,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       </section>
 
       <WalletsBlock
-        ticker={a.ticker} mint={a.mint} argus={a.argus?.token ?? null} venue={a.venue} arc={a.arc}
+        ticker={a.ticker} mint={a.mint} argus={a.argus?.token ?? null} venue={a.venue} pad={meteora ? "meteora" : null} arc={a.arc}
         // A Robinhood agent's trading wallet is on Robinhood Chain; the council has both.
         solana={rh ? null : a.wallet} robinhood={rh ? a.wallet : a.robinhood}
       />

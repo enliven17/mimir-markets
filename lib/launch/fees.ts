@@ -82,7 +82,7 @@ type OnSigned = (sig: string, lastValidBlockHeight: number) => Promise<void>;
 
 export type FeeExecutor = {
   /** `onSigned` gets the claim's signature before the first broadcast (a claim landing after a timeout is still booked). */
-  claimCreatorFees(a: { walletId: string; wallet: string; onSigned?: OnSigned }): Promise<{ sig: string; lamports: bigint }>;
+  claimCreatorFees(a: { walletId: string; wallet: string; mint?: string; pad?: "pump" | "meteora"; onSigned?: OnSigned }): Promise<{ sig: string; lamports: bigint }>;
   /** `onSigned` gets the signature before the first broadcast (record it to reconcile by sig). */
   transferSol(a: { walletId: string; wallet: string; to: string; lamports: bigint; onSigned?: OnSigned }): Promise<string>;
   buy(a: TradeArgs & { lamports: bigint }): Promise<Fill>;
@@ -137,6 +137,8 @@ export type FeeAgent = AllocationState & {
   id: string;
   ticker: string;
   mint: string;
+  /** "meteora": its fees sit in its Meteora DBC pool (lib/launch/solana/meteora.ts); else pump.fun. */
+  pad?: "meteora" | null;
   creator: string;
   walletId: string;
   wallet: string;
@@ -190,7 +192,7 @@ export async function claimAndSplit(a: FeeAgent, d: FeeDeps, now = Date.now()): 
 
   // Marked before the claim: a failing claim must not be retried every round.
   await d.store.markClaimed(a.id);
-  const claim = await d.executor.claimCreatorFees({ walletId: a.walletId, wallet: a.wallet, onSigned: (sig, lvbh) => d.store.claimSigned(a.id, sig, lvbh) });
+  const claim = await d.executor.claimCreatorFees({ walletId: a.walletId, wallet: a.wallet, mint: a.mint, pad: a.pad ?? undefined, onSigned: (sig, lvbh) => d.store.claimSigned(a.id, sig, lvbh) });
   if (claim.lamports <= 0n) {
     await d.store.clearPendingClaim(a.id, claim.sig);
     return 0n; // nothing (net of the tx fee) came in

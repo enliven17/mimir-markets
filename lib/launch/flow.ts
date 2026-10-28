@@ -30,6 +30,8 @@ import type { verifyRobinhoodFunding } from "./robinhood/funding";
 
 /** pump.fun create + rent + priority, paid by the agent wallet (~0.006 SOL measured in snipad); the rest is bankroll. */
 export const LAUNCH_FEE_LAMPORTS = 10_000_000n;
+/** Meteora DBC create: rent for the mint, pool, two vaults and metadata, plus priority (~0.03 SOL, rounded up). */
+export const METEORA_LAUNCH_FEE_LAMPORTS = 40_000_000n;
 /** Pons's launch fee (0.0005 ETH, read 2026-10-19) plus gas headroom for the launch and the first approvals, in wei. */
 export const RH_LAUNCH_FEE_WEI = 1_000_000_000_000_000n; // 0.001 ETH
 /** Convex documents are capped at 1 MB: an uploaded image stays well under it. */
@@ -71,6 +73,8 @@ export const CreateBody = z.object({
   allocation: AllocationBody.default(DEFAULT_ALLOCATION),
   /** pump.fun on Solana, Argus on Arc (a taxed token: each side 0 to 10%, not both 0), or Pons on Robinhood Chain. */
   chain: z.enum(["solana", "arc", "robinhood"]).default("solana"),
+  /** Solana only: pump.fun, or Meteora DBC on Mimir's own curve config. */
+  pad: z.enum(["pump", "meteora"]).default("pump"),
   argus: z.object({ buyTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps), sellTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps) }).strict().optional(),
 })
   .refine((b) => b.trading.enabled || b.markets.enabled || b.markets.create.enabled, { message: "Turn on markets, trading or both.", path: ["markets"] })
@@ -90,7 +94,7 @@ export interface Wallets {
   arc: (slug: string) => Promise<{ id: string; address: string }>;
 }
 export type KeyCheck = (provider: ByokProvider, apiKey: string, model: string) => Promise<"ok" | "bad-key" | "busy">;
-export type Launcher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string; devBuyLamports: bigint }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
+export type Launcher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string; devBuyLamports: bigint; pad?: "pump" | "meteora" }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
 /** Robinhood: pin the image, then launch on Pons from the agent's wallet. */
 export type RhLauncher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
 type Verify = typeof verifyFunding;
@@ -121,6 +125,8 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   const { enabled, budgetUsdc, create: opens, ...rules } = input.markets;
   const venue = input.chain;
   if (venue === "robinhood" && !deps.wallets.robinhood) return { ok: false as const, status: 503, error: "Robinhood agents are not configured on this server." };
+  const meteora = venue === "solana" && input.pad === "meteora";
+  if (meteora && !process.env.LAUNCH_METEORA_CONFIG?.trim()) return { ok: false as const, status: 503, error: "Meteora launches are not configured on this server yet." };
   const payout = input.payout ? getAddress(input.payout) : null;
   // A Robinhood agent trades from its EVM wallet only; pump.fun and Argus agents keep the Solana wallet as before.
   const solana = venue !== "robinhood" ? await deps.wallets.solana(owner) : null;
@@ -131,7 +137,7 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   const fundLamports =
     venue === "robinhood" ? BigInt(Math.round(input.seedSol * 1e9)) * 1_000_000_000n + RH_LAUNCH_FEE_WEI
     : arcLaunch ? 0n
-    : BigInt(Math.round(input.seedSol * 1e9)) + LAUNCH_FEE_LAMPORTS;
+    : BigInt(Math.round(input.seedSol * 1e9)) + (meteora ? METEORA_LAUNCH_FEE_LAMPORTS : LAUNCH_FEE_LAMPORTS);
   const r = await client.mutation(api.launch.createPending, {
     secret, slug, uid, owner, name: input.name, ticker: input.ticker, avatarSeed: input.avatarSeed ?? slug, thesis: input.thesis, brain, trading,
     markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules }, create: opens },
@@ -142,6 +148,7 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
     fundLamports: fundLamports.toString(), description: input.description, ...(input.image ? { image: input.image } : {}),
     allocation: input.allocation,
     ...(arcLaunch ? { chain: "arc" as const, argus: input.argus } : {}),
+    ...(meteora ? { pad: "meteora" as const } : {}),
   });
   // Lost a race for the ticker after the wallets were made: they are simply never funded.
   if (!r.ok) return { ok: false as const, status: 409, error: r.reason === "reserved" ? `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` : `Too many agents named $${input.ticker}. Pick another ticker.` };
@@ -192,7 +199,7 @@ export async function launch(
   let r: Awaited<ReturnType<Launcher>>;
   try {
     const token = { walletId: wallet.walletId, wallet: wallet.address, name: a.name, symbol: a.ticker, description: a.launch.description, imageDataUrl };
-    r = rhDeps ? await rhDeps.launchToken(token) : await deps.launchToken({ ...token, devBuyLamports: 0n });
+    r = rhDeps ? await rhDeps.launchToken(token) : await deps.launchToken({ ...token, devBuyLamports: 0n, pad: a.launch.pad ?? "pump" });
   } catch (e) {
     const ambiguous = (e as { name?: string })?.name === "AmbiguousSendError";
     // Not ambiguous = provably did not land: release the claim so the owner can retry.

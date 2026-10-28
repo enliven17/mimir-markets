@@ -22,6 +22,7 @@
     "@circle-fin/modular-wallets-core": "^1.0.16",
     "@coral-xyz/anchor": "^0.32.1",
     "@gsap/react": "^2.1.2",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "2.0.0",
     "@noble/hashes": "^1.8.0",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",

@@ -253,7 +253,7 @@ export const feeAgent = internalQuery({
     const a = await ctx.db.get(id);
     if (!a || !feeable(a)) return null;
     return {
-      id: a._id as string, ticker: a.ticker, mint: a.mint, creator: a.owner, walletId: a.solana.walletId, wallet: a.solana.address,
+      id: a._id as string, ticker: a.ticker, mint: a.mint, pad: a.launch?.pad ?? null, creator: a.owner, walletId: a.solana.walletId, wallet: a.solana.address,
       status: a.status, feesClaimedAt: a.feesClaimedAt ?? null, pendingClaim: a.pendingClaim ?? null, slippageBps: (a.trading.risk as { slippageBps?: number } | null)?.slippageBps ?? 300,
       ...allocationState(a), creatorPool: a.creatorPool ?? 0n,
     };

@@ -3,6 +3,7 @@
 import { createBurnCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { ComputeBudgetProgram, Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction, type TransactionInstruction } from "@solana/web3.js";
 import type { Fill } from "../ports";
+import type { Meteora } from "./meteora";
 import type { PumpPortal, TokenMeta } from "./pumpportal";
 import { validateMeta } from "./pumpportal";
 import type { Conn, Submitter, Unsigned } from "./submit";
@@ -18,12 +19,16 @@ const MAX_BATCH = 20;
 type OpsDeps = {
   connection: Conn;
   pumpportal: PumpPortal;
+  /** Meteora DBC launches; null when LAUNCH_METEORA_CONFIG is not set. */
+  meteora?: Meteora | null;
   submitter: Submitter;
   mintInfo(mint: string): Promise<{ program: PublicKey; decimals: number }>;
   tokenBalance(wallet: string, mint: string, program: PublicKey): Promise<bigint>;
 };
 
-export type LaunchArgs = Omit<TokenMeta, "imageDataUrl"> & { walletId: string; wallet: string; imageDataUrl: string; devBuyLamports: bigint; slippageBps?: number };
+/** Where the token launches: pump.fun (the default) or Meteora DBC on Mimir's config. */
+export type Pad = "pump" | "meteora";
+export type LaunchArgs = Omit<TokenMeta, "imageDataUrl"> & { walletId: string; wallet: string; imageDataUrl: string; devBuyLamports: bigint; slippageBps?: number; pad?: Pad };
 export type LaunchResult = { mint: string; sig: string; metadataUri: string; devBuy: Fill | null };
 
 export function createOps(d: OpsDeps) {
@@ -50,6 +55,16 @@ export function createOps(d: OpsDeps) {
     const { metadataUri } = await d.pumpportal.uploadMetadata(a);
     const mintKp = Keypair.generate(); // same mint across retries: a landed create can never be repeated
     const mint = mintKp.publicKey.toBase58();
+    if (a.pad === "meteora") {
+      const meteora = d.meteora;
+      if (!meteora) throw new SolanaError("meteora", "LAUNCH_METEORA_CONFIG is not configured", { code: "CONFIG", notLanded: true });
+      if (a.devBuyLamports > BigInt(0)) throw new SolanaError("meteora", "a Meteora launch has no dev buy", { code: "BAD_INPUT", notLanded: true });
+      return d.submitter.run(
+        `launch ${a.symbol} on Meteora`,
+        async () => ({ walletId: a.walletId, wallet, unsigned: { tx: await meteora.buildCreateTx({ creator: wallet, mint, name: a.name, symbol: a.symbol, metadataUri }), extraSigners: [mintKp], maxSolOut: BigInt(60_000_000), allowLockedTouch: true } }),
+        (tx) => ({ mint, sig: walletDeltas(tx, wallet, mint).sig, metadataUri, devBuy: null }),
+      );
+    }
     return d.submitter.run(
       `launch ${a.symbol}`,
       async () => {
@@ -64,13 +79,21 @@ export function createOps(d: OpsDeps) {
     );
   }
 
-  /** Claims all pump.fun creator fees (curve + PumpSwap). `lamports` is the net SOL gained after tx fees. */
-  async function claimCreatorFees(a: { walletId: string; wallet: string; onSigned?: (sig: string, lastValidBlockHeight: number) => Promise<void> }): Promise<{ sig: string; lamports: bigint }> {
+  /**
+   * Claims all pump.fun creator fees (curve + PumpSwap), or a Meteora agent's DBC creator trading fees (its pool, from
+   * `mint`). `lamports` is the net SOL gained after tx fees.
+   */
+  async function claimCreatorFees(a: { walletId: string; wallet: string; mint?: string; pad?: Pad; onSigned?: (sig: string, lastValidBlockHeight: number) => Promise<void> }): Promise<{ sig: string; lamports: bigint }> {
     const wallet = assertAddress("wallet", a.wallet);
+    const meteora = a.pad === "meteora" ? d.meteora : null;
+    if (a.pad === "meteora" && (!meteora || !a.mint)) throw new SolanaError("meteora", "a Meteora claim needs LAUNCH_METEORA_CONFIG and the mint", { code: "CONFIG", notLanded: true });
     return d.submitter.run(
       "claim fees",
       // onSigned: the claim's sig is stored before broadcast, so a claim that lands after a timeout is still booked.
-      async () => ({ walletId: a.walletId, wallet, unsigned: { tx: VersionedTransaction.deserialize(await d.pumpportal.buildCollectFeeTx({ wallet })), allowLockedTouch: true, onSigned: a.onSigned } }),
+      async () => ({
+        walletId: a.walletId, wallet,
+        unsigned: { tx: meteora ? await meteora.buildClaimTx({ wallet, mint: a.mint! }) : VersionedTransaction.deserialize(await d.pumpportal.buildCollectFeeTx({ wallet })), allowLockedTouch: true, onSigned: a.onSigned },
+      }),
       (tx) => {
         const delta = walletDeltas(tx, wallet, null);
         return { sig: delta.sig, lamports: delta.lamports };
