@@ -706,7 +706,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
               <dt>Trading</dt>
               <dd>{t.enabled ? `${strategiesFor(f.chain)[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}%` : "off"}</dd>
               <dt>Token</dt>
-              <dd>{f.chain === "arc" ? `Argus · ${f.argus.buyTaxPct}% / ${f.argus.sellTaxPct}% tax` : f.chain === "robinhood" ? "Pons on Robinhood Chain" : "pump.fun on Solana"}</dd>
+              <dd>{f.chain === "arc" ? `Argus · ${f.argus.buyTaxPct}% / ${f.argus.sellTaxPct}% tax` : f.chain === "robinhood" ? "Pons on Robinhood Chain" : f.pad === "meteora" ? "Meteora on Solana" : "pump.fun on Solana"}</dd>
               {f.chain !== "robinhood" ? (
                 <>
                   <dt>Fees</dt>

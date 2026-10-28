@@ -17,7 +17,7 @@ import FeeAllocator, { AllocationBar } from "./FeeAllocator";
 const sol = (l: string) => (Number(BigInt(l)) / 1e9).toFixed(3);
 const when = (t: number) => new Date(t).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
-export default function FeesBlock({ slug, ticker, owner }: { slug: string; ticker: string; owner: string }) {
+export default function FeesBlock({ slug, ticker, owner, venue = "pump.fun" }: { slug: string; ticker: string; owner: string; venue?: string }) {
   const fees = useQuery(api.launchFeeDb.feesView, { slug });
   const { publicKey, signMessage } = useWallet();
   const [draft, setDraft] = useState<Allocation | null>(null);
@@ -45,7 +45,7 @@ export default function FeesBlock({ slug, ticker, owner }: { slug: string; ticke
     <section className="grid gap-4 rounded-2xl bg-cream/[0.04] p-5">
       <h2 className="m-0 font-display text-[1.4rem] text-cream">Where its fees go</h2>
       <p className="m-0 text-[14px] text-muted">
-        Every trade of <span className="font-mono text-cream">${ticker}</span> on pump.fun pays creator fees to the agent: 10% platform, 10% AI costs, the rest split by its owner.
+        Every trade of <span className="font-mono text-cream">${ticker}</span> on {venue} pays creator fees to the agent: 10% platform, 10% AI costs, the rest split by its owner.
       </p>
       <AllocationBar allocation={fees.allocation} className="h-3.5" />
       <p className="m-0 font-mono text-[12px] leading-5 text-muted">{perSol(fees.allocation)} per 1 SOL</p>

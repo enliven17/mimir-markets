@@ -97,7 +97,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
           <div className="flex gap-2" role="tablist" aria-label={t("chart")}>
             {(["solana", "arc"] as const).map((c) => (
               <button key={c} type="button" role="tab" aria-selected={chart === c} onClick={() => setChart(c)} className={`rounded-full px-4 py-2 text-[13px] ${chart === c ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}>
-                {c === "solana" ? (rh ? "Robinhood · Pons" : "Solana · pump.fun") : "Arc · Argus"}
+                {c === "solana" ? (rh ? "Robinhood · Pons" : meteora ? "Solana · Meteora" : "Solana · pump.fun") : "Arc · Argus"}
               </button>
             ))}
           </div>
@@ -122,7 +122,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       />
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} venue={a.venue} /> : null}
-      {!a.house && card && a.venue !== "robinhood" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} /> : null}
+      {!a.house && card && a.venue !== "robinhood" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} venue={meteora ? "Meteora" : "pump.fun"} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <HolderSection slug={slug} />
     </div>
