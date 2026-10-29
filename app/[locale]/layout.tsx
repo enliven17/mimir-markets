@@ -13,6 +13,7 @@ import MobileTabBar from "@/components/app/MobileTabBar";
 import ConsentNotice from "@/components/legal/ConsentNotice";
 import RouteProgress from "@/components/app/RouteProgress";
 import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
+import ProductNotice from "@/components/app/ProductNotice";
 import AccessGate from "@/components/access/AccessGate";
 import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
 import SkipToContentLink from "@/components/SkipToContentLink";
@@ -74,6 +75,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           </PageFrame>
         </main>
         <Footer />
+        <ProductNotice />
         <ArcLaunchModal />
         <AppBanners />
         <MobileTabBar />

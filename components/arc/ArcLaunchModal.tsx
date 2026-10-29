@@ -6,6 +6,7 @@
  * remembered in localStorage; a blocked or cleared store just means it shows again, never an error. Waits a beat
  * after load so it does not fight the landing's own entrance.
  */
+import { PRODUCT_NOTICE_EVENT, productNoticeSeen } from "@/components/app/ProductNotice";
 import { TERMS_ACCEPTED_EVENT, termsAccepted } from "@/components/legal/ConsentNotice";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -28,11 +29,14 @@ export default function ArcLaunchModal() {
     if (seen) return;
     let id: ReturnType<typeof setTimeout> | undefined;
     const show = () => (id = setTimeout(() => setOpen(true), termsAccepted() ? 1200 : 400));
-    // A first visit accepts the terms card first (components/legal/ConsentNotice.tsx); then this follows.
-    if (termsAccepted()) show();
+    // A first visit accepts the terms card (components/legal/ConsentNotice.tsx) and reads the product notice
+    // (components/app/ProductNotice.tsx) first; then this follows.
+    if (!productNoticeSeen()) window.addEventListener(PRODUCT_NOTICE_EVENT, show, { once: true });
+    else if (termsAccepted()) show();
     else window.addEventListener(TERMS_ACCEPTED_EVENT, show, { once: true });
     return () => {
       clearTimeout(id);
+      window.removeEventListener(PRODUCT_NOTICE_EVENT, show);
       window.removeEventListener(TERMS_ACCEPTED_EVENT, show);
     };
   }, []);
