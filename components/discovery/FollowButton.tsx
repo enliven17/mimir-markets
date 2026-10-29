@@ -1,23 +1,23 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
+import { walletProofHeaders, useWalletProof } from "@/components/wallet/useWalletProof";
 import { signedPost } from "@/lib/launch/client";
 type Inbox = { follows: string[]; items: { id: string; text: string; at: number; href: string }[] };
 const requests = new Map<string, { until: number; promise: Promise<Inbox> }>();
 function load(wallet: string) {
   const cached = requests.get(wallet); if (cached && cached.until > Date.now()) return cached.promise;
-  const promise = fetch("/api/follows", { headers: holderProofHeaders(wallet) }).then(async (r) => { if (!r.ok) throw new Error("Could not load your watchlist. Verify your wallet and try again."); return r.json() as Promise<Inbox>; });
+  const promise = fetch("/api/follows", { headers: walletProofHeaders(wallet) }).then(async (r) => { if (!r.ok) throw new Error("Could not load your watchlist. Verify your wallet and try again."); return r.json() as Promise<Inbox>; });
   requests.set(wallet, { until: Date.now() + 15_000, promise });
   if (requests.size > 10) requests.delete(requests.keys().next().value!);
   return promise;
 }
 export function useFollows() {
-  const holder = useHolderTier();
+  const proof = useWalletProof();
   const { publicKey } = useWallet();
   const wallet = publicKey?.toBase58() ?? null;
-  const { prove } = holder;
-  const proven = holder.wallet === wallet && holder.proven, canSign = !!wallet && holder.canSign;
+  const { prove } = proof;
+  const proven = proof.wallet === wallet && proof.proven, canSign = !!wallet && proof.canSign;
   const [inbox, setInbox] = useState<Inbox | null>(null), [error, setError] = useState("");
   useEffect(() => {
     setInbox(null); setError("");

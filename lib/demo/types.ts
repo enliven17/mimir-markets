@@ -53,7 +53,6 @@ export type DemoAgent = DemoConfig & {
   nextTickAt: number; state: DemoState;
   showcaseKey?: string;
   strategy?: StrategySnapshot;
-  benefits?: { chartPoints: number; aiCallsPerAgentDay: number };
 };
 export type DemoStake = {
   id: string; agentId: string; agentName: string; agentSeed: string;

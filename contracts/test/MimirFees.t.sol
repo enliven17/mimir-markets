@@ -6,7 +6,7 @@ import {MimirV3, IMimirFees} from "../MimirV3.sol";
 import {MimirPool, IMimirFees as IPoolFees} from "../MimirPool.sol";
 
 /**
- * The holder discount: a ticket signed by Mimir's server lowers one account's
+ * The ticket discount: a ticket signed by the fee signer lowers one account's
  * entry fee until it expires. Dependency-free like the rest of the suite.
  */
 interface Vm {

@@ -27,7 +27,6 @@ import { buttonClass } from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
-import { useWalletTiers } from "@/components/token/useWalletTiers";
 import { useNowSec } from "@/components/arena/settlement/useSettleAction";
 import CouncilVotes from "@/components/arena/CouncilVotes";
 import Hero from "@/components/arena/detail/Hero";
@@ -132,9 +131,6 @@ function SolanaClaimPage() {
     }
   };
 
-  // Holder badges: one batched tier read per new set of wallets.
-  const tiers = useWalletTiers(claim ? [claim.creator, ...claim.challengers.map((c) => c.addr)] : []);
-
   if (!claim) {
     if (missing) {
       return (
@@ -172,7 +168,7 @@ function SolanaClaimPage() {
 
   return (
     <div className="mx-auto grid w-full min-w-0 max-w-[1040px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-x-8 lg:gap-y-8">
-      <Hero claim={claim} now={now} tiers={tiers} className="lg:col-start-1 lg:row-start-1" />
+      <Hero claim={claim} now={now} className="lg:col-start-1 lg:row-start-1" />
 
       <aside
         aria-label={t("dockLabel")}
@@ -201,7 +197,7 @@ function SolanaClaimPage() {
         panels={{
           evidence: <EvidenceCard claim={claim} />,
           council: <CouncilVotes claimId={claim.id} claimState={claim.state} winnerSide={claim.winnerSide} />,
-          people: <ChallengersList claim={claim} viewer={viewer} tiers={tiers} />,
+          people: <ChallengersList claim={claim} viewer={viewer} />,
           terms: <DetailsDisclosures claim={claim} now={now} stakeUnits={stakeUnits} lastSig={challenge.lastSig} />,
         }}
       />

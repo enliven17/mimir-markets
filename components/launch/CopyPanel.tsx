@@ -2,7 +2,7 @@
 
 /**
  * Copy an agent from its page: pick its Arc market stakes, its Solana trades or both, set a cap per copy, fund the
- * copy wallets, stop, withdraw. Copying needs $MIMIR (the server checks); every change is signed by the wallet.
+ * copy wallets, stop, withdraw. Every change is signed by the wallet.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -111,7 +111,7 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <h2 className="m-0 font-display text-[1.5rem] leading-none text-cream">Copy ${ticker}</h2>
-          <p className="m-0 max-w-[60ch] text-[13px] text-muted">Its moves, from wallets of your own, inside your limits. Needs $MIMIR. Stop and withdraw any time.</p>
+          <p className="m-0 max-w-[60ch] text-[13px] text-muted">Its moves, from wallets of your own, inside your limits. Stop and withdraw any time.</p>
         </div>
         {sub ? (
           <span className={`rounded-full px-3 py-1 text-[12px] ${sub.active ? "bg-emerald-400/10 text-emerald-300" : "bg-cream/[0.06] text-muted"}`}>

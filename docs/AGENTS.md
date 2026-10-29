@@ -19,7 +19,7 @@ An agent has Solana keys for identity and one EVM key for Arc.
 
 | Key | Role |
 |---|---|
-| owner (Solana) | Cold. Registers the agent and is the only signer for `issueKey`, `listKeys`, `revokeKey`, `rotateOperator`, `setArcOperator`, `setChat`, `revoke`. Never accepts an API key. Its $MIMIR balance sets the deploy price. |
+| owner (Solana) | Cold. Registers the agent and is the only signer for `issueKey`, `listKeys`, `revokeKey`, `rotateOperator`, `setArcOperator`, `setChat`, `revoke`. Never accepts an API key. |
 | operator (Solana) | Hot. Signs requests made without an API key. A leak is a rotation, not a loss. |
 | payout (Solana) | Kept for the directory and older flows. Defaults to the owner. |
 | Arc operator (EVM) | Signs and pays for the agent's Arc transactions and holds the USDC it stakes. Set with `arcOperator` at registration or `setArcOperator` later. |
@@ -27,9 +27,6 @@ An agent has Solana keys for identity and one EVM key for Arc.
 Solana keys are base58 and compared exactly as given. The Arc operator is any EVM address the agent holds the key
 to; it needs USDC on Arc (gas is paid in USDC too). On testnet: [faucet.circle.com](https://faucet.circle.com),
 "Arc Testnet".
-
-**Token gate (off by default).** With `AGENT_REGISTER_MIN_MIMIR` set, the owner wallet must hold that much $MIMIR on
-Solana mainnet, or `register` fails with `403 token_gate` (`503 token_check_unavailable` when mainnet cannot be read).
 
 ## Signing
 
@@ -60,8 +57,8 @@ API key (`authorization: Bearer mk_live_…`, from `issueKey`) neither is needed
 
 ## Registering, and the deploy fee
 
-Deploying an agent costs **$1 in USDC on Arc, $0.50 if the owner wallet holds 5M $MIMIR, and nothing at 10M**
-(`lib/arc/fee-tiers.ts`; the balance is read from Solana when you register).
+Deploying an agent costs a flat **$1 in USDC on Arc** for everyone (`lib/arc/fees.ts`). Every registration needs
+a payment.
 
 1. Read the fee recipient: `feeRecipient()` on the MimirV3 contract.
 2. Send the price there in USDC on Arc, from the Arc operator or from the owner's linked Mimir account: an ERC-20
@@ -81,7 +78,7 @@ Deploying an agent costs **$1 in USDC on Arc, $0.50 if the owner wallet holds 5M
 
 The server reads the receipt: it succeeded, it paid at least the price to the fee recipient, it came from the Arc
 operator or the owner's linked account, and it has not paid for another agent (`402 payment_required`,
-`402 payment_invalid`, `409 payment_used`). One payment registers one agent. Free-tier owners send no `paymentTx`.
+`402 payment_invalid`, `409 payment_used`). One payment registers one agent.
 
 ## Authority and limits
 
@@ -121,8 +118,7 @@ example agent does. Without an Arc operator on file, writes answer `409 no_arc_o
 | `withdraw` | `amountUsdc` (any positive number; unused on Arc) | pulls a payout the contract parked for the operator |
 
 - **Minimum stake:** 0.1 USDC (the contract's `minStake`, fixed at deploy; `NEXT_PUBLIC_MIMIR_MIN_STAKE`).
-- **Entry fee:** 0.5% of every stake, taken on the way in; the rest is the position. Accounts linked to a wallet with
-  5M $MIMIR pay 0.25%, 10M pay 0.1%. An agent's Arc operator is not linked, so it pays 0.5%.
+- **Entry fee:** 0.5% of every stake, taken on the way in; the rest is the position.
 - **VS room:** challengers together can add up to 5× the creator's stake.
 - **Betting closes** 60 seconds before the deadline.
 - `deposit`, `delegateBalance` and `undelegateBalance` belong to the Solana build and answer `410 not_on_arc`: on Arc

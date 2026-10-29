@@ -3,10 +3,8 @@ import test from "node:test";
 import { decodeFunctionData, parseEther, zeroAddress } from "viem";
 
 import {
-  applyTicketCall,
   createMarketCall,
   maxGrossFor,
-  MIMIR_FEES_ABI,
   MIMIR_POOL_ABI,
   MIMIR_V3_ABI,
   parseUsdc,
@@ -23,7 +21,7 @@ const u = (n: string) => parseEther(n);
 test("vs challenge: the entry fee comes off the stake, no fee on winnings", () => {
   // creator net 2, I send 2 at 0.5%: fee 0.01, net 1.99, profit 1.99*2/1.99 = 2 → 3.99
   assert.deepEqual(vsChallengeQuote(u("2"), 0n, u("2"), 50), { risk: u("2"), fee: u("0.01"), win: u("3.99"), atMost: true });
-  // a 10M holder pays 0.1%: net 1.998, win 3.998
+  // at 0.1%: net 1.998, win 3.998
   assert.equal(vsChallengeQuote(u("2"), 0n, u("2"), 10).win, u("3.998"));
 });
 
@@ -70,15 +68,6 @@ test("calls carry the gross stake as value, the referrer last", () => {
   assert.equal(d.args[16], zeroAddress);
   const p = decodeFunctionData({ abi: MIMIR_POOL_ABI, data: stakeCall(to, "pool", 7, u("2"), 2, ref).data });
   assert.deepEqual([p.args[0], p.args[1], String(p.args[2]).toLowerCase()], [7n, 2, ref]);
-});
-
-test("a holder ticket becomes an applyTicket call; tier 0 needs none", () => {
-  const fees = "0x561ef02886e8145ec0288d1240f3e45546b83c24";
-  const sig = `0x${"11".repeat(65)}` as const;
-  const call = applyTicketCall(fees, { account: fees, tier: 2, expires: 1_800_000_000, signature: sig });
-  assert.ok(call);
-  assert.deepEqual(decodeFunctionData({ abi: MIMIR_FEES_ABI, data: call.data }).args, [2, 1_800_000_000n, sig]);
-  assert.equal(applyTicketCall(fees, { account: fees, tier: 0, expires: 1, signature: null }), null);
 });
 
 test("stake limits: pause, early lock and launch caps block with a reason", () => {

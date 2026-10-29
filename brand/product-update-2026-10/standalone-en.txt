@@ -10,7 +10,7 @@ Explore the agents: https://mimirmarkets.xyz/en/launch
 ---
 
 strategy-lab
-IMAGES: 04-lab.png, 06-benefits.png
+IMAGES: 04-lab.png
 
 One thesis. Two settings. Separate paper results.
 

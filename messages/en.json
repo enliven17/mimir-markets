@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
-    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet and $MIMIR stay on Solana."
+    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet stays on Solana."
   },
   "common": {
     "back": "Back",
@@ -169,7 +169,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Arc; wallets and $MIMIR on Solana.",
+    "lead": "Read live from the Mimir contracts on Arc; wallets on Solana.",
     "tabsLabel": "Stats views",
     "tabOverview": "Overview",
     "tabCalibration": "Calibration",
@@ -203,77 +203,6 @@
       "unresolvable": "Unresolvable, refunded",
       "unknown": "Unknown"
     }
-  },
-  "token": {
-    "eyebrow": "${symbol} · Solana mainnet",
-    "title": "Token",
-    "lead": "Lives on Solana mainnet. The same wallet key unlocks perks here.",
-    "launchingTitle": "Launching on ClawPump",
-    "launchingBody": "Not live yet: no price, supply or tier until the mint is set. $ANSEM holders already count.",
-    "launchingCta": "Open ClawPump",
-    "tradeCta": "Trade on ClawPump",
-    "price": "Price (DEX)",
-    "supply": "Supply",
-    "fdv": "FDV",
-    "mint": "Mint",
-    "unavailable": "unavailable",
-    "yourTier": "Your tier",
-    "connect": "Connect a wallet to see your tier. Only public mainnet balances are read.",
-    "loading": "Reading mainnet balances…",
-    "readFailed": "Mainnet could not be read right now.",
-    "held": "{symbol}: {mimir} · ANSEM: {ansem}",
-    "prove": "Sign holder proof",
-    "proving": "Waiting for your wallet…",
-    "proven": "Holder proof stored here for 24h. Council APIs count this wallet at its tier.",
-    "proofHelp": "Proves you control this wallet so the council APIs apply your tier. Moves no funds.",
-    "noSign": "This wallet cannot sign messages.",
-    "chipTitle": "Your Mimir token tier",
-    "badgeTitle": "{tier}: holds $MIMIR or $ANSEM on Solana mainnet",
-    "tier": {
-      "none": "No tier",
-      "holder": "Holder",
-      "backer": "Backer",
-      "oracle-circle": "Oracle circle"
-    },
-    "tiersLabel": "Tiers",
-    "needsAtLeast": "{n} {symbol}",
-    "orAnsem": "or {n} ANSEM",
-    "tierCouncil": "{x}× council limits",
-    "tierBaskets": "Compose baskets",
-    "perksTitle": "How perks are enforced",
-    "perksMeta": "{on} of {total} on",
-    "on": "on",
-    "off": "off",
-    "where": "Enforced in",
-    "perk": {
-      "council": {
-        "title": "Council priority",
-        "body": "With a holder proof, council reasoning and preflight are counted per wallet at {x2}× / {x4}× / {x8}× the anonymous limit (holder / backer / oracle circle) and draw on their own deploy-wide pool."
-      },
-      "register": {
-        "title": "Agent registration anti-spam",
-        "body": "Registering a BYOA agent can require the owner wallet to hold {mimir} {symbol} or {ansem} ANSEM on mainnet. The owner signature already proves the wallet.",
-        "unset": "not configured"
-      },
-      "baskets": {
-        "title": "Holder-composed baskets",
-        "body": "Composing a basket can be reserved for the {tier} tier and up. The composer signature proves the wallet."
-      },
-      "prices": {
-        "title": "Deterministic token price markets",
-        "body": "Claims like “Will $ANSEM trade above $0.25?” (and ${symbol} once launched) settle from DexScreener + Jupiter mainnet prices through the resolver spec, not an LLM."
-      }
-    },
-    "ansemTitle": "$ANSEM inside Mimir",
-    "ansemBody": "$ANSEM (The Black Bull) holders of at least {n} ANSEM count as holders, can satisfy the agent registration gate, and $ANSEM price claims settle deterministically from mainnet DEX data.",
-    "roadmapTitle": "Roadmap",
-    "roadmap": {
-      "now": "Now: live on Arc mainnet with real USDC, invite-only. Head-to-head markets (MimirV3) and pools (MimirPool), settled by the AI oracle with a 24-hour dispute window and a 2-of-3 Safe as arbiter, funded from Solana over Circle CCTP. Entry is by invite code, from a Solana or an Arc wallet; $MIMIR on Solana lowers fees.",
-      "next": "Next: open access once the invite gate comes off, higher stake caps after an external audit of the contracts, and a settlement API so other apps can have their questions settled by the Mimir oracle.",
-      "fees": "Fees: the creator share of ClawPump trading fees funds oracle and council inference, RPC and audits. Protocol fee revenue (the 0.5% entry fee, lower for holders) is intended for the same, plus buybacks if and when that is decided in the open.",
-      "honest": "No yield, revenue share or price promises. The token unlocks product perks; it is not an investment."
-    },
-    "cachedNote": "Tiers read from mainnet balances, cached for a minute."
   },
   "claimSettle": {
     "working": "Working…",
@@ -368,7 +297,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, your wallet and $MIMIR live on Solana.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, your wallet lives on Solana.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -383,8 +312,6 @@
     "rollup": "Funding",
     "rollupValue": "Circle CCTP",
     "slot": "Block",
-    "token": "Token",
-    "tokenValue": "$MIMIR · Solana",
     "finePrint": "Mimir is in beta on Arc mainnet. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
     "beta": "Beta · Arc mainnet · Solana",
     "license": "© {year} Mimir · AGPL-3.0",
@@ -403,7 +330,7 @@
       "about": {
         "title": "About Mimir",
         "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
-        "p2": "Settles on Arc, Circle's stablecoin chain; your wallet and $MIMIR stay on Solana."
+        "p2": "Settles on Arc, Circle's stablecoin chain; your wallet stays on Solana."
       },
       "disclaimer": {
         "title": "Disclaimer",
@@ -1226,7 +1153,7 @@
     "pickTitle": "Which network is your wallet on?",
     "pickLead": "Pick the network that holds your USDC. Connecting shares your public address, nothing else.",
     "pickSolana": "Solana",
-    "pickSolanaHint": "Phantom, Solflare, Backpack. Your USDC moves to Arc for you, and $MIMIR perks apply.",
+    "pickSolanaHint": "Phantom, Solflare, Backpack. Your USDC moves to Arc for you.",
     "pickArc": "Arc",
     "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. Stake with the USDC already in it.",
     "pickBack": "Other network",
@@ -1808,10 +1735,6 @@
         "label": "Arc wallet",
         "hint": "Passkey account, deposits and withdrawals"
       },
-      "token": {
-        "label": "Token",
-        "hint": "$MIMIR tiers and perks"
-      },
       "stats": {
         "label": "Stats",
         "hint": "Markets, volume and oracle calibration"
@@ -2150,10 +2073,7 @@
     "chartArgus": "Arc token chart (Argus)",
     "token": "Token",
     "recordTitle": "Detailed activity",
-    "gate": "Basic execution evidence is public. Hold $MIMIR to open this agent's detailed trades and reasoning.",
-    "prove": "Prove you hold $MIMIR",
-    "connect": "Connect your wallet",
-    "getMimir": "Get $MIMIR",
+    "recordUnavailable": "This agent's record could not be loaded. Try again shortly.",
     "arcStakes": "Stakes",
     "winRate": "Win rate",
     "arcPnl": "Markets PnL",

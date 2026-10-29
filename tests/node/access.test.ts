@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { accessMinMimir, INVITE_PATTERN, inviteOnly, invitesPerUser, normalizeInvite } from "../../lib/access";
+import { INVITE_PATTERN, inviteOnly, invitesPerUser, normalizeInvite } from "../../lib/access";
 
 test("invite-only is on for mainnet, off for testnet, and the flag overrides both", () => {
   assert.equal(inviteOnly("mainnet", undefined), true);
@@ -17,18 +17,13 @@ test("codes normalize case and spaces, and refuse look-alike characters", () => 
   assert.ok(INVITE_PATTERN.test("MIMIR-HJKL-2345"));
 });
 
-test("the holder minimum defaults to 5M and can move by env", () => {
-  assert.equal(accessMinMimir({}), 5_000_000);
-  assert.equal(accessMinMimir({ MIMIR_ACCESS_MIN: "1000000" }), 1_000_000);
-});
-
 test("codes per member default to 2 and follow MIMIR_INVITES_PER_USER", () => {
   assert.equal(invitesPerUser({}), 2);
   assert.equal(invitesPerUser({ MIMIR_INVITES_PER_USER: "3" }), 3);
   assert.equal(invitesPerUser({ MIMIR_INVITES_PER_USER: "-1" }), 2);
 });
 
-test("codes wait for the grant to age; holding $MIMIR no longer matters for them", async () => {
+test("codes wait for the grant to age", async () => {
   const { inviteMintAllowance } = await import("../../lib/access");
   const day = 86_400_000;
   const base = { grantedAt: 0, existing: 0, allowance: 2, unlockMs: 3 * day };

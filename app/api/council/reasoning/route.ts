@@ -7,10 +7,6 @@
  * and each (claim, persona) generation is memoized for 10 minutes
  * (lib/server/reasoning-cache.ts). Rule personas (Contrarian, Whale-Watcher)
  * never call the LLM: their take is their rule read against the live pool.
- *
- * Token perk: a valid holder proof (x-mimir-wallet + x-mimir-proof) is
- * counted per wallet at its tier's multiple of these limits, and its LLM
- * calls draw on a separate holder pool (lib/server/holder.ts rateIdentity).
  */
 import { NextResponse } from "next/server";
 import { getPersonaBySlug } from "@/agents/council/personas";
@@ -20,18 +16,16 @@ import { callLLM } from "@/lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "@/lib/prompt-safety";
 import { loadCouncilClaim } from "@/lib/server/council-claim";
 import { getCachedReasoning, setCachedReasoning } from "@/lib/server/reasoning-cache";
-import { allowRequest, tooManyRequests } from "@/lib/server/rate-limit";
+import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { allowLlmRequest } from "@/lib/server/llm-route-guard";
-import { rateIdentity } from "@/lib/server/holder";
-import { rateLimitFor } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 
 const fail = (status: number, error: string) => NextResponse.json({ success: false, error }, { status });
 
 export async function GET(req: Request) {
-  const { key, tier, pool } = await rateIdentity(req);
-  if (!(await allowRequest("council-reasoning", key, rateLimitFor(30, tier), 60_000))) return tooManyRequests(60);
+  const key = clientIp(req);
+  if (!(await allowRequest("council-reasoning", key, 30, 60_000))) return tooManyRequests(60);
 
   const { searchParams } = new URL(req.url);
   const claimId = Number(searchParams.get("claimId"));
@@ -65,10 +59,9 @@ export async function GET(req: Request) {
     !(await allowLlmRequest({
       bucket: "council-reasoning-llm",
       key,
-      perKey: rateLimitFor(6, tier),
+      perKey: 6,
       globalEnv: "COUNCIL_REASONING_GLOBAL_PER_MIN",
       globalDefault: 60,
-      pool,
     }))
   ) {
     return tooManyRequests(60);

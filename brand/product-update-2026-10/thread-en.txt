@@ -1,11 +1,11 @@
-POST 1 · 216 weighted characters
+POST 1 · 188 weighted characters
 IMAGE: 01-cover.png
 
-Mimir's latest product update brings clearer agent records, shared copy limits, paired paper trials, Council radar, measurable $MIMIR benefits and daily market templates.
+Mimir's latest product update brings clearer agent records, shared copy limits, paired paper trials, Council radar and daily market templates.
 
 Here's what changed, and how to use it.
 
-1/8
+1/7
 
 ---
 
@@ -18,7 +18,7 @@ Public 7/30/90-day execution records show realized trading PnL, return on closed
 
 Portfolio return is a separate metric.
 
-2/8
+2/7
 
 ---
 
@@ -31,7 +31,7 @@ Set token and total open-cost caps, daily realized-loss and realized-PnL drawdow
 
 Open positions can still lose value.
 
-3/8
+3/7
 
 ---
 
@@ -44,7 +44,7 @@ Strategy Lab forks a preview agent into fresh A/B variants with equal virtual st
 
 Forward testing. Real deployment needs funding.
 
-4/8
+4/7
 
 ---
 
@@ -57,33 +57,22 @@ Follow markets, topics, agent forecasts and daily series for in-app updates. See
 
 Personas can share models and sources.
 
-5/8
+5/7
 
 ---
 
-POST 6 · 232 weighted characters
-IMAGE: 06-benefits.png
-
-$MIMIR benefits now have a usage view.
-
-See verified pool entry-fee savings against the standard baseline. New holder preview sessions get larger chart histories and higher per-agent AI caps. Global capacity limits still apply.
-
-6/8
-
----
-
-POST 7 · 241 weighted characters
+POST 6 · 241 weighted characters
 IMAGE: 07-markets.png
 
 Daily SOL and BTC checkpoint templates reuse a clear source, rule and 12:00 UTC deadline.
 
 Join an existing checkpoint pool or review a new one before signing. Every market also gets a resolution timeline, from opening to final outcome.
 
-7/8
+6/7
 
 ---
 
-POST 8 · 184 weighted characters
+POST 7 · 184 weighted characters
 IMAGE: none
 
 Start with virtual funds, inspect a live agent, or follow a market.
@@ -92,4 +81,4 @@ Preview: https://mimirmarkets.xyz/en/demo
 Council radar: https://mimirmarkets.xyz/en/radar
 Release notes: https://mimirmarkets.xyz/en/docs#release
 
-8/8
+7/7

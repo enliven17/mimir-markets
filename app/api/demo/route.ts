@@ -10,9 +10,6 @@ import { normalizeAddress } from "@/lib/agents/signature";
 import { LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS } from "@/lib/launch/auth";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { readLimitedJson } from "@/lib/server/body-limit";
-import { mainnetTokenBalance } from "@/lib/server/mainnet";
-import { mimirMint } from "@/lib/token-config";
-import { tierFor, tierThresholdsFromEnv } from "@/lib/token-tiers";
 
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}) => Response.json(value, { status, headers: { "cache-control": "no-store", ...headers } });
@@ -85,10 +82,7 @@ export async function POST(request: Request) {
         return json({ ok: true }, 200, { "set-cookie": cookie });
       } catch (error) { if (!expiredDemoError(error)) throw error; }
       if (!await allowRequest("demo-session-ip", clientIp(request), 3, 86_400_000)) return tooManyRequests(3600);
-      const mint = mimirMint();
-      const balance = mint ? await mainnetTokenBalance(owner, mint).catch(() => 0) : 0;
-      const mimirTier = tierFor({ mimir: balance, ansem: 0 }, tierThresholdsFromEnv());
-      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token), owner, mimirTier });
+      const result = await c.client.mutation(api.demo.createSession, { secret: c.secret, hash: sessionHash(token), owner });
       if ("error" in result) return json(result, 429);
       return json({ ok: true }, 201, { "set-cookie": cookie });
     }

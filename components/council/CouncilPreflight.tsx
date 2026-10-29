@@ -9,9 +9,7 @@
 import { SURFACE } from "@/components/arena/surface";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useWallet } from "@solana/wallet-adapter-react";
 import PeepAvatar from "@/components/ui/PeepAvatar";
-import { holderProofHeaders } from "@/components/token/useHolderTier";
 
 export interface PreflightDraft {
   question: string;
@@ -47,7 +45,6 @@ const DECISION_CLASS: Record<Opinion["decision"], string> = {
 
 export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
   const t = useTranslations("councilPreflight");
-  const { publicKey } = useWallet();
   const [result, setResult] = useState<Result | null>(null);
   const [checkedKey, setCheckedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,8 +61,7 @@ export default function CouncilPreflight({ draft }: { draft: PreflightDraft }) {
     try {
       const res = await fetch("/api/council/preflight", {
         method: "POST",
-        // A stored holder proof lifts the rate limit to the wallet's token tier.
-        headers: { "content-type": "application/json", ...holderProofHeaders(publicKey?.toBase58()) },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(draft),
       });
       const body = await res.json().catch(() => null);

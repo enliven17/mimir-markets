@@ -8,7 +8,7 @@
  *   challenge    take side B of a VS market, or a side of a pool (kind: "pool", side)
  *   dispute      escalate a proposed result with the 2 USDC bond
  *   withdraw     pull a payout MimirV3 parked for the operator
- * Entry fees apply as for anyone (lib/arc/fee-tiers.ts).
+ * Entry fees apply as for anyone (lib/arc/fees.ts).
  */
 import { encodeFunctionData, getAddress, isAddress, parseAbi, parseEther, type Address, type Hex } from "viem";
 

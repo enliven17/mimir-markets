@@ -28,7 +28,7 @@ import type { ArcCall } from "../../lib/arc/cctp-arc";
 import { accountHasAccess, mintAdminInvites, redeemInvite } from "../../lib/server/access";
 import { ArcRebindTooSoonError, REBIND_COOLDOWN_MS, upsertArcBinding } from "../../lib/server/arc-accounts";
 import { ArcEvmAccountTakenError, getArcEvmBinding, getArcEvmBindingByArc, upsertArcEvmBinding } from "../../lib/server/arc-evm-accounts";
-import { provenEvmWallet, provenIdentity } from "../../lib/server/holder";
+import { provenEvmWallet, provenIdentity } from "../../lib/server/wallet-proof";
 import { useMemoryStore } from "../../lib/server/store";
 
 useMemoryStore();
@@ -128,14 +128,14 @@ test("EVM binding: one account per wallet, a taken account is refused, a switch 
   assert.equal((await getArcEvmBindingByArc(ACCOUNT_2))?.evm, WALLET);
 });
 
-test("perks: an Arc-native member's account is in; a linked Solana wallet needs no invite of its own", async () => {
+test("an Arc-native member's account is in; a linked Solana wallet needs no invite of its own", async () => {
   const solana = "5JZp9pA33eoUREpQS6ui6AFVdaQ147aBrjh79w252gRQ";
   // ACCOUNT_2 is bound to WALLET (previous test); WALLET is not in yet.
   assert.equal(await accountHasAccess(ACCOUNT_2, solana), false);
   const [code] = await mintAdminInvites(1, "test");
   assert.equal(await redeemInvite(WALLET, code), "ok");
   assert.equal(await accountHasAccess(ACCOUNT_2, null), true);
-  // Linking the Solana wallet (for $MIMIR perks) keeps both bindings.
+  // Linking the Solana wallet keeps both bindings.
   await upsertArcBinding({ solana, arc: ACCOUNT_2, credentialId: null });
   assert.equal(await accountHasAccess(ACCOUNT_2, solana), true);
   assert.equal((await getArcEvmBindingByArc(ACCOUNT_2))?.evm, WALLET);

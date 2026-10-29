@@ -41,7 +41,7 @@ import {
   type ResolverOutcome,
   type ResolverSpec,
 } from "../../lib/resolver-spec";
-import { dexMintFor } from "../../lib/token-config";
+import { dexMintFor } from "../../lib/dex-tokens";
 import { stripLinks } from "../../lib/verdict";
 import {
   gammaQueryUrl,

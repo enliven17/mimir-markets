@@ -216,7 +216,7 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
     ) {
       throw new Error("The copy transaction did not match the signal; nothing was signed.");
     }
-    const receipt = await arc.session.sendCalls(arc.withTicket([{ to: call.to as `0x${string}`, data: call.data, value }]));
+    const receipt = await arc.session.sendCalls([{ to: call.to as `0x${string}`, data: call.data, value }]);
     setNotice({ claimId: signal.claimId, text: t("mirrored", { sig: shortenAddress(receipt.txHash, 6) }) });
     void arc.reload();
     loadSignals();

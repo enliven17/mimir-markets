@@ -4,7 +4,7 @@
 // a phantom.app/ul link, the browser is answered with 204 (the page stays, as it does when Android hands the link to
 // the Phantom app), and this script plays Phantom: it decrypts the request, answers it, and calls our return URL
 // exactly as the Android app's launcher does after Phantom opens it. The page must pick the answer up from the relay
-// with no reload: connect, then the invite gate's holder proof (signMessage).
+// with no reload: connect, then the invite gate's wallet proof (signMessage).
 //
 //   node scripts/arc-poc/run-deeplink.mjs       (dev server on :3123, NEXT_PUBLIC_INVITE_ONLY=1, local database)
 import bs58 from 'bs58'
@@ -88,7 +88,7 @@ try {
 
   await (await tab.waitForSelector('::-p-xpath(//button[normalize-space(.)="Sign in"])')).click()
   await tab.waitForSelector('input[placeholder="MIMIR-XXXX-XXXX"]', { timeout: 60_000 })
-  check('holder proof signed through the relay (signMessage)', seen.includes('signMessage') && loads === startLoads)
+  check('wallet proof signed through the relay (signMessage)', seen.includes('signMessage') && loads === startLoads)
   check('return route accepted both answers', returns.length === 2 && returns.every((s) => s === 200), returns.join(','))
   const stored = await tab.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('mimir-deeplink:')))
   check('session kept for reloads', stored.includes('mimir-deeplink:phantom'))

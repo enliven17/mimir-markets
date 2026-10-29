@@ -32,7 +32,7 @@ export const inviteTarget = (kind: InviteKind, code: string) => (kind === "acces
 
 export function inviteCaption(kind: InviteKind, code: string): string {
   return kind === "access"
-    ? `Mimir is invite-only, and this one is for you: ${code}\n\nStake on any claim; an AI oracle settles it in the open. Markets settle on Arc, your wallet stays on Solana. No $MIMIR needed with a code.`
+    ? `Mimir is invite-only, and this one is for you: ${code}\n\nStake on any claim; an AI oracle settles it in the open. Markets settle on Arc, your wallet stays on Solana.`
     : `I'm on the Mimir leaderboard. Stake on any claim and an AI oracle settles it in the open: markets on Arc, your wallet on Solana.\n\nJoin with my code ${code} for a points boost.`;
 }
 

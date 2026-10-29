@@ -11,7 +11,7 @@ audit of the contracts.
 | `npx convex codegen --typecheck disable` | Bindings regenerated successfully |
 | Convex production deploy | Passed to `hushed-orca-915.convex.cloud`; additive schema/index changes and functions deployed |
 | Vercel production deploy | Passed; deployment `dpl_BY4tWH6TinonnY5bAABcvtcSueD7`, alias `mimirmarkets.xyz` |
-| Live route checks | `/en/docs`, `/en/radar`, `/en/token`, `/og/product-update-2026-10.png` and `/sitemap.xml` returned 200; unauthenticated `/api/demo` and `/api/token/benefits` returned the expected 401 |
+| Live route checks | `/en/docs`, `/en/radar`, `/og/product-update-2026-10.png` and `/sitemap.xml` returned 200; unauthenticated `/api/demo` returned the expected 401 |
 | `npx playwright test tests/e2e/product-update.spec.ts tests/e2e/demo.spec.ts --project=desktop --project=mobile --workers=2` | **42 passed** |
 | `git diff --check` | Passed |
 | `node brand/product-update-2026-10/render.mjs` | Seven 1600×900 images and a contact sheet rendered; eight thread posts and three standalone posts fit the weighted 280-character check |

@@ -4,8 +4,8 @@
 //   NEXT_PUBLIC_INVITE_ONLY=1 npx next dev -p 3123      (NEXT_PUBLIC_CONVEX_URL and MIMIR_INTERNAL_SECRET in .env.local)
 //   node scripts/arc-poc/run-gate.mjs          (from the repo root; SHOTS=<dir> for screenshots)
 //
-// Steps: a gated page shows the gate and a public one does not → sign in with the injected Solana wallet (it holds
-// no $MIMIR) → a wrong code is refused → a fresh code lets the wallet in → the dashboard hands it its own codes.
+// Steps: a gated page shows the gate and a public one does not → sign in with the injected Solana wallet → a wrong
+// code is refused → a fresh code lets the wallet in → the dashboard hands it its own codes.
 import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -77,7 +77,7 @@ try {
   }
   await (await tab.waitForSelector(`${byText('Sign in', 'button')}:not([disabled])`)).click()
   const input = await tab.waitForSelector('input[placeholder="MIMIR-XXXX-XXXX"]')
-  check('signed in, no $MIMIR: asked for a code', true)
+  check('signed in: asked for a code', true)
 
   // The page has other forms; submit the gate's own.
   await input.type('MIMIR-ZZZZ-ZZZZ')

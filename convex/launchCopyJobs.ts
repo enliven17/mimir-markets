@@ -11,7 +11,6 @@ import { internalAction, type ActionCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { arcPublicClient } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
-import { holdsMimir } from "../lib/launch/copy-gate";
 import { solanaFromEnv } from "../lib/launch/solana/env";
 import { fetchConfirmedTx, settleSignature, walletDeltas } from "../lib/launch/solana/tx";
 import { drainCopies, reconcileCopyBuy, runArcCopy, runSolBuy, runSolSell, type CopyJobStore } from "../lib/launch/worker/copy";
@@ -54,7 +53,6 @@ function store(ctx: ActionCtx) {
       } });
     },
     finish: async (key, status, note) => void (await ctx.runMutation(internal.launchCopy.finish, { key, status, ...(note ? { note } : {}) })),
-    pauseForGate: async (sub) => void (await ctx.runMutation(internal.launchCopy.pauseForGate, { sub: sid(sub) })),
   };
   return { ...s, arcSub: (id: string) => ctx.runQuery(internal.launchCopy.arcSub, { sub: sid(id) }) };
 }
@@ -64,7 +62,7 @@ export const solBuy = internalAction({
   handler: async (ctx, a): Promise<string> => {
     if (gated()) return "gated";
     try {
-      return await runSolBuy(store(ctx), sol().executor, holdsMimir, log, { kind: "buy", ...a });
+      return await runSolBuy(store(ctx), sol().executor, log, { kind: "buy", ...a });
     } catch (err) {
       log.error("copy buy job failed", { key: a.key, err });
       return "failed";
@@ -100,7 +98,6 @@ export const arcOne = internalAction({
           balanceUsdc: async (wallet) => Number(await client.getBalance({ address: wallet as `0x${string}` })) / 1e18,
           stake: ({ walletId, marketId, side, amountUsdc }) =>
             executeContract({ walletId, contractAddress: pool, abiFunctionSignature: "stake(uint256,uint8,address)", abiParameters: [BigInt(marketId), side, ZERO], amount: amountUsdc.toFixed(2) }),
-          holds: holdsMimir,
           log,
           minStakeUsdc: Number(cfg.contracts.minStakeWei) / 1e18,
         },

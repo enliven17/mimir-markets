@@ -29,7 +29,7 @@ import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys"
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
 import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareArcWrite } from "@/lib/agents/arc-chain";
-import { deployPriceFor, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
+import { deployPriceWei, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
 import { getArcBinding } from "@/lib/server/arc-accounts";
 import { dryRun } from "@/lib/agents/dry-run";
 import { parseClaimId, parseWriteParams, stakeOf, unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
@@ -70,9 +70,6 @@ import {
 } from "@/lib/agents/store";
 import { checkUrl } from "@/lib/research/ssrf";
 import { storeEnabled } from "@/lib/server/store";
-import { walletBalances } from "@/lib/server/holder";
-import { mimirMint, mimirSymbol } from "@/lib/token-config";
-import { agentRegisterGateFromEnv, gateEnabled, meetsGate } from "@/lib/token-tiers";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
 import { readClaims } from "@/lib/server/solana-index";
 import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
@@ -275,22 +272,16 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     throw new AgentEnvelopeError("operator proof does not match", 401, "bad_operator_proof");
   }
 
-  // Anti-spam: with a holding gate configured the owner wallet (proven by its
-  // signature above) must hold enough MIMIR or $ANSEM on mainnet.
-  await enforceRegisterGate(ownerWallet);
-
-  // On Arc: where the agent's transactions come from, and the deploy fee ($1, less for $MIMIR holders).
+  // On Arc: where the agent's transactions come from, and the deploy fee ($1).
   const arcOperator = env.body.arcOperator === undefined ? null : arcOperatorOf(env.body.arcOperator);
   if (env.body.arcOperator !== undefined && !arcOperator) {
     throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
   }
   let payment: { hash: `0x${string}`; wei: bigint } | null = null;
   if (arcAgentsEnabled()) {
-    const price = await deployPriceFor(ownerWallet);
-    if (price.wei > 0n) {
-      const ownerArc = (await getArcBinding(ownerWallet).catch(() => null))?.arc ?? "";
-      payment = { hash: await onChain(() => verifyDeployPayment(env.body.paymentTx, price.wei, [ownerArc, arcOperator ?? ""])), wei: price.wei };
-    }
+    const wei = deployPriceWei();
+    const ownerArc = (await getArcBinding(ownerWallet).catch(() => null))?.arc ?? "";
+    payment = { hash: await onChain(() => verifyDeployPayment(env.body.paymentTx, wei, [ownerArc, arcOperator ?? ""])), wei };
   }
 
   const replay = await replayOrConsumeNonce(env, env.nonce);
@@ -322,29 +313,6 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
 
   await recordRequest(env.agentId, "register", true, null).catch(() => undefined);
   return { status: 201, body: { ok: true, agent: publicView(agent) } };
-}
-
-async function enforceRegisterGate(ownerWallet: string): Promise<void> {
-  const gate = agentRegisterGateFromEnv(mimirMint() !== null);
-  if (!gateEnabled(gate)) return;
-  let balances;
-  try {
-    balances = await walletBalances(ownerWallet);
-  } catch (err) {
-    console.warn("[agents/v1] mainnet balance read failed:", err);
-    throw new AgentEnvelopeError("token holdings could not be checked, try again shortly", 503, "token_check_unavailable");
-  }
-  if (!meetsGate(balances, gate)) {
-    const paths = [
-      gate.minMimir > 0 ? `${gate.minMimir} ${mimirSymbol()}` : null,
-      gate.minAnsem > 0 ? `${gate.minAnsem} ANSEM` : null,
-    ].filter(Boolean);
-    throw new AgentEnvelopeError(
-      `registering an agent needs the owner wallet to hold ${paths.join(" or ")} on Solana mainnet`,
-      403,
-      "token_gate",
-    );
-  }
 }
 
 // ── everything else ─────────────────────────────────────────────────────────

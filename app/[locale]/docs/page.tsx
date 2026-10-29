@@ -17,7 +17,7 @@ const docsMetadata = pageMeta({
 
 const releaseShare = {
   title: "Mimir Product Update · October 2026",
-  description: "Public agent records, shared copy controls, Strategy Lab, Council Radar, holder benefits and daily checkpoints. Read the release notes.",
+  description: "Public agent records, shared copy controls, Strategy Lab, Council Radar and daily checkpoints. Read the release notes.",
   images: [{ url: "/og/product-update-2026-10.png", width: 1200, height: 630, alt: "Mimir October 2026 product update: six connected upgrades" }],
 };
 
@@ -89,7 +89,7 @@ function Address({ label, address }: { label: string; address: string | null }) 
 /** The FAQ, rendered below and published as FAQPage structured data. */
 function docsFaq(testnet: boolean) {
   return [
-    { q: "Do I need a crypto wallet?", a: "A Solana wallet or an Arc (EVM) wallet to sign in and fund your account; $MIMIR perks need a linked Solana wallet. Staking itself only needs your passkey." },
+    { q: "Do I need a crypto wallet?", a: "A Solana wallet or an Arc (EVM) wallet to sign in and fund your account. Staking itself only needs your passkey." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -140,7 +140,7 @@ export default function DocsPage() {
         <DocsAccordion first="overview">
           <Section id="overview" eyebrow="01" title="Overview">
             <p className="m-0">
-              Three pieces: <strong className="text-cream">your Solana wallet</strong> holds your money and your $MIMIR,{" "}
+              Three pieces: <strong className="text-cream">your Solana wallet</strong> holds your money,{" "}
               <strong className="text-cream">Arc</strong> (Circle&apos;s stablecoin chain, where USDC is the gas) holds every
               market and every stake, and <strong className="text-cream">Mimir&apos;s backend</strong> runs the index, the oracle and the
               council beside the contracts.
@@ -163,7 +163,7 @@ export default function DocsPage() {
                 ["Sign-in", "A passkey. No seed phrase, no browser extension."],
                 ["Gas", "Sponsored by Circle Gas Station: you never hold gas money."],
                 ["Recovery", "A 12-word recovery phrase you save at sign-up adds a second owner. Lose the device, restore with the phrase."],
-                ["Link to Solana", "One signature from each side binds the account to your Solana wallet: points, holder perks and identity follow your Solana address."],
+                ["Link to Solana", "One signature from each side binds the account to your Solana wallet: points and identity follow your Solana address."],
                 ["Deposit", "USDC from Solana to Arc over Circle CCTP, about 15 seconds."],
                 ["Withdraw", "Back to your Solana wallet over CCTP, about 30 seconds."],
               ]}
@@ -173,7 +173,7 @@ export default function DocsPage() {
               in with an Arc wallet (MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect): link it to the passkey account with one signature each, then approve a
               spending cap once. Your USDC stays in your wallet; each stake draws just what it needs, in the same passkey prompt. Lower or revoke
               the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Entry is by invite code either way;
-              link a Solana wallet later for $MIMIR perks.
+              you can link a Solana wallet later.
             </p>
             <p className="m-0 text-[14px] text-muted">
               Set it up on the <Link href="/wallet" className={LINK}>wallet page</Link>.
@@ -237,10 +237,9 @@ export default function DocsPage() {
             <Facts
               rows={[
                 ["Entry fee", "0.5% of every stake (opening a market, a stake, an agent's stake). Kept on refunds."],
-                ["$MIMIR holders", "0.25% with 5M+, 0.1% with 10M+, read from your linked Solana wallet. The discount is a signed ticket valid 24 hours, applied in the same passkey prompt as your stake."],
                 ["Winnings", "No fee."],
                 ["Copy trades", "1% of the profit to the basket creator, 1% to Mimir. Copying is free."],
-                ["Deploying an agent", "$1, $0.50 with 5M+ $MIMIR, free with 10M+."],
+                ["Deploying an agent", "$1."],
                 ["Launched agents' creator fees", "10% to the platform, 10% to AI costs; the owner splits the other 80% (gas and bankroll, buyback and burn, payout, holder airdrops)."],
               ]}
             />
@@ -271,8 +270,7 @@ export default function DocsPage() {
           <Section id="launch" eyebrow="08" title="Mimir Launch">
             <p className="m-0">
               Launch an AI agent with its own token on pump.fun and two wallets: one on Arc that stakes on Mimir markets, one on
-              Solana that trades. Launching, an agent&apos;s full record and copy trading are for $MIMIR holders; anyone can buy an
-              agent&apos;s token.
+              Solana that trades. Anyone can launch an agent, see its full record, copy it and buy its token.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Card title="Launching">

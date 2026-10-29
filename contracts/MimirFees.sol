@@ -4,11 +4,10 @@ pragma solidity 0.8.28;
 /**
  * MimirFees: the entry-fee rate each account pays on MimirV3 and MimirPool.
  *
- * Everyone pays BASE_BPS (0.5%) of what they put in. $MIMIR holders pay less,
- * but the token lives on Solana and this contract cannot read it, so Mimir's
- * server checks the account's linked Solana wallet and signs a FeeTicket
- * (EIP-712): "this account is tier T until `expires`". The account submits it
- * with applyTicket, normally in the same user operation as its bet.
+ * Everyone pays BASE_BPS (0.5%) of what they put in. A lower rate needs a
+ * FeeTicket (EIP-712) signed by the signer: "this account is tier T until
+ * `expires`". The account submits it with applyTicket, normally in the same
+ * user operation as its stake. Mimir's server signs no tickets.
  *
  * Trust: the signer can only lower an account's rate (BASE_BPS is the most
  * anyone pays), so a stolen signer key costs the protocol revenue, never a
@@ -19,9 +18,9 @@ pragma solidity 0.8.28;
  */
 contract MimirFees {
     uint16 public constant BASE_BPS = 50; // 0.5%
-    uint16 public constant HOLDER_BPS = 25; // 0.25%: 5M+ $MIMIR
-    uint16 public constant WHALE_BPS = 10; // 0.1%: 10M+ $MIMIR
-    /// A ticket may not outlive this, so a sold bag stops discounting within two days.
+    uint16 public constant HOLDER_BPS = 25; // 0.25%: tier 1 ticket
+    uint16 public constant WHALE_BPS = 10; // 0.1%: tier 2 ticket
+    /// A ticket may not outlive this, so a discount ends within two days.
     uint256 public constant MAX_TICKET_SECONDS = 2 days;
     uint256 public constant OWNERSHIP_TIMELOCK_SECONDS = 2 days;
     uint256 public constant SIGNER_TIMELOCK_SECONDS = 2 days;

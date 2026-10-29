@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * One launch agent's page. Anyone sees its face, its token (live chart, a buy link) and its two wallets; its record,
- * trades and reasoning log are for $MIMIR holders (/api/launch/:id/detail checks the signed holder proof).
+ * One launch agent's page: its face, its token (live chart, a buy link), its two wallets, and its record, trades and
+ * reasoning log (/api/launch/:id/detail).
  */
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -10,7 +10,6 @@ import { useTranslations } from "next-intl";
 
 import { api } from "@/convex/_generated/api";
 import { ExternalMark } from "@/components/ExternalMark";
-import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
 import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
@@ -124,49 +123,36 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} venue={a.venue} /> : null}
       {!a.house && card && a.venue !== "robinhood" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} venue={meteora ? "Meteora" : "pump.fun"} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
-      <HolderSection slug={slug} />
+      <RecordSection slug={slug} />
     </div>
   );
 }
 
-function HolderSection({ slug }: { slug: string }) {
+function RecordSection({ slug }: { slug: string }) {
   const t = useTranslations("launch");
-  const { wallet, proven, canSign, prove } = useHolderTier();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [gate, setGate] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!wallet || !proven) return;
     let live = true;
-    fetch(`/api/launch/${slug}/detail`, { headers: holderProofHeaders(wallet) })
+    fetch(`/api/launch/${slug}/detail`)
       .then(async (res) => {
         const body = await res.json().catch(() => ({}));
         if (!live) return;
         if (res.ok) setDetail(body as Detail);
-        else setGate((body as { error?: string }).error ?? null);
+        else setError((body as { error?: string }).error ?? t("recordUnavailable"));
       })
-      .catch(() => undefined);
+      .catch(() => live && setError(t("recordUnavailable")));
     return () => {
       live = false;
     };
-  }, [wallet, proven, slug]);
+  }, [slug, t]);
 
   if (!detail) {
     return (
       <section className="grid justify-items-start gap-3 rounded-2xl bg-cream/[0.04] p-5">
         <h2 className="m-0 font-display text-[1.4rem] text-cream">{t("recordTitle")}</h2>
-        <p className="m-0 max-w-[60ch] text-[14px] text-muted">{gate ?? t("gate")}</p>
-        <div className="flex flex-wrap items-center gap-4">
-          {wallet && !proven && canSign ? (
-            <button type="button" onClick={() => void prove().catch(() => undefined)} className="btn-primary !w-auto !px-5">
-              {t("prove")}
-            </button>
-          ) : null}
-          {!wallet ? <span className="text-[14px] text-cream">{t("connect")}</span> : null}
-          <Link href="/token" className="text-[14px] text-coral hover:underline">
-            {t("getMimir")} →
-          </Link>
-        </div>
+        {error ? <p className="m-0 max-w-[60ch] text-[14px] text-muted">{error}</p> : <Skeleton className="h-16 w-full" />}
       </section>
     );
   }

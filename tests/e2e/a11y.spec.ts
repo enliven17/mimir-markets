@@ -15,7 +15,6 @@ const ROUTES = [
   "/en/council",
   "/en/agents",
   "/en/agents/new",
-  "/en/token",
   "/en/stats",
   "/en/calibration",
   "/en/baskets",

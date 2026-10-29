@@ -2,7 +2,7 @@
  * Who may open the admin panel, and how they prove it.
  *
  * Admins are the Solana wallets in ADMIN_WALLETS (comma list; empty or unset = nobody). Signing in is a fresh,
- * single-use challenge, not the 24-hour holder proof:
+ * single-use challenge, not the 24-hour wallet proof:
  *   1. GET /api/admin/nonce?wallet=W: for an admin wallet, a random nonce bound to the site's domain, valid 10 min.
  *   2. The wallet signs the exact message (adminLoginMessage) and POSTs it to /api/admin/session; the nonce is spent
  *      in the same step, and the request's Origin must be the domain the nonce was issued for.

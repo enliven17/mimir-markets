@@ -60,7 +60,7 @@ export const tick = internalAction({
           ? passingCandidates(candidates.filter((c) => t.config!.sources.includes(c.source) && !agent.state.positions.some((p) => p.mint === c.mint)), t.config.entry) : [];
         const scores = passing.length ? await createRanker(router, { maxCandidates: 6, onError: () => { aiIssue ||= "Preview AI is unavailable. New entries are waiting; exit rules remain active."; } }).rank({ thesis: agent.thesis, candidates: passing }) : new Map();
         const traded = tradeDemo(agent, candidates, scores, now);
-        if (agent.trading.enabled) recordDemoPrices(traded.state, candidates, snapshot.at, agent.benefits?.chartPoints);
+        if (agent.trading.enabled) recordDemoPrices(traded.state, candidates, snapshot.at);
         const eligible = agent.status === "live" && !traded.pause && agent.markets.enabled
           ? marketCandidates(snapshot.markets, agent.markets.rules, new Set(stakes.map((s) => `pool:${s.marketId}`)), Math.floor(now / 1000)).slice(0, 6) : [];
         const judged = eligible.length ? await judgeMarkets(router, agent.thesis, eligible, Math.floor(now / 1000), 6) : new Map();

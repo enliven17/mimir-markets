@@ -9,7 +9,7 @@
  * they do not, something is wrong. Flash Trade only serves the live price, so
  * it joins only when the oracle runs within minutes of the deadline.
  *
- * $ANSEM and the Mimir token (mainnet mints, lib/token-config.ts) are priced
+ * $ANSEM (a mainnet mint, lib/dex-tokens.ts) is priced
  * from DexScreener + Jupiter (lib/server/dex-prices.ts), plus CoinGecko where
  * listed; historical reads for them only have CoinGecko.
  *
@@ -28,7 +28,7 @@
 import type { PriceReading } from "../price-consensus";
 import { CHAINLINK_FEEDS, fetchChainlinkPrice } from "./chainlink";
 import { FLASH_CLAIM_SYMBOLS, getFlashPrice } from "../solana/flashtrade";
-import { dexMintFor } from "../token-config";
+import { dexMintFor } from "../dex-tokens";
 import { fetchDexReadings } from "./dex-prices";
 
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
@@ -233,7 +233,7 @@ export async function fetchPriceReadings(symbol: string, atMs?: number): Promise
 
 async function fetchAllReadings(symbol: string, atMs?: number): Promise<PriceReading[]> {
   const historical = atMs !== undefined && Date.now() - atMs > MAX_DEADLINE_SKEW_MS;
-  // $ANSEM / the Mimir token: mainnet DEX prices (live only), plus CoinGecko where listed.
+  // $ANSEM: mainnet DEX prices (live only), plus CoinGecko where listed.
   const mint = dexMintFor(symbol);
   if (mint) {
     const [dex, gecko] = await Promise.all([

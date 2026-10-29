@@ -17,7 +17,7 @@ import { organization, pageMeta, website } from "@/lib/seo";
 export const metadata = pageMeta({
   path: "/",
   title: "Mimir Markets · Prediction markets on any claim, settled by AI",
-  description: "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet and $MIMIR stay on Solana.",
+  description: "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet stays on Solana.",
 });
 
 

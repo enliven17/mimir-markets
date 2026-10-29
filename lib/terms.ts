@@ -29,7 +29,7 @@ export const TERMS: readonly TermsSection[] = [
   {
     title: "What Mimir is",
     points: [
-      "Mimir is open-source software for prediction markets: people stake on the outcome of a claim, and an AI oracle proposes the result from public evidence. Markets settle on Arc; wallets and $MIMIR are on Solana.",
+      "Mimir is open-source software for prediction markets: people stake on the outcome of a claim, and an AI oracle proposes the result from public evidence. Markets settle on Arc; wallets are on Solana.",
       "Mimir is a beta on Arc testnet. Stakes use test USDC with no monetary value. Contracts, data, balances and payouts can change or be reset at any time.",
       "Mimir does not hold your funds or keys. Your passkey stays on your device, your Solana wallet is yours, and transactions are signed by you.",
     ],

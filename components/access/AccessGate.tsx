@@ -3,7 +3,7 @@
 /**
  * Invite-only gate (mainnet launch; lib/access.ts). Off on testnet: renders the
  * page as is. On, a gated route first asks for a wallet, Solana or Arc, and one
- * signed proof (lib/token-proof.ts, or lib/arc/evm.ts for an Arc wallet); then
+ * signed proof (lib/wallet-proof.ts, or lib/arc/evm.ts for an Arc wallet); then
  * /api/access says whether the wallet is in, and anyone not in yet enters an
  * invite code. Browsing is never gated, only the screens that act (GATED). The
  * server enforces the same rule where it acts for a wallet (binding an Arc
@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { SURFACE } from "@/components/arena/surface";
 import { connectEvmWallet, evmProofHeaders, useEvmWallet } from "@/components/arc/useEvmWallet";
-import { holderProofHeaders, useHolderTier } from "@/components/token/useHolderTier";
+import { walletProofHeaders, useWalletProof } from "@/components/wallet/useWalletProof";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { usePathname } from "@/i18n/navigation";
 import { inviteOnly, type AccessStatus } from "@/lib/access";
@@ -34,14 +34,14 @@ const BTN_GHOST = "rounded-full px-5 py-2.5 text-[14px] text-cream shadow-[inset
  * belong to that address.
  */
 export function useAccess() {
-  const { wallet: solana, proven: solanaProven, canSign, prove } = useHolderTier();
+  const { wallet: solana, proven: solanaProven, canSign, prove } = useWalletProof();
   const evm = useEvmWallet();
   const via: "solana" | "arc" | null = solana && solanaProven ? "solana" : evm.address && evm.proof ? "arc" : null;
   const wallet = via === "solana" ? solana : via === "arc" ? evm.address : solana;
   const proven = via !== null;
   const [status, setStatus] = useState<AccessStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const proofHeaders = useCallback(() => (via === "solana" ? holderProofHeaders(solana) : via === "arc" ? evmProofHeaders() : {}), [via, solana]);
+  const proofHeaders = useCallback(() => (via === "solana" ? walletProofHeaders(solana) : via === "arc" ? evmProofHeaders() : {}), [via, solana]);
 
   const reload = useCallback(async () => {
     if (!via) return setStatus(null);
@@ -124,7 +124,7 @@ function Gate({ children }: { children: ReactNode }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid content-start justify-items-center gap-3 rounded-2xl bg-cream/[0.04] p-5 text-center">
           <p className="m-0 font-mono text-[11px] uppercase tracking-[0.18em] text-coral">Solana wallet</p>
-          <p className="m-0 text-[14px] leading-relaxed text-muted">Phantom, Solflare, Backpack. Your $MIMIR lives here.</p>
+          <p className="m-0 text-[14px] leading-relaxed text-muted">Phantom, Solflare, Backpack.</p>
           <ConnectWalletButton />
         </div>
         <div className="grid content-start justify-items-center gap-3 rounded-2xl bg-cream/[0.04] p-5 text-center">
@@ -243,7 +243,7 @@ export function InvitesPanel() {
   return (
     <section aria-label="Your invites" className={`${SURFACE} grid gap-3 p-5`}>
       <h2 className="m-0 text-[15px] text-cream">Your invite codes</h2>
-      <p className="m-0 text-[13px] text-muted">Each works once. The person you send it to does not need $MIMIR.</p>
+      <p className="m-0 text-[13px] text-muted">Each works once.</p>
       <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
         {a.status.invites.map((inv) => (
           <li key={inv.code} className="flex items-center justify-between gap-3 rounded-xl bg-panel px-4 py-3">

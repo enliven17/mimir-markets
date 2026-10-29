@@ -10,12 +10,9 @@
  * slow follower never holds up the agent, and a retried tick never copies twice. Each job (runSolBuy, runSolSell,
  * runArcCopy) runs on its own; a copy buy stores its signature before broadcast, so one that lands after a timeout is
  * settled by signature (reconcileCopyBuy) instead of being lost or bought again.
- * Holding $MIMIR is a condition of USING copy trading (lib/launch/copy-gate.ts): "no" pauses the subscription (no new
- * entries; what it holds still exits with the agent), "unknown" (an RPC hiccup) just skips this entry.
  * Runtime-agnostic: persistence goes through the stores below.
  */
 import type { Fill, TradeArgs } from "../ports";
-import type { Holding } from "../copy-gate";
 import type { Log } from "./log";
 
 /** A follower's copy buy never takes more slippage than this, whatever the agent uses. */
@@ -23,8 +20,6 @@ export const COPY_MAX_SLIPPAGE_BPS = 300;
 export const MIN_COPY_LAMPORTS = 10_000_000n; // 0.01 SOL
 /** Left in an Arc copy wallet for its own gas. */
 export const COPY_GAS_RESERVE_USDC = 0.05;
-
-export type HoldsCheck = (follower: string) => Promise<Holding>;
 
 // ---------------- fan-out: the agent's tick hands its fill to the followers ----------------
 
@@ -98,23 +93,16 @@ export type CopyJobStore = {
   /** Production guard: fresh quote checks, then an atomic follower-wide cost reservation. */
   reserveRisk?(job: Extract<SolJob, { kind: "buy" }>, amount: bigint): Promise<string | null>;
   finish(key: string, status: JobStatus, note?: string): Promise<void>;
-  pauseForGate(subId: string): Promise<void>;
 };
 
 /** True when the error proves nothing landed (a rejected preflight, or a landed tx that failed). */
 const provablyNotLanded = (err: unknown) => (err as { notLanded?: boolean })?.notLanded === true || (err as { name?: string })?.name === "TxFailedError";
 const short = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 200);
 
-export async function runSolBuy(store: CopyJobStore, executor: SolExec, holds: HoldsCheck, log: Log, job: Extract<SolJob, { kind: "buy" }>): Promise<JobStatus> {
+export async function runSolBuy(store: CopyJobStore, executor: SolExec, log: Log, job: Extract<SolJob, { kind: "buy" }>): Promise<JobStatus> {
   if (!(await store.claim(job.key, job.sub, "buy"))) return "skipped";
   const s = await store.solSub(job.sub);
   if (!s || !s.active || !s.on) return finish(store, job.key, "skipped", "not copying");
-  const h = await holds(s.follower);
-  if (h === "no") {
-    await store.pauseForGate(s.id);
-    return finish(store, job.key, "skipped", "no $MIMIR: paused");
-  }
-  if (h === "unknown") return finish(store, job.key, "skipped", "could not read $MIMIR");
   const have = await executor.spendable(s.wallet);
   const lamports = have < s.maxPerTradeLamports ? have : s.maxPerTradeLamports;
   if (lamports < MIN_COPY_LAMPORTS) return finish(store, job.key, "skipped", "copy wallet short");
@@ -221,11 +209,10 @@ export function arcCopyAmount(capUsdc: number, balanceUsdc: number, minStakeUsdc
 }
 
 export type ArcCopyDeps = {
-  store: Pick<CopyJobStore, "claim" | "finish" | "pauseForGate"> & { arcSub(subId: string): Promise<ArcSubRow | null> };
+  store: Pick<CopyJobStore, "claim" | "finish"> & { arcSub(subId: string): Promise<ArcSubRow | null> };
   balanceUsdc(wallet: string): Promise<number>;
   /** Stakes `amountUsdc` on pool `marketId`, side `side`, from the copy wallet; returns the tx hash. */
   stake(a: { walletId: string; marketId: number; side: number; amountUsdc: number }): Promise<string>;
-  holds: HoldsCheck;
   log: Log;
   minStakeUsdc: number;
 };
@@ -239,12 +226,6 @@ export async function runArcCopy(d: ArcCopyDeps, job: { key: string; sub: string
   const done = async (status: JobStatus, note?: string) => (await d.store.finish(job.key, status, note), status);
   const s = await d.store.arcSub(job.sub);
   if (!s || !s.active || !s.on) return done("skipped", "not copying");
-  const h = await d.holds(s.follower);
-  if (h === "no") {
-    await d.store.pauseForGate(s.id);
-    return done("skipped", "no $MIMIR: paused");
-  }
-  if (h === "unknown") return done("skipped", "could not read $MIMIR");
   let amount: number;
   try {
     amount = arcCopyAmount(s.maxPerStakeUsdc, await d.balanceUsdc(s.wallet), d.minStakeUsdc);

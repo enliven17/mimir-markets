@@ -2,7 +2,7 @@
  * Live USD prices for Solana mainnet SPL / Token-2022 tokens from keyless DEX
  * aggregators: DexScreener (pair data) and Jupiter (its price API).
  *
- * Used for $ANSEM and the Mimir token, which no oracle network or CEX feed
+ * Used for $ANSEM, which no oracle network or CEX feed
  * covers. The two services index overlapping pools, so they are two readers
  * of the same market rather than two markets; they still catch a stale or
  * broken reading on either side, which is what the settlement cross-check

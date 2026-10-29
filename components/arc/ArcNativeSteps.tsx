@@ -2,8 +2,7 @@
 
 /**
  * /wallet, signed in with an Arc wallet (lib/arc/evm.ts): connect the wallet, create or log in to the passkey account,
- * link the two, then set a spending cap so stakes draw USDC straight from the wallet. Optional: link a Solana wallet
- * for $MIMIR perks.
+ * link the two, then set a spending cap so stakes draw USDC straight from the wallet.
  */
 import { useCallback, useEffect, useState } from "react";
 import { parseUnits, type Address } from "viem";
@@ -177,12 +176,12 @@ export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
       ) : null}
 
       {w.session && w.evmLinked ? (
-        <section aria-labelledby="arc-native-perks" className={`${SURFACE} !overflow-visible grid gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-native-perks" className="m-0 text-[1.2rem] leading-none text-cream">
-            Link a Solana wallet for $MIMIR perks
+        <section aria-labelledby="arc-native-solana" className={`${SURFACE} !overflow-visible grid gap-3 p-5 sm:p-6`}>
+          <h2 id="arc-native-solana" className="m-0 text-[1.2rem] leading-none text-cream">
+            Link a Solana wallet
           </h2>
           <p className="m-0 max-w-[62ch] text-[14px] text-muted">
-            Hold $MIMIR on Solana? Link that wallet to this account and its balance lowers your entry fee. Optional: everything else works without it.
+            Already use a Solana wallet on Mimir? Link it to this account. Optional: everything works without it.
           </p>
           <div className="wallet-anchor-start justify-self-start">
             <ConnectWalletButton />

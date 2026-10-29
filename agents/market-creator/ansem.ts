@@ -14,7 +14,7 @@
 import { MAX_SOURCE_SPREAD, type PriceReading } from "../../lib/price-consensus";
 import { priceSpecFromQuestion, withResolverFragment } from "../../lib/resolver-spec";
 import { fetchDexReadings } from "../../lib/server/dex-prices";
-import { ansemMint, dexSourceUrl } from "../../lib/token-config";
+import { ansemMint, dexSourceUrl } from "../../lib/dex-tokens";
 import { toDeadline, type DraftClaim } from "./draft";
 
 /**

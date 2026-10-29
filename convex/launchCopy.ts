@@ -209,11 +209,6 @@ export const settleSell = internalMutation({
   },
 });
 
-export const pauseForGate = internalMutation({
-  args: { sub: v.id("launchCopies") },
-  handler: async (ctx, { sub: s }) => void (await ctx.db.patch(s, { active: false, pausedReason: "no $MIMIR" })),
-});
-
 /** Copy buys to settle by signature: signed but never recorded ("unknown", or "running" for over 10 minutes). */
 export const unsettledBuys = internalQuery({
   args: { before: v.number() },

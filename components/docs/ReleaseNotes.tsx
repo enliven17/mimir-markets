@@ -23,12 +23,12 @@ const RELEASES: Release[] = [
   {
     date: "October 26, 2026",
     title: "Records, copy controls and discovery",
-    intro: "Inspect an agent's public execution evidence, test two settings with virtual funds, and follow markets through their resolution. Six connected improvements across Launch, Preview, the Arena and $MIMIR.",
+    intro: "Inspect an agent's public execution evidence, test two settings with virtual funds, and follow markets through their resolution. Five connected improvements across Launch, Preview and the Arena.",
     sections: [
       { title: "Public agent records", points: [
         "Launched agents show 7/30/90-day confirmed execution counts, realized trading PnL, return on closed token cost and explorer links before the token chart. Public Arc position outcomes are shown separately in USDC, including on council pages.",
         "Open position cost and realized PnL drawdown are named explicitly. They are not current market value or portfolio equity drawdown. Pending fills and simulated returns do not enter the real execution record; capped histories are labelled.",
-        "Paused and shut-down hosted agents remain in the directory. Detailed reasoning remains a $MIMIR benefit.",
+        "Paused and shut-down hosted agents remain in the directory.",
       ] },
       { title: "Shared Solana copy controls", points: [
         "Set a token cost cap, total open-cost cap, daily realized-loss cap and realized-PnL drawdown cap across your Solana copy subscriptions. Pending buys reserve the executor's spend ceiling, including fee headroom, atomically.",
@@ -43,10 +43,6 @@ const RELEASES: Release[] = [
       { title: "Council radar and watchlists", points: [
         "/radar compares each persona's latest explicit direction. Read-only council forecasts run even with betting disabled, share the existing per-tick attempt budget, and never change stake decisions. Personas can share models and sources; counts are not independent probabilities.",
         "Follow public markets, topics, agent forecasts and checkpoint series with a wallet signature. Your private in-app watchlist shows new forecasts, side changes, changed source evidence, hosted-agent stakes and market state changes. Followed markets receive a closing-soon reminder while the feed is open.",
-      ] },
-      { title: "Measurable $MIMIR benefits", points: [
-        "/token shows verified indexed pool entry-fee savings against a 0.5% baseline, current fee eligibility and Preview usage. Unmatched fee evidence, VS entries, gas and copy profit fees are excluded.",
-        "New Preview sessions receive per-agent daily AI caps of 6 / 8 / 10 / 12 and chart histories of 144 / 288 / 576 / 864 observed points for Standard / Holder / Backer / Oracle Circle. Verified $MIMIR holdings set the session tier; global AI budgets still apply.",
       ] },
       { title: "Daily checkpoints and a clearer start", points: [
         "SOL and BTC checkpoint templates reuse a machine-readable price rule and a 12:00 UTC deadline. The Arena points to an existing matching pool; a new occurrence always needs a reviewed signature and stake.",
@@ -66,7 +62,6 @@ const RELEASES: Release[] = [
           "Pick Pons on the first step of /launch/new. The agent gets a wallet on Robinhood Chain and one on Arc; it needs no Solana wallet.",
           "Connect your Robinhood Wallet (or any EVM wallet) and send the seed ETH from it. 0.001 ETH covers the Pons launch fee and gas; the rest is its bankroll.",
           "Its token launches on Pons from the agent's own wallet, on a bonding curve that moves into a Uniswap v4 pool once 4.2 ETH is raised.",
-          "Launching still needs $MIMIR in the Solana wallet you sign with.",
         ],
       },
       {
@@ -125,13 +120,6 @@ const RELEASES: Release[] = [
           "/agents and /council are now one page: /launch.",
         ],
       },
-      {
-        title: "Who can use it",
-        points: [
-          "Launching an agent, seeing an agent's full record (PnL, win rate, trades, reasoning log) and copy trading need $MIMIR in your wallet.",
-          "Anyone can buy an agent's own token and see its face, chart and wallets.",
-        ],
-      },
     ],
   },
   {
@@ -154,8 +142,7 @@ const RELEASES: Release[] = [
         title: "How to get in",
         points: [
           "Mainnet opens invite-only.",
-          "A wallet holding at least 5,000,000 $MIMIR gets in directly.",
-          "Everyone else needs an invite code from a member. Every member gets 2 codes to share.",
+          "You need an invite code from a member. Every member gets 2 codes to share.",
         ],
       },
       {

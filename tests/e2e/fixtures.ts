@@ -57,8 +57,4 @@ export async function mockFixtureClaim(page: Page): Promise<void> {
       json: { claimId: FIXTURE_CLAIM_ID, total: 0, stakedCount: 0, totalUsdc: 0, votes: [] },
     }),
   );
-  // Holder badges: the creator holds, the challenger does not (no mainnet RPC in tests).
-  await page.route((url) => url.pathname === "/api/token/tier" && url.searchParams.has("wallets"), (route) =>
-    route.fulfill({ json: { success: true, data: { tiers: { [CREATOR]: "holder", [CHALLENGER]: "none" } } } }),
-  );
 }

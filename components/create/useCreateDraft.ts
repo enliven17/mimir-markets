@@ -17,7 +17,7 @@ import { mentionsPastDay } from "@/lib/past-date";
 import { txErrorMessage } from "@/lib/tx-errors";
 import { deterministicPriceOption } from "@/lib/resolver-spec";
 import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl } from "@/lib/solana/flashtrade";
-import { dexMintFor, dexSourceUrl } from "@/lib/token-config";
+import { dexMintFor, dexSourceUrl } from "@/lib/dex-tokens";
 import { draftOutcomeSidesFromQuestion } from "@/lib/outcomeDraft";
 import { parseCreatePrefill } from "@/lib/create-prefill";
 import type { PreflightDraft } from "@/components/council/CouncilPreflight";

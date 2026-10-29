@@ -7,7 +7,6 @@
 import { api } from "@/convex/_generated/api";
 import { normalizeAddress } from "@/lib/agents/signature";
 import { checkKey } from "@/lib/launch/byok";
-import { holdsMimir } from "@/lib/launch/copy-gate";
 import { CreateBody, create } from "@/lib/launch/flow";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { agentWalletPolicy } from "@/lib/launch/solana/policy";
@@ -35,10 +34,6 @@ export async function POST(req: Request) {
   const g = await readSigned(req, "create", "new", 800_000);
   if (!g.ok) return g.res;
   if (!(await allowRequest("launch-create", g.owner, 5, 60 * 60_000))) return fail(429, "Too many agents this hour.");
-  // Launching is for $MIMIR holders (the agent's own token is a separate buy).
-  const holds = await holdsMimir(g.owner);
-  if (holds === "unknown") return fail(503, "Could not read your $MIMIR balance. Try again.");
-  if (holds === "no") return fail(403, "Hold $MIMIR to launch an agent.");
   const parsed = CreateBody.safeParse(g.body);
   if (!parsed.success) return fail(400, parsed.error.issues[0]?.message ?? "Invalid agent.");
   const c = launchCx();

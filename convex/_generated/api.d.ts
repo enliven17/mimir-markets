@@ -43,7 +43,6 @@ import type * as launchMarketsDb from "../launchMarketsDb.js";
 import type * as launchRh from "../launchRh.js";
 import type * as launchSol from "../launchSol.js";
 import type * as launchSolDb from "../launchSolDb.js";
-import type * as tokenBenefits from "../tokenBenefits.js";
 
 import type {
   ApiFromModules,
@@ -87,7 +86,6 @@ declare const fullApi: ApiFromModules<{
   launchRh: typeof launchRh;
   launchSol: typeof launchSol;
   launchSolDb: typeof launchSolDb;
-  tokenBenefits: typeof tokenBenefits;
 }>;
 
 /**

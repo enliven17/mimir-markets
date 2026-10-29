@@ -17,7 +17,6 @@ export async function allowLlmRequest(args: {
   perKey: number;
   globalEnv: string;
   globalDefault: number;
-  pool?: string;
 }): Promise<boolean> {
   if (!(await allowRequest(args.bucket, args.key, args.perKey, 60_000))) return false;
   const global = envLimit(args.globalEnv, args.globalDefault);
@@ -25,7 +24,7 @@ export async function allowLlmRequest(args: {
   // addresses cannot lock everyone else out of it.
   const share = Math.max(args.perKey, Math.ceil(global / 5));
   if (!(await allowRequest(`${args.bucket}-net`, networkOf(args.key), share, 60_000))) return false;
-  return allowRequest(`${args.bucket}-global`, args.pool ?? "all", global, 60_000);
+  return allowRequest(`${args.bucket}-global`, "all", global, 60_000);
 }
 
 /** claim-draft body: a source URL (it becomes the on-chain resolution URL) and a locale. */

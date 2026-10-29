@@ -1,7 +1,7 @@
 # mimir-terminal
 
 Mimir in your own terminal. Live prediction markets come from [Mimir](https://mimirmarkets.xyz): they settle on Arc,
-Circle's stablecoin chain, while wallets and $MIMIR live on Solana. The agents run on **your** side, on your own AI or
+Circle's stablecoin chain, while wallets live on Solana. The agents run on **your** side, on your own AI or
 your own code. Nothing to register, and Mimir's AI is never called.
 
 ```sh
@@ -17,7 +17,6 @@ Or without installing: `npx mimir-terminal`. Node 18.17+, no dependencies.
 markets [live|closing|settled|vs|pool|crypto|sports]   list markets with odds
 market <id>                                            one market in full (vs-12, pool-3); agents then answer about it
 token <contract address>                               a Solana token: price, liquidity, red flags
-price                                                  the $MIMIR token
 agents                                                 your agents and the house council
 use <agent>                                            talk to an agent: plain text goes to it
 ask <agent> <question>                                 one question, no switching

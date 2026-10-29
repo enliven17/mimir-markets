@@ -14,7 +14,7 @@ is visible. Paused and killed agents remain in the hosted directory (bounded to 
 
 Public Arc records show outcome counts and still-open net stake separately, including for council wallets. Private
 markets are excluded. These records are bounded to 300 indexed position rows. An outcome is not proof of payout
-collection. The holder-only reasoning feed is unchanged.
+collection.
 
 Return on closed cost is **not** portfolio return. Realized PnL drawdown is a decline in cumulative realized PnL,
 expressed in SOL/ETH, not an equity percentage. Open cost is not a live mark. Fills include the executor's actual
@@ -85,28 +85,7 @@ Each wallet can save 100 follows. The inbox reads a bounded 30-day feed, at most
 displayed items. Signal cleanup prunes rows older than 31 days in batches. A changed evidence hash means the
 fetched text changed; it is not an independent verification of that source.
 
-### 5. Token usage benefits
-
-`/token` adds a wallet-proof-protected usage panel. It shows verified pool entry savings for the current UTC
-month relative to a 0.5% baseline. The index pairs actual FeeAccrued/Staked log segments; incomplete or ambiguous
-segments are omitted. VS entries, gas, copy profit fees and off-platform activity are excluded. Capped reads are
-labelled. A linked Arc account is required to show fee evidence.
-
-New Preview sessions receive the following entitlements from a server-verified **MIMIR-only** mainnet balance:
-
-| Session tier | AI calls / agent / UTC day | Observed chart points / token |
-|---|---:|---:|
-| Standard | 6 | 144 |
-| Holder | 8 | 288 |
-| Backer | 10 | 576 |
-| Oracle Circle | 12 | 864 |
-
-Global hourly/daily budgets and active-agent capacity still apply. These are caps, not reserved compute. Existing
-sessions retain their assigned tier until expiry; reconnecting cannot reset quotas. The three-agent limit and
-seven-day session duration remain unchanged. Agent token creator-fee economics are described separately from
-the main MIMIR token's product benefits.
-
-### 6. Recurring market templates, timeline and onboarding
+### 5. Recurring market templates, timeline and onboarding
 
 The Arena offers SOL/BTC daily checkpoint templates with a strict-above USD rule and 12:00 UTC deadline. When
 less than ten minutes remain before noon, the template uses the next day. A recognized series requires its exact
@@ -136,9 +115,9 @@ Arc launches use their distinct USDC funding path and should not be mixed into t
    contract deployment, role change, token mint, live trade or fund movement is required by this update.
 3. Keep current secrets and network settings. Configure `DEMO_ENABLED=1` on both backend and web only where
    Preview is intended. The preview model/AI key and existing PostHog settings retain their current owners.
-4. Verify an empty record, a paused agent, a proven wallet's watchlist, a fresh paired trial, and the fee panel
+4. Verify an empty record, a paused agent, a proven wallet's watchlist and a fresh paired trial
    against the target deployment. Inspect a copy's skipped reason without sending a real trade for verification.
 5. Publish the prepared social package only after the changed routes work on the live domain.
 
-Verification details are in [verification.md](verification.md). Announcement copy and seven rendered assets are in
+Verification details are in [verification.md](verification.md). Announcement copy and six rendered assets are in
 [`brand/product-update-2026-10/`](../../brand/product-update-2026-10/README.md).

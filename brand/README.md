@@ -71,10 +71,10 @@ Licences are in `source/fonts/`.
 
 - Plain and specific. Say what happens: "Stake USDC on a claim. The AI oracle settles it."
 - The line: **Don't argue. Settle.**
-- Name the networks as users meet them: markets settle on Arc; your wallet and $MIMIR live on Solana. Always name
+- Name the networks as users meet them: markets settle on Arc; your wallet lives on Solana. Always name
   both.
 - Say "the backend" or "Mimir's backend", never the vendors behind it.
-- No price talk, no promises of returns, no "to the moon". $MIMIR lowers fees and opens access; say that.
+- No price talk, no promises of returns, no "to the moon".
 - Numbers are real or marked as examples.
 
 ## Rendering

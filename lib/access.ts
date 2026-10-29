@@ -2,19 +2,13 @@
  * Invite-only access (mainnet launch). Open to everyone on testnet; invite-only
  * on mainnet unless NEXT_PUBLIC_INVITE_ONLY says otherwise ("1" forces it on,
  * "0" off). A wallet (Solana, or an Arc wallet for native Arc sign-in) gets in
- * by redeeming an invite code; $MIMIR buys fee perks, not entry. Wallets let in
- * earlier for holding $MIMIR keep their access. Everyone who is in gets
+ * by redeeming an invite code; grants made earlier keep their access. Everyone who is in gets
  * invitesPerUser() codes of their own; raising MIMIR_INVITES_PER_USER later
  * (2 → 3) tops every member up on their next visit. Pure and isomorphic.
  */
 export function invitesPerUser(env: Record<string, string | undefined> = process.env): number {
   const n = Number(env.MIMIR_INVITES_PER_USER?.trim());
   return Number.isInteger(n) && n >= 0 && n <= 50 ? n : 2;
-}
-
-export function accessMinMimir(env: Record<string, string | undefined> = process.env): number {
-  const n = Number(env.MIMIR_ACCESS_MIN?.trim());
-  return Number.isFinite(n) && n > 0 ? n : 5_000_000;
 }
 
 export function inviteOnly(network: string, flag: string | undefined): boolean {
@@ -35,10 +29,9 @@ export function normalizeInvite(input: string): string | null {
 export interface AccessStatus {
   inviteOnly: boolean;
   allowed: boolean;
-  via: "open" | "holder" | "invite" | null;
+  via: "open" | "invite" | null;
   /** This member's own codes (empty until they are in). */
   invites: Array<{ code: string; used: boolean }>;
-  minMimir: number;
   /** When this member's codes unlock (ms), while they are still locked; null once unlocked or not a member. */
   invitesUnlockAt?: number | null;
 }

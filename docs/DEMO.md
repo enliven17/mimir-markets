@@ -17,7 +17,7 @@ performance. The current paper results and real quote-based activity are display
 After a verified wallet creates an agent, a popup explains how to go live. It also explains the exhausted allowance after
 the third agent. **Deploy as a real agent** loads that wallet's own agent from the current session and opens live
 Launch directly on the review step, preserving identity, thesis, avatar, chain, market rules and trading risk
-settings. Virtual balances and trade history do not transfer. The existing invite/holder requirements, wallet
+settings. Virtual balances and trade history do not transfer. The existing wallet
 signatures, funding and token deployment flow still apply.
 
 ## Enable
@@ -111,7 +111,7 @@ provider-side monetary limit on the separate demo key for an additional spending
 
 All demo data lives in `demoSessions`, `demoAgents`, `demoStakes`, `demoBaskets` and `demoControl`. The paper worker
 does not import any wallet creation, signer, transaction executor, fee payout or copy execution modules. The live
-launch, token gates, live markets and real basket routes retain their existing authorization.
+launch, live markets and real basket routes retain their existing authorization.
 
 Node tests cover the real backend handlers against an indexed in-memory adapter, paper accounting, risk exits,
 settlements, session ownership, quotas, concurrency/version checks and AI request ceilings. Browser tests exercise

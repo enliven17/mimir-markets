@@ -4,7 +4,7 @@
  *                                               fund and their balances (public chain data; no wallet ids).
  * POST /api/launch/:id/copy                     signed by the follower: { solana?: {on, maxPerTradeSol},
  *                                               arc?: {on, maxPerStakeUsdc}, active }. Makes a side's copy wallet the
- *                                               first time it is turned on. $MIMIR holders only.
+ *                                               first time it is turned on.
  */
 import { z } from "zod";
 
@@ -13,7 +13,6 @@ import { normalizeAddress } from "@/lib/agents/signature";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
-import { holdsMimir } from "@/lib/launch/copy-gate";
 import { copyKeyFor } from "@/lib/launch/copy-key";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { copyTradeWalletPolicy } from "@/lib/launch/solana/policy";
@@ -89,12 +88,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { solana, arc, active } = parsed.data;
   if (solana?.on && !can.solana) return fail(400, "This agent does not trade on Solana.");
   if (arc?.on && !can.arc) return fail(400, "This agent does not stake on markets.");
-  // Copying is for $MIMIR holders; stopping never needs it.
-  if (active) {
-    const holds = await holdsMimir(g.owner);
-    if (holds === "unknown") return fail(503, "Could not read your $MIMIR balance. Try again.");
-    if (holds === "no") return fail(403, "Hold $MIMIR to copy an agent.");
-  }
   const key = copyKeyFor(id);
   try {
     const cur = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: key, follower: g.owner });

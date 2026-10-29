@@ -13,7 +13,7 @@ interface IMimirFees {
  * Fees:
  *   - An entry fee on every stake that opens or joins a claim (create,
  *     rematch, challenge): MimirFees.entryBps(msg.sender) of the amount sent,
- *     0.5% by default and less for $MIMIR holders with a signed ticket. The
+ *     0.5% by default and less with a signed ticket. The
  *     rest is the stake. The fee is earned on entry and kept on refunds.
  *   - No fee on winnings, except on copy trades: a position opened with a
  *     `referrer` (the basket creator it copies) pays REFERRER_FEE_BPS of its

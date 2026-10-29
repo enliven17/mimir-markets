@@ -62,18 +62,16 @@
   - JSON resolver'ı host allowlist'iyle sınırla (ESPN, gamma-api.polymarket.com, coingecko). Diğer host'larda spec'i yok say ve LLM yoluna düş (75 cap ile).
   - `>`, `>=`, `<`, `<=` için `Number.isFinite(Number(actual))` şartı koy; değilse `determined:false`.
 
-### P0-4. DEX fiyatlı token'lar ($ANSEM, $MIMIR) manipüle edilebilir; price resolver'da spread ve freshness kontrolü yok (✓)
+### P0-4. DEX fiyatlı token'lar ($ANSEM) manipüle edilebilir; price resolver'da spread ve freshness kontrolü yok (✓)
 - **Nerede:**
   - `lib/resolver-spec.ts:109-120` (`evaluatePriceSpec`): yalnızca "≥2 okuma aynı tarafta mı" kontrolü var. Sonuç LLM'siz 95 güvenle settle ediliyor.
   - `lib/server/dex-prices.ts:18`: `MIN_LIQUIDITY_USD = 1_000`.
   - DexScreener, Jupiter ve CoinGecko bu memecoin'ler için aynı havuzları okuyor. Okumalar bağımsız değil.
 - **Senaryo:** Oracle 30 saniyede bir poll ediyor. Deadline civarında yapılacak tek bir swap, eşiği istenen tarafa iter.
-- **$MIMIR:** Operatörün kendi token'ı üzerine market açmak açık bir conflict of interest.
 - **Fix:**
   - DEX token'larında structured resolver'ı kapat ya da TWAP kullan (≥15–30 dk, Pyth/Switchboard veya birden fazla havuz).
   - Likidite tabanını pot büyüklüğüne bağla.
   - `evaluatePriceSpec`'e `MAX_SOURCE_SPREAD` ve `MAX_READING_AGE_MS` filtrelerini ekle.
-  - $MIMIR claim'lerini yasakla.
 
 ### P0-5. `HEDGE_MODE` fail-open ve dış servisin kurduğu tx kör imzalanıyor (✓)
 - **Nerede:** `agents/oracle/solana.ts:73, 302, 334-346`.
@@ -93,7 +91,6 @@
 - **Nerede:** `lib/server/rate-limit.ts:72-75` header'daki ilk (istemcinin kontrol ettiği) değeri alıyor. `lib/llm.ts:90-91`: council'e ayrı key verilmezse `GEMINI_API_KEY` kullanılıyor.
 - **Risk:** Rastgele XFF gönderilerek sınırsız istek atılabilir. Etkilenen route'lar:
   - `claim-moderation`, `claim-draft`, `council/*`: LLM maliyeti, ve oracle'ın kotası tükenince settlement gecikmesi.
-  - `token/tier`: mainnet RPC kredisi.
   - Agent register spam'i.
 - **Fix:**
   - Railway'in güvenilir header'ını kullan (proxy'nin eklediği en sağdaki değer veya `X-Real-IP`; dokümanla teyit et).
@@ -207,8 +204,7 @@
 | P2-4 | Rule persona'lar (contrarian, whale-watcher) sock challenger ile tuzağa düşürülebiliyor. | `persona-rules.ts:43-101` | Mainnet'te kapat ya da yalnızca house market'lerinde çalıştır. |
 | P2-5 | Dispute yalnızca console'a log'lanıyor. Bundle kaydı başarısız olsa da propose ediliyor. | `oracle/lifecycle.ts:53-58`, `solana.ts:183-185` | Bundle yoksa propose etme. DISPUTED için Telegram veya PagerDuty alarmı. |
 | P2-6 | CSP'de `script-src` yok. Bugün XSS sink'i yok, ama bu bir cüzdan uygulaması. | `next.config.js:15-22` | Report-Only ile başla: `script-src 'self' 'nonce-…'; object-src 'none'; base-uri 'self'`, sonra enforce et. |
-| P2-7 | Agent ID'lerinde rezerve isim yok (`socrates`, `oracle`, `mimir`). Kayıt gate'i varsayılan 0. | `lib/agents/api.ts:68`, `baskets-performance.ts:34-45` | Rezerve liste ekle; mainnet'te `AGENT_REGISTER_MIN_*` değerlerini aç. |
-| P2-8 | `rateIdentity` rate-limit'ten önce mainnet RPC çağırıyor. | `lib/server/holder.ts:31-57` | Önce IP limiti, sonra proof. |
+| P2-7 | Agent ID'lerinde rezerve isim yok (`socrates`, `oracle`, `mimir`). | `lib/agents/api.ts:68`, `baskets-performance.ts:34-45` | Rezerve liste ekle. |
 | P2-9 | Webhook teslimi indexer döngüsünü bloke ediyor (event başına ~21 sn). | `lib/server/notifications.ts` | Asenkron kuyruk ve devre kesici. |
 | P2-10 | Agent bütçe kontrolünde race condition; `dispute` bond'u bütçeye sayılmıyor. | `app/api/agents/v1/[action]/route.ts`, `registry.ts:333` | Atomik sayaç; dispute'u `STAKING_ACTIONS`'a ekle. |
 | P2-11 | Copy takipçi limitleri executor'ın kendi raporuna dayanıyor. | `app/api/copy/signals/route.ts` | Prepare aşamasında geçici harcama kaydı yaz. |
@@ -269,7 +265,7 @@ Dört turda düzeltildi; ikinci turdan sonra bağımsız bir inceleme yapıldı 
 | P0-1 | Kod tarafı kapandı | Web süreci private key yüklemiyor. `start:web` ve `start:workers` ayrı, `start:all` mainnet'te reddediliyor. Creator, persona (`COUNCIL_KEY_SEED`) ve hedge (`HEDGE_KEYPAIR`) anahtarları admin/oracle'dan ayrı; mainnet'te eşitlik ya da eksiklik varsa süreç hata fırlatıyor. `initialize.ts` oracle veya fee recipient == admin ise reddediyor. `admin.ts`'te `propose-admin` (Squads için) ve queue komutları var. **Ops tarafında kalan:** Squads multisig devri, Railway'i iki servise bölmek, KMS. |
 | P0-2 | Kapandı | Persona'lar yalnızca API evidence'ında stake ediyor ve `applyFetcherTrust` uygulanıyor. Bot UA'ları tarayıcı UA'sı oldu. Deadline öncesi evidence hash'i eklenmedi. |
 | P0-3 | Kapandı | JSON resolver yalnızca ESPN'de çalışıyor. Maç tamamlanmış olmalı ve claim açıldıktan sonra başlamış olmalı; tipler uyuşmazsa sonuç `determined:false`. Polymarket yalnızca slug ile, market bağlamasıyla (bitiş tarihi, kapanış zamanı, soru eşleşmesi) ve UMA çözümüyle settle ediliyor. Gamma ve CoinGecko JSON yolu kapalı. |
-| P0-4 | Kapandı | DEX token'ları structured resolver'a girmiyor. Likidite tabanı 250k. Spread ve freshness kontrolü var. $MIMIR claim'i yasak; $ANSEM mainnet'te varsayılan olarak kapalı. TWAP yok. |
+| P0-4 | Kapandı | DEX token'ları structured resolver'a girmiyor. Likidite tabanı 250k. Spread ve freshness kontrolü var. $ANSEM mainnet'te varsayılan olarak kapalı. TWAP yok. |
 | P0-5 | Kapandı | `HEDGE_MODE` strict parse ediliyor, mainnet'te varsayılan `off`, `live` için açık onay gerekiyor. Ayrı hedge cüzdanı var. Tx kontrolü: program allowlist'i, tek Flash instruction, priority fee tavanı, yalnızca kendi ATA'sı. Yön spec'ten alınıyor. **Pozisyon kapatma mantığı yok.** |
 | P0-6 | Kapandı (? Railway header davranışı) | `TRUSTED_PROXY_HOPS`, global LLM tavanları (bellek modunda flood ile sıfırlanamıyor), oracle LLM key'i ayrı; web, oracle key'iyle aynı olan key'i reddediyor. |
 | P0-7 | Kapandı | Mainnet'te devnet varsayılanı yok; build guard ve USDC mint kontrolü var. Keyli `NEXT_PUBLIC_` RPC reddediliyor. Explorer linkleri cluster'a göre. Agent'lara yalnızca bilinen public RPC'ler dönüyor. Script'ler `--mainnet`/`--yes` istiyor. `getGenesisHash` doğrulaması yok. |
@@ -288,7 +284,7 @@ Dört turda düzeltildi; ikinci turdan sonra bağımsız bir inceleme yapıldı 
 | P2-3, P2-4 | Kapandı | Envanter yalnızca house claim'lerini sayıyor. Rule persona'lar yalnızca house market'lerinde çalışıyor ve mainnet'te kapalı. |
 | P2-5 | Kapandı | Bundle kaydedilemezse propose yok. DISPUTED durumu `ALERT_WEBHOOK_URL`'e bildiriliyor. |
 | P2-6 | Report-only | Nonce'lu CSP report-only modunda; enforce etmeden önce ihlal raporları izlenmeli. |
-| P2-7 … P2-12 | Kapandı | Homoglyph ve leet yazımlı rezerve isimler, rate limit sırası, webhook kuyruğu, atomik bütçe, kilitli copy rezervasyonu (rezervasyon 7 gün geçerli), CI permissions ve SHA pin'leri. |
+| P2-7 … P2-12 | Kapandı | Homoglyph ve leet yazımlı rezerve isimler, webhook kuyruğu, atomik bütçe, kilitli copy rezervasyonu (rezervasyon 7 gün geçerli), CI permissions ve SHA pin'leri. |
 | P2-13 | Kısmi | `npm audit` 23 açık (5 high). Kalan high'lar: anchor/toml (fix yok) ve spl-token/bigint-buffer (yalnızca major). |
 | P3 | Kapandı | SSRF aralıkları, Jina sızıntısı, key log'u, TTL cache, link temizleme. |
 

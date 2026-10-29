@@ -12,9 +12,7 @@ import RollingNumber from "@/components/motion/RollingNumber";
 import { buttonClass } from "@/components/ui/Button";
 import Progress from "@/components/ui/Progress";
 import { Pending, StatusPill } from "@/components/ui/StatusPill";
-import HolderBadge from "@/components/token/HolderBadge";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import type { TokenTier } from "@/lib/token-tiers";
 import { claimPhase, displayedSide, isPendingVerdict, type ClaimPhase } from "@/lib/claim-status";
 import Countdown from "@/components/arena/Countdown";
 import { SplitBar } from "@/components/arena/OddsBar";
@@ -54,12 +52,10 @@ function PhasePill({ phase, label }: { phase: ClaimPhase; label: string }) {
 export default function Hero({
   claim,
   now,
-  tiers,
   className = "",
 }: {
   claim: ApiClaim;
   now: number;
-  tiers: Record<string, TokenTier | undefined>;
   className?: string;
 }) {
   const t = useTranslations("arena");
@@ -88,7 +84,7 @@ export default function Hero({
         {claim.question}
       </h1>
 
-      {phase === "resolved" ? <Receipt claim={claim} /> : <Duel claim={claim} phase={phase} tiers={tiers} />}
+      {phase === "resolved" ? <Receipt claim={claim} /> : <Duel claim={claim} phase={phase} />}
 
       {step !== null ? (
         <Progress steps={t.raw("detail.progress") as string[]} current={step} label={t("detail.progressLabel")} />
@@ -100,11 +96,9 @@ export default function Hero({
 function Duel({
   claim,
   phase,
-  tiers,
 }: {
   claim: ApiClaim;
   phase: ClaimPhase;
-  tiers: Record<string, TokenTier | undefined>;
 }) {
   const t = useTranslations("arena.detail");
   const odds = impliedOdds(claim);
@@ -152,10 +146,7 @@ function Duel({
     count === 0 ? (
       <span className="italic">{t("waiting")}</span>
     ) : count === 1 && first ? (
-      <>
-        <span className="font-mono">{shortKey(first.addr)}</span>
-        <HolderBadge tier={tiers[first.addr]} />
-      </>
+      <span className="font-mono">{shortKey(first.addr)}</span>
     ) : (
       <span>{t("challengersJoined", { count })}</span>
     );
@@ -170,10 +161,7 @@ function Duel({
           claim.creatorPosition,
           claim.creatorStake,
           odds.creatorProbability,
-          <>
-            <span className="font-mono">{shortKey(claim.creator)}</span>
-            <HolderBadge tier={tiers[claim.creator]} />
-          </>,
+          <span className="font-mono">{shortKey(claim.creator)}</span>,
         )}
         {side("challengers", claim.counterPosition, claim.totalChallengerStake, odds.challengerProbability, challengerIdentity)}
       </div>

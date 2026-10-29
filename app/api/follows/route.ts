@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
-import { provenWallet } from "@/lib/server/holder";
+import { provenWallet } from "@/lib/server/wallet-proof";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 export const dynamic = "force-dynamic";

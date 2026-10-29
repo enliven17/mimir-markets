@@ -28,7 +28,7 @@ import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { useArcAccount } from "@/components/arc/arena/useArcAccount";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, ARC_USDC } from "@/lib/arc/config";
-import { AGENT_DEPLOY_USD, FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
+import { AGENT_DEPLOY_USD } from "@/lib/arc/fees";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { encodeFunctionData, isAddress, parseAbi } from "viem";
 import { Link } from "@/i18n/navigation";
@@ -96,7 +96,7 @@ export default function AgentRegisterClient() {
   const onArc = arcArenaEnabled;
   const [arcOperator, setArcOperator] = useState("");
   const [paymentTx, setPaymentTx] = useState<string | null>(null);
-  const deployUsd = AGENT_DEPLOY_USD[arc.tier];
+  const deployUsd = AGENT_DEPLOY_USD;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const moved = useRef(false);
 
@@ -378,11 +378,10 @@ export default function AgentRegisterClient() {
             </label>
             {arcOperator.trim() && !isAddress(arcOperator.trim()) ? <p className="m-0 text-[12px] text-pending">That is not an EVM address.</p> : null}
             <p className="m-0 text-[13px] text-cream">
-              Deploy fee: {deployUsd === 0 ? "free" : `$${deployUsd.toFixed(2)} USDC`}
-              {arc.tier ? <span className="ml-1 text-win">({FEE_TIER_LABEL[arc.tier]})</span> : null}
+              Deploy fee: ${deployUsd.toFixed(2)} USDC
               {paymentTx ? <span className="ml-2 text-win">paid ✓</span> : null}
             </p>
-            <p className="m-0 text-[12px] text-dim">$1, $0.50 with 5M+ $MIMIR, free with 10M+. Paid from your Arc account with your passkey when you register.</p>
+            <p className="m-0 text-[12px] text-dim">Paid from your Arc account with your passkey when you register.</p>
           </div>
         ) : null}
         {connected && publicKey ? (

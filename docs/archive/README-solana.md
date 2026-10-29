@@ -2,20 +2,19 @@
 
 **An AI-settled claim market on Solana. Markets live inside a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, price claims resolve against the [Flash Trade](https://flash.trade) oracle.**
 
-**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet) · **$MIMIR:** [`8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V`](https://clawpump.tech/tokens/8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V) (Solana mainnet)
+**Live:** [mimirmarkets.xyz](https://mimirmarkets.xyz) (Solana devnet)
 
 > *In Norse mythology, Mimir is the guardian of the Well of Wisdom, an oracle who knows all things past, present, and future.*
 
-> **AnsemHack Clawrena entry (ClawPump × pump.fun).** AI agents trade real-time prediction markets on Solana: a council of AI personas bets, hedges and settles verifiable claims inside a MagicBlock rollup. Submission, demo script, token utility and checklist: **[docs/HACKATHON.md](docs/HACKATHON.md)**.
+> **AnsemHack Clawrena entry.** AI agents trade real-time prediction markets on Solana: a council of AI personas bets, hedges and settles verifiable claims inside a MagicBlock rollup. Submission, demo script and checklist: **[docs/HACKATHON.md](docs/HACKATHON.md)**.
 
-**Current state.** The product runs on Solana **devnet** with the V3 program `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` (optimistic resolution, bonded disputes, `refund_expired`, pause, profit-only fees). The $MIMIR token lives on Solana **mainnet** (ClawPump); holders and $ANSEM holders get server-enforced perks. Built so far:
+**Current state.** The product runs on Solana **devnet** with the V3 program `EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` (optimistic resolution, bonded disputes, `refund_expired`, pause, profit-only fees). Built so far:
 
 - V3 program + MagicBlock ER zero-fee challenges ([SOLANA.md](docs/SOLANA.md))
 - Oracle: resolver specs, two-source price cross-checks, LLM on fetched evidence, council jury, SHA-256 audit bundles checkable at `/verify/[id]`
 - 20-persona council on two tracks, classic and philosophers ([COUNCIL.md](docs/COUNCIL.md))
 - BYOA agent API + Node SDK, baskets, copy trading, calibration, notifications + webhooks ([AGENTS.md](docs/AGENTS.md))
-- Flash Trade prices and perp hedges; DexScreener + Jupiter prices for $ANSEM / $MIMIR claims
-- Token utility on `/token`: mainnet tiers, council priority, env-gated registration and basket gates
+- Flash Trade prices and perp hedges; DexScreener + Jupiter prices for $ANSEM claims
 
 Mimir is a peer-to-peer market for public claims about future outcomes. Two sides stake USDC on opposite answers to a question; when the deadline passes, an off-chain AI oracle reads the agreed-upon evidence source, evaluates the verdict with an LLM, and settles the payout on-chain. Every step (staking, challenging, resolution, payout) is verifiable: the evidence is hashed on-chain, the confidence score is public, and ambiguous outcomes refund instead of guessing.
 
@@ -61,7 +60,7 @@ No human decides a verdict unless someone disputes it; every verdict carries an 
 | `/agents` | The AI economic actors (oracle + 20-persona council) and their live activity |
 | `/council` · `/calibration` | Both juries, records and bankrolls · Brier scores per forecaster |
 | `/dashboard` · `/baskets` · `/copy` | Your positions and payouts · agent baskets · copy permissions |
-| `/agents/new` · `/verify/[id]` · `/token` | Register your own agent · recompute a verdict hash · token tiers and perks |
+| `/agents/new` · `/verify/[id]` | Register your own agent · recompute a verdict hash |
 
 The product is **100% Solana**: there is no EVM/wagmi anywhere in the codebase. It started as a port of an EVM build (Arc); that code is not part of this repository.
 
@@ -430,7 +429,7 @@ Set `NEXT_PUBLIC_MIMIR_PROGRAM_ID=EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE` 
 | `COUNCIL_POLL_INTERVAL_MS` / `COUNCIL_PERSONA_LIMIT` / `COUNCIL_TRACK` | council | Cycle cadence / roster size / one track only |
 | `CREATOR_INTERVAL_MS` / `CREATOR_*_PER_RUN` / `CREATOR_HORIZON_MIN` | market-creator | Cadence / claims per source per run (crypto, ansem, sports, stocks, polymarket) / deadline horizon |
 | `DATABASE_URL` | web + workers | Optional Neon read index (feed, registry, baskets, notifications) |
-| `NEXT_PUBLIC_MIMIR_TOKEN_MINT` / `SOLANA_MAINNET_RPC` | web | Token utility on mainnet (see HACKATHON.md) |
+| `SOLANA_MAINNET_RPC` | web | Solana mainnet reads for $ANSEM price claims |
 
 The complete list, with defaults, is [`.env.example`](.env.example).
 

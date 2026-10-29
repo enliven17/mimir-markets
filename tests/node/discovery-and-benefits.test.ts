@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { opinionSplit, signalMatches } from "../../lib/discovery";
 import { seriesDraft, seriesForMarket, nextSeriesDeadline } from "../../lib/market-series";
-import { verifiedPoolSavings, previewBenefits } from "../../lib/token-benefits";
 import { strategyFingerprint } from "../../lib/launch/strategy-manifest";
 import { settlementTimeline } from "../../lib/settlement-timeline";
 test("council disagreements use each persona's latest explicit side, never abstention as a side", () => {
@@ -19,16 +18,6 @@ test("daily templates handle UTC rollovers and cannot label inconsistent rules a
   assert.equal(seriesForMarket({ ...draft, deadline: draft.deadline + 60 }), null);
   assert.equal(seriesForMarket({ ...draft, question: draft.question.replace("150", "200") }), null);
   assert.equal(seriesDraft("sol-daily", NaN, now), null);
-});
-test("fee savings pair an entry's actual fee and stake and skip ambiguous or other-user segments", () => {
-  const events = [
-    { name: "FeeAccrued", txHash: "a", logIndex: 1, amount: "25" }, { name: "Staked", txHash: "a", logIndex: 2, amount: "9975", user: "alice", at: 100 },
-    { name: "FeeAccrued", txHash: "a", logIndex: 3, amount: "50" }, { name: "Staked", txHash: "a", logIndex: 4, amount: "9950", user: "bob", at: 100 },
-    { name: "Staked", txHash: "old", logIndex: 1, amount: "10000", user: "alice" },
-  ];
-  assert.deepEqual(verifiedPoolSavings(events, "alice", 50), { entries: 1, gross: "10000", paid: "25", saved: "25" });
-  assert.equal(verifiedPoolSavings(events, "alice", 101).entries, 0);
-  assert.equal(previewBenefits("oracle-circle").aiCallsPerAgentDay, 12);
 });
 test("strategy fingerprints ignore key order and identify changed risk or model", () => {
   const a = { thesis: "a", chain: "solana", trading: { stopLoss: 10, sources: ["dex"] }, markets: {}, model: "m1" };

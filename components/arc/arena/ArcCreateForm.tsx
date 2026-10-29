@@ -14,7 +14,6 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { createMarketCall, entryFeeOf, LOCK_SECONDS, MIMIR_POOL_ABI, MIMIR_V3_ABI, MIN_STAKE_WEI, parseUsdc, vsCreatorQuote, type ArcMarketKind } from "@/lib/arc/markets";
-import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
 import { CATEGORIES } from "@/lib/constants";
 import { mentionsPastDay } from "@/lib/past-date";
 import { api } from "@/convex/_generated/api";
@@ -98,7 +97,7 @@ export default function ArcCreateForm() {
   const onCreate = async () => {
     if (problem || !contract || stake === null) return;
     setStage("Confirm with your passkey…");
-    const r = await send(account.withTicket([
+    const r = await send([
       createMarketCall(contract, {
         kind,
         question: question.trim(),
@@ -110,7 +109,7 @@ export default function ArcCreateForm() {
         stake,
         side,
       }),
-    ]));
+    ]);
     if (!r) return setStage(null);
     setStage("Opening the market page…");
     const receipt = await arcPublicClient().getTransactionReceipt({ hash: r.txHash });
@@ -247,7 +246,7 @@ export default function ArcCreateForm() {
             <span className="text-muted">You risk</span>
             <span className="text-right text-cream">{usd(stake)}</span>
             <span className="text-muted">
-              Fee {account.entryBps / 100}%{account.tier ? <span className="ml-1 text-win">({FEE_TIER_LABEL[account.tier]})</span> : null}
+              Fee {account.entryBps / 100}%
             </span>
             <span className="text-right text-cream">{usdFine(entryFeeOf(stake, account.entryBps))}</span>
             {kind === "vs" ? (
@@ -265,7 +264,7 @@ export default function ArcCreateForm() {
         ) : null}
 
         <p className="m-0 text-[12px] leading-relaxed text-dim">
-          A {account.entryBps / 100}% fee comes off your stake (0.25% with 5M+ $MIMIR, 0.1% with 10M+); there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to Arc accounts. A
+          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to Arc accounts. A
           draw or an unresolvable market refunds everyone.
         </p>
 

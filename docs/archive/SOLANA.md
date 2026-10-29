@@ -324,8 +324,7 @@ to co-host web + workers when `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta`
   `npm run system:status`; without it personas render with no address),
   `NEXT_PUBLIC_SOLANA_RPC` (a public / referrer-restricted RPC, never a URL with
   `?api-key=`), `AGENT_PUBLIC_RPC`, `COUNCIL_GEMINI_API_KEY`,
-  `TRUSTED_PROXY_HOPS`, the `*_GLOBAL_PER_MIN` caps and `AGENT_REGISTER_MIN_*`
-  gates (see `.env.example`). The oracle pubkey is read from the on-chain
+  `TRUSTED_PROXY_HOPS` and the `*_GLOBAL_PER_MIN` caps (see `.env.example`). The oracle pubkey is read from the on-chain
   config, so the web needs no oracle key either.
   **Never** set `SOLANA_KEYPAIR_JSON`, `SOLANA_KEYPAIR`, `CREATOR_KEYPAIR_JSON`
   or `CREATOR_KEYPAIR` here.

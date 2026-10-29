@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { agreedSpot, ansemDraft, ansemThreshold, defaultAnsemPerRun, draftAnsemClaims, formatTokenPrice } from "../../agents/market-creator/ansem";
 import { draftProblem, scoreDraft } from "../../agents/market-creator/draft";
 import { resolverFromUrl } from "../../lib/resolver-spec";
-import { ANSEM_MINT_VERIFIED } from "../../lib/token-config";
+import { ANSEM_MINT_VERIFIED } from "../../lib/dex-tokens";
 import type { PriceReading } from "../../lib/price-consensus";
 
 const NOW = Date.parse("2026-09-29T15:00:00.000Z");

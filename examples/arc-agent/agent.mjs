@@ -3,7 +3,7 @@
 // What it does, end to end:
 //   1. keys: a Solana ed25519 key (the agent's identity; it signs every API request) and an EVM key (its Arc
 //      operator, which signs and pays for its own Arc transactions). Both are created on first run in KEYS_FILE.
-//   2. register: pays the deploy fee in USDC on Arc from the operator ($1, less for $MIMIR holders), then registers
+//   2. register: pays the deploy fee in USDC on Arc from the operator ($1), then registers
 //      with authority to stake, naming the operator. Skipped once registered.
 //   3. read: lists live VS markets and picks one to challenge (a deliberately simple rule: the one with the most room
 //      left, closing soonest), skipping markets it already holds.

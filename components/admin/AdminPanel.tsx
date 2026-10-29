@@ -245,7 +245,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
           {db ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="Wallets linked to Arc" value={db.arcAccounts} />
-              <Stat label="Let in as holders" value={db.grants.holder ?? 0} />
+              <Stat label="Let in without a code" value={db.grants.holder ?? 0} />
               <Stat label="Let in by invite" value={db.grants.invite ?? 0} />
               <Stat label="Invite codes used" value={db.invitesUsed} />
               <Stat label="Invite codes unused" value={db.invitesFree} />
@@ -323,7 +323,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
               ["App records", d.database.ok ? "up" : "down", d.database.ok ? `${d.database.ms} ms` : d.database.error],
               ["Arc RPC", d.chain.head.ok ? "up" : "down", d.chain.head.ok ? `block ${d.chain.head.data} · ${d.chain.head.ms} ms` : d.chain.head.error],
               [`Solana RPC (site, ${ARC_SOLANA_CLUSTER})`, d.solana.devnet.ok ? "up" : "down", d.solana.devnet.ok ? `slot ${d.solana.devnet.data}` : d.solana.devnet.error],
-              ["Solana RPC ($MIMIR balances)", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],
+              ["Solana RPC (mainnet)", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],
               ["Telegram", d.telegram.ok ? d.telegram.data?.bot : "down", d.telegram.ok ? `${d.telegram.data?.webhook ? "webhook" : "polling"} · ${d.telegram.data?.pending} pending${d.telegram.data?.lastError ? ` · ${d.telegram.data.lastError}` : ""}` : d.telegram.error],
             ]}
           />

@@ -19,14 +19,14 @@ info:
     actions (`register`, `rotateOperator`, `setArcOperator`, `issueKey`, `listKeys`, `revokeKey`, `setChat`,
     `revoke`) ignore keys and require the owner's signature. Without a key, any other call is signed by the operator.
 
-    **Registering costs a deploy fee** paid in USDC on Arc before the call: 1 USDC, 0.5 for owners holding 5M $MIMIR
-    on Solana, free at 10M. Send it to MimirV3's `feeRecipient()` from the Arc operator (or the owner's linked
-    account) and pass the transaction hash as `paymentTx`. One payment registers one agent.
+    **Registering costs a deploy fee** paid in USDC on Arc before the call: a flat 1 USDC for everyone.
+    Send it to MimirV3's `feeRecipient()` from the Arc operator (or the owner's linked account) and pass the
+    transaction hash as `paymentTx`; every registration needs one. One payment registers one agent.
 
     **On-chain writes return unsigned Arc transactions.** `createClaim`, `challenge`, `dispute` and `withdraw` execute
     nothing server side. The response carries `transactions[]` (`chainId`, `to`, `data`, `value` in wei); the agent
     checks each one, signs it with the Arc operator key and sends it to Arc, in order. Every stake pays an entry fee
-    (0.5%; less for linked $MIMIR holders) taken from the amount sent; the minimum stake is 0.1 USDC.
+    (0.5%) taken from the amount sent; the minimum stake is 0.1 USDC.
     `deposit`, `delegateBalance` and `undelegateBalance` belong to the Solana build and answer 410 `not_on_arc`.
 
     **Budgets.** Per-position and daily USDC caps count the stake of every transaction issued (not landed), so an
@@ -666,14 +666,9 @@ paths:
     post:
       summary: Let a few council personas vet a draft claim (open / revise / skip, 0-100)
       description: |
-        Free and rate-limited: 5/min per caller and 30/min deploy-wide. A holder
-        proof (`x-mimir-wallet` + `x-mimir-proof`, lib/token-proof.ts) counts the
-        caller per wallet at 2x / 4x / 8x by tier, on a separate holder pool.
+        Free and rate-limited: 5/min per IP and 30/min deploy-wide.
         An identical draft within 10 minutes is served from memory.
       operationId: councilPreflight
-      parameters:
-        - { name: x-mimir-wallet, in: header, schema: { type: string } }
-        - { name: x-mimir-proof, in: header, schema: { type: string } }
       requestBody:
         required: true
         content:
@@ -700,15 +695,12 @@ paths:
     get:
       summary: One persona's take on a claim, in character
       description: |
-        30 reads/min per caller; LLM generations 6/min per caller and 60/min
-        deploy-wide, memoized 10 minutes per (claim, persona). Holder proofs
-        multiply the limits as for preflight.
+        30 reads/min per IP; LLM generations 6/min per IP and 60/min
+        deploy-wide, memoized 10 minutes per (claim, persona).
       operationId: councilReasoning
       parameters:
         - { name: claimId, in: query, required: true, schema: { type: integer, minimum: 1 } }
         - { name: persona, in: query, required: true, schema: { type: string } }
-        - { name: x-mimir-wallet, in: header, schema: { type: string } }
-        - { name: x-mimir-proof, in: header, schema: { type: string } }
       responses:
         "200": { description: The persona's reasoning }
         "400": { description: Unknown persona or bad claimId }
@@ -722,24 +714,6 @@ paths:
       operationId: councilRoster
       responses:
         "200": { description: "Personas per track; `address` is empty when this deploy has no admin key to derive from" }
-
-  /api/token/tier:
-    get:
-      summary: Token tier from Solana MAINNET balances ($MIMIR once launched, and $ANSEM)
-      description: |
-        Single form (`wallet`): tier and balances, 30/min per IP. Batch form
-        (`wallets`, 1-17 comma-separated keys): tiers only, for holder badges,
-        12/min per IP; wallets whose balances cannot be read are left out.
-        Balances are cached 60s. Tiers: `none`, `holder`, `backer`, `oracle-circle`.
-      operationId: tokenTier
-      parameters:
-        - { name: wallet, in: query, schema: { type: string } }
-        - { name: wallets, in: query, schema: { type: string, description: Comma-separated base58 keys, max 17 } }
-      responses:
-        "200": { description: "`{ success, data: { wallet, tier, balances: { mimir, ansem }, launched, symbol } }` or, batched, `{ success, data: { tiers: { <wallet>: tier } } }`" }
-        "400": { description: Invalid wallet(s) }
-        "429": { description: Rate limit }
-        "503": { description: Mainnet RPC unreachable (single form) }
 
   /api/verify/{id}:
     get:

@@ -1,14 +1,14 @@
 /**
  * POST /api/access/redeem  { code }  →  { result, status }
  *
- * Spend an invite code on the proven wallet (holder proof headers). Each code
+ * Spend an invite code on the proven wallet (wallet proof headers). Each code
  * works once, never for its own owner; a wallet already in keeps its codes.
  */
 import { NextResponse } from "next/server";
 
 import { normalizeInvite } from "@/lib/access";
 import { accessStatus, isInviteOnly, redeemInvite } from "@/lib/server/access";
-import { provenIdentity } from "@/lib/server/holder";
+import { provenIdentity } from "@/lib/server/wallet-proof";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";

@@ -15,15 +15,12 @@ import {
   baseScore,
   EARLY_MULTIPLIER,
   EARLY_SLOTS,
-  HOLDER_MULTIPLIER,
   INVITE_POINTS,
   INVITE_SHARE,
   INVITED_MULTIPLIER,
   type CampaignMetrics,
 } from "../campaign";
-import type { TokenTier } from "../token-tiers";
 import { councilRoster } from "./council-roster";
-import { walletTier } from "./holder";
 import { store, StoreConflict } from "./store";
 
 export interface CampaignRow extends CampaignMetrics {
@@ -32,8 +29,6 @@ export interface CampaignRow extends CampaignMetrics {
   invited: boolean;
   /** Among the first EARLY_SLOTS wallets to join. */
   early: boolean;
-  /** $MIMIR holder tier from the current mainnet balance. */
-  tier: TokenTier;
   score: number;
 }
 
@@ -118,19 +113,12 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
   const referrerOf = new Map(invites.filter((r) => r.referrer).map((r) => [r.wallet, r.referrer as string]));
   // Join order decides the early slots; house wallets never take one.
   const early = new Set(invites.map((r) => r.wallet).filter((w) => !skip.has(w)).slice(0, EARLY_SLOTS));
-  // ponytail: one mainnet balance read per scoring wallet per board refresh (60s edge cache); a cached tier column if the board grows past a few hundred.
-  const tiers = new Map(
-    await Promise.all(
-      [...metrics.keys()].map(async (w) => [w, await walletTier(w).then((r) => r.tier).catch((): TokenTier => "none")] as const),
-    ),
-  );
   const own = new Map(
     [...metrics].map(([w, m]) => [
       w,
       baseScore(m) *
         (referrerOf.has(w) ? INVITED_MULTIPLIER : 1) *
-        (early.has(w) ? EARLY_MULTIPLIER : 1) *
-        HOLDER_MULTIPLIER[tiers.get(w) ?? "none"],
+        (early.has(w) ? EARLY_MULTIPLIER : 1),
     ]),
   );
 
@@ -152,7 +140,6 @@ export async function campaignBoard(): Promise<CampaignRow[]> {
       invites: inviteCount.get(wallet) ?? 0,
       invited: referrerOf.has(wallet),
       early: early.has(wallet),
-      tier: tiers.get(wallet) ?? "none",
       score: Math.round((own.get(wallet) ?? 0) + (inviteBonus.get(wallet) ?? 0)),
     }))
     .filter((r) => r.score > 0)

@@ -6,13 +6,9 @@
  *   /start   launch video, what the bot does, link + open-app buttons
  *   /link    a one-time link: the wallet signs it on the site (/telegram)
  *   /bets    the linked wallet's open positions on Arc
- *   /price   $MIMIR price, market cap, liquidity, volume + pump.fun link
  *   /alerts  a switch per alert (new markets, results, verdicts, payouts); on|off sets them all
  *   /unlink  stop following the wallet
  */
-
-import { fetchDexStats } from "./dex-prices";
-import { mimirMint, mimirSymbol } from "../token-config";
 
 import {
   chatWallet,
@@ -39,8 +35,6 @@ import {
   claimUrl,
   esc,
   linkUrl,
-  priceText,
-  pumpFunUrl,
   telegramToken,
   tg,
   WELCOME_TEXT,
@@ -89,23 +83,8 @@ async function onAlertTap(q: NonNullable<Update["callback_query"]>): Promise<voi
   await tg("answerCallbackQuery", { callback_query_id: q.id, text: "Saved" });
 }
 
-/** $MIMIR on mainnet (README); NEXT_PUBLIC_MIMIR_TOKEN_MINT overrides it. */
-const MIMIR_MINT = mimirMint() ?? "8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V";
-
 /** Telegram refuses web_app buttons outside private chats, so groups get the same page as a plain link. */
 const pageButton = (text: string, url: string, group: boolean) => (group ? { text, url } : { text, web_app: { url } });
-
-async function onPrice(chatId: number, group = false): Promise<void> {
-  const stats = await fetchDexStats(MIMIR_MINT);
-  const links = [
-    [{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }, ...(stats?.pairUrl ? [{ text: "DexScreener", url: stats.pairUrl }] : [])],
-    [pageButton("Token perks", `${SITE_URL}/en/token`, group)],
-  ];
-  const text = stats ? priceText(mimirSymbol(), stats) : `${esc(mimirSymbol())} price is unavailable right now.`;
-  await sendTo(chatId, `${text}
-
-<code>${MIMIR_MINT}</code>`, { reply_markup: { inline_keyboard: links } });
-}
 
 const appButton = { text: "Open Mimir", web_app: { url: `${SITE_URL}/en` } };
 
@@ -226,8 +205,6 @@ export async function handle(update: Update): Promise<void> {
       });
     case "/bets":
       return onBets(chatId);
-    case "/price":
-      return onPrice(chatId);
     case "/alerts": {
       const all = (arg ?? "").toLowerCase();
       if (all === "on" || all === "off") await setAllAlerts(chatId, all === "on");
@@ -270,15 +247,8 @@ async function onLeaderboard(chatId: number): Promise<void> {
   );
 }
 
-/** /ca, /website and /leaderboard: the same public answer in private chats and groups. */
+/** /markets, /website and /leaderboard: the same public answer in private chats and groups. */
 async function onPublic(chatId: number, command: string): Promise<boolean> {
-  if (command === "/ca") {
-    await sendTo(chatId, `<b>${esc(mimirSymbol())} contract address</b> (Solana)
-<code>${MIMIR_MINT}</code>`, {
-      reply_markup: { inline_keyboard: [[{ text: "pump.fun", url: pumpFunUrl(MIMIR_MINT) }]] },
-    });
-    return true;
-  }
   if (command === "/markets") {
     await onMarkets(chatId);
     return true;
@@ -316,11 +286,9 @@ async function handleGroup(chatId: number, text: string): Promise<void> {
   const command = text.trim().split(/\s+/, 1)[0].split("@")[0].toLowerCase();
   if (await onPublic(chatId, command)) return;
   switch (command) {
-    case "/price":
-      return onPrice(chatId, true);
     case "/app":
     case "/start":
-      return sendTo(chatId, "<b>Mimir</b>: AI-settled markets. Settles on Arc, funded from your Solana wallet; $MIMIR lives on Solana. Stake a side, AI agents and an oracle settle it.", {
+      return sendTo(chatId, "<b>Mimir</b>: AI-settled markets. Settles on Arc, funded from your Solana wallet. Stake a side, AI agents and an oracle settle it.", {
         reply_markup: { inline_keyboard: [[pageButton("Open Mimir", `${SITE_URL}/en`, true)]] },
       });
   }
@@ -332,9 +300,7 @@ export async function setup(): Promise<void> {
       { command: "start", description: "What this bot does" },
       { command: "link", description: "Link your wallet" },
       { command: "bets", description: "Your open positions" },
-      { command: "price", description: "$MIMIR price and stats" },
       { command: "app", description: "Open Mimir" },
-      { command: "ca", description: "$MIMIR contract address" },
       { command: "markets", description: "Open markets" },
       { command: "leaderboard", description: "Leaderboard top 10" },
       { command: "website", description: "mimirmarkets.xyz" },

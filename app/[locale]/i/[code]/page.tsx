@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const access = parsed.kind === "access";
   const title = access ? "You're invited to Mimir" : "Join me on Mimir";
   const description = access
-    ? `An invite into Mimir: claims, settled by AI. Use code ${parsed.code} to get in; no $MIMIR needed.`
+    ? `An invite into Mimir: claims, settled by AI. Use code ${parsed.code} to get in.`
     : `Join the Mimir leaderboard with code ${parsed.code} for a points boost. Claims, settled by AI.`;
   const image = { url: inviteCardUrl(parsed.code), width: 1200, height: 630, alt: `${title}: invite code ${parsed.code}` };
   return {
@@ -40,7 +40,7 @@ export default async function InvitePage({ params }: { params: Params }) {
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">{access ? "Invite" : "Leaderboard invite"}</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">{access ? "You're invited to Mimir." : "Join me on Mimir."}</h1>
         <p className="m-0 text-[15px] leading-relaxed text-muted">
-          Stake on any claim; an AI oracle settles it in the open. Markets settle on Arc, your wallet and $MIMIR stay on Solana.
+          Stake on any claim; an AI oracle settles it in the open. Markets settle on Arc, your wallet stays on Solana.
         </p>
       </header>
       <section className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
@@ -48,7 +48,7 @@ export default async function InvitePage({ params }: { params: Params }) {
         <p className="m-0 rounded-xl bg-cream px-4 py-3 text-center font-mono text-[22px] tracking-[0.12em] text-ink">{parsed.code}</p>
         <p className="m-0 text-[13px] text-muted">
           {access
-            ? "Connect your Solana wallet, sign in, and the code is filled in for you. You don't need $MIMIR with a code. Each code works once."
+            ? "Connect your Solana wallet, sign in, and the code is filled in for you. Each code works once."
             : "Join the leaderboard with this code and your points get a boost. Joining is one free signature."}
         </p>
         <Link href={inviteTarget(parsed.kind, parsed.code)} className="justify-self-start rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] hover:brightness-110">

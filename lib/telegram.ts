@@ -62,7 +62,6 @@ export const WELCOME_TEXT = [
   "",
   "/link connect your wallet",
   "/bets your open positions",
-  "/price $MIMIR price and stats",
   "/alerts choose which alerts you get",
   "/unlink disconnect your wallet",
 ].join("\n");
@@ -167,23 +166,3 @@ export function marketUrlButton(url: string) {
 /** An Arc market page. */
 export const arcMarketUrl = (kind: "vs" | "pool", id: number) => `${SITE_URL}/en/arena/arc/${kind}/${id}`;
 
-const compactUsd = (n: number | null) =>
-  n === null ? "n/a" : `$${n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 })}`;
-
-/** /price: the token's live market numbers (DexScreener, display only). */
-export function priceText(
-  symbol: string,
-  s: { priceUsd: number; marketCapUsd: number | null; liquidityUsd: number | null; volume24hUsd: number | null; change24hPct: number | null },
-): string {
-  const price = s.priceUsd >= 1 ? s.priceUsd.toFixed(2) : s.priceUsd.toPrecision(4);
-  const change = s.change24hPct === null ? "" : ` (${s.change24hPct >= 0 ? "▲" : "▼"} ${Math.abs(s.change24hPct).toFixed(2)}% 24h)`;
-  return [
-    `<b>$${esc(symbol)}</b> $${price}${change}`,
-    "",
-    `Market cap: ${compactUsd(s.marketCapUsd)}`,
-    `Liquidity: ${compactUsd(s.liquidityUsd)}`,
-    `Volume 24h: ${compactUsd(s.volume24hUsd)}`,
-  ].join("\n");
-}
-
-export const pumpFunUrl = (mint: string) => `https://pump.fun/coin/${mint}`;

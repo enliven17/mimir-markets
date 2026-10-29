@@ -1,9 +1,8 @@
-// Mimir Launch review fixes: reserved slugs and copy-key namespaces (H1), the reconciler (H2), the $MIMIR-only gate
-// (M3 + MIMIR-only), the pending fee claim (M6) and the 0-vault fallback (L2).
+// Mimir Launch review fixes: reserved slugs and copy-key namespaces (H1), the reconciler (H2), the pending fee claim
+// (M6) and the 0-vault fallback (L2).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { holdsMimir } from "../../lib/launch/copy-gate";
 import { copyKeyFor, councilCopyKey, isCouncilSlug, launchCopyKey, reservedLaunchSlug } from "../../lib/launch/copy-key";
 import { claimAndSplit, type FeeAgent, type FeeDeps, type FeeExecutor, type FeeStore } from "../../lib/launch/fees";
 import { reconcileItem, type ReconcileStore, type Unresolved } from "../../lib/launch/reconcile";
@@ -52,33 +51,6 @@ test("H2: no signature: a 'sending' row never reached the wire (failed); an 'unk
   assert.equal(await reconcileItem(row({ sig: null, status: "sending" }), settle, r.store), "failed");
   assert.equal(await reconcileItem(row({ sig: null, status: "unknown" }), settle, r.store), "open");
   assert.equal(asked, 0);
-});
-
-// ---------------- the $MIMIR-only gate ----------------
-
-test("gate: $MIMIR only, against the holder minimum; an ANSEM-only holder is refused", async () => {
-  const env = { ...process.env };
-  process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT = "MiMiRmintAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-  try {
-    const balances: Record<string, Record<string, number>> = {
-      whale: { [process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT]: 50_000 },
-      small: { [process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT]: 10 },
-      ansemOnly: { "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump": 1_000_000 },
-    };
-    const read = async (w: string, mint: string) => {
-      if (w === "down") throw new Error("rpc down");
-      return balances[w]?.[mint] ?? 0;
-    };
-    const env2 = { MIMIR_TIER_HOLDER_MIN: "10000", ANSEM_HOLDER_MIN: "100" };
-    assert.equal(await holdsMimir("whale", read, env2), "yes");
-    assert.equal(await holdsMimir("small", read, env2), "no");
-    assert.equal(await holdsMimir("ansemOnly", read, env2), "no");
-    assert.equal(await holdsMimir("down", read, env2), "unknown");
-    delete process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT;
-    assert.equal(await holdsMimir("whale", read, env2), "unknown"); // no mint configured: fail closed, never "no"
-  } finally {
-    process.env = env;
-  }
 });
 
 // ---------------- M6 / L2 / M5 ----------------

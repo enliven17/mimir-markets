@@ -28,15 +28,6 @@ test("the per-caller limit still applies under the global ceiling", async () => 
   assert.equal(await gate(), false);
 });
 
-test("holder pools have their own deploy-wide ceiling", async () => {
-  resetMemoryRateLimits();
-  const gate = (key: string, pool: string) =>
-    allowLlmRequest({ bucket: "t-llm3", key, perKey: 10, globalEnv: "UNSET_GLOBAL", globalDefault: 1, pool });
-  assert.equal(await gate("a", "all"), true);
-  assert.equal(await gate("b", "all"), false);
-  assert.equal(await gate("wallet:x", "holders"), true);
-});
-
 test("claim-draft body: URL capped at the on-chain 200 bytes", () => {
   assert.deepEqual(parseClaimDraftBody({ url: " https://example.com/a ", locale: "es" }), {
     url: "https://example.com/a",

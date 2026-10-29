@@ -6,8 +6,6 @@
  * (ed25519 over `composeMessage`, base58): a basket carries its composer's
  * key, and an unsigned one would let anyone publish a thesis under someone
  * else's wallet. The signature carries `signedAt` and expires in 5 minutes.
- * With BASKET_CREATE_MIN_TIER set (and the token launched) the composer must
- * hold that token tier on Solana mainnet.
  */
 import { accessDenied } from "@/lib/server/access";
 import {
@@ -25,9 +23,6 @@ import { unitsToUsdc } from "@/lib/money";
 import { basketDirectory, isHouseBasketId } from "@/lib/house-baskets";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { storeEnabled } from "@/lib/server/store";
-import { walletTier } from "@/lib/server/holder";
-import { mimirMint, mimirSymbol } from "@/lib/token-config";
-import { basketMinTierFromEnv, tierAtLeast } from "@/lib/token-tiers";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
 
@@ -100,22 +95,6 @@ export async function POST(req: Request): Promise<Response> {
   if (!signedOk) return basketFail(401, "bad_signature", "the composer signature does not match");
   const denied = await accessDenied(creatorWallet);
   if (denied) return basketFail(403, "invite_only", denied);
-
-  // Token perk: composing can be reserved for holders (BASKET_CREATE_MIN_TIER).
-  // The composer signature above proves the wallet, so no extra proof is needed.
-  const minTier = basketMinTierFromEnv(mimirMint() !== null);
-  if (minTier !== "none") {
-    let tier;
-    try {
-      tier = (await walletTier(creatorWallet)).tier;
-    } catch (err) {
-      console.warn("[baskets] mainnet tier read failed:", err);
-      return basketFail(503, "token_check_unavailable", "token holdings could not be checked, try again shortly");
-    }
-    if (!tierAtLeast(tier, minTier)) {
-      return basketFail(403, "token_gate", `composing a basket needs the ${minTier} tier (${mimirSymbol()} on Solana mainnet)`);
-    }
-  }
 
   try {
     const basket = await createBasket({ id, name, thesis, creatorWallet, members, signature });

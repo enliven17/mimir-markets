@@ -188,7 +188,7 @@ export const card = query({
   },
 });
 
-/** The full agent page (reasoning log, trades, PnL): $MIMIR holders only, served by /api/launch/:id/detail. */
+/** The full agent page (reasoning log, trades, PnL), served by /api/launch/:id/detail. */
 export const detail = query({
   args: { secret: v.string(), slug: v.string() },
   handler: async (ctx, { secret, slug }) => {

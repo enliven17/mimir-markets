@@ -45,7 +45,7 @@ export function SystemDiagram() {
       caption="USDC enters from Solana over CCTP, every stake and payout happens on Arc, and Mimir's backend keeps the index, the oracle and the council running beside the contracts."
     >
       <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)_64px_minmax(0,1.15fr)] md:items-center">
-        <Node tag="Solana" title="Your wallet" sub="Phantom, Solflare, any wallet. Holds USDC and your $MIMIR." />
+        <Node tag="Solana" title="Your wallet" sub="Phantom, Solflare, any wallet. Holds your USDC." />
         <Link label="CCTP ~15 s" />
         <Node tag="Arc" title="Passkey account" sub="Face ID or fingerprint. Gas sponsored by Circle." hot />
         <Link label="stake" delay={1.1} />
@@ -123,35 +123,13 @@ export function LifecycleDiagram() {
 export function FeeDiagram() {
   return (
     <Figure
-      label="Fee flow for a 100 USDC stake. 0.50 USDC entry fee goes to the treasury (0.25 with 5 million MIMIR, 0.10 with 10 million) and 99.50 USDC goes into the market. A winning payout has no fee, except copy trades, which give 1% of the profit to the basket creator and 1% to Mimir."
+      label="Fee flow for a 100 USDC stake. 0.50 USDC entry fee goes to the treasury and 99.50 USDC goes into the market. A winning payout has no fee, except copy trades, which give 1% of the profit to the basket creator and 1% to Mimir."
       caption="Example: a $100 stake. The entry fee is the only fee on a normal stake and is kept on refunds; winnings are never charged, except the 1% + 1% of profit on copy trades."
     >
       <div className="grid gap-0 md:grid-cols-[minmax(0,0.8fr)_72px_minmax(0,1.6fr)_72px_minmax(0,1fr)] md:items-center">
         <Node tag="You send" title="$100.00" sub="from your Arc account" />
         <Link delay={0.3} />
-        <div className="df-node">
-          <span className="df-tag">Entry fee</span>
-          <div className="mt-1 grid gap-2.5">
-            {[
-              ["Standard", 50, "$0.50"],
-              ["5M+ $MIMIR", 25, "$0.25"],
-              ["10M+ $MIMIR", 10, "$0.10"],
-            ].map(([who, bps, fee]) => (
-              <div key={who as string} className="grid gap-1">
-                <span className="flex justify-between text-[13px]">
-                  <span className="text-cream">{who}</span>
-                  <span className="font-mono text-muted">
-                    {(bps as number) / 100}% · {fee}
-                  </span>
-                </span>
-                <span className="df-split">
-                  <span style={{ width: `${Math.max(4, (bps as number) * 2)}%`, background: "var(--coral)" }} />
-                  <span style={{ flex: 1, background: "rgb(243 234 214 / .22)" }} />
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Node tag="Entry fee" title="$0.50" sub="0.5% to the treasury. Kept on refunds." />
         <Link delay={1.2} />
         <Node tag="Into the market" title="$99.50 net stake" sub="Win: stake + your share of the other side, no fee." hot />
       </div>

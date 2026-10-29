@@ -7,7 +7,7 @@
  */
 import { priceCheckTarget } from "./price-consensus";
 import { effectiveResolverSpec, stripResolverFragment } from "./resolver-spec";
-import { dexMintFor } from "./token-config";
+import { dexMintFor } from "./dex-tokens";
 
 export type SettlementMethod = "resolver-price" | "resolver-json" | "price-consensus" | "evidence-llm";
 

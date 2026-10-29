@@ -28,10 +28,9 @@ test("a new market message escapes user text", () => {
   assert.match(text, /2 USDC/);
 });
 
-test("/price reads the deepest pair, with no settlement liquidity floor, and formats it", async () => {
+test("DEX stats read the deepest pair, with no settlement liquidity floor", async () => {
   const { parseDexStats } = await import("../../lib/server/dex-prices");
-  const { priceText, pumpFunUrl } = await import("../../lib/telegram");
-  const mint = "8r2Lgeg2aJzekpg1vLRJ2BoNUGKXqvH11Ab74eRPjd4V";
+  const mint = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
   const stats = parseDexStats(
     [
       { chainId: "solana", baseToken: { address: mint }, priceUsd: "0.00001", liquidity: { usd: 500 } },
@@ -42,10 +41,6 @@ test("/price reads the deepest pair, with no settlement liquidity floor, and for
   );
   assert.equal(stats?.priceUsd, 0.00001846);
   assert.equal(stats?.pairUrl, "https://dexscreener.com/solana/x");
-  const text = priceText("MIMIR", stats!);
-  assert.match(text, /\$MIMIR<\/b> \$0\.00001846 \(▼ 43\.05% 24h\)/);
-  assert.match(text, /Market cap: \$17\.48K/);
-  assert.equal(pumpFunUrl(mint), `https://pump.fun/coin/${mint}`);
 });
 
 test("each wallet alert answers to its own switch; new markets have theirs", async () => {

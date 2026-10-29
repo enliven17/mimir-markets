@@ -23,7 +23,7 @@
  *
  * Pure: no network. The oracle supplies the price readings or fetched JSON.
  */
-import { dexMintFor, mimirMint, mimirSymbol } from "./token-config";
+import { dexMintFor } from "./dex-tokens";
 import { freshReadings, MAX_SOURCE_SPREAD, priceCheckTarget, type PriceReading } from "./price-consensus";
 
 export type ResolverOp = ">" | ">=" | "<" | "<=" | "==" | "!=";
@@ -381,12 +381,7 @@ const MAJOR_SYMBOLS: Array<{ symbol: string; pattern: RegExp }> = [
   { symbol: "AVAX", pattern: /\b(avax|avalanche)\b/i },
 ];
 
-/**
- * Majors plus the mainnet tokens priced from DEX data ($ANSEM, and the Mimir
- * token once its mint is set). The Mimir ticker only matches with its `$`
- * so "Mimir" in ordinary prose never reads as a price claim.
- */
+/** Majors plus the mainnet tokens priced from DEX data ($ANSEM). */
 function priceSymbols(): Array<{ symbol: string; pattern: RegExp }> {
-  const mimir = mimirMint() ? [{ symbol: mimirSymbol(), pattern: new RegExp(`\\$${mimirSymbol()}\\b`, "i") }] : [];
-  return [...MAJOR_SYMBOLS, { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i }, ...mimir];
+  return [...MAJOR_SYMBOLS, { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i }];
 }

@@ -166,7 +166,7 @@ into every prefetched route chunk.
 - Wallet (`components/wallet/`): `WalletSheetProvider` (`useWalletSheet()`
   opens the sheet), `ConnectSheet` (detected Wallet Standard wallets, install
   links, phone deep links, per-row connecting / error states), `WalletChip`
-  (address, balances, tier, copy, explorer, disconnect) and
+  (address, balances, copy, explorer, disconnect) and
   `ConnectWalletButton` for page gates. Shell code reads the wallet through
   `hooks/useMimirWallet.ts` so a kit switch touches one file.
 

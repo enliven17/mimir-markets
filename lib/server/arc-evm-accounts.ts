@@ -3,7 +3,7 @@
  * wallet in `arc_evm_accounts`, plus an `arc_evm_owners` row per account so an account belongs to one wallet. Same
  * rules as the Solana binding (lib/server/arc-accounts.ts): a taken account is refused, not moved, and a wallet may
  * switch accounts once a day. Kept apart from the Solana tables so an Arc-native user can also link a Solana wallet
- * later (for $MIMIR perks) without either binding replacing the other.
+ * later without either binding replacing the other.
  */
 import type { Address } from "viem";
 

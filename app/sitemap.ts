@@ -17,7 +17,6 @@ const PAGES: Array<[path: string, priority: number, freq: MetadataRoute.Sitemap[
   ["/campaign", 0.6, "daily"],
   ["/stats", 0.6, "daily"],
   ["/calibration", 0.5, "weekly"],
-  ["/token", 0.6, "weekly"],
   ["/app", 0.7, "monthly"],
   ["/terminal", 0.6, "monthly"],
   ["/terms", 0.3, "yearly"],

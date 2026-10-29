@@ -1,7 +1,7 @@
 /**
  * The networks Mimir runs on, as their official wordmarks (public/networks,
  * from arc.network and solana.com's brand kit): Arc, where markets settle, and
- * Solana, where your wallet and $MIMIR live; with `robinhood`, Robinhood Chain too,
+ * Solana, where your wallet lives; with `robinhood`, Robinhood Chain too,
  * where agents launch on Pons and trade. White marks for the dark theme.
  */
 export function NetworkLogos({ className = "h-6", robinhood = false }: { className?: string; robinhood?: boolean }) {

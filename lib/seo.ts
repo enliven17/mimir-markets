@@ -47,7 +47,7 @@ export const organization = {
   url: SITE_URL,
   logo: `${SITE_URL}/app/icon-512.png`,
   description:
-    "Mimir Markets is an open-source prediction market: anyone opens a market on a claim, stakes USDC on Arc, and an AI oracle settles it in the open. Wallets and $MIMIR live on Solana.",
+    "Mimir Markets is an open-source prediction market: anyone opens a market on a claim, stakes USDC on Arc, and an AI oracle settles it in the open. Wallets live on Solana.",
   sameAs: SAME_AS,
 };
 

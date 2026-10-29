@@ -53,7 +53,6 @@ const PAGES: { path: string; name: string }[] = [
   { path: "/en/baskets/new", name: "compose basket" },
   { path: "/en/copy", name: "copy trading" },
   { path: "/en/dashboard", name: "dashboard" },
-  { path: "/en/token", name: "token" },
   { path: "/en/docs", name: "docs" },
   { path: "/en/radar", name: "council radar" },
   { path: "/en/terminal", name: "terminal" },
@@ -77,8 +76,6 @@ test("claim detail shows the fixture claim", async ({ page }) => {
   await mockFixtureClaim(page);
   await page.goto(`/en/arena/${FIXTURE_CLAIM_ID}`);
   await expect(page.getByText(/SOL trade above \$250/).first()).toBeVisible();
-  // The creator's holder badge, from one batched tier request.
-  await expect(page.getByText("Holder", { exact: true }).first()).toBeVisible();
 });
 
 test("dashboard shows the wallet gate when disconnected", async ({ page }) => {

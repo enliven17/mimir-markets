@@ -14,7 +14,6 @@ const sub = (over: Partial<SolSubRow> = {}): SolSubRow => ({ id: "s1", follower:
 function jobStore(s: SolSubRow | null = sub()) {
   const jobs = new Map<string, { status: string; sig?: string; note?: string }>();
   const pos = new Map<string, bigint>();
-  const paused: string[] = [];
   const store: CopyJobStore = {
     claim: async (key) => (jobs.has(key) ? false : (jobs.set(key, { status: "running" }), true)),
     solSub: async () => s,
@@ -27,9 +26,8 @@ function jobStore(s: SolSubRow | null = sub()) {
     },
     settleSell: async (id, mint, _h, left) => void (left > 0n ? pos.set(`${id}:${mint}`, left) : pos.delete(`${id}:${mint}`)),
     finish: async (key, status, note) => void jobs.set(key, { ...jobs.get(key), status, note }),
-    pauseForGate: async (id) => void paused.push(id),
   };
-  return { store, jobs, pos, paused };
+  return { store, jobs, pos };
 }
 const buyJob = (key = "s1:buy:agentSig", slippageBps = 100): Extract<SolJob, { kind: "buy" }> => ({ kind: "buy", key, sub: "s1", mint: "M", slippageBps });
 
@@ -49,24 +47,13 @@ test("fan-out: one job per follower, keyed on the agent's signature, slippage ca
 test("a copy buy is capped by the follower's max and the wallet, skipped under 0.01 SOL, and runs once per key", async () => {
   const spent: bigint[] = [];
   const exec = (have: bigint) => ({ buy: async (a: { lamports: bigint }) => (spent.push(a.lamports), fill(a.lamports, 5n)), sell: async () => fill(1n, 1n), spendable: async () => have });
-  const yes = async () => "yes" as const;
   const j = jobStore();
-  assert.equal(await runSolBuy(j.store, exec(1_000_000_000n), yes, silentLog, buyJob("k1")), "done");
-  assert.equal(await runSolBuy(j.store, exec(1_000_000_000n), yes, silentLog, buyJob("k1")), "skipped"); // same agent fill again
-  assert.equal(await runSolBuy(j.store, exec(40_000_000n), yes, silentLog, buyJob("k2")), "done");
-  assert.equal(await runSolBuy(j.store, exec(5_000_000n), yes, silentLog, buyJob("k3")), "skipped");
+  assert.equal(await runSolBuy(j.store, exec(1_000_000_000n), silentLog, buyJob("k1")), "done");
+  assert.equal(await runSolBuy(j.store, exec(1_000_000_000n), silentLog, buyJob("k1")), "skipped"); // same agent fill again
+  assert.equal(await runSolBuy(j.store, exec(40_000_000n), silentLog, buyJob("k2")), "done");
+  assert.equal(await runSolBuy(j.store, exec(5_000_000n), silentLog, buyJob("k3")), "skipped");
   assert.deepEqual(spent, [100_000_000n, 40_000_000n]);
   assert.equal(j.pos.get("s1:M"), 10n);
-});
-
-test("M3: $MIMIR \"no\" pauses the follower; \"unknown\" only skips this entry", async () => {
-  const exec = { buy: async () => fill(1n, 1n), sell: async () => fill(1n, 1n), spendable: async () => 1_000_000_000n };
-  const no = jobStore();
-  assert.equal(await runSolBuy(no.store, exec, async () => "no", silentLog, buyJob()), "skipped");
-  assert.deepEqual(no.paused, ["s1"]);
-  const unknown = jobStore();
-  assert.equal(await runSolBuy(unknown.store, exec, async () => "unknown", silentLog, buyJob()), "skipped");
-  assert.deepEqual(unknown.paused, []);
 });
 
 test("M2: a copy buy stores its signature before broadcast; an ambiguous failure is unknown, a provable one failed", async () => {
@@ -75,10 +62,10 @@ test("M2: a copy buy stores its signature before broadcast; an ambiguous failure
     buy: async (a: { onSigned?: (s: string, l: number) => Promise<void> }) => { await a.onSigned?.("COPYSIG", 9); throw Object.assign(new Error("timeout"), { name: "AmbiguousSendError" }); },
     sell: async () => fill(1n, 1n), spendable: async () => 1_000_000_000n,
   };
-  assert.equal(await runSolBuy(j.store, ambiguous, async () => "yes", silentLog, buyJob("amb")), "unknown");
+  assert.equal(await runSolBuy(j.store, ambiguous, silentLog, buyJob("amb")), "unknown");
   assert.equal(j.jobs.get("amb")?.sig, "COPYSIG");
   const rejected = { ...ambiguous, buy: async () => { throw Object.assign(new Error("preflight"), { notLanded: true }); } };
-  assert.equal(await runSolBuy(j.store, rejected, async () => "yes", silentLog, buyJob("rej")), "failed");
+  assert.equal(await runSolBuy(j.store, rejected, silentLog, buyJob("rej")), "failed");
 });
 
 test("M2: an unrecorded copy buy is settled by signature: landed adds what it really bought, once", async () => {
@@ -134,7 +121,7 @@ test("arc copy amount: the cap within the balance minus gas, in cents, 0 under t
   assert.equal(arcCopyAmount(5, 0.12, 0.1), 0);
 });
 
-test("arc copy job: gated by $MIMIR, runs once, a Circle error is unknown (never retried)", async () => {
+test("arc copy job: runs once, a Circle error is unknown (never retried)", async () => {
   const subs: Record<string, ArcSubRow> = {
     a: { id: "a", follower: "A", walletId: "wa", wallet: "A", maxPerStakeUsdc: 3, active: true, on: true },
     c: { id: "c", follower: "C", walletId: "wc", wallet: "C", maxPerStakeUsdc: 3, active: true, on: true },
@@ -150,14 +137,12 @@ test("arc copy job: gated by $MIMIR, runs once, a Circle error is unknown (never
       staked.push(`${a.walletId}:${a.marketId}:${a.side}:${a.amountUsdc}`);
       return "0xtx";
     },
-    holds: async (f) => (f === "C" ? "no" : "yes"),
     log: silentLog,
     minStakeUsdc: 0.1,
   };
   assert.equal(await runArcCopy(d, { key: "a:arc:T", sub: "a", marketId: 7, side: 2 }), "done");
   assert.equal(await runArcCopy(d, { key: "a:arc:T", sub: "a", marketId: 7, side: 2 }), "skipped");
-  assert.equal(await runArcCopy(d, { key: "c:arc:T", sub: "c", marketId: 7, side: 2 }), "skipped");
+  assert.equal(await runArcCopy(d, { key: "c:arc:T", sub: "c", marketId: 7, side: 2 }), "done");
   assert.equal(await runArcCopy(d, { key: "e:arc:T", sub: "e", marketId: 7, side: 2 }), "unknown");
-  assert.deepEqual(staked, ["wa:7:2:3"]);
-  assert.deepEqual(j.paused, ["c"]);
+  assert.deepEqual(staked, ["wa:7:2:3", "wc:7:2:3"]);
 });

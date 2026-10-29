@@ -2,9 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { parseDexScreenerPrice, parseJupiterPrice } from "../../lib/server/dex-prices";
-import { sumParsedBalances } from "../../lib/server/mainnet";
 import { deterministicPriceOption, resolverFromUrl } from "../../lib/resolver-spec";
-import { ANSEM_MINT_VERIFIED, dexMintFor, dexSourceUrl } from "../../lib/token-config";
+import { ANSEM_MINT_VERIFIED, dexMintFor, dexSourceUrl } from "../../lib/dex-tokens";
 
 const MINT = ANSEM_MINT_VERIFIED;
 const SOL = "So11111111111111111111111111111111111111112";
@@ -36,15 +35,6 @@ test("Jupiter price v3 by mint, skipping thin liquidity", () => {
   assert.equal(parseJupiterPrice({ [MINT]: { usdPrice: -1 } }, MINT), null);
 });
 
-test("sumParsedBalances adds every token account in raw units", () => {
-  const acc = (amount: string, decimals = 6) => ({
-    account: { data: { parsed: { info: { tokenAmount: { amount, decimals } } } } },
-  });
-  assert.equal(sumParsedBalances({ value: [acc("1500000"), acc("500000")] }), 2);
-  assert.equal(sumParsedBalances({ value: [] }), 0);
-  assert.equal(sumParsedBalances({ value: [acc("abc"), acc("1000000")] }), 1);
-});
-
 test("$ANSEM is DEX-priced and gets a deterministic resolver on the create form", () => {
   assert.equal(dexMintFor("ansem"), MINT);
   const opt = deterministicPriceOption({
@@ -60,29 +50,6 @@ test("$ANSEM is DEX-priced and gets a deterministic resolver on the create form"
   assert.equal(opt.spec.threshold, 0.25);
   assert.ok(opt.resolutionUrl.length <= 200);
   assert.deepEqual(resolverFromUrl(opt.resolutionUrl), opt.spec);
-});
-
-test("the Mimir ticker is only DEX-priced once its mint is set", () => {
-  const prev = process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT;
-  const fakeMint = "739dnZEG4yaBWFsY8L8ZwrfhGG6dhtCSercW8Umspump";
-  delete process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT;
-  assert.equal(dexMintFor("MIMIR"), null);
-  process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT = fakeMint;
-  try {
-    assert.equal(dexMintFor("MIMIR"), fakeMint);
-    const base = {
-      creatorPosition: "Yes",
-      counterPosition: "No",
-      resolutionUrl: "",
-      defaultSource: (s: string) => dexSourceUrl(dexMintFor(s)!),
-    };
-    // Plain "Mimir" prose is not a price claim; the $-ticker is.
-    assert.equal(deterministicPriceOption({ ...base, question: "Will the Mimir oracle settle above $5 of volume?" }), null);
-    assert.equal(deterministicPriceOption({ ...base, question: "Will $MIMIR close above $0.01 on Friday?" })?.spec.symbol, "MIMIR");
-  } finally {
-    if (prev === undefined) delete process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT;
-    else process.env.NEXT_PUBLIC_MIMIR_TOKEN_MINT = prev;
-  }
 });
 
 test("the DEX liquidity floor defaults far above dust pools", async () => {

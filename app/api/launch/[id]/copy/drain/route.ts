@@ -1,7 +1,7 @@
 /**
  * POST /api/launch/:id/copy/drain {}: the follower's "sell my copied tokens", signed by the follower. Stops new Solana
  * copies and sells what the copy wallet actually holds of every mint it copied (convex/launchCopyJobs.ts drain); the
- * SOL is then free to withdraw (copy/withdraw). Never needs $MIMIR: leaving is always allowed.
+ * SOL is then free to withdraw (copy/withdraw). Leaving is always allowed.
  */
 import { api } from "@/convex/_generated/api";
 import { copyKeyFor } from "@/lib/launch/copy-key";

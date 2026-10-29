@@ -3,8 +3,7 @@
 /**
  * Header wallet chip (`.wallet-chip` / `.wallet-menu`). Disconnected: a glass "Connect" pill that opens the
  * connect sheet. Connected: the short address in mono with a chevron; the
- * menu holds the wallet's devnet balances, its token tier (moved here from
- * the header), copy address, explorer, "Manage balance" and disconnect.
+ * menu holds the wallet's devnet balances, copy address, explorer, "Manage balance" and disconnect.
  *
  * Keyboard: the menu opens on Enter/Space/ArrowDown and focuses its first
  * item, arrows move between items, Esc closes and returns focus to the chip,
@@ -20,7 +19,6 @@ import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { USDC_MINT, explorerUrl } from "@/lib/solana/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
-import { useHolderTier } from "@/components/token/useHolderTier";
 import { useWalletSheet } from "./WalletSheetProvider";
 
 export function shortAddress(address: string): string {
@@ -34,10 +32,8 @@ const menuItem =
 
 export default function WalletChip({ className = "" }: { className?: string }) {
   const t = useTranslations("wallet");
-  const tt = useTranslations("token");
   const { publicKey, connected, connecting, wallet, disconnect, connection } = useMimirWallet();
   const { open: openSheet, warm: warmSheet } = useWalletSheet();
-  const { state: tier } = useHolderTier();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [balances, setBalances] = useState<Balances>({ sol: null, usdcUnits: null });
@@ -156,7 +152,6 @@ export default function WalletChip({ className = "" }: { className?: string }) {
     );
   }
 
-  const tierLabel = tier && tier.tier !== "none" ? tt(`tier.${tier.tier}`) : null;
   const explorer = explorerUrl("address", address);
 
   return (
@@ -195,17 +190,6 @@ export default function WalletChip({ className = "" }: { className?: string }) {
           <div className="px-2.5 pb-2 pt-1.5">
             <p className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.06em] text-muted">
               {t("devnet")}
-              {tierLabel ? (
-                <Link
-                  href="/token"
-                  data-menu-item
-                  title={tt("chipTitle")}
-                  onClick={() => close(false)}
-                  className="rounded-full bg-red/[0.14] px-2 py-0.5 normal-case tracking-normal text-pending"
-                >
-                  {tierLabel}
-                </Link>
-              ) : null}
             </p>
             <p className="mt-1 break-all font-mono text-[12px] leading-snug text-cream/80">{address}</p>
             <dl className="mt-2.5 grid grid-cols-2 gap-2 rounded-[14px] bg-cream/[0.035] p-2.5">

@@ -26,7 +26,7 @@ import { arcPublicClient } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
 import { jevEnabled } from "../lib/jev";
 import { skipTake } from "../lib/jev-triage";
-import { ENTRY_FEE_BPS } from "../lib/arc/fee-tiers";
+import { ENTRY_FEE_BPS } from "../lib/arc/fees";
 import { LOCK_SECONDS, maxGrossFor, vsRoom } from "../lib/arc/markets";
 import { councilWalletsFromEnv, executeContract } from "../lib/server/circle-w3s";
 import { copyArcStake } from "../lib/launch/arc-copy";
@@ -146,7 +146,7 @@ export const tick = internalAction({
           }
           if (m.kind === "vs") {
             // The 5x cap counts net stakes; personas pay the standard entry fee.
-            const room = units(maxGrossFor(vsRoom(BigInt(m.stakeA), BigInt(m.stakeB)), ENTRY_FEE_BPS[0]));
+            const room = units(maxGrossFor(vsRoom(BigInt(m.stakeA), BigInt(m.stakeB)), ENTRY_FEE_BPS));
             if (room < units(cfg.contracts.minStakeWei)) {
               await record({ outcome: "abstained", rationale: `${persona.displayName} would challenge, but the market is full.`, confidence: decision.confidence, until: Date.now() + REEVAL_MS });
               continue;

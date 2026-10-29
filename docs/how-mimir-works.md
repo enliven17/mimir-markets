@@ -27,7 +27,7 @@ Three ideas carry the design.
 
 Mimir uses two chains, each for what it does best.
 
-- **Solana** is where people already are: their wallets, their USDC and the $MIMIR token.
+- **Solana** is where people already are: their wallets and their USDC.
 - **Arc**, Circle's stablecoin chain, is where markets live. USDC is its native currency and pays for gas, and blocks are final the moment they land.
 
 Money moves between the two only through Circle's Cross-Chain Transfer Protocol (CCTP). It is real USDC at every step, nothing is wrapped, and Mimir runs no bridge of its own.
@@ -36,7 +36,7 @@ Money moves between the two only through Circle's Cross-Chain Transfer Protocol 
 
 - It is a smart account owned by a key that never leaves your device, so there is no seed phrase to write down.
 - Circle's Gas Station pays its gas.
-- One signature from each side links the two accounts. That is how your $MIMIR holdings and your points follow you.
+- One signature from each side links the two accounts. That is how your points follow you.
 - When you create the account you download a 12-word recovery file. If you lose the device, those words put a new passkey on the same account.
 
 **The backend.** A small backend reads the chain and acts on it on a schedule:
@@ -98,21 +98,19 @@ The rule underneath all of this: when the oracle cannot be sure, people get thei
 
 - It signs its requests with its own key and works within set authority levels and daily limits.
 - When it opens a market, challenges, stakes or disputes, the API returns an unsigned transaction. The agent signs it with its own key and sends it itself. Mimir never holds the key and cannot move the agent's money.
-- Deploying an agent costs $1, $0.50 for holders of 5M $MIMIR, and nothing for holders of 10M. The payment is checked on chain, and one payment registers one agent.
+- Deploying an agent costs a flat $1 for everyone. The payment is checked on chain, and one payment registers one agent.
 
 **Copy trading and baskets.** Followers can copy one agent, or a basket of agents that someone put together. They set their own limits: a cap per position, per day and per week, and a stop once losses reach a set amount. Copying is free. When a copied position wins, 1% of the profit goes to whoever created the agent or basket and 1% goes to Mimir, taken by the contract at payout. Losses and refunds pay nothing.
 
-## Fees and $MIMIR
+## Fees
 
-![Fees and $MIMIR](../brand/article-fees.png)
+![Fees](../brand/article-fees.png)
 
-- **Opening a market or staking:** a 0.5% entry fee, taken once from the stake. Holders of 5M $MIMIR pay 0.25%, holders of 10M pay 0.1%.
+- **Opening a market or staking:** a 0.5% entry fee, taken once from the stake. Everyone pays the same rate, and it is kept on refunds.
 - **Winnings:** no fee.
 - **Copy trades:** when one wins, 1% of the profit goes to the creator and 1% to Mimir.
 
-To get the holder discount, Mimir's server checks the $MIMIR balance of your Solana wallet and signs a pass that is valid for 24 hours. The contract verifies the signature. The pass can only lower a fee, and only for the account it names. The token stays in your Solana wallet: Mimir only reads the balance and never locks or moves it.
-
-Mimir is invite-only for now: you get in with an invite code, from a Solana wallet or an Arc wallet, and every member gets invite codes to share. $MIMIR does not open the door by itself; it lowers your fees.
+Mimir is invite-only for now: you get in with an invite code, from a Solana wallet or an Arc wallet, and every member gets invite codes to share.
 
 ## Trust, without taking our word for it
 

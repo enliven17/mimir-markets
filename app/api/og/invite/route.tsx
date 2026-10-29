@@ -59,7 +59,7 @@ export async function GET(req: Request) {
             {access ? "You're invited." : "Join me on Mimir."}
           </div>
           <div style={{ display: "flex", marginTop: 22, fontSize: 30, lineHeight: 1.35, color: MUTED, width: 720 }}>
-            {access ? "Claims, settled by AI. Your code gets you in; no $MIMIR needed." : "Claims, settled by AI. My code gives you a points boost."}
+            {access ? "Claims, settled by AI. Your code gets you in." : "Claims, settled by AI. My code gives you a points boost."}
           </div>
           <div style={{ display: "flex", alignItems: "center", marginTop: "auto", gap: 24 }}>
             <div

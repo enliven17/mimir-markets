@@ -1,8 +1,8 @@
 # Architecture: markets on Arc, wallets on Solana
 
 Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People keep their **Solana**
-wallet: it is their identity, it funds them over CCTP, and it holds **$MIMIR**, which lowers fees and opens the door
-at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana mainnet come together, invite-only.
+wallet: it is their identity and it funds them over CCTP. This build runs on Arc testnet + Solana devnet; Arc
+mainnet + Solana mainnet come together, invite-only.
 
 ## The shape of it
 
@@ -15,7 +15,7 @@ at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana 
                                        + Gas Station          ▲   │                 │
                                                               └───┘ payouts          │ events
  USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn
- $MIMIR balance ──▶ fee ticket (lower entry fee); entry is by invite code            ▼
+ invite code ──▶ access (from a Solana or Arc wallet)                                ▼
                                                               the backend: indexer, oracle, council, creator
 ```
 
@@ -30,13 +30,12 @@ at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana 
 - **Create:** connect the Solana wallet, create a passkey (Face ID, fingerprint, device PIN), get a Circle Modular
   Wallet (ERC-4337 smart account). Its address is known before it deploys; it deploys on its first operation.
 - **Link:** the Solana wallet and the smart account each sign one message naming the other
-  (`app/api/arc/bind`). The link is what fee tickets, the campaign, invites and Telegram use to join the two.
+  (`app/api/arc/bind`). The link is what the campaign, invites and Telegram use to join the two.
 - **Recover:** at sign-up the user downloads a 12-word recovery file and confirms it. The words derive an EOA added as
   a second owner of the smart account; with them a new passkey can be put on the same account. Lose both and the
   account is gone.
 - **Invite-only (mainnet):** entry is by invite code, from a Solana wallet or (native Arc sign-in) an Arc wallet.
-  Holding $MIMIR no longer lets a wallet in by itself; wallets let in that way earlier keep their access. $MIMIR sets
-  fee perks, read from a Solana wallet linked to the account. Every member gets `MIMIR_INVITES_PER_USER` codes
+  Holding a token never lets a wallet in; wallets let in earlier keep their access. Every member gets `MIMIR_INVITES_PER_USER` codes
   (default 2; raising it tops everyone up). Off on testnet unless `NEXT_PUBLIC_INVITE_ONLY=1`. The bind routes enforce
   it, so skipping the UI gains nothing (`lib/server/access.ts`, `components/access/AccessGate.tsx`).
 - **Native Arc sign-in:** an Arc (EVM) wallet instead of a Solana one. It signs once to bind to the passkey account
@@ -59,7 +58,7 @@ at launch. This build runs on Arc testnet + Solana devnet; Arc mainnet + Solana 
 |---|---|
 | `MimirV3` | **VS markets** (the default). The creator backs side A; challengers take side B and, if they win, split the creator's stake pro rata. Challengers together can add at most 5× the creator's stake (`MAX_POOL_MULTIPLE`), and the creator risks at most 5× the challengers' total (the rest comes back). Fixed-odds mode is capped by the creator's liability. |
 | `MimirPool` | **Pool markets.** Anyone stakes on either side; winners take their stake back plus a pro-rata share of the losing side. An empty side, a draw or an unresolvable result refunds everyone. Payouts are per user (`claimFor`, sent by the backend). |
-| `MimirFees` | Entry-fee tiers and the holder fee tickets. |
+| `MimirFees` | The entry-fee rate per account (0.5% standard). |
 
 Both market contracts share the lifecycle:
 
@@ -80,15 +79,11 @@ oracle and fee-recipient changes go through 2-day timelocks. Native USDC only.
 ## Fees
 
 - **Entry fee on every position** (open, challenge, pool stake), taken from what is sent; the rest is the stake.
-  0.5% by default, **0.25% for 5M+ $MIMIR, 0.1% for 10M+**, never above 1% (`MAX_ENTRY_BPS`). Kept on refunds.
-- **Holder discount:** the token is on Solana, so the server reads the linked Solana wallet's balance and signs an
-  EIP-712 `FeeTicket(account, tier, expires)` for 24 hours (`app/api/arc/fee-ticket`). The account applies it in the
-  same user operation as its bet. The signer can only lower fees; each ticket records the signer epoch, so rotating
-  the signer voids old tickets.
+  0.5% for everyone, never above 1% (`MAX_ENTRY_BPS`). Kept on refunds.
 - **Copy trades:** a position opened with a `referrer` (the basket creator, or the copied agent's owner) pays 1% of
   its net profit to the referrer and 1% to Mimir, on wins only.
-- **Agent deploy:** $1, $0.50 at 5M, free at 10M, paid in USDC on Arc and checked by the API.
-- No fee on winnings.
+- **Agent deploy:** a flat $1, paid in USDC on Arc and checked by the API.
+- No other fee on winnings.
 
 ## The backend
 
@@ -137,7 +132,7 @@ stake, copy fees only on profit). Slither: no high or medium findings. Sizes: Mi
 | Arbiter | a Safe (may be the owner's only with `ARC_ARBITER_IS_OWNER=1`) | `resolveDispute`, the only ruling on disputed and vetoed proposals |
 | Oracle | the Convex hot key | propose resolutions; never owner, arbiter or fee recipient (constructor and `queueOracle` revert `RoleCollision`) |
 | Fee recipient | a treasury address | receives entry fees, the platform share and forfeited bonds |
-| Fee signer | the server key | signs $MIMIR holder fee tickets; it can only lower a fee |
+| Fee signer | unused by the app | the `MimirFees` ticket signer; the app signs no tickets, and a ticket can only lower a fee |
 
 All roles are constructor arguments; nothing stays on the deployer. On mainnet `scripts/arc/deploy.mjs` refuses a
 missing role, a role equal to the deployer, colliding roles, and an owner or arbiter without code.

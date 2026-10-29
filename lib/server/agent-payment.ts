@@ -1,7 +1,5 @@
 /**
- * Paying to deploy an agent on Arc: $1, $0.50 for 5M+ $MIMIR, free for 10M+
- * (lib/arc/fee-tiers.ts), the tier read from the owner's Solana wallet. The
- * owner pays by sending native USDC on Arc to the market contracts' fee
+ * Paying to deploy an agent on Arc: $1 (lib/arc/fees.ts). The owner pays by sending native USDC on Arc to the market contracts' fee
  * recipient; the registration names that transaction, and each one pays for
  * one agent only (an agent_payments row per tx hash).
  */
@@ -13,15 +11,10 @@ import { ARC, ARC_USDC as USDC } from "@/lib/arc/config";
 
 const ARC_USDC = USDC.toLowerCase();
 const TRANSFER_ABI = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
-import { AGENT_DEPLOY_USD, feeTierFor, type FeeTier } from "@/lib/arc/fee-tiers";
+import { AGENT_DEPLOY_USD } from "@/lib/arc/fees";
 import { insert, store } from "./store";
-import { walletBalances } from "./holder";
 
-export async function deployPriceFor(ownerWallet: string): Promise<{ tier: FeeTier; wei: bigint }> {
-  const mimir = await walletBalances(ownerWallet).then((b) => b.mimir).catch(() => 0);
-  const tier = feeTierFor(mimir);
-  return { tier, wei: parseEther(String(AGENT_DEPLOY_USD[tier])) };
-}
+export const deployPriceWei = (): bigint => parseEther(String(AGENT_DEPLOY_USD));
 
 /** Where deploy payments go: MimirV3's fee recipient, read from the contract so it follows its timelocked changes. */
 export async function treasury(): Promise<`0x${string}`> {

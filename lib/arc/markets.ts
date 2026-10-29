@@ -1,21 +1,21 @@
 /**
  * Mimir's Arc markets from the app's side: the calls a passkey account sends
- * (create, stake, challenge, apply a holder ticket) and the quotes the stake
+ * (create, stake, challenge) and the quotes the stake
  * UI shows. Pure and isomorphic; amounts are native USDC wei (18 dp), what
  * msg.value spends.
  *
  * VS (MimirV3, pool odds): the creator stakes X, challengers together may
  * stake up to 5X, and the winning side takes the losing side's stake pro rata.
  * Pool (MimirPool): two-sided pari-mutuel, anyone stakes either side.
- * Fees (lib/arc/fee-tiers.ts): an entry fee comes off every stake (0.5%, less
- * for $MIMIR holders) and is kept on refunds; no fee on winnings, except copy
+ * Fees (lib/arc/fees.ts): an entry fee comes off every stake (0.5%) and is
+ * kept on refunds; no fee on winnings, except copy
  * trades, which give 1% of the profit to the basket creator and 1% to Mimir.
  */
 import { encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address, type PublicClient } from "viem";
 
 import type { ArcCall } from "./cctp-arc";
 import { ARC } from "./config";
-import { COPY_FEE_BPS, REFERRER_FEE_BPS, type FeeTicket } from "./fee-tiers";
+import { COPY_FEE_BPS, REFERRER_FEE_BPS } from "./fees";
 
 export type ArcMarketKind = "vs" | "pool";
 
@@ -38,7 +38,6 @@ export const MIMIR_POOL_ABI = parseAbi([
   "event MarketCreated(uint256 indexed id, address indexed creator, uint256 deadline, string category)",
 ]);
 export const MIMIR_FEES_ABI = parseAbi([
-  "function applyTicket(uint8 tier, uint64 expires, bytes sig)",
   "function entryBps(address account) view returns (uint16)",
 ]);
 
@@ -84,12 +83,6 @@ export function stakeCall(contract: Address, kind: ArcMarketKind, marketId: numb
       ? encodeFunctionData({ abi: MIMIR_V3_ABI, functionName: "challengeClaim", args: [BigInt(marketId), stake, "", referrer] })
       : encodeFunctionData({ abi: MIMIR_POOL_ABI, functionName: "stake", args: [BigInt(marketId), side, referrer] });
   return { to: contract, data, value: stake };
-}
-
-/** The holder ticket as a call, sent in the same user operation as the bet; null when there is nothing to apply. */
-export function applyTicketCall(fees: Address, t: FeeTicket): ArcCall | null {
-  if (!t.signature || t.tier === 0) return null;
-  return { to: fees, data: encodeFunctionData({ abi: MIMIR_FEES_ABI, functionName: "applyTicket", args: [t.tier, BigInt(t.expires), t.signature] }) };
 }
 
 /** Both contracts: launch caps, the early lock (setLockAt) and the emergency pause, as the stake UI checks them. */

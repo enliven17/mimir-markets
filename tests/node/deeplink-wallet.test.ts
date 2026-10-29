@@ -118,7 +118,7 @@ for (const wallet of ["phantom", "solflare"] as const) {
     assert.equal(connect.searchParams.get("cluster"), "devnet");
     assert.match(connect.searchParams.get("redirect_link")!, /^https:\/\/mimirmarkets\.xyz\/api\/wallet-return\?op=[A-Za-z0-9_-]{22}$/);
 
-    const message = new TextEncoder().encode("Mimir holder proof");
+    const message = new TextEncoder().encode("Mimir wallet proof");
     const sig = await adapter.signMessage(message);
     assert.ok(nacl.sign.detached.verify(message, sig, w.user.publicKey.toBytes()));
 

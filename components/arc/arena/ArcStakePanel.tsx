@@ -13,7 +13,6 @@ import { betCardUrl, betIntentUrl } from "@/lib/bet-share";
 import { Link } from "@/i18n/navigation";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
-import { FEE_TIER_LABEL } from "@/lib/arc/fee-tiers";
 import { maxGrossFor, MIN_STAKE_WEI, parseUsdc, poolQuote, readStakeLimits, stakeCall, stakeLimitBlocker, vsChallengeQuote, vsRoom, type StakeLimits } from "@/lib/arc/markets";
 import AccountGate from "./AccountGate";
 import { BTN_PRIMARY, usd, usdFine, type ArcMarket } from "./shared";
@@ -81,7 +80,7 @@ export default function ArcStakePanel({
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;
-    if (await send(account.withTicket([stakeCall(contract, m.kind, m.marketId, stake, side)]))) {
+    if (await send([stakeCall(contract, m.kind, m.marketId, stake, side)])) {
       void account.reload();
       setShared({ side, amount: usd(stake) });
     }
@@ -126,7 +125,7 @@ export default function ArcStakePanel({
             <span className="text-muted">You risk</span>
             <span className="text-right text-cream">{usd(quote.risk)}</span>
             <span className="text-muted">
-              Fee {bps / 100}%{account.tier ? <span className="ml-1 text-win">({FEE_TIER_LABEL[account.tier]})</span> : null}
+              Fee {bps / 100}%
             </span>
             <span className="text-right text-cream">{usdFine(quote.fee)}</span>
             <span className="text-muted">{quote.atMost ? "You win at most" : "Returns if it closed now"}</span>
@@ -136,7 +135,6 @@ export default function ArcStakePanel({
 
         <p className="m-0 text-[12px] text-dim">
           {account.split ? `Account: ${usd(account.split.account)} · From your wallet: ${usd(account.split.wallet)}` : `Arc balance: ${account.balance === null ? "-" : usd(account.balance)}`}
-          {account.tier === 0 ? " · Hold 5M+ $MIMIR for a 0.25% fee, 10M+ for 0.1%" : ""}
         </p>
 
         {blocker === "not-enough" ? (

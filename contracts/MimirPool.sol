@@ -27,7 +27,7 @@ interface IMimirFees {
  *     platform.
  *   - Fees: every stake (the creator's opening one included) pays an entry
  *     fee, MimirFees.entryBps(msg.sender) of msg.value (0.5% by default, less
- *     for $MIMIR holders with a signed ticket); the rest is staked. The entry
+ *     with a signed ticket); the rest is staked. The entry
  *     fee is earned and kept on refunds. Winnings pay no fee, except copy
  *     trades: a stake made with a `referrer` (the basket creator it copies)
  *     pays REFERRER_FEE_BPS of its net profit (less the user's own stake on the

@@ -1,11 +1,9 @@
 "use client";
 
-/** Challengers tab: every wallet on the challenger side, with its holder tier, stake and (once resolved) payout state. */
+/** Challengers tab: every wallet on the challenger side, with its stake and (once resolved) payout state. */
 import { useTranslations } from "next-intl";
 import PeepAvatar from "@/components/ui/PeepAvatar";
-import HolderBadge from "@/components/token/HolderBadge";
 import type { ApiClaim } from "@/lib/server/arena-claim";
-import type { TokenTier } from "@/lib/token-tiers";
 import { ST_RESOLVED } from "@/lib/solana/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { shortKey } from "@/components/arena/settlement/useSettleAction";
@@ -13,11 +11,9 @@ import { shortKey } from "@/components/arena/settlement/useSettleAction";
 export default function ChallengersList({
   claim,
   viewer,
-  tiers,
 }: {
   claim: ApiClaim;
   viewer: string | null;
-  tiers: Record<string, TokenTier | undefined>;
 }) {
   const t = useTranslations("arena.detail.people");
   const seats = claim.maxChallengers > 0 ? claim.maxChallengers : 1;
@@ -37,7 +33,6 @@ export default function ChallengersList({
               <PeepAvatar seed={`challenger-${c.addr}`} size={32} />
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="font-mono text-[13px] text-cream">{shortKey(c.addr)}</span>
-                <HolderBadge tier={tiers[c.addr]} />
                 {viewer === c.addr ? <span className="text-[12px] text-coral">{t("you")}</span> : null}
                 {resolved ? (
                   <span className={`text-[12px] ${c.paid ? "text-win" : "text-pending"}`}>{c.paid ? t("paid") : t("unpaid")}</span>

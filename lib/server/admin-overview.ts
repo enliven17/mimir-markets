@@ -197,7 +197,7 @@ export async function adminOverview() {
     probe(database),
     probe(telegram),
     probe(() => solanaSlot(SOLANA_RPC)),
-    // SOLANA_MAINNET_RPC is a comma list (lib/server/mainnet.ts): probe the first, the one balance reads try first.
+    // SOLANA_MAINNET_RPC is a comma list (lib/server/mainnet.ts): probe the first, the one reads try first.
     probe(() => solanaSlot(rpcUrls()[0])),
   ]);
 

@@ -8,7 +8,7 @@
 //   ARC_ORACLE         the settlement hot key; never owner, arbiter or fee recipient (the contracts refuse it)
 //   ARC_FEE_RECIPIENT  receives entry fees, the copy-trade platform share and forfeited bonds (the owner's Safe as
 //                      the treasury only with ARC_FEE_TO_IS_OWNER=1)
-//   ARC_FEE_SIGNER     the server key that signs $MIMIR holder fee tickets
+//   ARC_FEE_SIGNER     MimirFees' ticket signer (the app signs no tickets: everyone pays the standard fee)
 // Other env:
 //   ARC_NETWORK testnet|mainnet, ARC_RPC (required on mainnet)
 //   ARC_DISPUTE_WINDOW seconds; default 86400 on mainnet (the contracts refuse less off testnet), 3600 on testnet
@@ -17,7 +17,7 @@
 // Mainnet refuses to run unless every role is set, none is the deployer, they do not collide, and the owner and
 // arbiter are contracts (the Safe deployed first). Testnet fills missing roles with throwaway-friendly defaults:
 // owner and arbiter the deployer, oracle ARC_ORACLE (required: it must differ from the owner), fees to the deployer.
-// Fees are fixed in the contracts: 0.5% entry (0.25% / 0.1% with a holder ticket), copy trades 1% + 1% of profit.
+// Fees are fixed in the contracts: 0.5% entry, copy trades 1% + 1% of profit.
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
