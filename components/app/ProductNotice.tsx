@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal";
 
-const KEY = "mimir:product-notice-seen";
+const KEY = "mimir:product-notice-seen-2";
 export const PRODUCT_NOTICE_EVENT = "mimir:product-notice-seen";
 
 export function productNoticeSeen(): boolean {
@@ -24,7 +24,7 @@ export function productNoticeSeen(): boolean {
 const POINTS = [
   "A token was once created for a competition. Mimir has no connection to any token today.",
   "No token is needed to use Mimir or to make it work.",
-  "There is no Mimir token community or token channel. Anyone claiming one does not speak for Mimir.",
+  "Mimir has no social media accounts or community. Anyone claiming to speak for Mimir does not.",
   "Every grant we have received, and every grant we receive, goes to the product.",
 ];
 

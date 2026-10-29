@@ -22,7 +22,7 @@ export const TERMS: readonly TermsSection[] = [
     title: "Your choice to use Mimir",
     points: [
       "You came to Mimir on your own initiative and use it of your own free will. Nobody asked, paid or pressured you to take part.",
-      "By opening, browsing or using the site, the app, the CLI, the Telegram bot or the API, you accept these terms. If you do not accept them, do not use Mimir.",
+      "By opening, browsing or using the site, the app, the CLI or the API, you accept these terms. If you do not accept them, do not use Mimir.",
       "You are at least 18 years old, or the age of majority where you live if that is higher, and you are able to enter into these terms.",
     ],
   },

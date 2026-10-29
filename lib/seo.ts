@@ -9,8 +9,8 @@ import { SITE_URL } from "./site";
 export const SITE_NAME = "Mimir Markets";
 export const LOCALE = "en";
 
-/** Where people follow Mimir; the Organization's sameAs. */
-export const SAME_AS = ["https://x.com/mimirmarkets", "https://t.me/mimirmarkets", "https://github.com/enliven17/mimir-markets"] as const;
+/** The Organization's sameAs. */
+export const SAME_AS = ["https://github.com/enliven17/mimir-markets"] as const;
 
 export const absolute = (path: string) => `${SITE_URL}/${LOCALE}${path === "/" ? "" : path}`;
 

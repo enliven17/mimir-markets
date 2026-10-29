@@ -23,9 +23,9 @@ import CouncilMark from "@/components/launch/CouncilMark";
 
 const INVITE_ONLY = inviteOnly(ARC.network, process.env.NEXT_PUBLIC_INVITE_ONLY?.trim());
 // Only the screens that act are gated: setting up and funding the Arc account, the portfolio, creating markets and
-// agents, linking Telegram. Everyone can browse the arena, markets, baskets and the rest; a stake needs an account,
+// agents. Everyone can browse the arena, markets, baskets and the rest; a stake needs an account,
 // and the account is set up on /wallet.
-const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/launch/new", "/telegram"];
+const GATED = ["/wallet", "/dashboard", "/arena/create", "/agents/new", "/launch/new"];
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 const BTN_GHOST = "rounded-full px-5 py-2.5 text-[14px] text-cream shadow-[inset_0_0_0_1px_rgb(243_234_214/.2)] hover:bg-cream/5 disabled:opacity-60";
 

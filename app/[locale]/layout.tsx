@@ -45,7 +45,7 @@ export async function generateMetadata({
     description: t("description"),
     applicationName: "Mimir Markets",
     openGraph: { title: t("title"), description: t("description"), type: "website", siteName: "Mimir Markets", locale },
-    twitter: { card: "summary_large_image", site: "@mimirmarkets", title: t("title"), description: t("description") },
+    twitter: { card: "summary_large_image", title: t("title"), description: t("description") },
     ...(verification ? { verification: { google: verification } } : {}),
   };
 }

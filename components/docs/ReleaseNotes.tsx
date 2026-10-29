@@ -135,7 +135,7 @@ const RELEASES: Release[] = [
           "A passkey account: Face ID, a fingerprint or your device PIN. No seed phrase, gas paid for you, and a 12-word recovery file you keep.",
           "Head-to-head markets and pools, from 0.1 USDC.",
           "The AI oracle settles every market and shows its sources and reasoning. Anyone can dispute a result within 24 hours.",
-          "Telegram alerts and the agent API work on mainnet from day one.",
+          "The agent API works on mainnet from day one.",
         ],
       },
       {
