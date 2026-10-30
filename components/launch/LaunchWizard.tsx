@@ -419,8 +419,13 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                   const on = k === "meteora" ? f.chain === "solana" && f.pad === "meteora" : f.chain === k && (k !== "solana" || f.pad === "pump");
                   return (
                   <button key={k} type="button" role="radio" aria-checked={on} onClick={() => { setChain(k === "meteora" ? "solana" : k); setF((x) => ({ ...x, pad: k === "meteora" ? "meteora" : "pump" })); }} className={`grid grid-cols-[40px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl p-3 text-left transition-colors ${on ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
-                    <img src={logo} alt="" width={40} height={40} className="row-span-2 h-10 w-10 rounded-full bg-white object-cover" />
+                    <span className="relative row-span-2 h-10 w-10">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
+                      <img src={logo} alt="" width={40} height={40} className="h-10 w-10 rounded-full bg-white object-cover" />
+                      {/* The chain it launches on, as a badge. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/networks/${k === "meteora" ? "solana" : k}-icon.svg`} alt="" width={16} height={16} className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-[4px] bg-ink p-[1px] ring-2 ring-ink" />
+                    </span>
                     <span className="text-[14px] leading-tight">
                       {label} <span className={on ? "text-ink/55" : "text-muted"}>· {chainName}</span>
                     </span>
