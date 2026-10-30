@@ -301,7 +301,7 @@ export default defineSchema({
     at: v.number(),
     kind: v.string(),
     text: v.string(),
-    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood"))),
+    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood"), v.literal("base"))),
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 

@@ -49,7 +49,7 @@ export const release = internalMutation({
 });
 
 export const done = internalMutation({
-  args: { key: v.string(), logTo: v.optional(v.id("launchAgents")), text: v.string(), chain: v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood")), tx: v.string() },
+  args: { key: v.string(), logTo: v.optional(v.id("launchAgents")), text: v.string(), chain: v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood"), v.literal("base")), tx: v.string() },
   handler: async (ctx, { key, logTo, text, chain, tx }) => {
     const p = await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first();
     if (p) await ctx.db.patch(p._id, { done: true });
