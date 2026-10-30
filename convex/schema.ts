@@ -220,17 +220,20 @@ export default defineSchema({
     }),
     /**
      * "robinhood": a Pons token, trading on Robinhood Chain (lib/launch/robinhood) from the wallet below. Absent: the
-     * Solana wallet trades (pump.fun agents; Argus agents keep it too, see launch.chain).
+     * Solana wallet trades (pump.fun agents; Argus agents keep it too, see launch.chain). "base": a Clanker v4 token on
+     * Base (lib/launch/base) launched from the `base` wallet; it claims its creator fees and stakes on Arc (no trading yet).
      */
-    venue: v.optional(v.literal("robinhood")),
+    venue: v.optional(v.union(v.literal("robinhood"), v.literal("base"))),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /**
      * Robinhood Chain wallet (Privy, chain_type ethereum, policy-locked: lib/launch/robinhood/policy.ts) and the
      * owner's own Robinhood address it pays back to: the launch must be funded from it, a shutdown sweeps ETH to it.
      */
     robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
+    /** Base wallet (Privy, chain_type ethereum, policy-locked: lib/launch/base/policy.ts) and the owner's EVM payout address. */
+    base: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
-    /** Its token once launched: the pump.fun mint, or the Pons token address (checksummed) on Robinhood Chain. */
+    /** Its token once launched: the pump.fun mint, or the Pons (Robinhood Chain) or Clanker (Base) token address, checksummed. */
     mint: v.optional(v.string()),
     /** Its Argus token on Arc (lib/launch/argus.ts), once launched; such an agent has no `mint`. */
     token: v.optional(v.object({
@@ -251,7 +254,7 @@ export default defineSchema({
     house: v.optional(v.string()),
     /** The launch: SOL the owner must send (lamports, decimal string), the token text, and the claim that lets one request mint. */
     launch: v.optional(v.object({
-      /** What the owner must send before launch, in the venue's native base unit (lamports; wei on Robinhood). */
+      /** What the owner must send before launch, in the venue's native base unit (lamports; wei on Robinhood and Base). */
       fundLamports: v.string(),
       description: v.string(),
       /** Where its token launches: pump.fun on Solana (the default) or Argus on Arc, with the Argus taxes. */

@@ -21,7 +21,7 @@ const vBrain = v.union(
   v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
 );
 
-const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "solana" | "arc" | "robinhood"; tx?: string } = {}) =>
+const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "solana" | "arc" | "robinhood" | "base"; tx?: string } = {}) =>
   ctx.db.insert("launchEvents", { agent, at: Date.now(), kind, text: text.slice(0, 300), ...extra });
 
 export const createPending = mutation({
@@ -30,9 +30,10 @@ export const createPending = mutation({
     brain: vBrain,
     trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
-    venue: v.optional(v.literal("robinhood")),
+    venue: v.optional(v.union(v.literal("robinhood"), v.literal("base"))),
     solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
+    base: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
     arc: v.object({ walletId: v.string(), address: v.string() }),
     fundLamports: v.string(), description: v.string(), image: v.optional(v.string()),
     allocation: v.optional(vAllocation),
@@ -64,7 +65,7 @@ export const forLaunch = query({
     const a = await bySlug(ctx, slug);
     return a && {
       owner: a.owner, venue: a.venue ?? "solana", name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, mint: a.mint ?? null,
-      solana: a.solana ?? null, robinhood: a.robinhood ?? null, arc: a.arc ?? null, launch: a.launch ?? null,
+      solana: a.solana ?? null, robinhood: a.robinhood ?? null, base: a.base ?? null, arc: a.arc ?? null, launch: a.launch ?? null,
       uid: a.uid, token: a.token ?? null, allocation: a.allocation ?? null, argusOwed6: a.argusFees?.owedTreasury6 ?? "0",
     };
   },
@@ -118,8 +119,8 @@ export const recordLaunch = mutation({
     if (a.mint) return;
     // The uploaded image is on IPFS now (pump.fun) or no longer needed (Pons reads its logo URL once): drop it.
     await ctx.db.patch(a._id, { mint, status: a.status === "killed" ? "killed" : "live", launch: { ...a.launch, image: undefined, metadataUri, sig } });
-    const rh = a.venue === "robinhood";
-    await log(ctx, a._id, "rules", `launched $${a.ticker} on ${rh ? "Pons (Robinhood Chain)" : a.launch.pad === "meteora" ? "Meteora" : "pump.fun"}, getting to work`, { chain: rh ? "robinhood" : "solana", tx: sig });
+    const where = a.venue === "robinhood" ? "Pons (Robinhood Chain)" : a.venue === "base" ? "Clanker (Base)" : a.launch.pad === "meteora" ? "Meteora" : "pump.fun";
+    await log(ctx, a._id, "rules", `launched $${a.ticker} on ${where}, getting to work`, { chain: a.venue ?? "solana", ...(sig ? { tx: sig } : {}) });
   },
 });
 
@@ -158,8 +159,10 @@ export const setStatus = mutation({
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner || a.status === "killed" || (a.status === "pending" && status !== "killed")) return false;
     await ctx.db.patch(a._id, { status, ...(status === "live" ? { sleepUntil: undefined, idle: undefined } : {}) });
-    const coin = a.venue === "robinhood" ? { chain: "Robinhood Chain", unit: "ETH" } : { chain: "Solana", unit: "SOL" };
-    const shutdown = `shut down by its owner: closing ${coin.chain} positions and returning its ${coin.unit} (Arc stakes settle on their own; withdraw USDC any time)`;
+    const coin = a.venue === "robinhood" ? { chain: "Robinhood Chain", unit: "ETH" } : a.venue === "base" ? { chain: "Base", unit: "ETH" } : { chain: "Solana", unit: "SOL" };
+    const shutdown = a.venue === "base"
+      ? "shut down by its owner: claiming its last creator fees and returning its ETH on Base (Arc stakes settle on their own; withdraw USDC any time)"
+      : `shut down by its owner: closing ${coin.chain} positions and returning its ${coin.unit} (Arc stakes settle on their own; withdraw USDC any time)`;
     await log(ctx, a._id, "rules", status === "killed" ? shutdown : `${status === "live" ? "resumed" : "paused"} by its owner`);
     return true;
   },
@@ -171,10 +174,10 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   trading: { enabled: a.trading.enabled }, markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc },
-  // `wallet` is the wallet it trades from: Solana, or its Robinhood Chain wallet (whose ETH goes back to `payout`).
-  wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.solana?.address) ?? null, payout: a.robinhood?.payout ?? null,
+  // `wallet` is its chain wallet: Solana, or its Robinhood Chain or Base wallet (whose ETH goes back to `payout`).
+  wallet: (a.venue === "robinhood" ? a.robinhood?.address : a.venue === "base" ? a.base?.address : a.solana?.address) ?? null, payout: (a.venue === "base" ? a.base?.payout : a.robinhood?.payout) ?? null,
   arc: a.arc?.address ?? null, mint: a.mint ?? null, pad: a.launch?.pad ?? null, createdAt: a.createdAt,
-  chain: a.venue === "robinhood" ? ("robinhood" as const) : a.token ? ("arc" as const) : (a.launch?.chain ?? "solana"),
+  chain: a.venue === "robinhood" ? ("robinhood" as const) : a.venue === "base" ? ("base" as const) : a.token ? ("arc" as const) : (a.launch?.chain ?? "solana"),
   token: a.token ? { address: a.token.address, poolId: a.token.poolId } : null,
   fundLamports: a.status === "pending" ? (a.launch?.fundLamports ?? null) : null,
 });
@@ -302,7 +305,7 @@ export const performance = query({
     if (!a || a.status === "pending") return null;
     const rows = await ctx.db.query("launchTrades").withIndex("by_agent", (q) => q.eq("agent", a._id).gte("at", Date.now() - 90 * 86_400_000)).order("desc").take(10_001);
     const positions = await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", a._id)).take(100);
-    return { status: a.status, createdAt: a.createdAt, strategy: { revision: 1, at: a.createdAt, fingerprint: strategyFingerprint({ thesis: a.thesis, chain: a.venue ?? a.launch?.chain ?? "solana", trading: a.trading, markets: a.markets, model: a.brain.kind === "byok" ? `${a.brain.provider}/${a.brain.model}` : "Mimir AI routing" }) }, unit: a.venue === "robinhood" ? "ETH" : "SOL", decimals: a.venue === "robinhood" ? 18 : 9,
+    return { status: a.status, createdAt: a.createdAt, strategy: { revision: 1, at: a.createdAt, fingerprint: strategyFingerprint({ thesis: a.thesis, chain: a.venue ?? a.launch?.chain ?? "solana", trading: a.trading, markets: a.markets, model: a.brain.kind === "byok" ? `${a.brain.provider}/${a.brain.model}` : "Mimir AI routing" }) }, unit: a.venue ? "ETH" : "SOL", decimals: a.venue ? 18 : 9,
       truncated: rows.length > 10_000,
       trades: rows.slice(0, 10_000).map(({ side, status, lamports, pnlLamports, at, sig }) => ({ side, status, lamports, pnlLamports: pnlLamports ?? null, at, sig })),
       positions: positions.map(({ mint, symbol, costLamports }) => ({ mint, symbol, costLamports })) };

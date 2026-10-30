@@ -7,6 +7,7 @@ import { internalMutation, internalQuery, type QueryCtx } from "./_generated/ser
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { wakeCheckDue } from "../lib/launch/worker/idle";
+import { baseRoundDue } from "../lib/launch/base/round";
 import { reservedOf } from "./launchFeeDb";
 
 const vStatus = v.union(v.literal("pending"), v.literal("live"), v.literal("paused"), v.literal("killed"));
@@ -17,8 +18,8 @@ const hasOpen = async (ctx: QueryCtx, agent: Id<"launchAgents">) =>
   (await ctx.db.query("launchPositions").withIndex("by_agent", (q) => q.eq("agent", agent)).first()) !== null;
 
 /** What the worker reads of an agent: never the sealed brain or the launch payload. */
-/** The wallet the agent trades from: its Robinhood Chain wallet on that venue, else its Solana one. */
-export const tradingWallet = (a: Doc<"launchAgents">) => (a.venue === "robinhood" ? a.robinhood : a.solana);
+/** The wallet the agent trades from: its Robinhood Chain wallet on that venue, else its Solana one (Base agents do not trade yet). */
+export const tradingWallet = (a: Doc<"launchAgents">) => (a.venue === "robinhood" ? a.robinhood : a.venue === "base" ? undefined : a.solana);
 
 const agentView = (a: Doc<"launchAgents">, reservedLamports = 0n) => ({
   // `owner` is where a shutdown sweep pays: the owner's Solana wallet, or on Robinhood its payout address.
@@ -48,7 +49,8 @@ export const tickAll = internalMutation({
     if (process.env.MIMIR_BACKEND_OFF === "1") return 0;
     const solanaOn = process.env.LAUNCH_SOLANA === "1";
     const robinhoodOn = process.env.LAUNCH_ROBINHOOD === "1";
-    if (!solanaOn && !robinhoodOn) return 0;
+    const baseOn = process.env.LAUNCH_BASE === "1";
+    if (!solanaOn && !robinhoodOn && !baseOn) return 0;
     const now = Date.now();
     // ponytail: 500 per status in creation order; swept killed agents stay "killed", so past ~500 kills give them their own status.
     const of = (status: Doc<"launchAgents">["status"]) => ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).take(500);
@@ -57,6 +59,15 @@ export const tickAll = internalMutation({
     for (const a of paused) if (await hasOpen(ctx, a._id)) due.push(a);
     for (const a of killed) if (a.sweptAt === undefined || (await hasOpen(ctx, a._id))) due.push(a);
     let n = 0;
+    // Base agents (convex/launchBase.ts) do not trade yet: they are due for their hourly fee claim or a shutdown sweep.
+    if (baseOn) {
+      for (const a of [...live, ...paused, ...killed]) {
+        if (a.venue !== "base" || !a.base || (a.leaseUntil ?? 0) > now) continue;
+        if (!baseRoundDue({ mint: a.mint ?? null, status: a.status, feesClaimedAt: a.feesClaimedAt ?? null, swept: a.sweptAt !== undefined }, now)) continue;
+        await ctx.scheduler.runAfter(0, internal.launchBase.roundOne, { id: a._id });
+        n++;
+      }
+    }
     for (const a of due) {
       // A shut-down agent is swept even with trading off: its own token burned, its SOL back to the owner.
       if ((!a.trading.enabled && a.status !== "killed") || !tradingWallet(a) || !a.mint || (a.leaseUntil ?? 0) > now) continue;
@@ -163,9 +174,9 @@ export const dailyPnl = internalQuery({
 });
 
 export const logEvent = internalMutation({
-  args: { id: v.id("launchAgents"), kind: v.string(), text: v.string() },
-  handler: async (ctx, { id, kind, text }) => {
-    await ctx.db.insert("launchEvents", { agent: id, at: Date.now(), kind, text: text.slice(0, 500), chain: "solana" });
+  args: { id: v.id("launchAgents"), kind: v.string(), text: v.string(), chain: v.optional(v.literal("base")), tx: v.optional(v.string()) },
+  handler: async (ctx, { id, kind, text, chain, tx }) => {
+    await ctx.db.insert("launchEvents", { agent: id, at: Date.now(), kind, text: text.slice(0, 500), chain: chain ?? "solana", ...(tx ? { tx } : {}) });
     return null;
   },
 });
@@ -236,5 +247,18 @@ export const release = internalMutation({
     const a = await ctx.db.get(id);
     if (a?.leaseUntil === token) await ctx.db.patch(id, { leaseUntil: undefined });
     return null;
+  },
+});
+
+/** What a Base agent's round (convex/launchBase.ts) needs: never the brain or the launch payload. */
+export const baseAgent = internalQuery({
+  args: { id: v.id("launchAgents") },
+  handler: async (ctx, { id }) => {
+    const a = await ctx.db.get(id);
+    if (!a || a.venue !== "base" || !a.base) return null;
+    return {
+      id: a._id as string, ticker: a.ticker, walletId: a.base.walletId, wallet: a.base.address, payout: a.base.payout, mint: a.mint ?? null,
+      status: a.status, feesClaimedAt: a.feesClaimedAt ?? null, swept: a.sweptAt !== undefined,
+    };
   },
 });
