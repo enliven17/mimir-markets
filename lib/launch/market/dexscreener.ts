@@ -31,6 +31,7 @@ export type DexOptions = {
 
 type Pair = {
   chainId?: string;
+  pairAddress?: string;
   baseToken?: { address?: string; symbol?: string; name?: string };
   quoteToken?: { address?: string };
   priceNative?: string;
@@ -69,7 +70,7 @@ export function createDexScreener(opts: DexOptions = {}) {
     set("volume1hUsd", num(p.volume?.h1));
     set("ageMinutes", age);
     set("mcapUsd", num(p.marketCap));
-    return { mint, symbol: p.baseToken?.symbol ?? "", name: p.baseToken?.name, priceSol: priceSol(p), metrics };
+    return { mint, symbol: p.baseToken?.symbol ?? "", name: p.baseToken?.name, priceSol: priceSol(p), metrics, ...(p.pairAddress ? { pool: p.pairAddress } : {}) };
   }
 
   /** Best (most liquid) pair per mint where the mint is the base token. */
@@ -154,7 +155,7 @@ export function createDexScreener(opts: DexOptions = {}) {
     return cands.map((c) => {
       const s = snaps.get(c.mint);
       if (!s) return c;
-      return { ...c, symbol: c.symbol || s.symbol, name: c.name ?? s.name, priceSol: c.priceSol ?? s.priceSol, metrics: { ...s.metrics, ...c.metrics } };
+      return { ...c, pool: c.pool ?? s.pool, symbol: c.symbol || s.symbol, name: c.name ?? s.name, priceSol: c.priceSol ?? s.priceSol, metrics: { ...s.metrics, ...c.metrics } };
     });
   }
 

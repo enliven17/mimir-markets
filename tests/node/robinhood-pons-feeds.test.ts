@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { createPonsSources, toCandidate } from "../../lib/launch/robinhood/market";
 import { createPonsShield } from "../../lib/launch/robinhood/shield";
+import { createGeckoSafety, createGeckoTechnical } from "../../lib/launch/market/gecko";
 
 const token = "0x1111111111111111111111111111111111111111";
 const pool = "0x2222222222222222222222222222222222222222";
@@ -43,4 +44,27 @@ test("Pons Shield adapter combines token info and trades, then caches the report
   assert.ok(urls.some((u) => u.endsWith(`/tokens/${token}/info`)));
   assert.ok(urls.some((u) => u.endsWith(`/pools/${pool}/trades`)));
   assert.equal(await shield.check({ mint: token }), null);
+});
+
+test("the shared Gecko feeds preserve Solana addresses and use the same safety contract", async () => {
+  const mint = "So11111111111111111111111111111111111111112";
+  const solPool = "Pool111111111111111111111111111111111111111";
+  const urls: string[] = [];
+  const fetch = async (url: string) => {
+    urls.push(url);
+    if (url.includes("/ohlcv/")) {
+      const bars = Array.from({ length: 8 }, (_, i) => [1_700_000_000 + i * 60, 1, 1.01, 0.99, 1 + i * 0.01, 1]);
+      return json({ data: { attributes: { ohlcv_list: bars.reverse() } } });
+    }
+    if (url.includes("/trades")) return json({ data: [] });
+    return json({ data: { attributes: { holders: { count: 100 }, twitter_handle: "mimir" } } });
+  };
+  const safety = createGeckoSafety({ network: "solana", fetch });
+  const technical = createGeckoTechnical({ network: "solana", fetch });
+  const candidate = { mint, pool: solPool, source: "dexscreener" as const, symbol: "SOL", priceSol: 1, metrics: {} };
+  assert.equal((await safety.check(candidate))?.blocks.length, 0);
+  assert.equal((await technical.read(candidate))?.bars, 8);
+  assert.ok(urls.some((url) => url.endsWith(`/tokens/${mint}/info`)));
+  assert.ok(urls.some((url) => url.includes(`/pools/${solPool}/trades`)));
+  assert.ok(urls.some((url) => url.includes(`/pools/${solPool}/ohlcv/minute`)));
 });

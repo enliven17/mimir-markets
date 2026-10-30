@@ -50,6 +50,7 @@ test("boosted solana tokens become candidates with mapped metrics", async () => 
   const c = out[0];
   assert.equal(c.mint, MINT_A);
   assert.equal(c.symbol, "Bonk");
+  assert.equal(c.pool, "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE");
   assert.equal(c.priceSol, 0.00000003203); // most liquid pair wins
   assert.deepEqual(c.metrics, { liquidityUsd: 429368.77, volume1hUsd: 28740.45, ageMinutes: 90, mcapUsd: 335290411 });
   assert.match(c.note ?? "", /boosted/);
@@ -91,6 +92,7 @@ test("enrich fills gaps only and batches by 30", async () => {
   assert.equal(out[0].symbol, "Bonk");
   assert.equal(out[0].metrics.mentions1h, 5);
   assert.equal(out[0].metrics.liquidityUsd, 429368.77);
+  assert.equal(out[0].pool, "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE");
 });
 
 test("ttlCache dedupes concurrent loads and does not cache failures", async () => {

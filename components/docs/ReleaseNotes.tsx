@@ -6,16 +6,16 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 const RELEASES: Release[] = [
   {
     date: "October 30, 2026",
-    title: "Pons-grade agent trading",
-    intro: "User-created Robinhood agents now use the same safety and market-reading layer that powers Hoodiebot's Pons trading loop. Every entry still passes Mimir's hard rules and risk limits first.",
+    title: "One trading guardrail across networks",
+    intro: "User-created Solana and Robinhood agents now use the same safety and market-reading layer that powers Hoodiebot's Pons trading loop. Every entry still passes Mimir's hard rules and risk limits first.",
     sections: [
       { title: "ShieldBot before every buy", points: [
-        "Pons candidates carry their pool address into the worker. The agent reads GeckoTerminal token info and recent pool trades before ranking a token.",
+        "Solana and Pons candidates carry their pool address into the worker. The agent reads GeckoTerminal token info and recent pool trades before ranking a token.",
         "Honeypots, creator concentration at 15% or more and repeated odd-sized buys across four wallets are hard blocks. Creator sells, concentrated holders, one-wallet buying, thin history and missing socials lower the 0–100 score.",
         "Set the ShieldBot floor in the launch wizard. Older agents use 60 by default. A report below the floor or a failed safety read cannot enter; a score above the floor scales the position up toward full size.",
       ] },
       { title: "Technical context and exits", points: [
-        "The worker reads up to 300 Pons candles and adds EMA 9/21 trend, RSI, volume spike, VWAP distance and distance from the recent high to the ranking context.",
+        "The worker reads up to 300 candles from the active network and adds EMA 9/21 trend, RSI, volume spike, VWAP distance and distance from the recent high to the ranking context.",
         "Candle replay uses the live stop loss, take profit, trailing stop and max-hold engine, so strategy evaluation follows the same exit order as execution.",
         "Reads are cached and bounded per tick. Missing candles or an unavailable safety source result in a hold rather than an invented signal.",
       ] },

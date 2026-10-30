@@ -13,8 +13,8 @@
  */
 import { getAddress, isAddress } from "viem";
 
-import type { Candidate, MarketSource, TechnicalFeed } from "../ports";
-import { readBars, type Bar } from "../engine/ta";
+import type { Candidate, MarketSource } from "../ports";
+import { createGeckoTechnical } from "../market/gecko";
 import { getJson, num, ttlCache, type FetchLike, type OnError } from "../market/http";
 
 const BASE = "https://api.geckoterminal.com/api/v2/networks/robinhood/dexes";
@@ -92,23 +92,6 @@ export function createPonsSources(opts: { fetch?: FetchLike; onError?: OnError; 
       }
     },
   });
-  const technical: TechnicalFeed = {
-    async read(candidate) {
-      if (!candidate.pool) return null;
-      const source = candidate.source === "pumpfun" ? "minute" : "minute";
-      const aggregate = candidate.source === "pumpfun" ? 1 : 5;
-      try {
-        const body = (await getJson(fetchFn, `${BASE.replace("/dexes", "")}/pools/${candidate.pool.toLowerCase()}/ohlcv/${source}?aggregate=${aggregate}&limit=300&currency=token`)) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
-        const bars: Bar[] = (body.data?.attributes?.ohlcv_list ?? [])
-          .map(([time, open, high, low, close, volume]) => ({ time: time ?? 0, open: open ?? 0, high: high ?? 0, low: low ?? 0, close: close ?? 0, volume: volume ?? 0 }))
-          .filter((b) => [b.time, b.open, b.high, b.low, b.close].every(Number.isFinite))
-          .reverse();
-        return readBars(bars);
-      } catch (err) {
-        opts.onError?.("geckoterminal:ohlcv", err);
-        return null;
-      }
-    },
-  };
+  const technical = createGeckoTechnical({ network: "robinhood", fetch: fetchFn, onError: opts.onError });
   return { curve: source("pumpfun", "pons-v2"), graduated: source("dexscreener", "pons-v2-dex"), technical };
 }

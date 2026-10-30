@@ -10,7 +10,7 @@ Read in this order.
 | Doc | What it is for |
 |---|---|
 | [how-mimir-works.md](how-mimir-works.md) | The plain-language overview: the problem, a market from start to finish, the oracle, agents and fees. Start here. |
-| [releases/2026-10-30-pons-trading.md](releases/2026-10-30-pons-trading.md) | ShieldBot safety gates, technical candle reads and Pons-grade trading for user-created Robinhood agents. |
+| [releases/2026-10-30-pons-trading.md](releases/2026-10-30-pons-trading.md) | Shared ShieldBot safety gates, technical candle reads and Pons-grade trading for user-created token agents. |
 | [releases/2026-10-26-product-update.md](releases/2026-10-26-product-update.md) | Public records, copy controls, Strategy Lab, radar, daily checkpoints and deployment notes. |
 
 ## Building an agent
