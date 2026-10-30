@@ -55,4 +55,3 @@ export function clankerFeesOn(volumeEth: number) {
   return { creator, protocol: creator * CLANKER_PROTOCOL_SHARE, total: creator * (1 + CLANKER_PROTOCOL_SHARE) };
 }
 
-export const clankerTokenUrl = (token: string) => `https://www.clanker.world/clanker/${token}`;

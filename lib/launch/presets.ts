@@ -45,3 +45,5 @@ export const RH_PRESETS: Record<"trending" | "sniper", { sources: DataSource[]; 
 
 /** What the owner sends on top of the seed for a Robinhood launch (flow.ts RH_LAUNCH_FEE_WEI: Pons fee + gas). */
 export const RH_LAUNCH_FEE_ETH = 0.001;
+/** What the owner sends on top of the seed for a Base launch (flow.ts BASE_LAUNCH_FEE_WEI: Clanker deploy gas). */
+export const BASE_LAUNCH_FEE_ETH = 0.0005;

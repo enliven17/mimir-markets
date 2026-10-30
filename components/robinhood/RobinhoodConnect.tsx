@@ -1,6 +1,6 @@
 "use client";
 
-/** Connect (or disconnect) a Robinhood Chain wallet: Robinhood Wallet by QR, or the browser's own wallet. */
+/** Connect (or disconnect) a Robinhood Chain wallet: Robinhood Wallet by QR, or the browser's own wallet. `base`: any EVM wallet, for Base. */
 import { useEffect, useState } from "react";
 
 import { useRobinhoodWallet } from "./useRobinhoodWallet";
@@ -8,7 +8,7 @@ import { useRobinhoodWallet } from "./useRobinhoodWallet";
 const BTN = "press rounded-full bg-panel-raised px-4 py-2 text-[13px] text-cream disabled:opacity-60";
 const short = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
 
-export default function RobinhoodConnect() {
+export default function RobinhoodConnect({ base = false }: { base?: boolean }) {
   const rh = useRobinhoodWallet();
   const [error, setError] = useState<string | null>(null);
   // After mount, so the server render matches.
@@ -23,7 +23,7 @@ export default function RobinhoodConnect() {
   if (rh.address) {
     return (
       <p className="m-0 flex flex-wrap items-center gap-2 text-[13px] text-muted">
-        Robinhood wallet <span className="font-mono text-cream">{short(rh.address)}</span>
+        {base ? "EVM wallet" : "Robinhood wallet"} <span className="font-mono text-cream">{short(rh.address)}</span>
         <button type="button" onClick={() => void rh.disconnect()} className="text-muted underline underline-offset-2 hover:text-cream">
           Disconnect
         </button>
@@ -35,7 +35,7 @@ export default function RobinhoodConnect() {
       <div className="flex flex-wrap gap-2">
         {rh.walletConnectReady ? (
           <button type="button" disabled={rh.connecting} onClick={() => connect("walletconnect")} className={BTN}>
-            {rh.connecting ? "Approve in your wallet…" : "Connect Robinhood Wallet"}
+            {rh.connecting ? "Approve in your wallet…" : base ? "Connect with WalletConnect" : "Connect Robinhood Wallet"}
           </button>
         ) : null}
         {hasInjected ? (

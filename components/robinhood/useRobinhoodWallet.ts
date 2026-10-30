@@ -4,7 +4,8 @@
  * The connected Robinhood Chain wallet: an EVM account that can stand in for the Solana wallet as the owner of an
  * Arc account (lib/owner.ts). Robinhood Wallet on a phone connects over WalletConnect (QR, or the deep link on the
  * same phone); a browser wallet or Robinhood Wallet's own dApp browser is the injected provider. Only signing is
- * needed here, so the wallet's network does not matter.
+ * needed here, so the wallet's network does not matter. The same connection funds Base agents (any EVM wallet): the
+ * seed send switches it to Base first.
  *
  * One module-level connection shared by every hook (useSyncExternalStore). The WalletConnect provider loads only
  * when asked for, like the Solana side (lib/solana/wallet-providers.tsx).
@@ -12,6 +13,7 @@
 import { useSyncExternalStore } from "react";
 import { toHex } from "viem";
 
+import { BASE_CHAIN } from "@/lib/base/chain";
 import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
 
 type Eip1193 = {
@@ -51,7 +53,8 @@ async function walletConnect(): Promise<Eip1193> {
   return (await EthereumProvider.init({
     projectId: WALLETCONNECT_PROJECT_ID,
     chains: [ROBINHOOD_CHAIN.id],
-    rpcMap: { [ROBINHOOD_CHAIN.id]: ROBINHOOD_CHAIN.rpcUrl },
+    optionalChains: [BASE_CHAIN.id],
+    rpcMap: { [ROBINHOOD_CHAIN.id]: ROBINHOOD_CHAIN.rpcUrl, [BASE_CHAIN.id]: BASE_CHAIN.rpcUrl },
     showQrModal: true,
     metadata: {
       name: "Mimir",
@@ -120,16 +123,18 @@ function restore() {
   silent().catch(() => remember(null));
 }
 
-/** Put the wallet on Robinhood Chain (adding the network if it does not know it yet). */
-async function onRobinhoodChain(p: Eip1193) {
-  const chainId = toHex(ROBINHOOD_CHAIN.id);
+type EvmChain = { id: number; name: string; rpcUrl: string; explorer: string };
+
+/** Put the wallet on Robinhood Chain or Base (adding the network if it does not know it yet). */
+async function onChain(p: Eip1193, chain: EvmChain = ROBINHOOD_CHAIN) {
+  const chainId = toHex(chain.id);
   try {
     await p.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
   } catch (err) {
     if ((err as { code?: number })?.code !== 4902) throw err;
     await p.request({
       method: "wallet_addEthereumChain",
-      params: [{ chainId, chainName: ROBINHOOD_CHAIN.name, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: [ROBINHOOD_CHAIN.rpcUrl], blockExplorerUrls: [ROBINHOOD_CHAIN.explorer] }],
+      params: [{ chainId, chainName: chain.name, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: [chain.rpcUrl], blockExplorerUrls: [chain.explorer] }],
     });
   }
 }
@@ -137,7 +142,14 @@ async function onRobinhoodChain(p: Eip1193) {
 /** A plain ETH transfer on Robinhood Chain from the connected wallet. Returns the tx hash. */
 async function sendEthRobinhood(to: string, wei: bigint): Promise<`0x${string}`> {
   if (!provider || !state.address) throw new Error("Connect your Robinhood wallet first.");
-  await onRobinhoodChain(provider);
+  await onChain(provider, ROBINHOOD_CHAIN);
+  return (await provider.request({ method: "eth_sendTransaction", params: [{ from: state.address, to, value: toHex(wei) }] })) as `0x${string}`;
+}
+
+/** A plain ETH transfer on Base from the connected wallet. Returns the tx hash. */
+async function sendEthBase(to: string, wei: bigint): Promise<`0x${string}`> {
+  if (!provider || !state.address) throw new Error("Connect your EVM wallet first.");
+  await onChain(provider, BASE_CHAIN);
   return (await provider.request({ method: "eth_sendTransaction", params: [{ from: state.address, to, value: toHex(wei) }] })) as `0x${string}`;
 }
 
@@ -162,5 +174,6 @@ export function useRobinhoodWallet() {
     disconnect: disconnectRobinhood,
     sign: s.address ? signRobinhood : null,
     sendEth: s.address ? sendEthRobinhood : null,
+    sendEthBase: s.address ? sendEthBase : null,
   };
 }

@@ -29,6 +29,9 @@ export const solscan = (kind: "account" | "token" | "tx", id: string) => `https:
 export const pumpFun = (mint: string) => `https://pump.fun/coin/${mint}`;
 /** A Meteora DBC token: its curve and, once graduated, its DAMM pool both trade through Jupiter. */
 export const meteoraToken = (mint: string) => `https://jup.ag/tokens/${mint}`;
+/** Base (Clanker tokens): Clanker's own token page; Basescan for wallets and txs. */
+export const clankerToken = (token: string) => `https://www.clanker.world/clanker/${token}`;
+export const basescan = (kind: "address" | "token" | "tx", id: string) => `https://basescan.org/${kind}/${id}`;
 export const dexChart = (mint: string) => `https://dexscreener.com/solana/${mint}?embed=1&theme=dark&trades=0&info=0`;
 /** Robinhood Chain (Pons tokens): Pons's own token page (curve and graduated alike); DexScreener charts graduated ones. */
 export const rhToken = (token: string) => `https://ponsfamily.com/launchpad/${token}`;
