@@ -2,11 +2,12 @@
 
 /**
  * State for /wallet: the passkey session (restored silently from the stored
- * public credential), the server-side binding for the connected owner
- * wallet (Solana, or else a Robinhood Chain wallet), and the actions that change them. The Circle SDK loads lazily, on
+ * public credential), the server-side binding for the owner wallet (a Solana wallet or an EVM wallet: Arc, Robinhood
+ * Chain or Base, one address), and the actions that change them. With both connected, the way in picked on /wallet
+ * (useEntryMode) decides which one owns the account; Solana when none was picked. The Circle SDK loads lazily, on
  * the first restore or action.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { useSignText } from "@/components/copy/useSignText";
@@ -20,12 +21,55 @@ import { arcEvmBindMessage, fundedSession } from "@/lib/arc/evm";
 import { loadArcAccount } from "@/lib/arc/lazy";
 import { readWalletFunding, signWithEvm, useEvmWallet } from "./useEvmWallet";
 
+/** The way in on /wallet: a Solana wallet, or an EVM wallet (Arc, Robinhood Chain, Base). */
+export type EntryMode = "solana" | "evm";
+const MODE_KEY = "mimir:entry-mode";
+let modePref: EntryMode | null | undefined;
+const modeListeners = new Set<() => void>();
+
+function readModePref(): EntryMode | null {
+  if (modePref !== undefined) return modePref;
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(MODE_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  // "arc" is the older name of the EVM way in.
+  modePref = saved === "solana" ? "solana" : saved === "evm" || saved === "arc" ? "evm" : null;
+  return modePref;
+}
+
+/** Remember the way in picked on /wallet, for every useArcWallet in this browser. */
+export function setEntryMode(m: EntryMode) {
+  modePref = m;
+  try {
+    localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* storage blocked: not remembered */
+  }
+  modeListeners.forEach((l) => l());
+}
+
+/** The remembered way in, or null when none was picked. */
+export const useEntryMode = () =>
+  useSyncExternalStore(
+    (l) => {
+      modeListeners.add(l);
+      return () => modeListeners.delete(l);
+    },
+    readModePref,
+    () => null,
+  );
+
 export type BindingState = { status: "unknown" } | { status: "loaded"; binding: ArcBinding | null } | { status: "error"; error: string };
 
 export interface ArcWallet {
   configured: boolean;
-  /** The owner wallet: the Solana key, or else the Robinhood Chain address (lib/owner.ts). */
+  /** The owner wallet (lib/owner.ts): the Solana key or the EVM address, per the way in (useEntryMode). */
   solana: string | null;
+  /** The connected Solana wallet, whether or not it is the owner. */
+  solanaWallet: string | null;
   ownerKind: "solana" | "robinhood" | null;
   session: ArcSession | null;
   restoring: boolean;
@@ -34,7 +78,7 @@ export interface ArcWallet {
   linked: boolean;
   /** The Solana wallet the session's account is bound to (null: none, undefined: not known yet). */
   sessionOwner: string | null | undefined;
-  /** Native Arc sign-in: the Arc (EVM) wallet connected in this browser, and the one the session's account is bound to. */
+  /** The EVM wallet connected in this browser (signed in for Arc, or the live connection), and the one the session's account draws from. */
   evm: `0x${string}` | null;
   evmBinding: ArcEvmBinding | null | undefined;
   /** The session's account is bound to the connected Arc wallet. */
@@ -67,11 +111,14 @@ function describe(err: unknown): string {
 export function useArcWallet(): ArcWallet {
   const { publicKey } = useWallet();
   const robinhood = useRobinhoodWallet();
+  const pref = useEntryMode();
   const solanaKey = publicKey?.toBase58() ?? null;
-  const solana = solanaKey ?? robinhood.address;
-  const ownerKind = solanaKey ? "solana" : robinhood.address ? "robinhood" : null;
+  // The EVM wallet owns the account when it is the only one connected, or when it is the way in picked on /wallet.
+  const evmOwner = Boolean(robinhood.address && (!solanaKey || pref === "evm"));
+  const solana = evmOwner ? robinhood.address : solanaKey;
+  const ownerKind = evmOwner ? "robinhood" : solanaKey ? "solana" : null;
   const signSolana = useSignText();
-  const sign = solanaKey ? signSolana : robinhood.sign;
+  const sign = evmOwner ? robinhood.sign : solanaKey ? signSolana : null;
   const configured = Boolean(ARC.circle.clientKey);
   const [session, setSession] = useState<ArcSession | null>(null);
   const [restoring, setRestoring] = useState(configured);
@@ -79,7 +126,8 @@ export function useArcWallet(): ArcWallet {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionOwner, setSessionOwner] = useState<string | null | undefined>(undefined);
-  const { address: evm } = useEvmWallet();
+  // Signed in for Arc (with a wallet proof), or else just connected: one ConnectKit account either way.
+  const evm = useEvmWallet().address ?? robinhood.address;
   const [evmBinding, setEvmBinding] = useState<ArcEvmBinding | null | undefined>(undefined);
 
   // A stored public credential: rebuild the session without a prompt.
@@ -215,7 +263,7 @@ export function useArcWallet(): ArcWallet {
 
   const linkEvm = useCallback(async () => {
     await run("link", async () => {
-      if (!evm) throw new Error("Connect your Arc wallet first.");
+      if (!evm) throw new Error("Connect your EVM wallet first.");
       if (!session) throw new Error("Create or log in to your passkey account first.");
       const signedAt = Date.now();
       const message = arcEvmBindMessage(evm, session.address, signedAt);
@@ -262,6 +310,7 @@ export function useArcWallet(): ArcWallet {
   return {
     configured,
     solana,
+    solanaWallet: solanaKey,
     ownerKind,
     session: funded,
     restoring,
