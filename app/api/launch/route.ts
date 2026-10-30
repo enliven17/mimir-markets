@@ -1,7 +1,8 @@
 /**
  * POST /api/launch                 step 1 of a launch (signed by the owner, lib/launch/auth.ts): validate, make the
- *                                  agent's wallets (Solana or Robinhood Chain by venue, plus Arc), store it pending.
- *                                  Returns where to send the seed (SOL, or ETH on Robinhood; nothing for Arc-only).
+ *                                  agent's wallets (Solana, Robinhood Chain or Base by venue, plus Arc), store it pending.
+ *                                  Returns where to send the seed (SOL, or ETH on Robinhood/Base; nothing for Arc-only).
+ *                                  Base agents are created only with LAUNCH_BASE=1.
  * GET  /api/launch?owner=<base58>  that wallet's agents (public views).
  */
 import { api } from "@/convex/_generated/api";
@@ -13,6 +14,8 @@ import { agentWalletPolicy } from "@/lib/launch/solana/policy";
 import { getSolana } from "@/lib/launch/solana/env";
 import { robinhoodAgentPolicy } from "@/lib/launch/robinhood/policy";
 import { getRobinhood } from "@/lib/launch/robinhood/env";
+import { baseAgentPolicy } from "@/lib/launch/base/policy";
+import { getBase } from "@/lib/launch/base/env";
 import { ARC } from "@/lib/arc/config";
 import { createWallets } from "@/lib/server/circle-w3s";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -54,6 +57,14 @@ export async function POST(req: Request) {
           const rh = getRobinhood();
           return rh.privy.createWalletWithPolicy((address) => robinhoodAgentPolicy(address, payout, rh.treasury), "ethereum");
         },
+        ...(process.env.LAUNCH_BASE === "1"
+          ? {
+              base: (payout: string) => {
+                const b = getBase();
+                return b.privy.createWalletWithPolicy((address) => baseAgentPolicy(address, payout, b.treasury), "ethereum");
+              },
+            }
+          : {}),
         arc: async (slug) => {
           const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
           return { id: w.id, address: w.address };
@@ -61,7 +72,7 @@ export async function POST(req: Request) {
       },
     }, g.owner, parsed.data);
     if (!r.ok) return fail(r.status, r.error);
-    return Response.json({ id: r.id, chain: r.chain, solana: r.solana, robinhood: r.robinhood, arc: r.arc, fundLamports: r.fundLamports.toString(), fundArcWei: r.fundArcWei.toString() });
+    return Response.json({ id: r.id, chain: r.chain, solana: r.solana, robinhood: r.robinhood, base: r.base, arc: r.arc, fundLamports: r.fundLamports.toString(), fundArcWei: r.fundArcWei.toString() });
   } catch (e) {
     console.error("[launch] create failed:", e);
     const msg = e instanceof Error ? e.message : "";

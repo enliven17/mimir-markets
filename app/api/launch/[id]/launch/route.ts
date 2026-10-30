@@ -1,6 +1,6 @@
 /**
  * POST /api/launch/:id/launch { sig }: step 2, signed by the owner. Verify the funding tx, then the agent mints its token:
- * a Solana signature for a pump.fun agent, a 0x hash for a Robinhood (Pons) agent.
+ * a Solana signature for a pump.fun agent, a 0x hash for a Robinhood (Pons) or Base (Clanker) agent.
  * POST /api/launch/:id/launch {}:      the Argus path (chain "arc"): the agent's Arc wallet holds its gas, it launches on Argus.
  */
 import { createPublicClient, http } from "viem";
@@ -19,6 +19,9 @@ import { getSolana } from "@/lib/launch/solana/env";
 import { getRobinhood } from "@/lib/launch/robinhood/env";
 import { verifyRobinhoodFunding } from "@/lib/launch/robinhood/funding";
 import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
+import { baseRpcUrl } from "@/lib/base/chain";
+import { getBase } from "@/lib/launch/base/env";
+import { clankerDeployTx } from "@/lib/launch/base/deploy";
 import { executeContract } from "@/lib/server/circle-w3s";
 import { allowRequest } from "@/lib/server/rate-limit";
 
@@ -73,7 +76,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
     };
   };
-  const r = await launch(c, { verify: verifyFunding, conn: solana.connection, launchToken: (a) => solana.executor.launchToken(a), image: defaultTokenImage, robinhood }, g.owner, id, parsed.data.sig);
+  const base = () => {
+    const b = getBase();
+    const client = createPublicClient({ transport: http(baseRpcUrl(), { timeout: 15_000 }) });
+    return {
+      verify: verifyRobinhoodFunding,
+      client,
+      // The image goes to IPFS (Pinata); Clanker stores its URI on the token. The agent wallet is admin and fee recipient.
+      launchToken: async (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string }) => {
+        const imageUri = await pinImage(a.imageDataUrl, `${a.symbol}.png`);
+        const deploy = await clankerDeployTx({ wallet: a.wallet, name: a.name, symbol: a.symbol, image: imageUri, description: a.description, website: `${SITE}/launch/${id}`, slug: id });
+        const r = await b.executor.launchToken({ walletId: a.walletId, wallet: a.wallet, deploy });
+        return { mint: r.token, sig: r.sig, metadataUri: imageUri };
+      },
+    };
+  };
+  const r = await launch(c, { verify: verifyFunding, conn: solana.connection, launchToken: (a) => solana.executor.launchToken(a), image: defaultTokenImage, robinhood, base }, g.owner, id, parsed.data.sig);
   if (!r.ok) return fail(r.status, r.error);
   return Response.json({ mint: r.mint });
 }

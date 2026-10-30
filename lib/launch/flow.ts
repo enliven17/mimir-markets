@@ -3,6 +3,8 @@
  *   solana     (the default) a pump.fun token, trading on Solana: the flow below;
  *   robinhood  a Pons token, trading on Robinhood Chain: the same two calls with a Privy EVM wallet, funded in ETH
  *              from the owner's own Robinhood address (`payout`, where a shutdown pays back);
+ *   base       a Clanker v4 token on Base: the Robinhood flow with a Base wallet (no trading yet; it claims its creator
+ *              fees and stakes on Arc), funded in ETH on Base from the owner's own EVM address (`payout`);
  *   arc        no token and no trading wallet: only Arc markets; it is live as soon as it is created.
  *   1. create(): validate the owner's form, check a BYOK key with one tiny call, make the agent's two wallets
  *      (Solana: Privy, policy-locked to trading + SOL back to the owner/treasury; Arc: a Circle wallet) and store it pending.
@@ -34,6 +36,8 @@ export const LAUNCH_FEE_LAMPORTS = 10_000_000n;
 export const METEORA_LAUNCH_FEE_LAMPORTS = 40_000_000n;
 /** Pons's launch fee (0.0005 ETH, read 2026-10-19) plus gas headroom for the launch and the first approvals, in wei. */
 export const RH_LAUNCH_FEE_WEI = 1_000_000_000_000_000n; // 0.001 ETH
+/** Clanker v4 has no launch fee: this is gas for the deploy (~6M gas) and the first claims, with room for a busy Base. */
+export const BASE_LAUNCH_FEE_WEI = 500_000_000_000_000n; // 0.0005 ETH
 /** Convex documents are capped at 1 MB: an uploaded image stays well under it. */
 const MAX_IMAGE_CHARS = 700_000;
 
@@ -65,14 +69,14 @@ export const CreateBody = z.object({
   brain: Brain,
   trading: Trading,
   markets: Markets,
-  /** Robinhood only: the owner's own Robinhood Chain address (it funds the launch and gets the ETH back). */
+  /** Robinhood and Base: the owner's own EVM address (it funds the launch and gets the ETH back). */
   payout: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   // 0 is fine: it launches on the launch fee alone and trades nothing until topped up. SOL, or ETH on Robinhood.
   seedSol: z.number().min(0).max(100),
   /** Where the owner's 80% of every creator-fee claim goes (lib/launch/fees.ts). */
   allocation: AllocationBody.default(DEFAULT_ALLOCATION),
   /** pump.fun on Solana, Argus on Arc (a taxed token: each side 0 to 10%, not both 0), or Pons on Robinhood Chain. */
-  chain: z.enum(["solana", "arc", "robinhood"]).default("solana"),
+  chain: z.enum(["solana", "arc", "robinhood", "base"]).default("solana"),
   /** Solana only: pump.fun, or Meteora DBC on Mimir's own curve config. */
   pad: z.enum(["pump", "meteora"]).default("pump"),
   argus: z.object({ buyTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps), sellTaxBps: z.number().int().min(0).max(ARGUS.maxTaxBps) }).strict().optional(),
@@ -83,6 +87,9 @@ export const CreateBody = z.object({
   // Solana trading runs on the seed SOL, which an Argus launch does not ask for.
   .refine((b) => b.chain !== "arc" || !b.trading.enabled, { message: "Solana trading needs a pump.fun launch; an Argus agent stakes on Arc markets.", path: ["trading"] })
   .refine((b) => b.chain !== "robinhood" || b.payout, { message: "Connect your Robinhood wallet: it funds the agent and gets its ETH back.", path: ["payout"] })
+  .refine((b) => b.chain !== "base" || b.payout, { message: "Connect your EVM wallet: it funds the agent on Base and gets its ETH back.", path: ["payout"] })
+  // TODO(base-trading): Base agents launch on Clanker and stake on Arc; trading on Base is not built yet.
+  .refine((b) => b.chain !== "base" || !b.trading.enabled, { message: "Base agents stake on Arc markets; trading on Base is not available yet.", path: ["trading"] })
   .refine((b) => b.chain !== "robinhood" || !b.trading.enabled || !b.trading.strategy.sources.some((s) => s === "helius" || s === "x" || s === "birdeye"), { message: "On Robinhood Chain the agent reads Pons launches and graduated pools only.", path: ["trading"] });
 export type CreateInput = z.infer<typeof CreateBody>;
 
@@ -91,12 +98,16 @@ export interface Wallets {
   solana: (owner: string) => Promise<{ id: string; address: string }>;
   /** The Robinhood Chain wallet, policy-locked so ETH can only go back to `payout` (or the treasury). */
   robinhood?: (payout: string) => Promise<{ id: string; address: string }>;
+  /** The Base wallet, policy-locked to Clanker and ETH back to `payout` (or the treasury). */
+  base?: (payout: string) => Promise<{ id: string; address: string }>;
   arc: (slug: string) => Promise<{ id: string; address: string }>;
 }
 export type KeyCheck = (provider: ByokProvider, apiKey: string, model: string) => Promise<"ok" | "bad-key" | "busy">;
 export type Launcher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string; devBuyLamports: bigint; pad?: "pump" | "meteora" }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
 /** Robinhood: pin the image, then launch on Pons from the agent's wallet. */
 export type RhLauncher = (a: { walletId: string; wallet: string; name: string; symbol: string; description: string; imageDataUrl: string }) => Promise<{ mint: string; sig: string; metadataUri: string }>;
+/** Base: pin the image, then deploy on Clanker v4 from the agent's wallet. Same shape as the Robinhood launcher. */
+export type BaseLauncher = RhLauncher;
 type Verify = typeof verifyFunding;
 
 export async function create({ client, secret }: Cx, deps: { wallets: Wallets; checkKey: KeyCheck }, owner: string, input: CreateInput) {
@@ -125,25 +136,30 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   const { enabled, budgetUsdc, create: opens, ...rules } = input.markets;
   const venue = input.chain;
   if (venue === "robinhood" && !deps.wallets.robinhood) return { ok: false as const, status: 503, error: "Robinhood agents are not configured on this server." };
+  if (venue === "base" && !deps.wallets.base) return { ok: false as const, status: 503, error: "Base agents are not configured on this server." };
   const meteora = venue === "solana" && input.pad === "meteora";
   if (meteora && !process.env.LAUNCH_METEORA_CONFIG?.trim()) return { ok: false as const, status: 503, error: "Meteora launches are not configured on this server yet." };
   const payout = input.payout ? getAddress(input.payout) : null;
-  // A Robinhood agent trades from its EVM wallet only; pump.fun and Argus agents keep the Solana wallet as before.
-  const solana = venue !== "robinhood" ? await deps.wallets.solana(owner) : null;
+  // Robinhood and Base agents use their EVM wallet only; pump.fun and Argus agents keep the Solana wallet as before.
+  const evm = venue === "robinhood" || venue === "base";
+  const solana = !evm ? await deps.wallets.solana(owner) : null;
   const robinhood = venue === "robinhood" && payout && deps.wallets.robinhood ? await deps.wallets.robinhood(payout) : null;
+  const base = venue === "base" && payout && deps.wallets.base ? await deps.wallets.base(payout) : null;
   const arc = await deps.wallets.arc(slug);
   const arcLaunch = venue === "arc";
   // What the owner sends before launch, in the chain's base unit: lamports, or wei on Robinhood. Argus asks for USDC gas instead.
   const fundLamports =
     venue === "robinhood" ? BigInt(Math.round(input.seedSol * 1e9)) * 1_000_000_000n + RH_LAUNCH_FEE_WEI
+    : venue === "base" ? BigInt(Math.round(input.seedSol * 1e9)) * 1_000_000_000n + BASE_LAUNCH_FEE_WEI
     : arcLaunch ? 0n
     : BigInt(Math.round(input.seedSol * 1e9)) + (meteora ? METEORA_LAUNCH_FEE_LAMPORTS : LAUNCH_FEE_LAMPORTS);
   const r = await client.mutation(api.launch.createPending, {
     secret, slug, uid, owner, name: input.name, ticker: input.ticker, avatarSeed: input.avatarSeed ?? slug, thesis: input.thesis, brain, trading,
     markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules }, create: opens },
-    ...(venue === "robinhood" ? { venue } : {}),
+    ...(venue === "robinhood" || venue === "base" ? { venue } : {}),
     ...(solana ? { solana: { walletId: solana.id, address: solana.address } } : {}),
     ...(robinhood && payout ? { robinhood: { walletId: robinhood.id, address: robinhood.address, payout } } : {}),
+    ...(base && payout ? { base: { walletId: base.id, address: base.address, payout } } : {}),
     arc: { walletId: arc.id, address: arc.address },
     fundLamports: fundLamports.toString(), description: input.description, ...(input.image ? { image: input.image } : {}),
     allocation: input.allocation,
@@ -152,7 +168,7 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   });
   // Lost a race for the ticker after the wallets were made: they are simply never funded.
   if (!r.ok) return { ok: false as const, status: 409, error: r.reason === "reserved" ? `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` : `Too many agents named $${input.ticker}. Pick another ticker.` };
-  return { ok: true as const, id: r.slug, chain: input.chain, solana: solana?.address ?? null, robinhood: robinhood?.address ?? null, arc: arc.address, fundLamports, fundArcWei: arcLaunch ? ARGUS.launchGasWei : 0n };
+  return { ok: true as const, id: r.slug, chain: input.chain, solana: solana?.address ?? null, robinhood: robinhood?.address ?? null, base: base?.address ?? null, arc: arc.address, fundLamports, fundArcWei: arcLaunch ? ARGUS.launchGasWei : 0n };
 }
 
 type VerifyRh = typeof verifyRobinhoodFunding;
@@ -163,22 +179,26 @@ export async function launch(
     verify: Verify; conn: Parameters<Verify>[0]; launchToken: Launcher; image: (avatarSeed: string) => Promise<string>;
     /** Robinhood agents only (built lazily by the route, so a Solana launch never needs the EVM layer). */
     robinhood?: () => { verify: VerifyRh; client: Parameters<VerifyRh>[0]; launchToken: RhLauncher };
+    /** Base agents only (built lazily like Robinhood's): the same ETH funding check on Base, then a Clanker deploy. */
+    base?: () => { verify: VerifyRh; client: Parameters<VerifyRh>[0]; launchToken: BaseLauncher };
   },
   owner: string,
   id: string,
   fundingSig: string,
 ) {
   const a = await client.query(api.launch.forLaunch, { secret, slug: id });
-  const rh = a?.venue === "robinhood" ? a.robinhood : null;
+  // An EVM agent (Robinhood Chain or Base) is funded from its payout address and launches from its EVM wallet.
+  const rh = a?.venue === "robinhood" ? a.robinhood : a?.venue === "base" ? a.base : null;
   const wallet = rh ?? a?.solana;
   if (!a || a.owner !== owner || !wallet || !a.launch) return { ok: false as const, status: 404, error: "No such agent." };
   if (a.mint) return { ok: true as const, mint: a.mint }; // already launched: idempotent
   if (a.launch.chain === "arc") return { ok: false as const, status: 409, error: "This agent launches on Argus." };
   if (a.status !== "pending") return { ok: false as const, status: 409, error: `Agent is ${a.status}.` };
-  const rhDeps = rh ? deps.robinhood?.() : undefined;
-  if (rh && !rhDeps) return { ok: false as const, status: 503, error: "Robinhood launches are not configured on this server." };
+  const onBase = a.venue === "base";
+  const rhDeps = rh ? (onBase ? deps.base?.() : deps.robinhood?.()) : undefined;
+  if (rh && !rhDeps) return { ok: false as const, status: 503, error: `${onBase ? "Base" : "Robinhood"} launches are not configured on this server.` };
   const funded = rh && rhDeps
-    ? await rhDeps.verify(rhDeps.client, { hash: fundingSig, from: rh.payout, to: rh.address, minWei: BigInt(a.launch.fundLamports) })
+    ? await rhDeps.verify(rhDeps.client, { hash: fundingSig, from: rh.payout, to: rh.address, minWei: BigInt(a.launch.fundLamports), wallet: onBase ? "connected wallet on Base" : "Robinhood wallet" })
     : await deps.verify(deps.conn, { sig: fundingSig, from: owner, to: wallet.address, minLamports: BigInt(a.launch.fundLamports) });
   if (!funded.ok) return { ok: false as const, status: 400, error: funded.error };
   // Drawn before the claim, so a failure here leaves nothing to release.
