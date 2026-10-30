@@ -13,7 +13,7 @@ import { arcConfig } from "../lib/arc/config";
 import { byokRouter, type SealedKey } from "../lib/launch/byok";
 import { COUNCIL_AGENTS } from "../lib/launch/council-view";
 import { platformRouter } from "../lib/launch/llm";
-import { baseAgentPay, callPriceUsd, minUnits, usdPrices, verifyBasePayment, verifyEvmPayment, verifySolanaPayment, type PayChain } from "../lib/launch/paid-call";
+import { baseAgentPay, callIdFor, callPriceUsd, minUnits, usdPrices, verifyBasePayment, verifyEvmPayment, verifySolanaPayment, type PayChain } from "../lib/launch/paid-call";
 import { rpcConnection } from "../lib/launch/solana/rpc-pool";
 import { secretMatches } from "../lib/internal-secrets";
 import { fenceUntrusted } from "../lib/prompt-safety";
@@ -30,8 +30,8 @@ function councilAgent(slug: string) {
 type Result = { ok: true; answer: string; agent: string; chain: PayChain; tx: string } | { ok: false; status: number; error: string };
 
 export const call = action({
-  args: { secret: v.string(), slug: v.string(), prompt: v.string(), chain: v.union(v.literal("arc"), v.literal("solana"), v.literal("robinhood"), v.literal("base")), tx: v.string() },
-  handler: async (ctx, { secret, slug, prompt, chain, tx }): Promise<Result> => {
+  args: { secret: v.string(), slug: v.string(), prompt: v.string(), chain: v.union(v.literal("arc"), v.literal("solana"), v.literal("robinhood"), v.literal("base")), tx: v.string(), callSecret: v.optional(v.string()) },
+  handler: async (ctx, { secret, slug, prompt, chain, tx, callSecret }): Promise<Result> => {
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
     const a = (await ctx.runQuery(internal.agentApiDb.forCall, { slug })) ?? councilAgent(slug);
     if (!a) return { ok: false, status: 404, error: "No such live agent." };
@@ -42,13 +42,14 @@ export const call = action({
     const e = process.env;
     const payContract = baseAgentPay(e.BASE_AGENT_PAY_ADDRESS);
     if (chain === "base" && !payContract) return { ok: false, status: 400, error: "Base payments are not enabled. Pay on a chain from the quote." };
+    if (chain === "base" && !/^0x[0-9a-f]{64}$/.test(callSecret ?? "")) return { ok: false, status: 400, error: "A Base payment needs the quote's secret: base:<tx>:<secret>." };
     const prices = await usdPrices().catch(() => null);
     if (!prices) return { ok: false, status: 503, error: "Could not read prices. Try again." };
     const min = minUnits(chain, callPriceUsd(e.AGENT_API_PRICE_USD), prices);
     const paid = chain === "solana"
       ? await verifySolanaPayment(rpcConnection(), { sig: tx, to, min })
       : chain === "base"
-      ? await verifyBasePayment(createPublicClient({ transport: http(e.BASE_RPC_URL?.trim() || "https://mainnet.base.org") }) as PublicClient, { hash: tx, contract: payContract!, agent: to, min })
+      ? await verifyBasePayment(createPublicClient({ transport: http(e.BASE_RPC_URL?.trim() || "https://mainnet.base.org") }) as PublicClient, { hash: tx, contract: payContract!, agent: to, callId: callIdFor(callSecret!), min })
       : await verifyEvmPayment(
         chain === "arc"
           ? arcPublicClient(arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE }))

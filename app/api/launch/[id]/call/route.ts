@@ -9,7 +9,7 @@ import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import { builderSuffixFromEnv } from "@/lib/base/builder-code";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
-import { baseAgentPay, callPriceUsd, newCallId, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
+import { baseAgentPay, callPriceUsd, newBaseCall, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
@@ -41,8 +41,8 @@ async function offer(id: string) {
     quote: {
       agent: id, name: w.name, ticker: w.ticker, priceUsd: usd,
       // Base: its Base wallet, or its Arc EOA (council personas); paid through MimirAgentPay with a fresh callId.
-      accepts: quote(usd, prices, { ...w, base: ("base" in w ? w.base : null) ?? w.arc }, payContract ? { contract: payContract, callId: newCallId(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
-      howTo: `Send the amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx>. One tx buys one call; pay within an hour of calling.`,
+      accepts: quote(usd, prices, { ...w, base: ("base" in w ? w.base : null) ?? w.arc }, payContract ? { contract: payContract, ...newBaseCall(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
+      howTo: `Send the amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx> (on Base: base:<tx>:<secret>, with the quote's secret; keep it private until then). One tx buys one call; pay within an hour of calling.`,
     },
   };
 }
@@ -64,10 +64,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!pay) {
     const o = await offer(id);
     if (o.res) return o.res;
-    return json({ error: header ? `Bad ${PAY_HEADER} header: use <arc|solana|robinhood|base>:<tx>.` : "Payment required.", ...o.quote }, 402);
+    return json({ error: header ? `Bad ${PAY_HEADER} header: use <arc|solana|robinhood>:<tx> or base:<tx>:<secret>.` : "Payment required.", ...o.quote }, 402);
   }
   const c = launchCx();
   if (!c) return json({ error: "Mimir API is not configured on this server." }, 503);
-  const r = await c.client.action(api.agentApi.call, { secret: c.secret, slug: id, prompt: body.data.prompt, chain: pay.chain, tx: pay.tx });
+  const r = await c.client.action(api.agentApi.call, { secret: c.secret, slug: id, prompt: body.data.prompt, chain: pay.chain, tx: pay.tx, ...(pay.secret ? { callSecret: pay.secret } : {}) });
   return r.ok ? json({ agent: r.agent, answer: r.answer, paid: { chain: r.chain, tx: r.tx } }) : json({ error: r.error }, r.status);
 }
