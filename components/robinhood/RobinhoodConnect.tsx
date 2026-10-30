@@ -1,7 +1,7 @@
 "use client";
 
-/** Connect (or disconnect) a Robinhood Chain wallet: Robinhood Wallet by QR, or the browser's own wallet. `base`: any EVM wallet, for Base. */
-import { useEffect, useState } from "react";
+/** Connect (or disconnect) the EVM wallet through ConnectKit: Robinhood Wallet, a browser extension or a phone wallet. `base`: for Base. */
+import { useState } from "react";
 
 import { useRobinhoodWallet } from "./useRobinhoodWallet";
 
@@ -11,13 +11,11 @@ const short = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
 export default function RobinhoodConnect({ base = false }: { base?: boolean }) {
   const rh = useRobinhoodWallet();
   const [error, setError] = useState<string | null>(null);
-  // After mount, so the server render matches.
-  const [hasInjected, setHasInjected] = useState(false);
-  useEffect(() => setHasInjected(Boolean((window as unknown as { ethereum?: unknown }).ethereum)), []);
-
-  const connect = (via: "injected" | "walletconnect") => {
+  const connect = () => {
     setError(null);
-    rh.connect(via).catch((err: { message?: string }) => setError(/rejected|closed/i.test(err?.message ?? "") ? "The request was cancelled." : (err?.message ?? "Could not connect.")));
+    rh.connect(base ? "base" : "robinhood").catch((err: { message?: string }) =>
+      setError(/rejected|closed|no wallet was connected/i.test(err?.message ?? "") ? "The request was cancelled." : (err?.message ?? "Could not connect.")),
+    );
   };
 
   if (rh.address) {
@@ -33,16 +31,9 @@ export default function RobinhoodConnect({ base = false }: { base?: boolean }) {
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-2">
-        {rh.walletConnectReady ? (
-          <button type="button" disabled={rh.connecting} onClick={() => connect("walletconnect")} className={BTN}>
-            {rh.connecting ? "Approve in your wallet…" : base ? "Connect with WalletConnect" : "Connect Robinhood Wallet"}
-          </button>
-        ) : null}
-        {hasInjected ? (
-          <button type="button" disabled={rh.connecting} onClick={() => connect("injected")} className={BTN}>
-            Browser wallet (EVM)
-          </button>
-        ) : null}
+        <button type="button" disabled={rh.connecting} onClick={connect} className={BTN}>
+          {rh.connecting ? "Approve in your wallet…" : base ? "Connect EVM wallet" : "Connect Robinhood Wallet"}
+        </button>
       </div>
       {error ? (
         <p role="alert" className="m-0 text-[12px] text-coral">
