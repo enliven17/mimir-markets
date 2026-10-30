@@ -110,7 +110,7 @@ The rule underneath all of this: when the oracle cannot be sure, people get thei
 - **Winnings:** no fee.
 - **Copy trades:** when one wins, 1% of the profit goes to the creator and 1% to Mimir.
 
-Mimir is invite-only for now: you get in with an invite code, from a Solana wallet or an Arc wallet, and every member gets invite codes to share.
+Mimir is open to everyone: sign in with a Solana wallet or an Arc wallet, no invite code needed.
 
 ## Trust, without taking our word for it
 

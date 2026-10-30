@@ -2,7 +2,7 @@
 
 Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People keep their **Solana**
 wallet: it is their identity and it funds them over CCTP. This build runs on Arc testnet + Solana devnet; Arc
-mainnet + Solana mainnet come together, invite-only.
+mainnet + Solana mainnet come together, open to everyone.
 
 ## The shape of it
 
@@ -15,7 +15,7 @@ mainnet + Solana mainnet come together, invite-only.
                                        + Gas Station          ▲   │                 │
                                                               └───┘ payouts          │ events
  USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn
- invite code ──▶ access (from a Solana or Arc wallet)                                ▼
+                                                                                     ▼
                                                               the backend: indexer, oracle, council, creator
 ```
 
@@ -30,14 +30,12 @@ mainnet + Solana mainnet come together, invite-only.
 - **Create:** connect the Solana wallet, create a passkey (Face ID, fingerprint, device PIN), get a Circle Modular
   Wallet (ERC-4337 smart account). Its address is known before it deploys; it deploys on its first operation.
 - **Link:** the Solana wallet and the smart account each sign one message naming the other
-  (`app/api/arc/bind`). The link is what the campaign, invites and Telegram use to join the two.
+  (`app/api/arc/bind`). The link is what the campaign and Telegram use to join the two.
 - **Recover:** at sign-up the user downloads a 12-word recovery file and confirms it. The words derive an EOA added as
   a second owner of the smart account; with them a new passkey can be put on the same account. Lose both and the
   account is gone.
-- **Invite-only (mainnet):** entry is by invite code, from a Solana wallet or (native Arc sign-in) an Arc wallet.
-  Holding a token never lets a wallet in; wallets let in earlier keep their access. Every member gets `MIMIR_INVITES_PER_USER` codes
-  (default 2; raising it tops everyone up). Off on testnet unless `NEXT_PUBLIC_INVITE_ONLY=1`. The bind routes enforce
-  it, so skipping the UI gains nothing (`lib/server/access.ts`, `components/access/AccessGate.tsx`).
+- **Open access:** anyone can sign in from a Solana wallet or (native Arc sign-in) an Arc wallet; no invite code.
+  Per-account stake caps, rate limits and wallet proofs still apply.
 - **Native Arc sign-in:** an Arc (EVM) wallet instead of a Solana one. It signs once to bind to the passkey account
   (`lib/arc/evm.ts`, `/api/arc/evm-bind`) and approves a USDC spending cap for it; a stake that needs more than the
   account holds pulls the shortfall with `transferFrom` in the same passkey operation. No deposit needed.
@@ -180,7 +178,7 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 2. Safes deployed first as owner and arbiter; separate oracle, fee recipient and fee signer keys
    (deploy.mjs enforces it). Start with caps set.
 3. Arc mainnet and CCTP mainnet addresses checked against Circle's docs; Circle Console entries for the domain.
-4. `COUNCIL_BETS=0`, invite-only on, key management for the oracle, fee signer and Circle entity secret.
+4. `COUNCIL_BETS=0`, key management for the oracle, fee signer and Circle entity secret.
 5. Dispute window 24 h or more (the contracts refuse less off testnet).
 
 ## Proof of concept (2026-10-06, `scripts/arc-poc/`)

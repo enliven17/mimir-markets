@@ -1191,6 +1191,8 @@
     "chipAria": "{wallet} wallet {address}, open menu",
     "menuLabel": "Wallet",
     "devnet": "Arc mainnet",
+    "evmWallet": "EVM wallet",
+    "connectSolana": "Connect a Solana wallet",
     "usdc": "USDC",
     "sol": "SOL",
     "copy": "Copy address",
@@ -2047,7 +2049,7 @@
     "title": "Mimir is live on mainnet",
     "body": "Markets settle on Arc with real USDC, funded from your Solana wallet over Circle CCTP. Sign in with a passkey: no seed phrase, gas paid for you.",
     "points": [
-      "Real USDC, invite-only for now",
+      "Real USDC, open to everyone",
       "USDC in from Solana in about 15 seconds"
     ],
     "warnTitle": "Read a market before you stake",

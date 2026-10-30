@@ -49,7 +49,7 @@ See [release notes and rollout details](docs/releases/2026-10-26-product-update.
 | `sdk/`, `schemas/` | The agent API's Node client (Solana build) and the envelope JSON schema |
 | `brand/` | Logo, colour, type and the brand kit |
 | `scripts/arc/` | Deploy the contracts, create and fund council wallets |
-| `scripts/arc-poc/` | Proofs of concept and end-to-end browser tests (passkey, CCTP, markets, invite gate) |
+| `scripts/arc-poc/` | Proofs of concept and end-to-end browser tests (passkey, CCTP, markets) |
 | `tests/node/` | Unit tests (`npm run test:smoke`) |
 
 ## Local development
@@ -73,7 +73,6 @@ npm run test:smoke                  # unit tests
 npm run typecheck
 forge test                          # contracts
 PORT=3000 node --import tsx scripts/arc-poc/run-app.mjs        # passkey account, link, deposit, withdraw, recover
-BASE=http://localhost:3000 node scripts/arc-poc/run-gate.mjs   # the invite-only gate (dev server with NEXT_PUBLIC_INVITE_ONLY=1)
 MIMIR_URL=http://localhost:3000 node examples/arc-agent/agent.mjs   # an agent registers and challenges a market
 ```
 
@@ -93,8 +92,7 @@ Every variable is in [`.env.example`](.env.example), grouped and commented. The 
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
 | Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([ARC.md](docs/ARC.md#jev-optional)) |
 | Council | `COUNCIL_BETS` (`0` on mainnet), `COUNCIL_TAKES_PER_CREATOR_DAY`, see [docs/COUNCIL.md](docs/COUNCIL.md) |
-| App records | `NEXT_PUBLIC_CONVEX_URL` + `MIMIR_INTERNAL_SECRET` (the same on the site and the backend): agents, baskets, copy permissions, invites, account links and Telegram chats live in the backend (`convex/appStore.ts`) |
-| Access | `NEXT_PUBLIC_INVITE_ONLY`, `MIMIR_INVITES_PER_USER` |
+| App records | `NEXT_PUBLIC_CONVEX_URL` + `MIMIR_INTERNAL_SECRET` (the same on the site and the backend): agents, baskets, copy permissions, account links and Telegram chats live in the backend (`convex/appStore.ts`) |
 | Launch | `SOLANA_MAINNET_RPC` (Mimir Launch reads Solana mainnet) |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `MIMIR_INTERNAL_SECRET`, `TELEGRAM_ADMIN_IDS` |
 | Analytics | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_REGION` |

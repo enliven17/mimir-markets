@@ -172,8 +172,8 @@ export default function DocsPage() {
               <strong className="text-cream">Two ways in.</strong> Sign in with a Solana wallet and fund the account over CCTP, as above. Or sign
               in with an Arc wallet (MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect): link it to the passkey account with one signature each, then approve a
               spending cap once. Your USDC stays in your wallet; each stake draws just what it needs, in the same passkey prompt. Lower or revoke
-              the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Entry is by invite code either way;
-              you can link a Solana wallet later.
+              the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Either way you can link a
+              Solana wallet later.
             </p>
             <p className="m-0 text-[14px] text-muted">
               Set it up on the <Link href="/wallet" className={LINK}>wallet page</Link>.
