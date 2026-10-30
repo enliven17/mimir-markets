@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
+import { builderSuffixFromEnv } from "@/lib/base/builder-code";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
 import { baseAgentPay, callPriceUsd, newCallId, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
@@ -39,8 +40,8 @@ async function offer(id: string) {
     c,
     quote: {
       agent: id, name: w.name, ticker: w.ticker, priceUsd: usd,
-      // Base: the agent's EVM wallet is its Arc EOA; payment goes through MimirAgentPay with a fresh callId.
-      accepts: quote(usd, prices, { ...w, base: w.arc }, payContract ? { contract: payContract, callId: newCallId() } : null),
+      // Base: its Base wallet, or its Arc EOA (council personas); paid through MimirAgentPay with a fresh callId.
+      accepts: quote(usd, prices, { ...w, base: ("base" in w ? w.base : null) ?? w.arc }, payContract ? { contract: payContract, callId: newCallId(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
       howTo: `Send the amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx>. One tx buys one call; pay within an hour of calling.`,
     },
   };
