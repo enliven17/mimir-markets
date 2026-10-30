@@ -1,10 +1,13 @@
 "use client";
 
 /**
- * The browser's Arc (EVM) wallet, for native Arc sign-in (lib/arc/evm.ts). The wallet itself comes from ConnectKit
- * (EvmConnect.tsx, loaded on demand by EvmConnectHost), which hands this store a bridge. Connecting also signs the
- * wallet proof (evmProofMessage) used for access and invite codes; address and proof are a per-browser convenience in
- * localStorage, shared by every component through one store.
+ * The browser's one EVM wallet connection, for Arc, Robinhood Chain and Base alike: ConnectKit + wagmi (EvmConnect.tsx,
+ * loaded on demand by EvmConnectHost) hands this module a bridge, and every EVM action goes through it. Connecting never
+ * switches the network; a transaction switches to its chain right before sending.
+ *
+ * Two stores share it: the live account (useEvmAccount, what useRobinhoodWallet reads), and the native Arc sign-in
+ * (useEvmWallet): connecting for Arc also signs the wallet proof (evmProofMessage) used for access and invite codes;
+ * address and proof are a per-browser convenience in localStorage.
  */
 import { useSyncExternalStore } from "react";
 import { erc20Abi, getAddress, numberToHex, type Address, type Hex } from "viem";
@@ -17,11 +20,24 @@ export interface Eip1193 {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
 }
 
-/** What EvmConnect exposes: open the modal and wait for an account, and the connected wallet's provider. */
+/** What EvmConnect exposes: open the modal and wait for an account, the connected wallet's provider, a chain switch. */
 export interface EvmBridge {
   connect(): Promise<Address>;
   provider(): Promise<{ address: Address; provider: Eip1193 } | null>;
+  /** Put the wallet on `chainId` (wagmi adds the network when the wallet does not know it). */
+  switchChain(chainId: number): Promise<void>;
   disconnect(): Promise<void>;
+}
+
+export type EvmChainIntent = "arc" | "robinhood" | "base";
+
+/** The live wagmi account: the same address on Arc, Robinhood Chain and Base. */
+export interface EvmAccount {
+  address: Address | null;
+  via: "injected" | "walletconnect" | null;
+  connecting: boolean;
+  /** The network picked when connecting (ConnectSheet); the connection itself stays on whatever chain the wallet is on. */
+  intent: EvmChainIntent | null;
 }
 
 export interface EvmWalletState {
@@ -31,6 +47,10 @@ export interface EvmWalletState {
 }
 
 const KEY = "mimir:evm-wallet";
+/** Set while wagmi holds a connection, so a reload mounts ConnectKit to restore it. */
+const CONNECTED_KEY = "mimir:evm-connected";
+/** The old raw Robinhood/Base connection (before ConnectKit): only cleaned up. */
+const LEGACY_KEY = "mimir.robinhood.via";
 const EMPTY: EvmWalletState = { address: null, proof: null };
 let state: EvmWalletState = EMPTY;
 let loaded = false;
@@ -65,6 +85,42 @@ export function evmAccountChanged(next: Address | null) {
   if (state.address && next !== state.address) set(EMPTY);
 }
 
+const NO_ACCOUNT: EvmAccount = { address: null, via: null, connecting: false, intent: null };
+let account: EvmAccount = NO_ACCOUNT;
+const accountListeners = new Set<() => void>();
+
+function setAccount(next: Partial<EvmAccount>) {
+  account = { ...account, ...next };
+  accountListeners.forEach((l) => l());
+}
+
+/** EvmConnect reports the wagmi account here (address null once disconnected). */
+export function reportEvmAccount(address: Address | null, via: EvmAccount["via"]) {
+  if (address === account.address && via === account.via) return;
+  setAccount({ address, via });
+  try {
+    if (address) localStorage.setItem(CONNECTED_KEY, "1");
+    else localStorage.removeItem(CONNECTED_KEY);
+  } catch {
+    /* storage blocked: no restore on reload */
+  }
+}
+
+/** The live account's address, outside React. */
+export const currentEvmAddress = () => account.address;
+
+/** The live EVM account, shared by every component. */
+export const useEvmAccount = () =>
+  useSyncExternalStore(
+    (l) => {
+      load();
+      accountListeners.add(l);
+      return () => accountListeners.delete(l);
+    },
+    () => account,
+    () => NO_ACCOUNT,
+  );
+
 /** True once something needs the Arc wallet (a stored sign-in, or a connect click): EvmConnectHost mounts ConnectKit. */
 export const useEvmWanted = () =>
   useSyncExternalStore(
@@ -92,8 +148,15 @@ function load(): EvmWalletState {
   } catch {
     /* unreadable: start empty */
   }
-  // A stored sign-in needs the wallet back for its transactions: let ConnectKit restore the connection.
-  if (state.address) wanted = true;
+  let restore = false;
+  try {
+    restore = localStorage.getItem(CONNECTED_KEY) === "1";
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  // A stored sign-in or connection needs the wallet back for its transactions: let ConnectKit restore it.
+  if (state.address || restore) wanted = true;
   return state;
 }
 
@@ -132,30 +195,9 @@ async function need(address?: Address): Promise<Eip1193> {
   return got.provider;
 }
 
-/** Put the wallet on Arc, adding the network when it does not know it. */
-async function onArc(p: Eip1193) {
-  const chainId = numberToHex(ARC.chain.id);
-  if ((await p.request({ method: "eth_chainId" })) === chainId) return;
-  try {
-    await p.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId }],
-    });
-  } catch (err) {
-    if ((err as { code?: number }).code !== 4902) throw err;
-    await p.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId,
-          chainName: ARC.chain.name,
-          nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-          rpcUrls: ARC.chain.rpcUrls,
-          blockExplorerUrls: [ARC.chain.explorer],
-        },
-      ],
-    });
-  }
+/** Put the wallet on `chainId` right before a transaction (never on connect). */
+export async function switchEvmChain(chainId: number): Promise<void> {
+  await (await bridgeReady()).switchChain(chainId);
 }
 
 export async function signWithEvm(address: Address, message: string): Promise<Hex> {
@@ -165,9 +207,40 @@ export async function signWithEvm(address: Address, message: string): Promise<He
   })) as Hex;
 }
 
-/** Connect, then sign the wallet proof: one click, one signature. */
+/**
+ * Open ConnectKit (or reuse the live connection) and resolve with the account; no signature, no network switch.
+ * `intent` records which network the user picked.
+ */
+export async function connectEvm(intent?: EvmChainIntent): Promise<Address> {
+  if (account.connecting) throw new Error("A wallet connection is already open.");
+  setAccount({ connecting: true, ...(intent ? { intent } : {}) });
+  try {
+    return await (await bridgeReady()).connect();
+  } finally {
+    setAccount({ connecting: false });
+  }
+}
+
+/** Ends the EVM connection everywhere: Arc sign-in, Robinhood Chain and Base. */
+export async function disconnectEvm(): Promise<void> {
+  set(EMPTY);
+  setAccount({ intent: null });
+  reportEvmAccount(null, null);
+  await bridge?.disconnect().catch(() => {});
+}
+
+/** A plain ETH transfer on `chainId` (Robinhood Chain, Base) from the connected wallet. Returns the tx hash. */
+export async function sendEvmEth(chainId: number, to: string, wei: bigint): Promise<Hex> {
+  const from = account.address;
+  if (!from) throw new Error("Connect your EVM wallet first.");
+  const p = await need(from);
+  await switchEvmChain(chainId);
+  return (await p.request({ method: "eth_sendTransaction", params: [{ from, to, value: numberToHex(wei) }] })) as Hex;
+}
+
+/** Connect for Arc, then sign the wallet proof: one click, one signature. */
 export async function connectEvmWallet(): Promise<Address> {
-  const address = await (await bridgeReady()).connect();
+  const address = await connectEvm("arc");
   const signedAt = Date.now();
   const signature = await signWithEvm(address, evmProofMessage(address, signedAt));
   set({ address, proof: `${signedAt}.${signature}` });
@@ -175,14 +248,13 @@ export async function connectEvmWallet(): Promise<Address> {
 }
 
 export function disconnectEvmWallet() {
-  set(EMPTY);
-  void bridge?.disconnect().catch(() => {});
+  void disconnectEvm();
 }
 
 /** A transaction on Arc Usdc's ERC-20 interface from the wallet (approve / transfer); resolves once mined. */
 export async function sendUsdcTx(from: Address, data: Hex): Promise<Hex> {
   const p = await need(from);
-  await onArc(p);
+  await switchEvmChain(ARC.chain.id);
   const hash = (await p.request({
     method: "eth_sendTransaction",
     params: [{ from, to: ARC_USDC, data }],
