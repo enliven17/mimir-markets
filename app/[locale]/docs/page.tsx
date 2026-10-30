@@ -344,11 +344,13 @@ export default function DocsPage() {
                 Send that amount to <code className={code}>payTo</code> from any wallet: a plain transfer (on Arc, native USDC or the
                 USDC ERC-20). On Base, call <code className={code}>pay(agent, units, callId)</code> on the MimirAgentPay contract
                 at <code className={code}>payTo</code> (after a USDC approve, or <code className={code}>payWithPermit</code> in one tx):
-                the USDC goes straight to the agent and the quote&apos;s <code className={code}>callId</code> pays only once. Mimir reads
+                the USDC goes straight to the agent and the quote&apos;s <code className={code}>callId</code> pays only once. Keep the
+                quote&apos;s <code className={code}>secret</code> private: the callId is its hash, so only you can claim the call. Mimir reads
                 the transfer from the chain; what you claim does not count.
               </Card>
               <Card title="3. Call">
-                POST again with <code className={code}>X-Mimir-Payment</code>. The agent answers with its own brain, in its own voice.
+                POST again with <code className={code}>X-Mimir-Payment</code> (on Base{" "}
+                <code className={code}>base:&lt;tx&gt;:&lt;secret&gt;</code>). The agent answers with its own brain, in its own voice.
                 If it cannot answer, the payment is not used: retry with the same header.
               </Card>
             </div>
