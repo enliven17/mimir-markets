@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { baseAgentPay, minUnits, newCallId, PAID_TOPIC, parsePayment, priceUnits, quote, verifyBasePayment, verifyEvmPayment, verifySolanaPayment } from "../../lib/launch/paid-call";
+import { baseAgentPay, callIdFor, minUnits, newBaseCall, PAID_TOPIC, parsePayment, priceUnits, quote, verifyBasePayment, verifyEvmPayment, verifySolanaPayment } from "../../lib/launch/paid-call";
 
 const P = { SOL: 200, ETH: 4000 };
 const NOW = 1_800_000_000_000;
 const AGENT = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;
+const SECRET = `0x${"5e".repeat(32)}`;
+const CALL_ID = callIdFor(SECRET);
 
 test("a call is priced in each chain's native money and offered only where the agent has a wallet", () => {
   assert.equal(priceUnits("arc", 0.05, P), 50_000n);
@@ -20,7 +22,10 @@ test("a call is priced in each chain's native money and offered only where the a
 test("the payment header names a chain and a well-formed tx", () => {
   assert.deepEqual(parsePayment(`arc:${HASH.toUpperCase().replace("0X", "0x")}`), { chain: "arc", tx: HASH });
   assert.equal(parsePayment("arc:0x12"), null);
-  assert.deepEqual(parsePayment(`base:${HASH}`), { chain: "base", tx: HASH });
+  assert.equal(parsePayment(`base:${HASH}`), null); // Base needs the quote's secret
+  assert.deepEqual(parsePayment(`base:${HASH}:${SECRET.toUpperCase().replace("0X", "0x")}`), { chain: "base", tx: HASH, secret: SECRET });
+  assert.equal(parsePayment(`base:${HASH}:0x12`), null);
+  assert.equal(parsePayment(`arc:${HASH}:${SECRET}`), null);
   assert.equal(parsePayment(`ethereum:${HASH}`), null);
   assert.equal(parsePayment(null), null);
   const sig = "5".repeat(88);
@@ -60,26 +65,27 @@ test("Solana: the agent wallet's SOL gain decides", async () => {
 });
 
 const PAY = "0x3333333333333333333333333333333333333333";
-const CALL_ID = `0x${"cd".repeat(32)}`;
 
 test("Base is offered in USDC through MimirAgentPay only when the contract is configured", () => {
   assert.equal(priceUnits("base", 0.05, P), 50_000n);
   assert.equal(PAID_TOPIC, "0x37db9851b6c9a32f8ddcf4734e6526de7c85268ef735f7883ea70dc8a39c9c85"); // cast keccak "Paid(bytes32,address,address,uint256)"
   assert.deepEqual(quote(0.05, P, { base: AGENT }).map((o) => o.chain), []);
-  const [o] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID });
-  assert.deepEqual(o, { chain: "base", asset: "USDC", amount: "0.05", units: "50000", decimals: 6, payTo: PAY, agent: AGENT, callId: CALL_ID });
-  const [s] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID, dataSuffix: "0xabcd" });
+  const [o] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID, secret: SECRET });
+  assert.deepEqual(o, { chain: "base", asset: "USDC", amount: "0.05", units: "50000", decimals: 6, payTo: PAY, agent: AGENT, callId: CALL_ID, secret: SECRET });
+  const [s] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID, secret: SECRET, dataSuffix: "0xabcd" });
   assert.equal(s.dataSuffix, "0xabcd");
-  assert.match(newCallId(), /^0x[0-9a-f]{64}$/);
-  assert.notEqual(newCallId(), newCallId());
+  const fresh = newBaseCall();
+  assert.match(fresh.secret, /^0x[0-9a-f]{64}$/);
+  assert.equal(fresh.callId, callIdFor(fresh.secret));
+  assert.notEqual(newBaseCall().secret, fresh.secret);
   assert.equal(baseAgentPay(undefined), null);
   assert.equal(baseAgentPay("nope"), null);
   assert.equal(baseAgentPay(PAY), "0x3333333333333333333333333333333333333333");
 });
 
-const paidLog = (o: { address?: string; agent?: string; amount?: bigint; topic?: string } = {}) => ({
+const paidLog = (o: { address?: string; agent?: string; amount?: bigint; topic?: string; callId?: string } = {}) => ({
   address: o.address ?? PAY,
-  topics: [o.topic ?? PAID_TOPIC, CALL_ID, `0x${"0".repeat(24)}${(o.agent ?? AGENT).slice(2)}`, `0x${"0".repeat(24)}${"44".repeat(20)}`],
+  topics: [o.topic ?? PAID_TOPIC, o.callId ?? CALL_ID, `0x${"0".repeat(24)}${(o.agent ?? AGENT).slice(2)}`, `0x${"0".repeat(24)}${"44".repeat(20)}`],
   data: `0x${(o.amount ?? 50_000n).toString(16).padStart(64, "0")}`,
 });
 const baseRpc = (o: { status?: string; logs?: unknown[]; ts?: number; missing?: boolean }) => ({
@@ -91,7 +97,7 @@ const baseRpc = (o: { status?: string; logs?: unknown[]; ts?: number; missing?: 
 }) as never;
 
 test("Base: a Paid event from MimirAgentPay to the agent counts; anything else does not", async () => {
-  const a = { hash: HASH, contract: PAY, agent: AGENT.toUpperCase().replace("0X", "0x"), min: 47_500n, now: NOW };
+  const a = { hash: HASH, contract: PAY, agent: AGENT.toUpperCase().replace("0X", "0x"), callId: CALL_ID, min: 47_500n, now: NOW };
   assert.deepEqual(await verifyBasePayment(baseRpc({ logs: [paidLog()] }), a), { ok: true, units: 50_000n });
   assert.deepEqual(await verifyBasePayment(baseRpc({ logs: [paidLog({ amount: 30_000n }), paidLog({ amount: 20_000n })] }), a), { ok: true, units: 50_000n });
   // short, from a look-alike contract, to another agent, a different event, reverted, stale, not mined yet
@@ -102,4 +108,7 @@ test("Base: a Paid event from MimirAgentPay to the agent counts; anything else d
   assert.equal((await verifyBasePayment(baseRpc({ status: "reverted", logs: [paidLog()] }), a)).ok, false);
   assert.equal((await verifyBasePayment(baseRpc({ ts: NOW - 2 * 3600_000, logs: [paidLog()] }), a)).ok, false);
   assert.equal((await verifyBasePayment(baseRpc({ missing: true }), a)).ok, false);
+  // someone else's payment (another callId) in the tx does not count: the tx hash alone buys nothing
+  assert.equal((await verifyBasePayment(baseRpc({ logs: [paidLog({ callId: callIdFor(`0x${"77".repeat(32)}`) })] }), a)).ok, false);
+  assert.deepEqual(await verifyBasePayment(baseRpc({ logs: [paidLog({ callId: `0x${"99".repeat(32)}` }), paidLog()] }), a), { ok: true, units: 50_000n });
 });
