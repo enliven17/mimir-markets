@@ -1743,7 +1743,7 @@
         "hint": "Mirror another wallet"
       },
       "wallet": {
-        "label": "Arc wallet",
+        "label": "Wallet",
         "hint": "Passkey account, deposits and withdrawals"
       },
       "stats": {
