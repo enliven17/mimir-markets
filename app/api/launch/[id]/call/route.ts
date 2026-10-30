@@ -2,13 +2,13 @@
  * Mimir API (lib/launch/paid-call.ts): call a launched agent from any app, paying the agent's own wallet.
  * GET  /api/launch/:id/call                      the price and where to pay, per chain.
  * POST /api/launch/:id/call { prompt }           without a payment: 402 with the same quote.
- *      header X-Mimir-Payment: <arc|solana|robinhood>:<tx>   with one: the agent's answer. One tx buys one call.
+ *      header X-Mimir-Payment: <arc|solana|robinhood|base>:<tx>   with one: the agent's answer. One tx buys one call.
  */
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
-import { callPriceUsd, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
+import { baseAgentPay, callPriceUsd, newCallId, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
@@ -34,12 +34,14 @@ async function offer(id: string) {
   const prices = await usdPrices().catch(() => null);
   if (!prices) return { res: json({ error: "Could not read prices. Try again." }, 503) };
   const usd = callPriceUsd();
+  const payContract = baseAgentPay();
   return {
     c,
     quote: {
       agent: id, name: w.name, ticker: w.ticker, priceUsd: usd,
-      accepts: quote(usd, prices, w),
-      howTo: `Send the amount for one chain to its payTo wallet, then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx>. One tx buys one call; pay within an hour of calling.`,
+      // Base: the agent's EVM wallet is its Arc EOA; payment goes through MimirAgentPay with a fresh callId.
+      accepts: quote(usd, prices, { ...w, base: w.arc }, payContract ? { contract: payContract, callId: newCallId() } : null),
+      howTo: `Send the amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx>. One tx buys one call; pay within an hour of calling.`,
     },
   };
 }
@@ -61,7 +63,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!pay) {
     const o = await offer(id);
     if (o.res) return o.res;
-    return json({ error: header ? `Bad ${PAY_HEADER} header: use <arc|solana|robinhood>:<tx>.` : "Payment required.", ...o.quote }, 402);
+    return json({ error: header ? `Bad ${PAY_HEADER} header: use <arc|solana|robinhood|base>:<tx>.` : "Payment required.", ...o.quote }, 402);
   }
   const c = launchCx();
   if (!c) return json({ error: "Mimir API is not configured on this server." }, 503);
