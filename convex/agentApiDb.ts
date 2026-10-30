@@ -10,7 +10,7 @@ export const wallets = query({
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
     const a = await ctx.db.query("launchAgents").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
     if (!a || a.status !== "live") return null;
-    return { name: a.name, ticker: a.ticker, arc: a.arc?.address ?? null, solana: a.venue === "robinhood" ? null : (a.solana?.address ?? null), robinhood: a.robinhood?.address ?? null };
+    return { name: a.name, ticker: a.ticker, arc: a.arc?.address ?? null, solana: a.venue === "robinhood" ? null : (a.solana?.address ?? null), robinhood: a.robinhood?.address ?? null, base: a.base?.address ?? a.arc?.address ?? null };
   },
 });
 
@@ -24,6 +24,8 @@ export const forCall = internalQuery({
     return {
       id: a._id, uid: a.uid, name: a.name, ticker: a.ticker, thesis: a.thesis, brain: a.brain, fundingSig: a.fundingSig ?? null,
       arc: a.arc?.address ?? null, solana: a.venue === "robinhood" ? null : (a.solana?.address ?? null), robinhood: a.robinhood?.address ?? null,
+      // Base pays (MimirAgentPay) go to its Base wallet, or else its Arc EOA (same address on every EVM chain).
+      base: a.base?.address ?? a.arc?.address ?? null,
       recent: events.filter((e) => e.kind !== "api").map((e) => e.text),
     };
   },

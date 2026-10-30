@@ -24,7 +24,7 @@ function councilAgent(slug: string) {
   if (!Object.hasOwn(COUNCIL_AGENTS, slug)) return null;
   const c = COUNCIL_AGENTS[slug];
   const bio = COUNCIL_PERSONAS.find((p) => p.slug === slug)?.longBio ?? "A juror on the Mimir Council.";
-  return { id: null, uid: "", name: c.name, ticker: c.ticker, thesis: bio, brain: { kind: "mimir" as const }, fundingSig: null, arc: c.arc, solana: c.solana, robinhood: c.robinhood, recent: [] as string[] };
+  return { id: null, uid: "", name: c.name, ticker: c.ticker, thesis: bio, brain: { kind: "mimir" as const }, fundingSig: null, arc: c.arc, solana: c.solana, robinhood: c.robinhood, base: c.arc, recent: [] as string[] };
 }
 
 type Result = { ok: true; answer: string; agent: string; chain: PayChain; tx: string } | { ok: false; status: number; error: string };
@@ -35,8 +35,7 @@ export const call = action({
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
     const a = (await ctx.runQuery(internal.agentApiDb.forCall, { slug })) ?? councilAgent(slug);
     if (!a) return { ok: false, status: 404, error: "No such live agent." };
-    // Base pays the agent's EVM wallet: the same EOA as on Arc.
-    const to = chain === "base" ? a.arc : a[chain];
+    const to = a[chain];
     if (!to) return { ok: false, status: 400, error: `This agent has no ${chain} wallet. Pay on a chain from the quote.` };
     if (tx === a.fundingSig) return { ok: false, status: 402, error: "That transaction funded the agent's launch; it is not a payment." };
 
