@@ -224,6 +224,20 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
     );
   };
 
+  // Base: any EVM wallet (MetaMask, Coinbase Wallet, Rabby; WalletConnect on a phone without one) on the same EVM
+  // connection, which funds Base agents (Clanker) and pays the Mimir API on Base.
+  const pickBase = () => {
+    onClose();
+    const injected = typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
+    robinhood.connect(injected ? "injected" : "walletconnect").then(
+      () => toast.success(t("baseConnected")),
+      (e: unknown) => {
+        const msg = e instanceof Error ? e.message : "";
+        if (!/reject|denied|cancel|closed/i.test(msg)) toast.error(t("baseFailed"));
+      },
+    );
+  };
+
   const pickArc = () => {
     onClose();
     connectEvmWallet().catch((e: unknown) => {
@@ -242,6 +256,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
               ["solana", "/networks/solana-icon.svg", t("pickSolana"), t("pickSolanaHint"), () => setNetwork("solana")],
               ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint"), pickArc],
               ["robinhood", "/networks/robinhood-icon.svg", t("pickRobinhood"), t("pickRobinhoodHint"), pickRobinhood],
+              ["base", "/networks/base-icon.svg", t("pickBase"), t("pickBaseHint"), pickBase],
             ] as const
           ).map(([key, icon, name, hint, onPick]) => (
             <li key={key}>
