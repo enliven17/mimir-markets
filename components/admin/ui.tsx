@@ -1,4 +1,4 @@
-// The admin panel's building blocks (AdminPanel.tsx, InvitesCard.tsx).
+// The admin panel's building blocks (AdminPanel.tsx).
 import type { ReactNode } from "react";
 
 import { SURFACE } from "@/components/arena/surface";

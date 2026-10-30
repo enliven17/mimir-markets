@@ -13,7 +13,6 @@ import { SURFACE } from "@/components/arena/surface";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { Link } from "@/i18n/navigation";
 import type { AdminOverview, Health } from "@/lib/server/admin-overview";
-import InvitesCard from "./InvitesCard";
 import { Card, Table } from "./ui";
 
 const REFRESH_MS = 30_000;
@@ -149,7 +148,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="m-0 font-display text-app-h1 text-cream">Admin</h1>
         <p className="m-0 text-[12px] text-muted">
-          Arc {d.network} · invite-only {d.inviteOnly ? "on" : "off"} · updated {new Date(d.at).toLocaleTimeString("en-GB")} · every 30 s
+          Arc {d.network} · updated {new Date(d.at).toLocaleTimeString("en-GB")} · every 30 s
           {error ? <span className="text-danger"> · last refresh failed: {error}</span> : null}
         </p>
       </header>
@@ -238,17 +237,11 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
         </Card>
       ) : null}
 
-      <InvitesCard token={token} />
-
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="People on Solana" note="app records">
           {db ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="Wallets linked to Arc" value={db.arcAccounts} />
-              <Stat label="Let in without a code" value={db.grants.holder ?? 0} />
-              <Stat label="Let in by invite" value={db.grants.invite ?? 0} />
-              <Stat label="Invite codes used" value={db.invitesUsed} />
-              <Stat label="Invite codes unused" value={db.invitesFree} />
               <Stat label="Telegram chats" value={`${db.telegram} (${db.telegramLinked} linked)`} />
               <Stat label="Agents" value={Object.entries(db.agents).map(([k, n]) => `${n} ${k}`).join(" · ") || 0} />
               <Stat label="Agents on Arc" value={db.agentsArc} />

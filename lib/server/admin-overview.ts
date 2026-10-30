@@ -11,7 +11,6 @@ import { parseAbi, type Address } from "viem";
 import { api } from "@/convex/_generated/api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
-import { isInviteOnly } from "@/lib/server/access";
 import { store, storeEnabled } from "@/lib/server/store";
 import { SOLANA_RPC } from "@/lib/solana/config";
 import { rpcUrls } from "@/lib/server/mainnet";
@@ -108,10 +107,8 @@ async function database() {
   type R = Record<string, unknown>;
   const s = store();
   const all = (t: string) => s.list<R>(t, { limit: 5000 });
-  const [accounts, grantRows, invites, chats, agentRows, payments, basketCount, subs, perms, campaign] = await Promise.all([
+  const [accounts, chats, agentRows, payments, basketCount, subs, perms, campaign] = await Promise.all([
     s.count("arc_accounts"),
-    all("access_grants"),
-    all("access_invites"),
     all("telegram_chats"),
     all("agent_registry"),
     all("agent_payments"),
@@ -128,9 +125,6 @@ async function database() {
   const live = chats.filter((c) => !c.blocked);
   return {
     arcAccounts: accounts,
-    grants: groupBy(grantRows, "via"),
-    invitesUsed: invites.filter((r) => r.used_by != null).length,
-    invitesFree: invites.filter((r) => r.used_by == null).length,
     telegram: live.length,
     telegramLinked: live.filter((c) => c.wallet != null).length,
     agents: groupBy(agentRows, "status"),
@@ -259,7 +253,6 @@ export async function adminOverview() {
   return {
     at: nowMs,
     network: ARC.network,
-    inviteOnly: isInviteOnly(),
     explorer: ARC.chain.explorer,
     status,
     jobs,
