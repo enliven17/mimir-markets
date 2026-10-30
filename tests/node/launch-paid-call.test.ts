@@ -68,6 +68,8 @@ test("Base is offered in USDC through MimirAgentPay only when the contract is co
   assert.deepEqual(quote(0.05, P, { base: AGENT }).map((o) => o.chain), []);
   const [o] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID });
   assert.deepEqual(o, { chain: "base", asset: "USDC", amount: "0.05", units: "50000", decimals: 6, payTo: PAY, agent: AGENT, callId: CALL_ID });
+  const [s] = quote(0.05, P, { base: AGENT }, { contract: PAY, callId: CALL_ID, dataSuffix: "0xabcd" });
+  assert.equal(s.dataSuffix, "0xabcd");
   assert.match(newCallId(), /^0x[0-9a-f]{64}$/);
   assert.notEqual(newCallId(), newCallId());
   assert.equal(baseAgentPay(undefined), null);

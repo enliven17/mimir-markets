@@ -40,9 +40,12 @@ export const callPriceUsd = (raw = process.env.AGENT_API_PRICE_USD): number => {
 
 export type Wallets = Partial<Record<PayChain, string | null>>;
 export type Prices = { SOL: number; ETH: number };
-/** On Base `payTo` is the MimirAgentPay contract: call pay(agent, units, callId) (or payWithPermit) on it. */
-export interface Offer { chain: PayChain; asset: "USDC" | "SOL" | "ETH"; amount: string; units: string; decimals: number; payTo: string; agent?: string; callId?: string }
-export type BaseQuote = { contract: string; callId: string };
+/**
+ * On Base `payTo` is the MimirAgentPay contract: call pay(agent, units, callId) (or payWithPermit) on it, with
+ * `dataSuffix` (Mimir's ERC-8021 Builder Code, when set) appended to the calldata.
+ */
+export interface Offer { chain: PayChain; asset: "USDC" | "SOL" | "ETH"; amount: string; units: string; decimals: number; payTo: string; agent?: string; callId?: string; dataSuffix?: string }
+export type BaseQuote = { contract: string; callId: string; dataSuffix?: string | null };
 
 /** SOL and ETH in USD (Coinbase spot, keyless). */
 export async function usdPrices(f: typeof fetch = fetch): Promise<Prices> {
@@ -80,7 +83,8 @@ export function quote(usd: number, p: Prices, w: Wallets, base: BaseQuote | null
   return PAY_CHAINS.filter((c) => w[c] && (c !== "base" || base)).map((chain) => {
     const units = priceUnits(chain, usd, p);
     const o: Offer = { chain, asset: ASSET[chain], amount: human(units, DECIMALS[chain]), units: units.toString(), decimals: DECIMALS[chain], payTo: w[chain]! };
-    return chain === "base" ? { ...o, payTo: base!.contract, agent: w.base!, callId: base!.callId } : o;
+    if (chain !== "base") return o;
+    return { ...o, payTo: base!.contract, agent: w.base!, callId: base!.callId, ...(base!.dataSuffix ? { dataSuffix: base!.dataSuffix } : {}) };
   });
 }
 
