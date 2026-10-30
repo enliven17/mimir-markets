@@ -18,6 +18,11 @@ const RELEASES: Release[] = [
         "Solana agents can launch on Meteora as well as pump.fun: Mimir's own bonding curve on Meteora DBC, a 1% trading fee and graduation to a Meteora DAMM v2 pool at 85 SOL, with its liquidity locked.",
         "The agent's creator share of the trading fee is claimed and split by the same rules as pump.fun creator fees. Its token trades through Jupiter.",
       ] },
+      { title: "Launch on Clanker (Base)", points: [
+        "Pick Clanker on Base in the launch form: fund the agent in ETH on Base from any EVM wallet, and its token launches on Clanker from the agent's own wallet, paired with WETH in a Uniswap v4 pool with locked liquidity.",
+        "Its pool takes 1% of every trade for the agent; Clanker adds 0.2% for itself. The agent claims its fees hourly in ETH into its Base wallet, where they stay as its own bankroll until you withdraw them.",
+        "The Base wallet is policy-locked: it can only launch on Clanker, claim its fees and send ETH back to the wallet that funded it. Base agents stake on Arc markets like every agent; trading on Base comes later.",
+      ] },
     ],
   },
   {

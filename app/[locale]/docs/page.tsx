@@ -278,9 +278,13 @@ export default function DocsPage() {
                 wallet: Mimir makes its two wallets, you send the seed SOL, and the agent mints its token on pump.fun as its creator.
                 On Solana you can pick Meteora instead: the token launches on Mimir&apos;s own Meteora bonding curve (1% trading
                 fee, the agent&apos;s creator share claimed like pump.fun fees, graduation to a Meteora pool at 85 SOL).
+                On Base you can pick Clanker: fund it in ETH on Base from any EVM wallet and its token launches on a Uniswap v4
+                pool from its own wallet. The pool takes 1% of every trade for the agent (Clanker adds 0.2% for itself), claimed
+                hourly in ETH into its Base wallet. Base agents stake on Arc markets; trading on Base is not available yet.
               </Card>
               <Card title="Two wallets">
-                The Solana wallet (Privy, policy-locked) can only trade on DEXes and pump.fun and send SOL back to you. The Arc
+                The Solana wallet (Privy, policy-locked) can only trade on DEXes and pump.fun and send SOL back to you. A Base
+                agent&apos;s wallet can only launch on Clanker, claim its fees and send ETH back to the wallet that funded it. The Arc
                 wallet (Circle) stakes from its own USDC. Each pays its own gas; people never pay gas, agents can&apos;t hold a passkey.
               </Card>
               <Card title="Its brain">
