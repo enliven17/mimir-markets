@@ -16,6 +16,7 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Check, Copy, ExternalLink, LogOut, Wallet } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
+import { disconnectEvm, useEvmAccount } from "@/components/arc/useEvmWallet";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { USDC_MINT, explorerUrl } from "@/lib/solana/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
@@ -41,7 +42,11 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   const chipRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  const address = publicKey?.toBase58() ?? null;
+  const solanaAddress = publicKey?.toBase58() ?? null;
+  // Without a Solana wallet, the EVM connection (Arc, Robinhood Chain, Base) shows here, so it can be seen and ended.
+  const evm = useEvmAccount();
+  const isEvm = !solanaAddress && Boolean(evm.address);
+  const address = solanaAddress ?? evm.address;
 
   const close = useCallback((returnFocus: boolean) => {
     setMenuOpen(false);
@@ -49,8 +54,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   }, []);
 
   useEffect(() => {
-    if (!connected) setMenuOpen(false);
-  }, [connected]);
+    if (!address) setMenuOpen(false);
+  }, [address]);
 
   // Balances are read when the menu opens, not polled from the header.
   useEffect(() => {
@@ -132,7 +137,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
     }
   };
 
-  if (!connected || !address) {
+  if (!(connected || isEvm) || !address) {
     return (
       <button
         type="button"
@@ -152,7 +157,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
     );
   }
 
-  const explorer = explorerUrl("address", address);
+  const explorer = isEvm ? null : explorerUrl("address", address);
 
   return (
     <div
@@ -168,13 +173,13 @@ export default function WalletChip({ className = "" }: { className?: string }) {
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuId}
-        aria-label={t("chipAria", { address: shortAddress(address), wallet: wallet?.adapter.name ?? "" })}
+        aria-label={t("chipAria", { address: shortAddress(address), wallet: isEvm ? "EVM" : (wallet?.adapter.name ?? "") })}
         // Enter / Space (detail 0) land on the first item, as a menu button should; a click keeps focus on the chip.
         onClick={(e) => (menuOpen ? close(false) : openMenu(e.detail === 0 ? 0 : null))}
         onKeyDown={onChipKey}
         className="wallet-chip is-connected press"
       >
-        {wallet?.adapter.icon ? (
+        {!isEvm && wallet?.adapter.icon ? (
           // eslint-disable-next-line @next/next/no-img-element -- adapter icons are data URIs
           <img src={wallet.adapter.icon} alt="" width={16} height={16} className="h-4 w-4 rounded-[4px]" />
         ) : null}
@@ -189,9 +194,10 @@ export default function WalletChip({ className = "" }: { className?: string }) {
           {/* Account summary above the menu: a menu may only hold menu items. */}
           <div className="px-2.5 pb-2 pt-1.5">
             <p className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.06em] text-muted">
-              {t("devnet")}
+              {isEvm ? t("evmWallet") : t("devnet")}
             </p>
             <p className="mt-1 break-all font-mono text-[12px] leading-snug text-cream/80">{address}</p>
+            {isEvm ? null : (
             <dl className="mt-2.5 grid grid-cols-2 gap-2 rounded-[14px] bg-cream/[0.035] p-2.5">
               <div>
                 <dt className="text-[11px] text-muted">{t("usdc")}</dt>
@@ -206,12 +212,14 @@ export default function WalletChip({ className = "" }: { className?: string }) {
                 </dd>
               </div>
             </dl>
+            )}
           </div>
           <div id={menuId} role="menu" aria-label={t("menuLabel")} className="grid gap-[3px]">
           <button type="button" role="menuitem" data-menu-item onClick={copy} className={menuItem}>
             {copied ? <Check size={14} aria-hidden className="text-win" /> : <Copy size={14} aria-hidden />}
             {copied ? t("copied") : t("copy")}
           </button>
+          {explorer ? (
           <a
             href={explorer}
             target="_blank"
@@ -224,6 +232,22 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             <ExternalLink size={14} aria-hidden />
             {t("explorer")}
           </a>
+          ) : null}
+          {isEvm ? (
+            <button
+              type="button"
+              role="menuitem"
+              data-menu-item
+              onClick={() => {
+                close(false);
+                openSheet();
+              }}
+              className={menuItem}
+            >
+              <Wallet size={14} aria-hidden />
+              {t("connectSolana")}
+            </button>
+          ) : null}
           <Link href="/wallet" role="menuitem" data-menu-item className={menuItem} onClick={() => close(false)}>
             <Wallet size={14} aria-hidden />
             {t("manage")}
@@ -234,7 +258,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             data-menu-item
             onClick={() => {
               close(true);
-              void disconnect().catch(() => undefined);
+              void (isEvm ? disconnectEvm() : disconnect()).catch(() => undefined);
             }}
             className={menuItem}
           >
