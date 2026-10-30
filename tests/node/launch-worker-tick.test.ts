@@ -28,6 +28,39 @@ test("buy path: rules → rank → size → buy → position + events", async ()
   assert.match(state.events.at(-1)?.text ?? "", /^bought \$AAA for 1 SOL \(score 0\.80: fits thesis\)$/);
 });
 
+test("ShieldBot hard block fails closed before ranking or buying", async () => {
+  const agent = agentRow({ config: config({ minSafetyScore: 60 }) });
+  const { repo, state } = fakeRepo(agent);
+  const { executor, calls } = fakeExecutor();
+  const ranker = fixedRanker({ [MINT_A]: 0.99 });
+  const safety = { check: async () => ({ score: 0, blocks: ["honeypot"], warns: [], facts: { holders: null, top10Pct: null, devPct: null, devSells: 0, buyers: 0, biggestBuyerPct: null, sameSizeWallets: 0, socials: false } }) };
+  const r = await tickAgent(agent, deps({ repo, executor, ranker, safety, sources: { dexscreener: staticSource("dexscreener", [cand(MINT_A)]) } }));
+  assert.equal(r.bought, null);
+  assert.equal(calls.length, 0);
+  assert.equal(ranker.calls, 0);
+  assert.equal(state.events.at(-1)?.kind, "hold");
+  assert.match(state.events.at(-1)?.text ?? "", /no entry/);
+});
+
+test("ShieldBot floor rejects weak reads and scales a passing read", async () => {
+  const agent = agentRow({ config: config({ minSafetyScore: 70 }) });
+  const { repo, state } = fakeRepo(agent);
+  const { executor, calls } = fakeExecutor();
+  const ranker = fixedRanker({ [MINT_A]: 0.99 });
+  const weak = { score: 65, blocks: [], warns: ["thin history"], facts: { holders: 100, top10Pct: 40, devPct: 2, devSells: 0, buyers: 10, biggestBuyerPct: 20, sameSizeWallets: 0, socials: true } };
+  const weakResult = await tickAgent(agent, deps({ repo, executor, ranker, safety: { check: async () => weak }, sources: { dexscreener: staticSource("dexscreener", [cand(MINT_A)]) } }));
+  assert.equal(weakResult.bought, null);
+  assert.equal(calls.length, 0);
+  assert.equal(ranker.calls, 0);
+
+  const healthy = { ...weak, score: 90, warns: [] };
+  const healthyResult = await tickAgent(agent, deps({ repo, executor, ranker, safety: { check: async () => healthy }, sources: { dexscreener: staticSource("dexscreener", [cand(MINT_A)]) } }));
+  assert.equal(healthyResult.bought, MINT_A);
+  assert.equal(ranker.calls, 1);
+  assert.equal(calls[0]?.amount, 833_300_000n);
+  assert.match(state.events.at(-1)?.text ?? "", /safety 90\/100/);
+});
+
 test("SL path: sells 100%, closes the position, human-readable event", async () => {
   const agent = agentRow({ config: config({ sources: [] }) });
   const { repo, state } = fakeRepo(agent, [position()]);

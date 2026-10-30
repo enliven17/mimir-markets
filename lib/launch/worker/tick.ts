@@ -15,6 +15,7 @@ import { manageExits } from "./tick-exits";
 import { publicError } from "./log";
 import { isSleeping, SLEEP_AFTER_TICKS, wakeCheckDue } from "./idle";
 import type { exitDecision } from "../engine/exits";
+import type { Shield } from "../engine/shield";
 
 export type { TickDeps } from "./tick-context";
 export type TickResult = { sold: number; bought: string | null; paused: boolean; errors: number; skipped?: string };
@@ -86,17 +87,31 @@ export async function tickAgent(agentRow: AgentRow, deps: TickDeps): Promise<Tic
     }
     await ctx.emit("scan", `scanned ${candidates.length} tokens, ${passing.length} passed the entry rules`);
 
+    step = "safety";
+    const safetyFloor = agent.config.minSafetyScore ?? 60;
+    const safety = deps.safety ? await readSafety(passing, deps, ctx, safetyFloor) : undefined;
+    const judged = safety ? passing.filter((c) => {
+      const report = safety.get(c.mint);
+      return !!report && report.blocks.length === 0 && report.score >= safetyFloor;
+    }) : passing;
+    if (deps.safety && judged.length === 0) {
+      await ctx.emit("hold", "ShieldBot could not verify any rule-passing token this tick; no entry");
+      return { ...result, skipped: "no safety reads" };
+    }
+
     step = "rank";
-    const scores = await deps.ranker.rank({ thesis: agent.config.thesis, candidates: passing.slice(0, deps.settings?.maxRanked ?? MAX_RANKED) });
+    const scores = await deps.ranker.rank({ thesis: agent.config.thesis, candidates: judged.slice(0, deps.settings?.maxRanked ?? MAX_RANKED) });
 
     step = "decide";
     const decision = decide({
-      candidates: passing,
+      candidates: judged,
       conditions: agent.config.entry,
       scores,
       threshold: deps.settings?.threshold,
       exclude: agent.mint ? [agent.mint] : [],
       sizing,
+      safety,
+      minSafetyScore: agent.config.minSafetyScore,
     });
     for (const line of decision.lines) await ctx.emit(line.kind, line.text);
     if (decision.pause) {
@@ -113,7 +128,7 @@ export async function tickAgent(agentRow: AgentRow, deps: TickDeps): Promise<Tic
       deps.log.warn("fill price far from quote, using quote as entry", { agentId: agent.id, mint: intent.mint, fillPrice: fp, quote: intent.priceSol, sig: fill.sig }),
     );
     const symbol = intent.symbol?.trim() || shortMint(intent.mint);
-    const reason = `score ${intent.score.toFixed(2)}${intent.why ? `: ${intent.why}` : ""}`;
+    const reason = `score ${intent.score.toFixed(2)}${intent.safety ? `, safety ${intent.safety.score}/100` : ""}${intent.why ? `: ${intent.why}` : ""}`;
     await ctx.persist(`buy ${label(intent.symbol, intent.mint)}`, fill.sig, () =>
       deps.repo.openPosition(
         { agentId: agent.id, mint: intent.mint, symbol, tokens: fill.tokens, decimals: fill.decimals, costLamports: fill.lamports, entryPrice, highPrice: entryPrice },
@@ -229,6 +244,34 @@ async function gather(agent: AgentRow, deps: TickDeps, held: Set<string>): Promi
       deps.log.warn("enrich failed", { agentId: agent.id, err });
     }
   }
+  if (deps.technical && merged.length > 0) {
+    const limit = Math.max(0, deps.settings?.maxTechnicalReads ?? 12);
+    const reports = await Promise.allSettled(merged.slice(0, limit).map(async (candidate) => [candidate.mint, await deps.technical!.read(candidate)] as const));
+    const byMint = new Map(reports.flatMap((r) => (r.status === "fulfilled" && r.value[1] ? [r.value] : [])));
+    merged = merged.map((candidate) => {
+      const read = byMint.get(candidate.mint);
+      if (!read) return candidate;
+      const technical = read.signals.length ? ` Technical: ${read.signals.slice(0, 2).join(" ")}` : ` Technical: ${read.trend} trend, ${read.changePct >= 0 ? "+" : ""}${read.changePct.toFixed(1)}% in ${read.bars} candles.`;
+      return { ...candidate, note: [candidate.note, technical].filter(Boolean).join(" ") };
+    });
+  }
   return merged;
+}
+
+async function readSafety(candidates: Candidate[], deps: TickDeps, ctx: TickContext, floor: number) {
+  const max = Math.max(1, deps.settings?.maxSafetyChecks ?? 12);
+  const out = new Map<string, Shield>();
+  const checks = await Promise.allSettled(candidates.slice(0, max).map(async (candidate) => [candidate.mint, await deps.safety!.check(candidate)] as const));
+  let blocked = 0;
+  let below = 0;
+  for (const check of checks) {
+    if (check.status !== "fulfilled" || !check.value[1]) continue;
+    const [mint, report] = check.value;
+    out.set(mint, report);
+    if (report.blocks.length) blocked++;
+    else if (report.score < floor) below++;
+  }
+  if (blocked || below) await ctx.emit("rules", `ShieldBot blocked ${blocked} token${blocked === 1 ? "" : "s"}${below ? ` and flagged ${below} below the safety floor` : ""}`);
+  return out;
 }
 

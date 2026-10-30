@@ -63,7 +63,7 @@ const INITIAL = {
   thesis: "",
   brain: "mimir" as "mimir" | ByokProvider, apiKey: "", model: "",
   markets: { enabled: true, categories: [] as string[], minEdge: 8, kellyFraction: 25, maxStakeUsdc: 5, budgetUsdc: 20, maxHoursToClose: 72, opens: false, opensPerDay: 1 },
-  trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
+  trading: { enabled: false, preset: "trending" as Preset, sources: [...PRESETS.trending.sources], entry: PRESETS.trending.entry.map((c) => ({ ...c })), whales: "", minSafetyScore: 60, risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 }, trailingStopPct: 0, maxHoldMinutes: 0 },
   seedSol: "0.1",
   allocation: DEFAULT_ALLOCATION as Allocation,
   chain: "solana" as Chain,
@@ -198,7 +198,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
           kellyFraction: draft.markets.kellyFraction * 100, maxStakeUsdc: draft.markets.maxStakeUsdc,
           budgetUsdc: draft.markets.budgetUsdc, maxHoursToClose: draft.markets.maxHoursToClose },
         trading: t.enabled ? { ...f.trading, enabled: true, preset: t.strategy.preset as Preset,
-          sources: t.strategy.sources, entry: t.strategy.entry, whales: t.strategy.whales.join("\n"),
+          sources: t.strategy.sources, entry: t.strategy.entry, whales: t.strategy.whales.join("\n"), minSafetyScore: t.strategy.minSafetyScore ?? 60,
           risk: t.risk, trailingStopPct: t.trailingStopPct, maxHoldMinutes: t.maxHoldMinutes } : { ...f.trading, enabled: false },
       }));
       setImportedAvatar(draft.avatarSeed); setFromDemo(true); setStep(5);
@@ -228,7 +228,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, maxHoursToClose: f.markets.maxHoursToClose, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
     trading: f.trading.enabled
-      ? { enabled: true, strategy: { preset: f.trading.preset, sources: f.trading.sources, entry: f.trading.entry, whales: f.trading.whales.split(/\s+/).filter(Boolean) }, risk: f.trading.risk, trailingStopPct: f.trading.trailingStopPct, maxHoldMinutes: f.trading.maxHoldMinutes }
+        ? { enabled: true, strategy: { preset: f.trading.preset, sources: f.trading.sources, entry: f.trading.entry, whales: f.trading.whales.split(/\s+/).filter(Boolean), minSafetyScore: f.trading.minSafetyScore }, risk: f.trading.risk, trailingStopPct: f.trading.trailingStopPct, maxHoldMinutes: f.trading.maxHoldMinutes }
       : { enabled: false },
   });
 
@@ -646,6 +646,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                       <Range label="Max slippage" value={t.risk.slippageBps / 100} min={0.5} max={10} step={0.5} unit="%" onChange={(v) => setRisk({ slippageBps: Math.round(v * 100) })} />
                       <Range label="Stop loss" value={t.risk.stopLossPct} min={5} max={50} unit="%" onChange={(v) => setRisk({ stopLossPct: v })} />
                       <Range label="Take profit" value={t.risk.takeProfitPct} min={10} max={300} step={5} unit="%" onChange={(v) => setRisk({ takeProfitPct: v })} />
+                      <Range label="ShieldBot floor" value={t.minSafetyScore} min={0} max={100} unit="/100" onChange={(v) => setT({ minSafetyScore: v })} hint="Hard blocks never enter; safer tokens get full size." />
                       <Range label="Daily loss cap" value={t.risk.maxDailyLossPct} min={5} max={50} unit="%" onChange={(v) => setRisk({ maxDailyLossPct: v })} hint="It pauses itself when hit." />
                       <Range label="Trailing stop" value={t.trailingStopPct} min={0} max={30} unit="%" onChange={(v) => setT({ trailingStopPct: v })} hint={t.trailingStopPct ? undefined : "Off."} />
                       <Range label="Max hold" value={t.maxHoldMinutes} min={0} max={240} step={5} unit=" min" onChange={(v) => setT({ maxHoldMinutes: v })} hint={t.maxHoldMinutes ? undefined : "Off."} />
@@ -700,7 +701,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <dl className="kv">
               <dt>Agent</dt><dd>{f.name} · {f.ticker}</dd>
               <dt>Network</dt><dd>{f.chain === "robinhood" ? "Robinhood" : f.chain === "arc" ? "Arc" : "Solana"}</dd>
-              <dt>Trading</dt><dd>{t.enabled ? `SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · position ${t.risk.positionPct}%` : "Off"}</dd>
+              <dt>Trading</dt><dd>{t.enabled ? `SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}% · safety ≥ ${t.minSafetyScore} · position ${t.risk.positionPct}%` : "Off"}</dd>
               <dt>Markets</dt><dd>{f.markets.enabled ? `Edge ≥ ${f.markets.minEdge} pts · ${f.markets.maxStakeUsdc} USDC per market` : "Off"}</dd>
               <dt>Virtual funds</dt><dd>{f.chain !== "arc" ? `${DEMO.initialNative} ${f.chain === "robinhood" ? "ETH" : "SOL"} + ` : ""}{DEMO.initialUsdc.toLocaleString()} USDC</dd>
               <dt>Duration</dt><dd>7 days · evaluated every 5 minutes</dd>
@@ -727,7 +728,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                 {f.markets.opens ? ` · opens ≤ ${f.markets.opensPerDay}/day` : ""}
               </dd>
               <dt>Trading</dt>
-              <dd>{t.enabled ? `${strategiesFor(f.chain)[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}%` : "off"}</dd>
+              <dd>{t.enabled ? `${strategiesFor(f.chain)[t.preset]?.label} · safety ≥ ${t.minSafetyScore} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}%` : "off"}</dd>
               <dt>Token</dt>
               <dd>{f.chain === "arc" ? `Argus · ${f.argus.buyTaxPct}% / ${f.argus.sellTaxPct}% tax` : f.chain === "robinhood" ? "Pons on Robinhood Chain" : f.chain === "base" ? "Clanker on Base" : f.pad === "meteora" ? "Meteora on Solana" : "pump.fun on Solana"}</dd>
               {f.chain !== "robinhood" && f.chain !== "base" ? (

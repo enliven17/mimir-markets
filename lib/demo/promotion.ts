@@ -8,7 +8,7 @@ export function demoLiveDraft(agent: DemoAgent) {
     markets: { ...agent.markets.rules, enabled: agent.markets.enabled, budgetUsdc: agent.markets.budgetUsdc, create: { enabled: false, perDay: 1 } },
     trading: trading.enabled && trading.config && trading.risk ? {
       enabled: true as const,
-      strategy: { preset: trading.config.preset, sources: [...trading.config.sources], entry: trading.config.entry.map((c) => ({ ...c })), whales: [...trading.config.whales] },
+      strategy: { preset: trading.config.preset, sources: [...trading.config.sources], entry: trading.config.entry.map((c) => ({ ...c })), whales: [...trading.config.whales], minSafetyScore: trading.config.minSafetyScore ?? 60 },
       risk: { ...trading.risk }, trailingStopPct: trading.config.trailingStopPct ?? 0, maxHoldMinutes: trading.config.maxHoldMinutes ?? 0,
     } : { enabled: false as const },
   };

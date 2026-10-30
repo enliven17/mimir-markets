@@ -2,7 +2,7 @@
 // never throws) and `persist` (DB write after an on-chain action, retried; on final failure the
 // agent is paused and a RECONCILE error is emitted with the signature).
 import type { DataSource } from "../types";
-import type { AgentRow, Candidate, EventKind, Executor, MarketSource, PriceFeed, Ranker, Repo } from "../ports";
+import type { AgentRow, Candidate, EventKind, Executor, MarketSource, PriceFeed, Ranker, Repo, SafetyFeed, TechnicalFeed } from "../ports";
 import type { Log } from "./log";
 import { publicError } from "./log";
 
@@ -14,6 +14,10 @@ export type TickSettings = {
   minTradeLamports?: bigint;
   /** Max candidates sent to the ranker (default 15). */
   maxRanked?: number;
+  /** Max candidates with a ShieldBot read per tick (default 12). */
+  maxSafetyChecks?: number;
+  /** Max candidate candle reads per tick (default 12). */
+  maxTechnicalReads?: number;
   /** Delay between persist retries, ms (default 250). */
   retryDelayMs?: number;
   /** Shutdown sweep: a holders pool at least this big stays for a last airdrop (default 0.1 SOL). */
@@ -26,6 +30,10 @@ export type TickDeps = {
   sources: Partial<Record<DataSource, MarketSource>>;
   prices: PriceFeed;
   ranker: Ranker;
+  /** Optional venue safety read. If present, entries fail closed when it cannot check a candidate. */
+  safety?: SafetyFeed;
+  /** Optional venue candle read used to add technical context to ranking. */
+  technical?: TechnicalFeed;
   /** Fills missing metrics (liquidity, price…) for candidates from sparse sources. */
   enrich?: (candidates: Candidate[]) => Promise<Candidate[]>;
   now: () => number;

@@ -13,6 +13,8 @@ export const Trading = z.discriminatedUnion("enabled", [
       sources: z.array(z.enum(["dexscreener", "pumpfun", "helius", "x", "birdeye"])).min(1).max(5),
       entry: z.array(z.object({ metric: z.enum(METRICS), op: z.enum([">", "<"]), value: z.number().finite().min(0) })).min(1).max(8),
       whales: z.array(z.string().regex(B58)).max(20).default([]),
+      /** ShieldBot floor; older agents default to 60 in the worker. */
+      minSafetyScore: z.number().min(0).max(100).default(60),
     }).refine((s) => !s.sources.includes("helius") || s.whales.length > 0, { message: "Add at least one wallet to follow.", path: ["whales"] }),
     risk: z.object({
       slippageBps: z.number().int().min(50).max(1000),

@@ -13,7 +13,8 @@
  */
 import { getAddress, isAddress } from "viem";
 
-import type { Candidate, MarketSource } from "../ports";
+import type { Candidate, MarketSource, TechnicalFeed } from "../ports";
+import { readBars, type Bar } from "../engine/ta";
 import { getJson, num, ttlCache, type FetchLike, type OnError } from "../market/http";
 
 const BASE = "https://api.geckoterminal.com/api/v2/networks/robinhood/dexes";
@@ -23,7 +24,9 @@ const CURVE_FULL_ETH = 5.88;
 const PHANTOM_ETH = 1.68;
 
 type Pool = {
+  id?: string;
   attributes?: {
+    address?: string;
     name?: string;
     base_token_price_native_currency?: string;
     quote_token_price_usd?: string;
@@ -56,6 +59,7 @@ export function toCandidate(p: Pool, source: "pumpfun" | "dexscreener", now: num
   const tx = a.transactions?.h1;
   return {
     mint: getAddress(raw),
+    pool: a.address,
     symbol: (a.name ?? "").split(" / ")[0]?.trim() || raw.slice(0, 6),
     source,
     priceSol: num(a.base_token_price_native_currency) ?? null,
@@ -88,5 +92,23 @@ export function createPonsSources(opts: { fetch?: FetchLike; onError?: OnError; 
       }
     },
   });
-  return { curve: source("pumpfun", "pons-v2"), graduated: source("dexscreener", "pons-v2-dex") };
+  const technical: TechnicalFeed = {
+    async read(candidate) {
+      if (!candidate.pool) return null;
+      const source = candidate.source === "pumpfun" ? "minute" : "minute";
+      const aggregate = candidate.source === "pumpfun" ? 1 : 5;
+      try {
+        const body = (await getJson(fetchFn, `${BASE.replace("/dexes", "")}/pools/${candidate.pool.toLowerCase()}/ohlcv/${source}?aggregate=${aggregate}&limit=300&currency=token`)) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
+        const bars: Bar[] = (body.data?.attributes?.ohlcv_list ?? [])
+          .map(([time, open, high, low, close, volume]) => ({ time: time ?? 0, open: open ?? 0, high: high ?? 0, low: low ?? 0, close: close ?? 0, volume: volume ?? 0 }))
+          .filter((b) => [b.time, b.open, b.high, b.low, b.close].every(Number.isFinite))
+          .reverse();
+        return readBars(bars);
+      } catch (err) {
+        opts.onError?.("geckoterminal:ohlcv", err);
+        return null;
+      }
+    },
+  };
+  return { curve: source("pumpfun", "pons-v2"), graduated: source("dexscreener", "pons-v2-dex"), technical };
 }

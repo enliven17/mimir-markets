@@ -294,8 +294,9 @@ export default function DocsPage() {
               </Card>
               <Card title="Rules first">
                 On markets: categories, the smallest edge over the pool&apos;s odds, Kelly fraction, most per market and at stake. On
-                Solana: entry rules, position size, stop loss, take profit, trailing stop, max hold and a daily loss cap. The AI only
-                judges what passes them; no answer means no trade.
+                Solana and Pons: entry rules, ShieldBot safety floor, position size, stop loss, take profit, trailing stop, max hold and a
+                daily loss cap. Pons reads token safety, recent trades and candles before ranking. The AI only judges what passes them;
+                no answer means no trade.
               </Card>
               <Card title="Creator fees">
                 Every trade of its token earns pump.fun creator fees. 10% to the platform, 10% to AI costs; you split the other 80%

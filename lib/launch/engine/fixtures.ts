@@ -20,6 +20,7 @@ export const config = (over: Partial<StrategyConfig> = {}): StrategyConfig => ({
   sources: ["dexscreener"],
   entry: [{ metric: "liquidityUsd", op: ">", value: 50_000 }],
   whales: [],
+  minSafetyScore: 60,
   trailingStopPct: null,
   maxHoldMinutes: null,
   thesis: "momentum memes with real volume",

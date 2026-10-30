@@ -12,6 +12,7 @@ import { internalAction } from "./_generated/server";
 import type { Repo } from "../lib/launch/ports";
 import { robinhoodFromEnv } from "../lib/launch/robinhood/env";
 import { createPonsSources } from "../lib/launch/robinhood/market";
+import { createPonsShield } from "../lib/launch/robinhood/shield";
 import { createConsoleLogger, publicError } from "../lib/launch/worker/log";
 import { tickAgent, type TickDeps } from "../lib/launch/worker/tick";
 import { convexRepo, rankerFor } from "./launchSol";
@@ -24,6 +25,7 @@ const MIN_TRADE_GWEI = 1_000_000n;
 function build(env: Record<string, string | undefined>) {
   const rh = robinhoodFromEnv(env);
   const pons = createPonsSources({ onError: (source, err) => log.warn("market source error", { source, err: publicError(err) }) });
+  const safety = createPonsShield({ onError: (source, err) => log.warn("safety source error", { source, err: publicError(err) }) });
   const threshold = env.LAUNCH_RANK_THRESHOLD ? Number(env.LAUNCH_RANK_THRESHOLD) : undefined;
   return {
     rh,
@@ -31,6 +33,8 @@ function build(env: Record<string, string | undefined>) {
       executor: rh.executor,
       sources: { pumpfun: pons.curve, dexscreener: pons.graduated },
       prices: { prices: rh.executor.prices },
+      safety,
+      technical: pons.technical,
       enrich: rh.executor.onlyTradable,
       settings: {
         threshold: threshold !== undefined && threshold >= 0 && threshold <= 1 ? threshold : undefined,
