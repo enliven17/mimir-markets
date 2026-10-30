@@ -33,6 +33,7 @@
     "@vercel/analytics": "^2.0.1",
     "@walletconnect/ethereum-provider": "2.19.0",
     "bs58": "^6.0.0",
+    "clanker-sdk": "4.2.19",
     "connectkit": "1.9.2",
     "convex": "^1.46.0",
     "geist": "^1.7.2",
