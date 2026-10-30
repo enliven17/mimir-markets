@@ -5,15 +5,19 @@ pragma solidity 0.8.28;
  * MimirAgentPay: pay a Mimir agent for one Mimir API call in USDC on Base.
  *
  * The caller asks Mimir for a quote (GET /api/launch/:id/call), which names the
- * agent's own wallet, the price and a fresh `callId`. It then calls `pay` (after
- * an approve) or `payWithPermit` (one tx, EIP-2612), and sends the tx hash to
- * Mimir in `X-Mimir-Payment: base:<tx>`. Mimir reads the `Paid` event from the
- * receipt: one tx buys one call.
+ * agent's own wallet, the price, a fresh `secret` and `callId = keccak256(secret)`.
+ * It then calls `pay` (after an approve) or `payWithPermit` (one tx, EIP-2612),
+ * and sends the tx hash and the secret to Mimir in
+ * `X-Mimir-Payment: base:<tx>:<secret>`. Mimir reads the `Paid` event from the
+ * receipt and counts it only if its callId is the hash of that secret, so a tx
+ * hash seen on chain is useless to anyone without the secret: one tx buys one
+ * call, for whoever paid.
  *
  * Non-custodial: USDC moves from the payer straight to the agent in the same
  * call; this contract never holds funds, takes no fee and has no owner, no
- * admin and no upgrade path. The only state is the set of used call ids, so a
- * quote can be paid once and a double click cannot pay twice.
+ * admin and no upgrade path. The only state is the call ids each payer has used,
+ * so a quote can be paid once and a double click cannot pay twice. Ids are kept
+ * per payer, so nobody can spend someone else's pending id first.
  */
 interface IERC20Like {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -27,8 +31,8 @@ interface IERC20PermitLike {
 contract MimirAgentPay {
     /// The USDC this contract moves (Base mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913).
     address public immutable usdc;
-    /// A call id that already paid for a call.
-    mapping(bytes32 => bool) public used;
+    /// Call ids a payer has already paid for.
+    mapping(address payer => mapping(bytes32 callId => bool)) public used;
 
     event Paid(bytes32 indexed callId, address indexed agent, address indexed payer, uint256 amount);
 
@@ -74,8 +78,8 @@ contract MimirAgentPay {
         if (agent == address(this)) revert BadAgent();
         if (amount == 0) revert ZeroAmount();
         if (callId == bytes32(0)) revert BadCallId();
-        if (used[callId]) revert CallIdUsed();
-        used[callId] = true;
+        if (used[msg.sender][callId]) revert CallIdUsed();
+        used[msg.sender][callId] = true;
         // SafeERC20-style: tokens that return nothing count as success; false or a revert does not.
         (bool ok, bytes memory ret) =
             usdc.call(abi.encodeWithSelector(IERC20Like.transferFrom.selector, msg.sender, agent, amount));

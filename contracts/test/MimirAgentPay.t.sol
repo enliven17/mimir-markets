@@ -138,7 +138,7 @@ contract MimirAgentPayTest {
         assert(usdc.balanceOf(agent) == PRICE);
         assert(usdc.balanceOf(payer) == 10_000_000 - PRICE);
         assert(usdc.balanceOf(address(pay)) == 0);
-        assert(pay.used(CALL));
+        assert(pay.used(payer, CALL));
     }
 
     function test_aTokenThatReturnsNothingStillPays() public {
@@ -184,7 +184,7 @@ contract MimirAgentPayTest {
             abi.encodeWithSelector(MimirAgentPay.payWithPermit.selector, agent, PRICE, CALL, deadline, v, r, s)
         );
         assert(!ok && keccak256(ret) == _err(MimirAgentPay.TransferFailed.selector));
-        assert(!pay.used(CALL));
+        assert(!pay.used(payer, CALL));
     }
 
     // ── Refusals ────────────────────────────────────────────────────────────
@@ -196,6 +196,18 @@ contract MimirAgentPayTest {
         assert(usdc.balanceOf(agent) == PRICE);
     }
 
+    function test_someoneElseCannotSpendAPendingCallId() public {
+        address other = address(0xA77);
+        usdc.mint(other, 1);
+        vm.prank(other);
+        usdc.approve(address(pay), 1);
+        vm.prank(other);
+        pay.pay(agent, 1, CALL); // front-runs the payer's id with 1 unit
+        (bool ok,) = _pay(agent, PRICE, CALL); // the payer's own payment still goes through
+        assert(ok && pay.used(payer, CALL) && pay.used(other, CALL));
+        assert(usdc.balanceOf(agent) == PRICE + 1);
+    }
+
     function test_zeroAgentAmountOrCallIdReverts() public {
         (bool a, bytes memory ra) = _pay(address(0), PRICE, CALL);
         assert(!a && keccak256(ra) == _err(MimirAgentPay.ZeroAddress.selector));
@@ -205,7 +217,7 @@ contract MimirAgentPayTest {
         assert(!c && keccak256(rc) == _err(MimirAgentPay.BadCallId.selector));
         (bool d, bytes memory rd) = _pay(address(pay), PRICE, CALL);
         assert(!d && keccak256(rd) == _err(MimirAgentPay.BadAgent.selector));
-        assert(!pay.used(CALL));
+        assert(!pay.used(payer, CALL));
     }
 
     function test_aFailedTransferRevertsAndLeavesTheCallIdUnused() public {
@@ -218,7 +230,7 @@ contract MimirAgentPayTest {
         usdc.setMode(MockUSDC.Mode.Normal);
         (bool short, bytes memory rs) = _pay(agent, 10_000_001, CALL); // more than the payer has
         assert(!short && keccak256(rs) == _err(MimirAgentPay.TransferFailed.selector));
-        assert(!pay.used(CALL) && usdc.balanceOf(agent) == 0);
+        assert(!pay.used(payer, CALL) && usdc.balanceOf(agent) == 0);
     }
 
     function test_theConstructorRefusesANonToken() public {
