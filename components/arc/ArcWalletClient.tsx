@@ -16,6 +16,7 @@ import { formatUsdcUnits } from "@/lib/arc/encoding";
 import { SOLANA_CLUSTER } from "@/lib/solana/config";
 import { loadArcAccount } from "@/lib/arc/lazy";
 import ArcNativeSteps from "./ArcNativeSteps";
+import { currentEvmIntent, evmNetworkName, useEvmAccount, type EvmChainIntent } from "./useEvmWallet";
 import { markRecoveryOn, readRecoveryFlag, RecoverWithPhrase, RecoverySetup, type RecoveryFlag } from "./RecoveryPanel";
 import TransferPanel from "./TransferPanel";
 import { useArcBalances } from "./useArcBalances";
@@ -23,7 +24,9 @@ import { useArcWallet, type ArcWallet } from "./useArcWallet";
 
 const short = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
 const BTN_PRIMARY = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
-const walletName = (w: ArcWallet) => (w.ownerKind === "robinhood" ? "Robinhood wallet" : "Solana wallet");
+// An EVM owner is named by the network its wallet is used on (Arc, Robinhood Chain, Base).
+const walletName = (w: ArcWallet, intent: EvmChainIntent | null = currentEvmIntent()) =>
+  w.ownerKind === "robinhood" ? `${evmNetworkName(intent) ?? "EVM"} wallet` : "Solana wallet";
 const BTN_SECONDARY = "press rounded-full bg-panel-raised px-5 py-2.5 text-[14px] text-cream disabled:opacity-60";
 
 export default function ArcWalletClient() {
@@ -63,6 +66,7 @@ function useEntryMode(w: ArcWallet): [EntryMode, (m: EntryMode) => void] {
 }
 
 export function ArcWalletView({ w, bare = false }: { w: ArcWallet; bare?: boolean }) {
+  useEvmAccount(); // re-render when the EVM wallet changes network, so its label follows
   const { arcUnits, solanaUnits, reload } = useArcBalances(w.session?.address ?? null, w.ownerKind === "solana" ? w.solana : null);
   const [recovery, setRecovery] = useState<RecoveryFlag>(null);
   const [mode, setMode] = useEntryMode(w);

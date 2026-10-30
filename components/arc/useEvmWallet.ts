@@ -14,6 +14,8 @@ import { erc20Abi, getAddress, numberToHex, type Address, type Hex } from "viem"
 
 import { arcPublicClient, arcUsdcUnits } from "@/lib/arc/chain";
 import { ARC, ARC_USDC } from "@/lib/arc/config";
+import { BASE_CHAIN } from "@/lib/base/chain";
+import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
 import { EVM_PROOF_HEADER, EVM_WALLET_HEADER, evmProofMessage, parseEvmProofHeader } from "@/lib/arc/evm";
 
 export interface Eip1193 {
@@ -89,15 +91,43 @@ const NO_ACCOUNT: EvmAccount = { address: null, via: null, connecting: false, in
 let account: EvmAccount = NO_ACCOUNT;
 const accountListeners = new Set<() => void>();
 
+// The network the wallet is used on (picked in the connect sheet, then the chain of the last send), so labels name it.
+const INTENT_KEY = "mimir:evm-intent";
+const INTENTS: readonly EvmChainIntent[] = ["arc", "robinhood", "base"];
+
 function setAccount(next: Partial<EvmAccount>) {
   account = { ...account, ...next };
+  if ("intent" in next) {
+    try {
+      if (next.intent) localStorage.setItem(INTENT_KEY, next.intent);
+      else localStorage.removeItem(INTENT_KEY);
+    } catch {
+      /* storage blocked: the label falls back to "EVM wallet" after a reload */
+    }
+  }
   accountListeners.forEach((l) => l());
 }
+
+/** The network name for a wallet label, or null when not known. */
+export const evmNetworkName = (intent: EvmChainIntent | null) =>
+  intent === "arc" ? "Arc" : intent === "robinhood" ? "Robinhood Chain" : intent === "base" ? "Base" : null;
+
+const intentOfChain = (chainId: number): EvmChainIntent | null =>
+  chainId === ARC.chain.id ? "arc" : chainId === ROBINHOOD_CHAIN.id ? "robinhood" : chainId === BASE_CHAIN.id ? "base" : null;
 
 /** EvmConnect reports the wagmi account here (address null once disconnected). */
 export function reportEvmAccount(address: Address | null, via: EvmAccount["via"]) {
   if (address === account.address && via === account.via) return;
-  setAccount({ address, via });
+  let intent = account.intent;
+  if (address && !intent) {
+    try {
+      const stored = localStorage.getItem(INTENT_KEY) as EvmChainIntent | null;
+      intent = stored && INTENTS.includes(stored) ? stored : null;
+    } catch {
+      /* storage blocked */
+    }
+  }
+  setAccount({ address, via, intent: address ? intent : account.intent });
   try {
     if (address) localStorage.setItem(CONNECTED_KEY, "1");
     else localStorage.removeItem(CONNECTED_KEY);
@@ -108,6 +138,9 @@ export function reportEvmAccount(address: Address | null, via: EvmAccount["via"]
 
 /** The live account's address, outside React. */
 export const currentEvmAddress = () => account.address;
+
+/** The network the live account was last used on, outside React. */
+export const currentEvmIntent = () => account.intent;
 
 /** The live EVM account, shared by every component. */
 export const useEvmAccount = () =>
@@ -235,6 +268,8 @@ export async function sendEvmEth(chainId: number, to: string, wei: bigint): Prom
   if (!from) throw new Error("Connect your EVM wallet first.");
   const p = await need(from);
   await switchEvmChain(chainId);
+  const intent = intentOfChain(chainId);
+  if (intent) setAccount({ intent });
   return (await p.request({ method: "eth_sendTransaction", params: [{ from, to, value: numberToHex(wei) }] })) as Hex;
 }
 
@@ -255,6 +290,7 @@ export function disconnectEvmWallet() {
 export async function sendUsdcTx(from: Address, data: Hex): Promise<Hex> {
   const p = await need(from);
   await switchEvmChain(ARC.chain.id);
+  setAccount({ intent: "arc" });
   const hash = (await p.request({
     method: "eth_sendTransaction",
     params: [{ from, to: ARC_USDC, data }],

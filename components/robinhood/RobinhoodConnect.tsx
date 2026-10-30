@@ -3,6 +3,8 @@
 /** Connect (or disconnect) the EVM wallet through ConnectKit: Robinhood Wallet, a browser extension or a phone wallet. `base`: for Base. */
 import { useState } from "react";
 
+import { evmNetworkName } from "@/components/arc/useEvmWallet";
+
 import { useRobinhoodWallet } from "./useRobinhoodWallet";
 
 const BTN = "press rounded-full bg-panel-raised px-4 py-2 text-[13px] text-cream disabled:opacity-60";
@@ -21,7 +23,7 @@ export default function RobinhoodConnect({ base = false }: { base?: boolean }) {
   if (rh.address) {
     return (
       <p className="m-0 flex flex-wrap items-center gap-2 text-[13px] text-muted">
-        {base ? "EVM wallet" : "Robinhood wallet"} <span className="font-mono text-cream">{short(rh.address)}</span>
+        {evmNetworkName(rh.intent) ? `${evmNetworkName(rh.intent)} wallet` : base ? "Base wallet" : "Robinhood Chain wallet"} <span className="font-mono text-cream">{short(rh.address)}</span>
         <button type="button" onClick={() => void rh.disconnect()} className="text-muted underline underline-offset-2 hover:text-cream">
           Disconnect
         </button>
@@ -32,7 +34,7 @@ export default function RobinhoodConnect({ base = false }: { base?: boolean }) {
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={rh.connecting} onClick={connect} className={BTN}>
-          {rh.connecting ? "Approve in your wallet…" : base ? "Connect EVM wallet" : "Connect Robinhood Wallet"}
+          {rh.connecting ? "Approve in your wallet…" : base ? "Connect Base wallet" : "Connect Robinhood Chain wallet"}
         </button>
       </div>
       {error ? (

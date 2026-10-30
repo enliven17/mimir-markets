@@ -16,7 +16,7 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Check, Copy, ExternalLink, LogOut, Wallet } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
-import { disconnectEvm, useEvmAccount } from "@/components/arc/useEvmWallet";
+import { disconnectEvm, evmNetworkName, useEvmAccount } from "@/components/arc/useEvmWallet";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { USDC_MINT, explorerUrl } from "@/lib/solana/config";
 import { formatUsdcUnitsBare } from "@/lib/money";
@@ -194,7 +194,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
           {/* Account summary above the menu: a menu may only hold menu items. */}
           <div className="px-2.5 pb-2 pt-1.5">
             <p className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.06em] text-muted">
-              {isEvm ? t("evmWallet") : t("devnet")}
+              {isEvm ? (evmNetworkName(evm.intent) ? t("networkWallet", { network: evmNetworkName(evm.intent)! }) : t("evmWallet")) : t("devnet")}
             </p>
             <p className="mt-1 break-all font-mono text-[12px] leading-snug text-cream/80">{address}</p>
             {isEvm ? null : (

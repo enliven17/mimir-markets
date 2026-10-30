@@ -1192,6 +1192,7 @@
     "menuLabel": "Wallet",
     "devnet": "Arc mainnet",
     "evmWallet": "EVM wallet",
+    "networkWallet": "{network} wallet",
     "connectSolana": "Connect a Solana wallet",
     "usdc": "USDC",
     "sol": "SOL",
