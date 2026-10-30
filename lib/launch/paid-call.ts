@@ -1,17 +1,21 @@
 /**
  * Mimir API: anyone may call a launched agent, after paying the agent's own wallet on any chain it has one on, in
- * that chain's native money: USDC on Arc, SOL on Solana, ETH on Robinhood Chain. The caller pays first and sends
+ * that chain's native money: USDC on Arc, SOL on Solana, ETH on Robinhood Chain, USDC on Base. The caller pays first and sends
  * `X-Mimir-Payment: <chain>:<tx>`; the transfer is read from the chain, never from what the caller claims, and each
  * tx buys one call (convex/agentApiDb.ts claim). Pure apart from the price fetch, so the checks run in tests.
+ *
+ * Base pays through contracts/MimirAgentPay.sol (BASE_AGENT_PAY_ADDRESS; unset = no Base offer): USDC goes from the
+ * payer straight to the agent's EVM wallet (the same EOA as on Arc) and the contract emits Paid(callId, agent, payer,
+ * amount). The quote carries a fresh callId the contract accepts once, so a double click cannot pay twice.
  *
  * ponytail: the payment is not bound to the request, so whoever sends a fresh tx hash first gets the call. Fine for
  * a few cents; a signed quote nonce (memo / calldata) is the upgrade if prices grow.
  */
 import type { Connection } from "@solana/web3.js";
-import type { Hash, PublicClient } from "viem";
+import { getAddress, isAddress, keccak256, toHex, type Hash, type PublicClient } from "viem";
 
-export type PayChain = "arc" | "solana" | "robinhood";
-export const PAY_CHAINS: PayChain[] = ["arc", "solana", "robinhood"];
+export type PayChain = "arc" | "solana" | "robinhood" | "base";
+export const PAY_CHAINS: PayChain[] = ["arc", "solana", "robinhood", "base"];
 export const PAY_HEADER = "x-mimir-payment";
 /** A payment older than this does not buy a call (an old funding transfer to the wallet is not a payment). */
 export const PAY_MAX_AGE_MS = 60 * 60_000;
@@ -19,6 +23,15 @@ export const PAY_MAX_AGE_MS = 60 * 60_000;
 const SLACK_BPS = 9_500n;
 const ARC_USDC = "0x3600000000000000000000000000000000000000";
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+/** MimirAgentPay's Paid(bytes32 indexed callId, address indexed agent, address indexed payer, uint256 amount). */
+export const PAID_TOPIC = keccak256(toHex("Paid(bytes32,address,address,uint256)"));
+export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+/** The MimirAgentPay contract on Base, or null when Base payments are off. */
+export const baseAgentPay = (raw = process.env.BASE_AGENT_PAY_ADDRESS): `0x${string}` | null => {
+  const v = raw?.trim();
+  return v && isAddress(v) ? getAddress(v) : null;
+};
 
 export const callPriceUsd = (raw = process.env.AGENT_API_PRICE_USD): number => {
   const n = Number(raw);
@@ -27,7 +40,9 @@ export const callPriceUsd = (raw = process.env.AGENT_API_PRICE_USD): number => {
 
 export type Wallets = Partial<Record<PayChain, string | null>>;
 export type Prices = { SOL: number; ETH: number };
-export interface Offer { chain: PayChain; asset: "USDC" | "SOL" | "ETH"; amount: string; units: string; decimals: number; payTo: string }
+/** On Base `payTo` is the MimirAgentPay contract: call pay(agent, units, callId) (or payWithPermit) on it. */
+export interface Offer { chain: PayChain; asset: "USDC" | "SOL" | "ETH"; amount: string; units: string; decimals: number; payTo: string; agent?: string; callId?: string }
+export type BaseQuote = { contract: string; callId: string };
 
 /** SOL and ETH in USD (Coinbase spot, keyless). */
 export async function usdPrices(f: typeof fetch = fetch): Promise<Prices> {
@@ -41,12 +56,12 @@ export async function usdPrices(f: typeof fetch = fetch): Promise<Prices> {
   return { SOL, ETH };
 }
 
-const DECIMALS: Record<PayChain, number> = { arc: 6, solana: 9, robinhood: 18 };
-const ASSET: Record<PayChain, Offer["asset"]> = { arc: "USDC", solana: "SOL", robinhood: "ETH" };
+const DECIMALS: Record<PayChain, number> = { arc: 6, solana: 9, robinhood: 18, base: 6 };
+const ASSET: Record<PayChain, Offer["asset"]> = { arc: "USDC", solana: "SOL", robinhood: "ETH", base: "USDC" };
 
 /** Base units owed for one call on `chain`, rounded up. */
 export function priceUnits(chain: PayChain, usd: number, p: Prices): bigint {
-  if (chain === "arc") return BigInt(Math.ceil(usd * 1e6));
+  if (chain === "arc" || chain === "base") return BigInt(Math.ceil(usd * 1e6));
   if (chain === "solana") return BigInt(Math.ceil((usd / p.SOL) * 1e9));
   return BigInt(Math.ceil((usd / p.ETH) * 1e9)) * 1_000_000_000n; // gwei precision is plenty
 }
@@ -57,17 +72,22 @@ const human = (units: bigint, decimals: number) => {
   return `${s.slice(0, -decimals)}${frac ? `.${frac}` : ""}`;
 };
 
-export function quote(usd: number, p: Prices, w: Wallets): Offer[] {
-  return PAY_CHAINS.filter((c) => w[c]).map((chain) => {
+/** A fresh call id for one Base quote (MimirAgentPay accepts each once). */
+export const newCallId = () => toHex(crypto.getRandomValues(new Uint8Array(32)));
+
+/** Offers on every chain the agent has a wallet on; Base only with `base` (the contract and a fresh callId). */
+export function quote(usd: number, p: Prices, w: Wallets, base: BaseQuote | null = null): Offer[] {
+  return PAY_CHAINS.filter((c) => w[c] && (c !== "base" || base)).map((chain) => {
     const units = priceUnits(chain, usd, p);
-    return { chain, asset: ASSET[chain], amount: human(units, DECIMALS[chain]), units: units.toString(), decimals: DECIMALS[chain], payTo: w[chain]! };
+    const o: Offer = { chain, asset: ASSET[chain], amount: human(units, DECIMALS[chain]), units: units.toString(), decimals: DECIMALS[chain], payTo: w[chain]! };
+    return chain === "base" ? { ...o, payTo: base!.contract, agent: w.base!, callId: base!.callId } : o;
   });
 }
 
 export const minUnits = (chain: PayChain, usd: number, p: Prices) => (priceUnits(chain, usd, p) * SLACK_BPS) / 10_000n;
 
 export function parsePayment(raw: string | null): { chain: PayChain; tx: string } | null {
-  const m = /^(arc|solana|robinhood):(\S+)$/.exec(raw?.trim() ?? "");
+  const m = /^(arc|solana|robinhood|base):(\S+)$/.exec(raw?.trim() ?? "");
   if (!m) return null;
   const chain = m[1] as PayChain;
   const tx = m[2];
@@ -128,4 +148,32 @@ export async function verifyEvmPayment(
   const d = a.chain === "arc" ? 6 : 18;
   const unit = a.chain === "arc" ? "USDC" : "ETH";
   return got >= a.min ? { ok: true, units: got } : { ok: false, error: `The agent wallet received ${human(got, d)} ${unit}; one call needs ${human(a.min, d)}.` };
+}
+
+/**
+ * Base: what MimirAgentPay (`contract`) paid the agent in `hash`, from its Paid events (USDC, 6 dp). Only events from
+ * the configured contract count, so a look-alike event from another contract buys nothing.
+ */
+export async function verifyBasePayment(
+  client: Pick<PublicClient, "getTransactionReceipt" | "getBlock">,
+  a: { hash: string; contract: string; agent: string; min: bigint; now?: number },
+): Promise<Paid> {
+  let receipt;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: a.hash as Hash });
+  } catch {
+    return { ok: false, error: "Transaction not found yet. Try again in a few seconds." };
+  }
+  if (receipt.status !== "success") return { ok: false, error: "That transaction failed on chain." };
+  const block = await client.getBlock({ blockNumber: receipt.blockNumber }).catch(() => null);
+  if (!block || !fresh(Number(block.timestamp) * 1000, a.now ?? Date.now())) return { ok: false, error: "That payment is older than an hour." };
+  const contract = a.contract.toLowerCase();
+  const agent = a.agent.toLowerCase();
+  let got = 0n;
+  for (const l of receipt.logs) {
+    if (l.address.toLowerCase() !== contract || l.topics[0] !== PAID_TOPIC || `0x${(l.topics[2] ?? "").slice(-40)}`.toLowerCase() !== agent) continue;
+    got += BigInt(l.data);
+  }
+  if (got === 0n) return { ok: false, error: "The transaction has no MimirAgentPay payment to this agent." };
+  return got >= a.min ? { ok: true, units: got } : { ok: false, error: `The agent was paid ${human(got, 6)} USDC; one call needs ${human(a.min, 6)}.` };
 }
