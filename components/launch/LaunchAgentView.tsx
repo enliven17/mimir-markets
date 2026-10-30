@@ -15,7 +15,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { Strip, StripCell } from "@/components/ui/Strip";
 import { Link } from "@/i18n/navigation";
 import { argusTokenUrl } from "@/lib/launch/argus";
-import { type CouncilAgent, meteoraToken, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
+import { type CouncilAgent, clankerToken, meteoraToken, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
 import TokenChart from "./TokenChart";
 import AgentFace from "./AgentFace";
 import CopyPanel from "./CopyPanel";
@@ -53,8 +53,9 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
     ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, mint: council.mint, argus: council.argus, wallet: council.solana, robinhood: council.robinhood, arc: council.arc, house: true, venue: "solana" }
     : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, mint: card!.mint, argus: card!.token ? { token: card!.token.address, poolId: card!.token.poolId } : null, wallet: card!.wallet, robinhood: null as string | null, arc: card!.arc, house: false, venue: card!.chain };
   const rh = a.venue === "robinhood";
+  const onBase = a.venue === "base";
   const meteora = !a.house && card?.pad === "meteora";
-  const tokenUrl = (mint: string) => (rh ? rhToken(mint) : meteora ? meteoraToken(mint) : pumpFun(mint));
+  const tokenUrl = (mint: string) => (rh ? rhToken(mint) : onBase ? clankerToken(mint) : meteora ? meteoraToken(mint) : pumpFun(mint));
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -104,7 +105,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
         {a.mint || a.argus ? (
           <div className="overflow-hidden rounded-2xl bg-ink-deep shadow-card">
             {a.mint && (!a.argus || chart === "solana") ? (
-              <TokenChart key="main" chain={rh ? "robinhood" : "solana"} token={a.mint} title={t("chart")} tradeUrl={tokenUrl(a.mint)} tradeLabel={rh ? "Trade on Pons" : meteora ? "Trade on Jupiter" : "Trade on pump.fun"} />
+              <TokenChart key="main" chain={rh ? "robinhood" : onBase ? "base" : "solana"} token={a.mint} title={t("chart")} tradeUrl={tokenUrl(a.mint)} tradeLabel={rh ? "Trade on Pons" : onBase ? "Trade on Clanker" : meteora ? "Trade on Jupiter" : "Trade on pump.fun"} />
             ) : (
               <TokenChart key="arc" chain="arc" token={a.argus!.token} title={t("chartArgus")} tradeUrl={argusTokenUrl(a.argus!.token)} tradeLabel="Trade on Argus" />
             )}
@@ -116,12 +117,12 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
 
       <WalletsBlock
         ticker={a.ticker} mint={a.mint} argus={a.argus?.token ?? null} venue={a.venue} pad={meteora ? "meteora" : null} arc={a.arc}
-        // A Robinhood agent's trading wallet is on Robinhood Chain; the council has both.
-        solana={rh ? null : a.wallet} robinhood={rh ? a.wallet : a.robinhood}
+        // A Robinhood agent's trading wallet is on Robinhood Chain, a Clanker agent's on Base; the council has Solana and Robinhood.
+        solana={rh || onBase ? null : a.wallet} robinhood={rh ? a.wallet : a.robinhood} base={onBase ? a.wallet : null}
       />
 
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} venue={a.venue} /> : null}
-      {!a.house && card && a.venue !== "robinhood" ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} venue={meteora ? "Meteora" : "pump.fun"} /> : null}
+      {!a.house && card && a.venue !== "robinhood" && !onBase ? <FeesBlock slug={slug} ticker={a.ticker} owner={card.owner} venue={meteora ? "Meteora" : "pump.fun"} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <RecordSection slug={slug} />
     </div>

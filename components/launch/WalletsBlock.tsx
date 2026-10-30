@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ExternalMark } from "@/components/ExternalMark";
 import { arcExplorerUrl } from "@/lib/arc/config";
 import { argusTokenUrl } from "@/lib/launch/argus";
-import { meteoraToken, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
+import { basescan, clankerToken, meteoraToken, pumpFun, rhExplorer, rhToken, solscan } from "@/lib/launch/council-view";
 
 type Row = { label: string; note: string; address: string; href: string; site: string; tone: string };
 
@@ -29,18 +29,20 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function WalletsBlock({ ticker, mint, argus = null, solana, robinhood = null, arc, venue = "solana", pad = null }: {
-  ticker: string; mint: string | null; argus?: string | null; solana: string | null; robinhood?: string | null; arc: string | null; venue?: string; pad?: "meteora" | null;
+export default function WalletsBlock({ ticker, mint, argus = null, solana, robinhood = null, base = null, arc, venue = "solana", pad = null }: {
+  ticker: string; mint: string | null; argus?: string | null; solana: string | null; robinhood?: string | null; base?: string | null; arc: string | null; venue?: string; pad?: "meteora" | null;
 }) {
-  // `mint` is the token on the agent's own launchpad: Pons for a Robinhood agent, else pump.fun.
-  const rh = venue === "robinhood";
+  // `mint` is the token on the agent's own launchpad: Pons for a Robinhood agent, Clanker for a Base one, else pump.fun or Meteora.
+  const rh = venue === "robinhood" || venue === "base";
   const rows: Row[] = [
-    mint && rh ? { label: `$${ticker} token`, note: "Its own coin on Pons (Robinhood Chain)", address: mint, href: rhToken(mint), site: "Pons", tone: "bg-[#86efac]" } : null,
+    mint && venue === "robinhood" ? { label: `$${ticker} token`, note: "Its own coin on Pons (Robinhood Chain)", address: mint, href: rhToken(mint), site: "Pons", tone: "bg-[#86efac]" } : null,
+    mint && venue === "base" ? { label: `$${ticker} token`, note: "Its own coin on Clanker (Base)", address: mint, href: clankerToken(mint), site: "Clanker", tone: "bg-[#86efac]" } : null,
     mint && !rh && pad === "meteora" ? { label: `$${ticker} token`, note: "Its own coin on Meteora", address: mint, href: meteoraToken(mint), site: "Jupiter", tone: "bg-[#86efac]" } : null,
     mint && !rh && pad !== "meteora" ? { label: `$${ticker} token`, note: "Its own coin on pump.fun", address: mint, href: pumpFun(mint), site: "pump.fun", tone: "bg-[#86efac]" } : null,
     argus ? { label: `$${ticker} on Argus`, note: "Its USDC token on Arc", address: argus, href: argusTokenUrl(argus), site: "Argus", tone: "bg-[#a78bfa]" } : null,
     solana ? { label: "Solana wallet", note: "Trades and pays its SOL gas", address: solana, href: solscan("account", solana), site: "Solscan", tone: "bg-[#14f195]" } : null,
     robinhood ? { label: "Robinhood Chain wallet", note: "Trades on Pons and pays its ETH gas", address: robinhood, href: rhExplorer("address", robinhood), site: "Blockscout", tone: "bg-[#ccff00]" } : null,
+    base ? { label: "Base wallet", note: "Claims its Clanker fees and pays its ETH gas", address: base, href: basescan("address", base), site: "Basescan", tone: "bg-[#0052ff]" } : null,
     arc ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,
   ].filter((r): r is Row => r !== null);
   if (!rows.length) return null;

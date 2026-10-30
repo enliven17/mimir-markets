@@ -6,7 +6,8 @@
  * safe to retry: sign the agent (the server makes its two wallets), send the seed SOL, sign the launch (it mints
  * its token on pump.fun). An Argus launch (chain "arc") swaps the SOL step for a little USDC in its Arc wallet, and the
  * token goes live on Argus with a buy and sell tax. A Robinhood launch (chain "robinhood") makes a Robinhood Chain wallet
- * instead of the Solana one, takes its seed in ETH from the connected Robinhood wallet, and launches on Pons. The
+ * instead of the Solana one, takes its seed in ETH from the connected Robinhood wallet, and launches on Pons. A Base
+ * launch (chain "base") does the same on Base with any EVM wallet and launches on Clanker (no trading on Base yet). The
  * launchpad is picked first: the trading step depends on it.
  */
 import { useEffect, useState } from "react";
@@ -21,6 +22,7 @@ import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
 import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
 import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
 import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
+import { BASE_CHAIN } from "@/lib/base/chain";
 import { Link } from "@/i18n/navigation";
 import { BODIES, COLOURS, EYES, PALETTE, avatarFromSeed, encodeAvatarSeed, type AvatarPicks } from "@/lib/avatar";
 import { BYOK_PROVIDERS, type ByokProvider } from "@/lib/launch/byok-providers";
@@ -30,7 +32,7 @@ import { DEMO, type DemoAgent } from "@/lib/demo/types";
 import { demoLiveDraft } from "@/lib/demo/promotion";
 import { trackProductEvent } from "@/lib/product-analytics";
 import DemoUpsell from "@/components/demo/DemoUpsell";
-import { LAUNCH_FEE_SOL, METEORA_LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
+import { BASE_LAUNCH_FEE_ETH, LAUNCH_FEE_SOL, METEORA_LAUNCH_FEE_SOL, PRESETS, RH_LAUNCH_FEE_ETH, RH_PRESETS, RH_SOURCES, RH_STRATEGIES, SOURCES, STRATEGIES } from "@/lib/launch/presets";
 import { METRICS, type Condition, type DataSource, type Metric } from "@/lib/launch/types";
 import { CATEGORIES } from "@/lib/constants";
 import { AGENT_MARKETS_PER_DAY_MAX } from "@/lib/launch/agent-markets-limit";
@@ -42,7 +44,7 @@ import { DEFAULT_ALLOCATION, perSol, sumsTo100, type Allocation } from "@/lib/la
 const STEPS = ["Identity", "Brain", "Markets", "Trading", "Token", "Launch"] as const;
 /** What the agent's Arc wallet must hold to launch on Argus (lib/launch/argus.ts ARGUS.launchGasWei). */
 const ARGUS_GAS_USDC = 0.15;
-type Chain = "solana" | "arc" | "robinhood";
+type Chain = "solana" | "arc" | "robinhood" | "base";
 type Preset = keyof typeof PRESETS | keyof typeof RH_PRESETS;
 const presetsFor = (c: Chain): Partial<Record<Preset, { sources: DataSource[]; entry: Condition[] }>> => (c === "robinhood" ? RH_PRESETS : PRESETS);
 const strategiesFor = (c: Chain) => (c === "robinhood" ? RH_STRATEGIES : STRATEGIES);
@@ -53,6 +55,7 @@ const LAUNCHPADS = [
   ["meteora", "Meteora", "Solana", "/launch/meteora.svg", "Mimir's own curve · trades tokens · needs seed SOL"],
   ["arc", "Argus", "Arc", "/launch/argus.jpg", "USDC tax token · markets only · no SOL"],
   ["robinhood", "Pons", "Robinhood", "/launch/pons.png", "Bonding curve · trades in ETH · Robinhood wallet"],
+  ["base", "Clanker", "Base", "/launch/clanker.svg", "Uniswap v4 pool · fees in ETH · any EVM wallet"],
 ] as const;
 
 const INITIAL = {
@@ -92,7 +95,8 @@ function problems(step: number, f: Form): string | null {
     if (f.allocation.holders > 0) return "Holder airdrops are not on Argus yet: set holders to 0.";
     if (f.argus.buyTaxPct + f.argus.sellTaxPct === 0) return "An Argus token needs a buy or sell tax above 0.";
   }
-  if (step === 5 && f.chain !== "arc" && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return `Seed between 0 and 100 ${f.chain === "robinhood" ? "ETH" : "SOL"}.`;
+  if (step === 4 && f.chain === "base" && f.trading.enabled) return "Trading on Base is not available yet. Turn trading off; it stakes on Arc markets.";
+  if (step === 5 && f.chain !== "arc" && !(Number(f.seedSol) >= 0 && Number(f.seedSol) <= 100)) return `Seed between 0 and 100 ${f.chain === "robinhood" || f.chain === "base" ? "ETH" : "SOL"}.`;
   return null;
 }
 
@@ -126,7 +130,8 @@ const DEPLOY = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send 
 const DEPLOY_ARGUS = ["Sign the agent: Mimir makes its Solana and Arc wallets", `Send ${ARGUS_GAS_USDC} USDC on Arc to its Arc wallet for the launch gas`, "Sign the launch: its token goes live on Argus"] as const;
 const DEPLOY_METEORA = ["Sign the agent: Mimir makes its Solana and Arc wallets", "Send the seed SOL to its wallet", "Sign the launch: its token goes live on Meteora"] as const;
 const DEPLOY_RH = ["Sign the agent: Mimir makes its Robinhood Chain and Arc wallets", "Send the seed ETH from your Robinhood wallet", "Sign the launch: its token goes live on Pons"] as const;
-const deploySteps = (c: Chain, pad: Form["pad"] = "pump"): readonly string[] => (c === "arc" ? DEPLOY_ARGUS : c === "robinhood" ? DEPLOY_RH : pad === "meteora" ? DEPLOY_METEORA : DEPLOY);
+const DEPLOY_BASE = ["Sign the agent: Mimir makes its Base and Arc wallets", "Send the seed ETH on Base from your wallet", "Sign the launch: its token goes live on Clanker"] as const;
+const deploySteps = (c: Chain, pad: Form["pad"] = "pump"): readonly string[] => (c === "arc" ? DEPLOY_ARGUS : c === "robinhood" ? DEPLOY_RH : c === "base" ? DEPLOY_BASE : pad === "meteora" ? DEPLOY_METEORA : DEPLOY);
 type Deploy = { at: number; error: string | null; id?: string; wallet?: string; arc?: string; fund?: bigint; sig?: string; mint?: string };
 
 export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
@@ -156,7 +161,8 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     const presets = presetsFor(chain);
     const first = (Object.keys(presets) as Preset[])[0];
     const p = presets[first]!;
-    setF((x) => ({ ...x, chain, trading: { ...x.trading, enabled: chain === "arc" ? false : x.trading.enabled, preset: first, sources: [...p.sources], entry: p.entry.map((c) => ({ ...c })) } }));
+    // A Base agent does not trade yet: its ETH only pays gas, so no seed by default.
+    setF((x) => ({ ...x, chain, ...(chain === "base" ? { seedSol: "0" } : {}), trading: { ...x.trading, enabled: chain === "arc" || chain === "base" ? false : x.trading.enabled, preset: first, sources: [...p.sources], entry: p.entry.map((c) => ({ ...c })) } }));
   };
   const chainPresets = presetsFor(f.chain);
   const flowSteps = demo ? [0, 1, 2, 3, 5] : [0, 1, 2, 3, 4, 5];
@@ -217,7 +223,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
 
   const body = () => ({
     name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: f.chain === "arc" ? 0 : Number(f.seedSol), allocation: f.allocation,
-    chain: f.chain, ...(f.chain === "solana" ? { pad: f.pad } : {}), ...(f.chain === "robinhood" && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
+    chain: f.chain, ...(f.chain === "solana" ? { pad: f.pad } : {}), ...((f.chain === "robinhood" || f.chain === "base") && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, maxHoursToClose: f.markets.maxHoursToClose, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
@@ -246,8 +252,9 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
       if (!d.id) {
         put({ at: 0 });
         if (f.chain === "robinhood" && !rh.address) throw new Error("Connect your Robinhood wallet: it funds the agent and gets its ETH back.");
-        const r = await signedPost<{ id: string; solana: string | null; robinhood: string | null; arc: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
-        put({ id: r.id, wallet: (f.chain === "robinhood" ? r.robinhood : r.solana) ?? undefined, arc: r.arc, fund: BigInt(r.fundLamports) });
+        if (f.chain === "base" && !rh.address) throw new Error("Connect your EVM wallet: it funds the agent on Base and gets its ETH back.");
+        const r = await signedPost<{ id: string; solana: string | null; robinhood: string | null; base: string | null; arc: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
+        put({ id: r.id, wallet: (f.chain === "robinhood" ? r.robinhood : f.chain === "base" ? r.base : r.solana) ?? undefined, arc: r.arc, fund: BigInt(r.fundLamports) });
         trackProductEvent("live_agent_created", { mode: "live", chain: f.chain });
       }
       if (f.chain === "arc") {
@@ -272,6 +279,11 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
           const hash = await rh.sendEth(d.wallet!, d.fund!);
           put({ sig: hash });
           await createPublicClient({ transport: http(ROBINHOOD_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
+        } else if (f.chain === "base") {
+          if (!rh.sendEthBase) throw new Error("Connect your EVM wallet to send the seed ETH on Base.");
+          const hash = await rh.sendEthBase(d.wallet!, d.fund!);
+          put({ sig: hash });
+          await createPublicClient({ transport: http(BASE_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
         } else {
           const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: new PublicKey(d.wallet!), lamports: d.fund! }));
           const sig = await sendTransaction(tx, connection);
@@ -403,7 +415,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <div className="grid gap-2">
               <span className="text-[14px] text-cream">{demo ? "Preview network" : "Launchpad"}</span>
               <div className={`grid gap-2 ${demo ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} role="radiogroup" aria-label="Launchpad">
-                {LAUNCHPADS.filter(([k]) => !demo || k !== "meteora").map(([k, label, chainName, logo, blurb]) => {
+                {LAUNCHPADS.filter(([k]) => !demo || (k !== "meteora" && k !== "base")).map(([k, label, chainName, logo, blurb]) => {
                   const on = k === "meteora" ? f.chain === "solana" && f.pad === "meteora" : f.chain === k && (k !== "solana" || f.pad === "pump");
                   return (
                   <button key={k} type="button" role="radio" aria-checked={on} onClick={() => { setChain(k === "meteora" ? "solana" : k); setF((x) => ({ ...x, pad: k === "meteora" ? "meteora" : "pump" })); }} className={`grid grid-cols-[40px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl p-3 text-left transition-colors ${on ? "bg-cream text-ink" : "bg-cream/[0.04] text-cream hover:bg-cream/10"}`}>
@@ -569,6 +581,8 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <legend className="mb-1 font-display text-[1.5rem] text-cream">Trading</legend>
             {f.chain === "arc" ? (
               <p className="m-0 text-[14px] text-muted">Argus agents stake on markets only. To trade tokens too, go back and pick pump.fun or Pons.</p>
+            ) : f.chain === "base" ? (
+              <p className="m-0 text-[14px] text-muted">Clanker agents earn their creator fees on Base and stake on Arc markets. Trading on Base is coming; to trade tokens now, pick pump.fun, Meteora or Pons.</p>
             ) : (
               <label className="flex items-center justify-between gap-4 rounded-xl bg-cream/[0.04] px-4 py-3">
                 <span className="grid gap-0.5">
@@ -578,7 +592,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                 <input type="checkbox" role="switch" className="switch" checked={t.enabled} onChange={(e) => setT({ enabled: e.target.checked })} />
               </label>
             )}
-            {t.enabled && f.chain !== "arc" ? (
+            {t.enabled && f.chain !== "arc" && f.chain !== "base" ? (
               <>
                 <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Preset">
                   {(Object.keys(chainPresets) as Preset[]).filter((k) => !demo || f.chain === "robinhood" || k === "trending").map((k) => (
@@ -655,12 +669,16 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
               <p className="m-0 text-[14px] text-muted">
                 Pons creator fees go to the agent as bankroll. Withdraw ETH from its page any time — no fee split to set.
               </p>
+            ) : f.chain === "base" ? (
+              <p className="m-0 text-[14px] text-muted">
+                Its Clanker pool takes 1% of every trade for the agent (Clanker adds 0.2% for itself). The agent claims it hourly in ETH as bankroll; withdraw from its page any time — no fee split to set.
+              </p>
             ) : (
               <p className="m-0 text-[13px] text-muted">
                 Creator fees fund the agent. Platform and AI take 20%; you split the other 80%. Defaults keep enough in gas &amp; bankroll.
               </p>
             )}
-            {f.chain !== "robinhood" ? (
+            {f.chain !== "robinhood" && f.chain !== "base" ? (
               <Disclosure summary="Fee split" defaultOpen={f.chain === "arc"}>
                 <div className="grid gap-3">
                   <FeeAllocator value={f.allocation} onChange={(a) => set("allocation", a)} />
@@ -706,8 +724,8 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
               <dt>Trading</dt>
               <dd>{t.enabled ? `${strategiesFor(f.chain)[t.preset]?.label} · SL ${t.risk.stopLossPct}% · TP ${t.risk.takeProfitPct}%` : "off"}</dd>
               <dt>Token</dt>
-              <dd>{f.chain === "arc" ? `Argus · ${f.argus.buyTaxPct}% / ${f.argus.sellTaxPct}% tax` : f.chain === "robinhood" ? "Pons on Robinhood Chain" : f.pad === "meteora" ? "Meteora on Solana" : "pump.fun on Solana"}</dd>
-              {f.chain !== "robinhood" ? (
+              <dd>{f.chain === "arc" ? `Argus · ${f.argus.buyTaxPct}% / ${f.argus.sellTaxPct}% tax` : f.chain === "robinhood" ? "Pons on Robinhood Chain" : f.chain === "base" ? "Clanker on Base" : f.pad === "meteora" ? "Meteora on Solana" : "pump.fun on Solana"}</dd>
+              {f.chain !== "robinhood" && f.chain !== "base" ? (
                 <>
                   <dt>Fees</dt>
                   <dd>
@@ -729,6 +747,17 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                   <RobinhoodConnect />
                 </div>
                 <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + RH_LAUNCH_FEE_ETH).toFixed(4)} ETH.</p>
+              </>
+            ) : f.chain === "base" ? (
+              <>
+                <Field label="Seed ETH" hint={`${BASE_LAUNCH_FEE_ETH} ETH covers the Clanker launch gas; the rest stays in its Base wallet. ETH returns to this wallet if you shut it down. Fund Arc USDC from its page to stake.`}>
+                  <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
+                </Field>
+                <div className="grid gap-2 rounded-xl bg-cream/[0.04] p-4">
+                  <span className="text-[14px] text-cream">Your EVM wallet (pays on Base)</span>
+                  <RobinhoodConnect base />
+                </div>
+                <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + BASE_LAUNCH_FEE_ETH).toFixed(4)} ETH on Base.</p>
               </>
             ) : (
               <>
