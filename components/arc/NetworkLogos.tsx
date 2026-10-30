@@ -24,7 +24,7 @@ export function NetworkLogos({ className = "h-6", robinhood = false, base = fals
         <>
           <span aria-hidden className="h-[60%] w-px bg-line" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/networks/base.svg" alt="Base" className="h-[70%] w-auto" />
+          <img src="/networks/base.svg" alt="Base" className="h-[85%] w-auto" />
         </>
       ) : null}
     </span>
