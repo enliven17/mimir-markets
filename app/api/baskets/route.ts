@@ -7,7 +7,6 @@
  * key, and an unsigned one would let anyone publish a thesis under someone
  * else's wallet. The signature carries `signedAt` and expires in 5 minutes.
  */
-import { accessDenied } from "@/lib/server/access";
 import {
   composeMessage,
   isValidBasketId,
@@ -93,8 +92,6 @@ export async function POST(req: Request): Promise<Response> {
     signature,
   });
   if (!signedOk) return basketFail(401, "bad_signature", "the composer signature does not match");
-  const denied = await accessDenied(creatorWallet);
-  if (denied) return basketFail(403, "invite_only", denied);
 
   try {
     const basket = await createBasket({ id, name, thesis, creatorWallet, members, signature });

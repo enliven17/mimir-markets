@@ -6,7 +6,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
 import { internalSecret } from "@/lib/internal-secrets";
 import { readLimitedText } from "@/lib/server/body-limit";
-import { hasAccess } from "@/lib/server/access";
 import { allowRequest } from "@/lib/server/rate-limit";
 import { isFreshLaunchSig, LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS, launchMessage, type LaunchAction } from "./auth";
 
@@ -28,8 +27,6 @@ export async function readSigned(req: Request, action: LaunchAction, agent: stri
   }
   // Once per signature: a captured request cannot be replayed inside its freshness window.
   if (!(await allowRequest("launch-sig", signature, 1, 2 * LAUNCH_SIG_TTL_MS))) return { ok: false, res: fail(409, "That signature was already used. Sign again.") };
-  // Saving a watchlist needs a wallet signature, but no market access or funds.
-  if (action !== "follow" && !(await hasAccess(owner).catch(() => false))) return { ok: false, res: fail(403, "Mimir is invite-only right now: redeem an invite code first.") };
   let body: unknown;
   try {
     body = JSON.parse(raw.value);

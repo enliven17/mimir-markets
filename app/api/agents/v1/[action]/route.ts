@@ -11,7 +11,6 @@
  * On-chain writes never touch a key here: they return unsigned transactions
  * for the agent to sign with its operator key and submit itself.
  */
-import { accessDenied } from "@/lib/server/access";
 import { PublicKey } from "@solana/web3.js";
 
 import {
@@ -221,10 +220,6 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   if (!ownerWallet || !operatorWallet || !payoutWallet) {
     throw new AgentEnvelopeError("ownerWallet, operatorWallet and payoutWallet must be Solana public keys", 400, "bad_wallets");
   }
-  // Invite-only: an agent acts for its owner, so the owner must be in.
-  const denied = await accessDenied(ownerWallet);
-  if (denied) throw new AgentEnvelopeError(denied, 403, "invite_only");
-
   const authorityLevel = env.body.authorityLevel ?? 0;
   if (!isAuthorityLevel(authorityLevel)) {
     throw new AgentEnvelopeError("authorityLevel must be 0-4", 400, "bad_authority");
@@ -475,8 +470,6 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
 
     case "setArcOperator": {
-      const denied = await accessDenied(agent.ownerWallet);
-      if (denied) throw new AgentEnvelopeError(denied, 403, "invite_only");
       const next = arcOperatorOf(env.body.arcOperator);
       if (!next) throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
       await setArcOperator(agent.agentId, next);

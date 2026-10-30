@@ -22,7 +22,7 @@ export default function AccountGate({ account, children }: { account: ReturnType
   if (!wallet.configured) return <p className="m-0 text-[14px] text-muted">Arc accounts are not configured on this site yet.</p>;
   if (wallet.restoring) return <Skeleton className="h-24 w-full rounded-xl" />;
   if (wallet.session) {
-    // A link that failed right after the passkey was made (e.g. invite-only): say so here, the form is usable anyway.
+    // A link that failed right after the passkey was made: say so here, the form is usable anyway.
     return (
       <>
         {wallet.error ? (

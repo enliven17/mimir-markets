@@ -5,7 +5,7 @@
  * POST /api/arc/evm-bind           { evm, arc, signedAt, evmSignature, arcSignature, credentialId? }
  *
  * Both signatures cover `arcEvmBindMessage(evm, arc, signedAt)`: the wallet's proves who is binding, the passkey
- * account's proves the account is theirs. Invite-only: the wallet must be let in first (an invite code).
+ * account's proves the account is theirs.
  */
 import { NextResponse } from "next/server";
 import { verifyMessage, type Address, type Hex } from "viem";
@@ -13,7 +13,6 @@ import { verifyMessage, type Address, type Hex } from "viem";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { checkArcEvmBindBody, normalizeEvmAddress } from "@/lib/arc/evm";
-import { hasAccess } from "@/lib/server/access";
 import { ArcRebindTooSoonError, verifyArcSignature } from "@/lib/server/arc-accounts";
 import { ArcEvmAccountTakenError, getArcEvmBinding, getArcEvmBindingByArc, upsertArcEvmBinding } from "@/lib/server/arc-evm-accounts";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -65,9 +64,6 @@ export async function POST(req: Request) {
   const arcOk = await verifyArcSignature(request.arc, message, request.arcSignature);
   if (arcOk === null) return NextResponse.json({ error: "Arc is not reachable right now, try again" }, { status: 503 });
   if (!arcOk) return NextResponse.json({ error: "the passkey account signature does not match" }, { status: 401 });
-  if (!(await hasAccess(request.evm).catch(() => false))) {
-    return NextResponse.json({ error: "Mimir is invite-only right now: redeem an invite code first." }, { status: 403 });
-  }
 
   try {
     const binding = await upsertArcEvmBinding({ evm: request.evm, arc: request.arc, credentialId: request.credentialId });
