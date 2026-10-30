@@ -7,7 +7,6 @@
  * Payouts are pushed to the account at settlement (VS) or by the oracle
  * (pools), so there is nothing to claim here except a parked one.
  */
-import { InvitesPanel } from "@/components/access/AccessGate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { useLocale } from "next-intl";
@@ -59,8 +58,6 @@ export default function ArcDashboard() {
           </a>
         ) : null}
       </header>
-      {/* Codes belong to the Solana wallet, so a new member sees them before creating an Arc account. */}
-      <InvitesPanel />
       {/* No account yet, or this device's account belongs to another Solana wallet: the setup steps right here. */}
       {account.wallet.configured && !account.wallet.restoring && (!account.address || unlinked) ? (
         <ArcWalletView w={account.wallet} bare />

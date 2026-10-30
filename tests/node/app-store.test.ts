@@ -38,20 +38,6 @@ test("the wallet relay: first answer wins, one read takes it, expired answers ar
     assert.equal(await takeRelay(late, 1_000 + TTL_MS + 1), null);
   }));
 
-test("invite redeem: a code is spent once, never by its owner, and grants the wallet", () =>
-  withStore(async () => {
-    const { store } = await import("../../lib/server/store");
-    const { redeemInvite } = await import("../../lib/server/access");
-    await store().tx([{ op: "insert", t: "access_invites", k: "MIMIR-AAAA-BBBB", d: { code: "MIMIR-AAAA-BBBB", owner: "O", created_at: 1, used_by: null, used_at: null }, i1: "O" }]);
-    assert.equal(await redeemInvite("O", "MIMIR-AAAA-BBBB"), "own");
-    const results = await Promise.all(["U1", "U2", "U3"].map((w) => redeemInvite(w, "MIMIR-AAAA-BBBB")));
-    assert.deepEqual(results.filter((r) => r === "ok").length, 1);
-    const winner = ["U1", "U2", "U3"][results.indexOf("ok")];
-    assert.equal(((await store().get("access_grants", winner)) as { via: string }).via, "invite");
-    assert.equal(await redeemInvite(winner, "MIMIR-AAAA-BBBB"), "already");
-    assert.equal(await redeemInvite("U9", "MIMIR-ZZZZ-ZZZZ"), "invalid");
-  }));
-
 test("an Arc account binds to one Solana wallet; a wallet moving frees its old account", () =>
   withStore(async () => {
     const { upsertArcBinding, getArcBindingByArc, ArcAccountTakenError, ArcRebindTooSoonError, REBIND_COOLDOWN_MS: DAY } = await import("../../lib/server/arc-accounts");

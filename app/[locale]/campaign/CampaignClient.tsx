@@ -163,7 +163,7 @@ function YourScore({ wallet, board, onJoined }: { wallet: string | null; board: 
                   {copied ? "Copied" : "Copy"}
                 </button>
                 <a
-                  href={xIntentUrl("campaign", me.code)}
+                  href={xIntentUrl(me.code)}
                   target="_blank"
                   rel="noreferrer"
                   className="press grid shrink-0 place-items-center rounded-xl bg-coral px-4 text-[13px] font-medium text-[#160909]"

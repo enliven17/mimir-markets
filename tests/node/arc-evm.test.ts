@@ -4,9 +4,6 @@ import test from "node:test";
 import { decodeFunctionData, erc20Abi, type Address } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-process.env.NEXT_PUBLIC_INVITE_ONLY = "1";
-process.env.MIMIR_INVITE_UNLOCK_DAYS = "0";
-
 import { ARC_USDC } from "../../lib/arc/config";
 import {
   arcEvmBindMessage,
@@ -25,8 +22,7 @@ import {
   withWalletFunding,
 } from "../../lib/arc/evm";
 import type { ArcCall } from "../../lib/arc/cctp-arc";
-import { accountHasAccess, mintAdminInvites, redeemInvite } from "../../lib/server/access";
-import { ArcRebindTooSoonError, REBIND_COOLDOWN_MS, upsertArcBinding } from "../../lib/server/arc-accounts";
+import { ArcRebindTooSoonError, REBIND_COOLDOWN_MS } from "../../lib/server/arc-accounts";
 import { ArcEvmAccountTakenError, getArcEvmBinding, getArcEvmBindingByArc, upsertArcEvmBinding } from "../../lib/server/arc-evm-accounts";
 import { provenEvmWallet, provenIdentity } from "../../lib/server/wallet-proof";
 import { useMemoryStore } from "../../lib/server/store";
@@ -128,26 +124,11 @@ test("EVM binding: one account per wallet, a taken account is refused, a switch 
   assert.equal((await getArcEvmBindingByArc(ACCOUNT_2))?.evm, WALLET);
 });
 
-test("an Arc-native member's account is in; a linked Solana wallet needs no invite of its own", async () => {
-  const solana = "5JZp9pA33eoUREpQS6ui6AFVdaQ147aBrjh79w252gRQ";
-  // ACCOUNT_2 is bound to WALLET (previous test); WALLET is not in yet.
-  assert.equal(await accountHasAccess(ACCOUNT_2, solana), false);
-  const [code] = await mintAdminInvites(1, "test");
-  assert.equal(await redeemInvite(WALLET, code), "ok");
-  assert.equal(await accountHasAccess(ACCOUNT_2, null), true);
-  // Linking the Solana wallet keeps both bindings.
-  await upsertArcBinding({ solana, arc: ACCOUNT_2, credentialId: null });
-  assert.equal(await accountHasAccess(ACCOUNT_2, solana), true);
-  assert.equal((await getArcEvmBindingByArc(ACCOUNT_2))?.evm, WALLET);
-  // An account with neither an invited Solana wallet nor an invited Arc wallet stays out.
-  assert.equal(await accountHasAccess(ACCOUNT, null), false);
-});
-
 test("provenEvmWallet: a wallet-signed proof header proves the address; a wrong or stale one does not", async () => {
   const key = privateKeyToAccount(generatePrivateKey());
   const signedAt = Date.now();
   const signature = await key.signMessage({ message: evmProofMessage(key.address, signedAt) });
-  const req = (wallet: string, proof: string) => new Request("http://x/api/access", { headers: { [EVM_WALLET_HEADER]: wallet, [EVM_PROOF_HEADER]: proof } });
+  const req = (wallet: string, proof: string) => new Request("http://x/api/arc/evm-bind", { headers: { [EVM_WALLET_HEADER]: wallet, [EVM_PROOF_HEADER]: proof } });
   assert.equal(await provenEvmWallet(req(key.address.toLowerCase(), `${signedAt}.${signature}`)), key.address);
   assert.equal(await provenIdentity(req(key.address, `${signedAt}.${signature}`)), key.address);
   assert.equal(parseEvmProofHeader(`${signedAt - 25 * 3_600_000}.${signature}`), null);

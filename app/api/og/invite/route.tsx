@@ -1,13 +1,13 @@
 /**
- * GET /api/og/invite?code=<code>&v=<version>: the X card for a shared invite (lib/invite-share.ts). 1200×630 PNG in
+ * GET /api/og/invite?code=<code>&v=<version>: the X card for a shared leaderboard invite (lib/invite-share.ts). 1200×630 PNG in
  * the brand: ink ground, the horn, the code on a cream ticket. Only well-formed codes render; anything else is 404,
- * so the card can never carry arbitrary text. Codes are not looked up: a used code still renders (the page says so).
+ * so the card can never carry arbitrary text. Codes are not looked up.
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-import { inviteKind } from "@/lib/invite-share";
+import { inviteCode } from "@/lib/invite-share";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
@@ -26,12 +26,11 @@ const assets = Promise.all([
 ]);
 
 export async function GET(req: Request) {
-  const parsed = inviteKind(new URL(req.url).searchParams.get("code") ?? "");
-  if (!parsed) return new Response("not found", { status: 404 });
+  const code = inviteCode(new URL(req.url).searchParams.get("code") ?? "");
+  if (!code) return new Response("not found", { status: 404 });
   if (!(await allowRequest("og-invite", clientIp(req), 120, 60_000))) return new Response("slow down", { status: 429 });
   const [display, pixel, mono, hornPng] = await assets;
   const horn = `data:image/png;base64,${hornPng.toString("base64")}`;
-  const access = parsed.kind === "access";
 
   return new ImageResponse(
     (
@@ -53,13 +52,13 @@ export async function GET(req: Request) {
         <div style={{ display: "flex", flexDirection: "column", width: 780, height: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", fontFamily: "Mono", fontSize: 20, letterSpacing: 4, color: MUTED }}>
             <div style={{ width: 12, height: 12, backgroundColor: RED, marginRight: 14 }} />
-            {access ? "INVITE-ONLY · ARC · SOLANA" : "LEADERBOARD · ARC · SOLANA"}
+            LEADERBOARD · ARC · SOLANA
           </div>
           <div style={{ display: "flex", marginTop: 26, fontFamily: "Display", fontSize: 104, lineHeight: 0.9 }}>
-            {access ? "You're invited." : "Join me on Mimir."}
+            Join me on Mimir.
           </div>
           <div style={{ display: "flex", marginTop: 22, fontSize: 30, lineHeight: 1.35, color: MUTED, width: 720 }}>
-            {access ? "Claims, settled by AI. Your code gets you in." : "Claims, settled by AI. My code gives you a points boost."}
+            Claims, settled by AI. My code gives you a points boost.
           </div>
           <div style={{ display: "flex", alignItems: "center", marginTop: "auto", gap: 24 }}>
             <div
@@ -70,12 +69,12 @@ export async function GET(req: Request) {
                 backgroundColor: CREAM,
                 color: INK,
                 fontFamily: "Mono",
-                fontSize: access ? 46 : 52,
+                fontSize: 52,
                 letterSpacing: 4,
                 boxShadow: "0 0 60px rgba(255,43,43,0.35)",
               }}
             >
-              {parsed.code}
+              {code}
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28, fontFamily: "Mono", fontSize: 20, letterSpacing: 2, color: MUTED, width: 1064 }}>

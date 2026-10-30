@@ -14,7 +14,6 @@ import ConsentNotice from "@/components/legal/ConsentNotice";
 import RouteProgress from "@/components/app/RouteProgress";
 import ArcLaunchModal from "@/components/arc/ArcLaunchModal";
 import ProductNotice from "@/components/app/ProductNotice";
-import AccessGate from "@/components/access/AccessGate";
 import ConvexClientProvider from "@/components/arc/arena/ConvexClientProvider";
 import SkipToContentLink from "@/components/SkipToContentLink";
 import { SITE_URL } from "@/lib/site";
@@ -71,7 +70,7 @@ export default async function LocaleLayout({ children, params }: Props) {
             never shoves it (or anything else in view) around: no layout shift. */}
         <main id="main-content" tabIndex={-1} className="min-h-svh min-w-0 outline-none">
           <PageFrame>
-            <AccessGate>{children}</AccessGate>
+            {children}
           </PageFrame>
         </main>
         <Footer />
