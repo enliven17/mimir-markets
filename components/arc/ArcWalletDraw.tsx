@@ -1,20 +1,17 @@
 "use client";
 
 /**
- * /wallet, signed in with an Arc wallet (lib/arc/evm.ts): connect the wallet, create or log in to the passkey account,
- * link the two, then set a spending cap so stakes draw USDC straight from the wallet.
+ * /wallet, EVM way in, optional: let the passkey account draw from the EVM wallet's USDC on Arc (lib/arc/evm.ts). One
+ * more binding (/api/arc/evm-bind), then a spending cap: an approve on Arc, so the wallet must be able to use Arc.
  */
 import { useCallback, useEffect, useState } from "react";
 import { parseUnits, type Address } from "viem";
 
-import { SURFACE } from "@/components/arena/surface";
-import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { arcUsdcUnits } from "@/lib/arc/chain";
-import { arcExplorerUrl } from "@/lib/arc/config";
 import { formatUsdcUnits } from "@/lib/arc/encoding";
 import { approveData, DEFAULT_CAP_UNITS, sendBackCall, transferData, walletSpendableUnits, WEI_PER_UNIT } from "@/lib/arc/evm";
 import type { ArcWallet } from "./useArcWallet";
-import { connectEvmWallet, disconnectEvmWallet, readWalletFunding, sendUsdcTx } from "./useEvmWallet";
+import { readWalletFunding, sendUsdcTx } from "./useEvmWallet";
 
 const short = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
 const BTN_PRIMARY = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
@@ -49,7 +46,7 @@ function useFunds(evm: Address | null, account: Address | null) {
   return { funds, reload };
 }
 
-export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
+export default function ArcWalletDraw({ w }: { w: ArcWallet }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { funds, reload } = useFunds(w.evmLinked ? w.evm : null, w.session?.address ?? null);
@@ -72,61 +69,42 @@ export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
     }
   };
 
+  if (!w.session || !w.evm) return null;
+  const otherWallet = w.evmBinding && w.evmBinding.evm !== w.evm ? w.evmBinding.evm : null;
+
   return (
-    <>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <section aria-labelledby="arc-native-wallet" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-native-wallet" className="m-0 text-[1.2rem] leading-none text-cream">
-            1. Arc wallet
-          </h2>
-          <p className="m-0 text-[14px] text-muted">Who you are on Mimir, and where your USDC stays until you stake.</p>
-          {w.evm ? (
-            <div className="grid gap-2">
-              <p className="m-0 text-[14px] text-cream" data-testid="arc-native-evm">
-                Connected <span className="font-mono">{short(w.evm)}</span>
-              </p>
-              <button
-                type="button"
-                onClick={disconnectEvmWallet}
-                className="justify-self-start text-[12px] text-muted underline underline-offset-2 hover:text-cream"
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
+    <details className="rounded-xl bg-ink-deep px-4 py-3" open={w.evmLinked || undefined}>
+      <summary className="cursor-pointer text-[14px] text-cream">Optional: stake straight from your wallet&apos;s USDC on Arc</summary>
+      <p className="m-0 mt-3 max-w-[62ch] text-[13px] leading-relaxed text-muted">
+        Instead of sending USDC to your account, let it draw from your wallet&apos;s USDC on Arc, up to a cap, only when you stake. This needs a
+        wallet that can use the Arc network (it is added on your first approval). If yours cannot, as with some mobile wallets, send USDC on Arc to
+        your account instead.
+      </p>
+
+      {!w.evmLinked ? (
+        otherWallet ? (
+          <p className="m-0 mt-3 text-[13px] text-coral">This account already draws from another wallet ({short(otherWallet)}).</p>
+        ) : (
+          <div className="mt-3 grid gap-2">
             <button
               type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void act("connect", connectEvmWallet)()}
+              disabled={Boolean(w.busy) || w.evmBinding === undefined}
+              onClick={() => void w.linkEvm()}
               className={`${BTN_PRIMARY} justify-self-start`}
             >
-              {busy === "connect" ? "Check your wallet…" : "Connect Arc wallet"}
+              {w.busy === "link" ? "Sign in your wallet, then your passkey…" : "Let this account draw from my wallet"}
             </button>
-          )}
-        </section>
-
-        <section aria-labelledby="arc-native-account" className={`${SURFACE} grid content-start gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-native-account" className="m-0 text-[1.2rem] leading-none text-cream">
-            2. Passkey account
-          </h2>
-          <PasskeyBody w={w} />
-        </section>
-      </div>
-
-      {w.session && w.evmLinked ? (
-        <section aria-labelledby="arc-native-cap" className={`${SURFACE} grid gap-4 p-5 sm:p-6`}>
-          <h2 id="arc-native-cap" className="m-0 text-[1.2rem] leading-none text-cream">
-            3. Spending cap
-          </h2>
-          <p className="m-0 max-w-[62ch] text-[14px] leading-relaxed text-muted">
-            One approval in your wallet lets your passkey account draw up to this much USDC from it, only when you stake. Your USDC stays in your
-            wallet until then. Lower or revoke it any time.
-          </p>
+            <p className="m-0 text-[12px] text-muted">Two free signatures, no transaction: your wallet, then your passkey.</p>
+          </div>
+        )
+      ) : (
+        <div className="mt-3 grid gap-4">
           <dl className="m-0 grid gap-3 sm:grid-cols-3">
             <Stat label="Cap left" units={funds?.allowance ?? null} testid="arc-native-allowance" />
             <Stat label="In your wallet" units={funds?.wallet ?? null} />
             <Stat label="In the passkey account" units={funds?.account ?? null} />
           </dl>
+          <p className="m-0 text-[13px] text-muted">One approval on Arc sets the cap. Lower or revoke it any time.</p>
           <CapForm busy={busy} onSet={(units) => void act("cap", () => sendUsdcTx(w.evm!, approveData(w.session!.address, units)))()} />
           <div className="flex flex-wrap gap-2">
             <button
@@ -140,23 +118,18 @@ export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
           </div>
           {funds ? (
             <p className="m-0 text-[13px] text-muted">
-              In your passkey account: <span className="text-cream">{formatUsdcUnits(funds.account)} USDC</span>
-              <br />
               It can still draw from your wallet: <span className="text-cream">{formatUsdcUnits(walletSpendableUnits(funds.allowance, funds.wallet))} USDC</span>
             </p>
           ) : null}
-
-          <details className="grid gap-3 rounded-xl bg-ink-deep px-4 py-3">
-            <summary className="cursor-pointer text-[14px] text-cream">Rather move USDC in? Deposit once</summary>
-            <p className="m-0 mt-2 text-[13px] text-muted">A plain transfer from your wallet to your passkey account, no cap needed.</p>
+          <div className="grid gap-2">
+            <p className="m-0 text-[13px] text-muted">Rather move USDC in once? A plain transfer from your wallet to your account, no cap needed.</p>
             <AmountForm
               label="Deposit"
               busy={busy === "deposit"}
               disabled={Boolean(busy)}
               onSubmit={(u) => void act("deposit", () => sendUsdcTx(w.evm!, transferData(w.session!.address, u)))()}
             />
-          </details>
-
+          </div>
           {funds && funds.account > 0n ? (
             <button
               type="button"
@@ -167,43 +140,20 @@ export default function ArcNativeSteps({ w }: { w: ArcWallet }) {
               {busy === "send" ? "Follow your device's prompt…" : `Send ${formatUsdcUnits(funds.account)} USDC back to my wallet`}
             </button>
           ) : null}
-          {error ? (
-            <p role="alert" className="m-0 text-[13px] text-coral">
-              {error}
-            </p>
-          ) : null}
-        </section>
+        </div>
+      )}
+      {error ? (
+        <p role="alert" className="m-0 mt-3 text-[13px] text-coral">
+          {error}
+        </p>
       ) : null}
-
-      {w.session && w.evmLinked ? (
-        <section aria-labelledby="arc-native-solana" className={`${SURFACE} !overflow-visible grid gap-3 p-5 sm:p-6`}>
-          <h2 id="arc-native-solana" className="m-0 text-[1.2rem] leading-none text-cream">
-            Link a Solana wallet
-          </h2>
-          <p className="m-0 max-w-[62ch] text-[14px] text-muted">
-            Already use a Solana wallet on Mimir? Link it to this account. Optional: everything works without it.
-          </p>
-          <div className="wallet-anchor-start justify-self-start">
-            <ConnectWalletButton />
-          </div>
-          {w.solana && w.linked ? (
-            <p className="m-0 text-[14px] text-cream">
-              Linked to your Solana wallet <span className="font-mono">{short(w.solana)}</span>.
-            </p>
-          ) : w.solana ? (
-            <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.link()} className={`${BTN_PRIMARY} justify-self-start`}>
-              {w.busy === "link" ? "Sign in your wallet, then your passkey…" : "Link this Solana wallet"}
-            </button>
-          ) : null}
-        </section>
-      ) : null}
-    </>
+    </details>
   );
 }
 
 function Stat({ label, units, testid }: { label: string; units: bigint | null; testid?: string }) {
   return (
-    <div className="grid gap-1 rounded-xl bg-ink-deep px-4 py-3">
+    <div className="grid gap-1 rounded-xl bg-cream/[0.04] px-4 py-3">
       <dt className="text-[12px] text-muted">{label}</dt>
       <dd className="m-0 font-mono text-[1.15rem] text-cream" data-testid={testid}>
         {units !== null ? `${formatUsdcUnits(units)} USDC` : "…"}
@@ -245,88 +195,5 @@ function AmountForm({
         {busy ? "Check your wallet…" : label}
       </button>
     </form>
-  );
-}
-
-function PasskeyBody({ w }: { w: ArcWallet }) {
-  if (!w.configured) return <p className="m-0 text-[14px] text-muted">Arc accounts are not switched on for this site yet.</p>;
-  const status = w.error ? (
-    <p role="alert" className="m-0 text-[13px] text-coral">
-      {w.error}
-    </p>
-  ) : null;
-
-  if (!w.session) {
-    return (
-      <div className="grid gap-3">
-        <p className="m-0 text-[14px] text-muted">
-          Your passkey (Face ID, a fingerprint or your PIN) signs every stake, so your wallet never pops up for each one. Gas is sponsored.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={!w.evm || Boolean(w.busy)} onClick={() => void w.create()} className={BTN_PRIMARY}>
-            {w.busy === "create" ? "Follow your device's prompt…" : "Create your passkey account"}
-          </button>
-          <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.login()} className={BTN_SECONDARY}>
-            {w.busy === "login" ? "Follow your device's prompt…" : "I have a passkey: log in"}
-          </button>
-        </div>
-        {!w.evm ? <p className="m-0 text-[12px] text-muted">Connect your Arc wallet first (step 1).</p> : null}
-        {status}
-      </div>
-    );
-  }
-
-  const otherWallet = w.evmBinding && w.evm && w.evmBinding.evm !== w.evm ? w.evmBinding.evm : null;
-  return (
-    <div className="grid gap-3">
-      <p className="m-0 text-[14px] text-muted">
-        Account{" "}
-        <a
-          href={arcExplorerUrl("address", w.session.address)}
-          target="_blank"
-          rel="noreferrer"
-          className="break-all font-mono text-cream underline underline-offset-2"
-        >
-          {w.session.address}
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
-      </p>
-      {w.evmLinked ? (
-        <p className="m-0 text-[14px] text-cream" data-testid="arc-native-linked">
-          Linked to your Arc wallet <span className="font-mono">{short(w.evm ?? "")}</span>.
-        </p>
-      ) : otherWallet ? (
-        <div className="grid gap-2">
-          <p className="m-0 text-[13px] text-coral">
-            This passkey account belongs to your other Arc wallet ({short(otherWallet)}). Each wallet gets its own account.
-          </p>
-          <button type="button" disabled={Boolean(w.busy)} onClick={() => void w.startFresh()} className={`${BTN_PRIMARY} justify-self-start`}>
-            {w.busy === "create" ? "Follow your device's prompt…" : "Create a new account for this wallet"}
-          </button>
-        </div>
-      ) : w.evm ? (
-        <div className="grid gap-2">
-          <button
-            type="button"
-            disabled={Boolean(w.busy) || w.evmBinding === undefined}
-            onClick={() => void w.linkEvm()}
-            className={`${BTN_PRIMARY} justify-self-start`}
-          >
-            {w.busy === "link" ? "Sign in your wallet, then your passkey…" : "Link to your Arc wallet"}
-          </button>
-          <p className="m-0 text-[12px] text-muted">Two free signatures, no transaction: your wallet, then your passkey.</p>
-        </div>
-      ) : (
-        <p className="m-0 text-[13px] text-muted">Connect your Arc wallet to link it.</p>
-      )}
-      <button
-        type="button"
-        onClick={() => void w.signOut()}
-        className="justify-self-start text-[12px] text-muted underline underline-offset-2 hover:text-cream"
-      >
-        Use a different passkey on this device
-      </button>
-      {status}
-    </div>
   );
 }
