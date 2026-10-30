@@ -1,6 +1,10 @@
 /** Mimir Launch: what the engine needs from the outside world (ported from snipad lib/server/ports.ts). */
 import type { Condition, DataSource, RiskParams, StrategyConfig } from "./types";
 import type { IdleState } from "./worker/idle";
+import type { SafetyFeed } from "./engine/shield";
+import type { TechnicalRead } from "./engine/ta";
+
+export type { SafetyFeed } from "./engine/shield";
 
 /** One LLM call for the ranker; the router behind it is Mimir's (lib/llm.ts) or the owner's own key. */
 export type CompleteOptions = { system: string; user: string; json?: boolean; maxTokens?: number; temperature?: number };
@@ -9,6 +13,8 @@ export type JsonCompletion<T> = { data: T; provider: string; model: string };
 export interface Candidate {
   mint: string;
   symbol: string;
+  /** Market/pool address used for candles and safety reads when the source exposes one. */
+  pool?: string;
   name?: string;
   source: DataSource;
   priceSol: number | null;
@@ -71,6 +77,10 @@ export interface MarketSource {
 export interface PriceFeed {
   /** SOL per whole token for each mint it knows; missing = unknown. */
   prices(mints: string[]): Promise<Map<string, number>>;
+}
+
+export interface TechnicalFeed {
+  read(candidate: Candidate): Promise<TechnicalRead | null>;
 }
 
 /** What the worker reads of an agent (convex/launchSolDb.ts). Units: lamports and raw token units are bigint. */

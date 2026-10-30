@@ -32,6 +32,8 @@ export interface StrategyConfig {
   sources: DataSource[];
   entry: Condition[];
   whales: string[];
+  /** ShieldBot score (0-100) required before an automated buy. Older configs omit it and use 60. */
+  minSafetyScore?: number;
   trailingStopPct: number | null;
   maxHoldMinutes: number | null;
   thesis: string;

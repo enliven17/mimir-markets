@@ -5,8 +5,9 @@ import type { Condition } from "../types";
 import type { Candidate } from "../ports";
 import { passingCandidates } from "./rules";
 import { entrySize } from "./sizing";
-import type { SizeInput } from "./sizing";
+import { safetySized, type SizeInput } from "./sizing";
 import { fmtSol, isPrice, label, WSOL_MINT } from "./sol";
+import type { Shield } from "./shield";
 
 export const DEFAULT_THRESHOLD = 0.6;
 
@@ -18,6 +19,7 @@ export type BuyIntent = {
   score: number;
   why: string;
   source: Candidate["source"];
+  safety?: { score: number; warns: string[] };
 };
 
 export type Line = { kind: "rules" | "score" | "hold"; text: string };
@@ -30,6 +32,9 @@ export type DecideInput = {
   /** Mints never to buy (e.g. the agent's own token). */
   exclude?: readonly string[];
   sizing: Omit<SizeInput, "mint">;
+  /** When supplied, candidates must have a non-blocking read at or above this floor. */
+  safety?: ReadonlyMap<string, Shield>;
+  minSafetyScore?: number;
 };
 
 export type DecideResult = { intent: BuyIntent | null; lines: Line[]; pause: boolean };
@@ -47,6 +52,11 @@ export function decide(input: DecideInput): DecideResult {
     .filter((c) => !held.has(c.mint) && isPrice(c.priceSol))
     .map((c) => ({ c, s: input.scores.get(c.mint) }))
     .filter((x): x is { c: Candidate; s: { score: number; why: string } } => !!x.s && Number.isFinite(x.s.score))
+    .filter((x) => {
+      if (!input.safety) return true;
+      const s = input.safety.get(x.c.mint);
+      return !!s && s.blocks.length === 0 && s.score >= (input.minSafetyScore ?? 60);
+    })
     .sort((a, b) => b.s.score - a.s.score);
 
   if (ranked.length === 0) {
@@ -65,16 +75,19 @@ export function decide(input: DecideInput): DecideResult {
     lines.push({ kind: "rules", text: `no entry on ${name}: ${size.reason}` });
     return { intent: null, lines, pause: size.pause };
   }
-  lines.push({ kind: "rules", text: `sizing ${name}: ${fmtSol(size.lamports)} SOL (${size.reason})` });
+  const safety = input.safety?.get(best.c.mint);
+  const sized = safety ? safetySized(size.lamports, safety.score, input.minSafetyScore ?? 60) : size.lamports;
+  lines.push({ kind: "rules", text: `sizing ${name}: ${fmtSol(sized)} SOL (${size.reason}${safety ? `, safety ${safety.score}/100` : ""})` });
   return {
     intent: {
       mint: best.c.mint,
       symbol: best.c.symbol,
-      lamports: size.lamports,
+      lamports: sized,
       priceSol: best.c.priceSol as number,
       score: best.s.score,
       why: best.s.why,
       source: best.c.source,
+      ...(safety ? { safety: { score: safety.score, warns: safety.warns } } : {}),
     },
     lines,
     pause: false,

@@ -24,6 +24,14 @@ export type SizeResult = { lamports: bigint; reason: string; pause: boolean };
 
 const zero = (reason: string, pause = false): SizeResult => ({ lamports: 0n, reason, pause });
 
+/** Size at half the base amount at the safety floor and grow linearly to full size at 100. */
+export function safetySized(lamports: bigint, score: number, floor: number | undefined): bigint {
+  if (lamports <= 0n || floor === undefined || floor >= 100) return lamports;
+  const over = Math.max(0, Math.min(1, (score - floor) / (100 - floor)));
+  const scaleBps = BigInt(Math.round((0.5 + 0.5 * over) * 10_000));
+  return mulBps(lamports, scaleBps);
+}
+
 /** Daily loss cap in lamports; 0 when the cap is disabled or the bankroll is unknown. */
 export function dailyLossCap(bankrollLamports: bigint, maxDailyLossPct: number): bigint {
   if (bankrollLamports <= 0n) return 0n;
