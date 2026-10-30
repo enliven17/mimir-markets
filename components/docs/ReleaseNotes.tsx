@@ -19,6 +19,9 @@ const RELEASES: Release[] = [
         "Candle replay uses the live stop loss, take profit, trailing stop and max-hold engine, so strategy evaluation follows the same exit order as execution.",
         "Reads are cached and bounded per tick. Missing candles or an unavailable safety source result in a hold rather than an invented signal.",
       ] },
+      { title: "Open access", points: [
+        "No invite code needed: connect a Solana or Arc wallet and start staking. Per-account stake caps stay in place.",
+      ] },
     ],
   },
   {
