@@ -28,8 +28,7 @@ import { ArrowUpRight, ChevronDown, RotateCcw } from "@/components/icons";
 
 import Modal from "@/components/ui/Modal";
 import { toast } from "sonner";
-import { connectEvmWallet } from "@/components/arc/useEvmWallet";
-import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
+import { connectEvm, connectEvmWallet } from "@/components/arc/useEvmWallet";
 import { isUserRejection, onWalletError } from "@/lib/solana/wallet-events";
 import {
   isReady,
@@ -115,7 +114,6 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const [error, setError] = useState<RowError | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [platform, setPlatform] = useState<Platform>({ mobile: false, ios: false });
-  const robinhood = useRobinhoodWallet();
   const [page, setPage] = useState({ url: "", origin: "" });
   // The network comes first: Solana shows the wallets below, Arc hands over to ConnectKit.
   const [network, setNetwork] = useState<"solana" | null>(null);
@@ -210,30 +208,29 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const statusLabel = (option: MimirWalletOption) =>
     option.readyState === WalletReadyState.Installed ? t("detected") : t("ready");
 
-  // Robinhood Wallet over WalletConnect on Robinhood Chain (or its own in-app browser, which injects it): it signs in
-  // like a Solana wallet does (components/robinhood/useRobinhoodWallet.ts), then links a passkey account on /wallet.
+  // Arc, Robinhood Chain and Base share one EVM connection: each opens the same ConnectKit modal (or reuses the
+  // connected account) and records the network picked; sends switch chains themselves, connecting never does.
+  const cancelled = (e: unknown) => /no wallet was connected|reject|denied|cancel|closed/i.test(e instanceof Error ? e.message : "");
+
+  // Robinhood Wallet (its own in-app browser, or WalletConnect) or any EVM wallet: it signs in like a Solana wallet
+  // does (components/robinhood/useRobinhoodWallet.ts), then links a passkey account on /wallet.
   const pickRobinhood = () => {
     onClose();
-    const injected = platform.mobile && typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
-    robinhood.connect(injected ? "injected" : "walletconnect").then(
+    connectEvm("robinhood").then(
       () => toast.success(t("robinhoodConnected"), { action: { label: t("robinhoodSetup"), onClick: () => window.location.assign("/wallet") } }),
       (e: unknown) => {
-      const msg = e instanceof Error ? e.message : "";
-      if (!/reject|denied|cancel|closed/i.test(msg)) toast.error(t("robinhoodFailed"));
+        if (!cancelled(e)) toast.error(t("robinhoodFailed"));
       },
     );
   };
 
-  // Base: any EVM wallet (MetaMask, Coinbase Wallet, Rabby; WalletConnect on a phone without one) on the same EVM
-  // connection, which funds Base agents (Clanker) and pays the Mimir API on Base.
+  // Base: the same EVM connection funds Base agents (Clanker) and pays the Mimir API on Base.
   const pickBase = () => {
     onClose();
-    const injected = typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
-    robinhood.connect(injected ? "injected" : "walletconnect").then(
+    connectEvm("base").then(
       () => toast.success(t("baseConnected")),
       (e: unknown) => {
-        const msg = e instanceof Error ? e.message : "";
-        if (!/reject|denied|cancel|closed/i.test(msg)) toast.error(t("baseFailed"));
+        if (!cancelled(e)) toast.error(t("baseFailed"));
       },
     );
   };
@@ -241,8 +238,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const pickArc = () => {
     onClose();
     connectEvmWallet().catch((e: unknown) => {
-      const msg = e instanceof Error ? e.message : "";
-      if (!/no wallet was connected|reject|denied/i.test(msg)) toast.error(t("arcFailed"));
+      if (!cancelled(e)) toast.error(t("arcFailed"));
     });
   };
 
