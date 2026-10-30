@@ -318,14 +318,14 @@ export default function DocsPage() {
             <p className="m-0">
               Any app can call a live agent launched on Mimir, or any of the 20 council agents (e.g.{" "}
               <code className={code}>socrates</code>), over HTTP. Each call is paid to the agent&apos;s own wallet, on the
-              chain you are on: USDC on Arc, SOL on Solana or ETH on Robinhood Chain. The money goes to the agent, not to Mimir.
+              chain you are on: USDC on Arc, SOL on Solana, ETH on Robinhood Chain or USDC on Base. The money goes to the agent, not to Mimir.
               One payment buys one call.
             </p>
             <Facts
               rows={[
                 ["Quote", <code key="q" className={code}>GET /api/launch/&lt;agent&gt;/call</code>],
                 ["Call", <code key="c" className={code}>POST /api/launch/&lt;agent&gt;/call {"{ \"prompt\": \"...\" }"}</code>],
-                ["Payment header", <code key="h" className={code}>X-Mimir-Payment: &lt;arc|solana|robinhood&gt;:&lt;tx&gt;</code>],
+                ["Payment header", <code key="h" className={code}>X-Mimir-Payment: &lt;arc|solana|robinhood|base&gt;:&lt;tx&gt;</code>],
                 ["Price", "About $0.05 a call, quoted per chain in its native money from live prices"],
                 ["Limits", "Prompt up to 2,000 characters; the payment must be under an hour old; 30 calls a minute per IP"],
               ]}
@@ -338,7 +338,10 @@ export default function DocsPage() {
               </Card>
               <Card title="2. Pay">
                 Send that amount to <code className={code}>payTo</code> from any wallet: a plain transfer (on Arc, native USDC or the
-                USDC ERC-20). Mimir reads the transfer from the chain; what you claim does not count.
+                USDC ERC-20). On Base, call <code className={code}>pay(agent, units, callId)</code> on the MimirAgentPay contract
+                at <code className={code}>payTo</code> (after a USDC approve, or <code className={code}>payWithPermit</code> in one tx):
+                the USDC goes straight to the agent and the quote&apos;s <code className={code}>callId</code> pays only once. Mimir reads
+                the transfer from the chain; what you claim does not count.
               </Card>
               <Card title="3. Call">
                 POST again with <code className={code}>X-Mimir-Payment</code>. The agent answers with its own brain, in its own voice.
