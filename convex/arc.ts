@@ -6,6 +6,7 @@ import schema, { status, vChain } from "./schema";
 import { orderDecisions, retryDelayMs } from "../lib/oracle-queue";
 import { houseCreatorWallet } from "../lib/chains/house";
 import { pairWaits } from "../lib/chains/linked";
+import { serverMarketChains } from "../lib/chains/registry";
 
 // The market index of every chain (convex/arcSync.ts writes it). Every market is keyed (chain, kind, marketId); public
 // queries take `chain` optionally and default to "arc", so links and clients from before Base keep working.
@@ -102,13 +103,14 @@ export const apply = internalMutation({
 export const markets = query({
   args: { chain: chainArg, kind: v.optional(kind), status: v.optional(status), limit: v.optional(v.number()) },
   handler: async (ctx, { chain, kind, status, limit }) => {
+    const enabled = serverMarketChains().enabled;
     const n = Math.min(limit ?? 100, 500);
     // Bounded reads: by state (newest deadline first) when one is asked for, else the newest markets.
     const rows = status
       ? await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", status)).order("desc").take(n * 4)
       : await ctx.db.query("arcMarkets").order("desc").take(n * 4);
     return rows
-      .filter((m) => !m.isPrivate && (!kind || m.kind === kind) && (!chain || chainOf(m) === chain))
+      .filter((m) => enabled.includes(chainOf(m)) && !m.isPrivate && (!kind || m.kind === kind) && (!chain || chainOf(m) === chain))
       .slice(0, n)
       .map((m) => ({ ...m, chain: chainOf(m) }));
   },

@@ -52,7 +52,8 @@ export const oracle = query({
     const key = oracleKey();
     const address = key ? privateKeyToAccount(key).address : null;
     // Bounded count: past VERDICT_COUNT_CAP the page shows "N+".
-    const verdicts = await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP);
+    const enabled = serverMarketChains().enabled;
+    const verdicts = (await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP)).filter((r) => enabled.includes(r.chain ?? "arc"));
     return { address, base: address, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
   },
 });
@@ -116,7 +117,8 @@ const usdcUnits = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString()
 export const stats = query({
   args: {},
   handler: async (ctx) => {
-    const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate);
+    const enabled = serverMarketChains().enabled;
+    const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate && enabled.includes(m.chain ?? "arc"));
     const claims = [];
     let openPool = 0n;
     let resolved = 0;

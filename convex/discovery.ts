@@ -3,6 +3,7 @@ import { query, mutation, internalMutation } from "./_generated/server";
 import { secretMatches } from "../lib/internal-secrets";
 import { opinionSplit, signalMatches } from "../lib/discovery";
 import { seriesForMarket } from "../lib/market-series";
+import { serverMarketChains } from "../lib/chains/registry";
 function allowed(secret: string) { if (!secretMatches("launch", secret)) throw new Error("not allowed"); }
 export const sweep = internalMutation({ args: {}, handler: async (ctx) => {
   if (process.env.MIMIR_BACKEND_OFF === "1") return;
@@ -11,7 +12,8 @@ export const sweep = internalMutation({ args: {}, handler: async (ctx) => {
 } });
 
 export const radar = query({ args: {}, handler: async (ctx) => {
-  const markets = (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", Date.now() / 1000)).take(150)).filter((m) => !m.isPrivate && (m.status === "open" || m.status === "active"));
+  const enabled = serverMarketChains().enabled;
+  const markets = (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", Date.now() / 1000)).take(150)).filter((m) => enabled.includes(m.chain ?? "arc") && !m.isPrivate && (m.status === "open" || m.status === "active"));
   const out = [];
   for (const m of markets) {
     const chain = m.chain ?? "arc";
