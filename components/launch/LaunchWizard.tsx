@@ -11,17 +11,15 @@
  * launchpad is picked first: the trading step depends on it.
  */
 import { useEffect, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createPublicClient, http } from "viem";
 
 import Chip from "@/components/ui/Chip";
 import Disclosure from "@/components/ui/Disclosure";
 import Slider from "@/components/ui/Slider";
 import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
-import RobinhoodConnect from "@/components/robinhood/RobinhoodConnect";
-import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
-import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
+import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
+import { sendEvmEth } from "@/components/arc/useEvmWallet";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { BASE_CHAIN } from "@/lib/base/chain";
 import { Link } from "@/i18n/navigation";
 import { BODIES, COLOURS, EYES, PALETTE, avatarFromSeed, encodeAvatarSeed, type AvatarPicks } from "@/lib/avatar";
@@ -146,10 +144,9 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   const [fromDemo, setFromDemo] = useState(false);
   const [importedAvatar, setImportedAvatar] = useState<string | null>(null);
   const [existingDemoId, setExistingDemoId] = useState<string | undefined>();
-  const { publicKey, signMessage, sendTransaction } = useWallet();
-  const { connection } = useConnection();
+  // The connected EVM wallet owns the agent (lib/launch/auth.ts) and pays its seed on Base.
+  const { address: owner0, signMessage } = useMimirWallet();
   const { open } = useWalletSheet();
-  const rh = useRobinhoodWallet();
   const seed = importedAvatar ?? encodeAvatarSeed(faceBase(f), f.avatar);
   const spec = avatarFromSeed(seed);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => { if (k === "avatar") setImportedAvatar(null); setF((p) => ({ ...p, [k]: v })); };
@@ -172,7 +169,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
   useEffect(() => {
     if (demo) {
       let cancelled = false;
-      void demoGet(publicKey?.toBase58() ?? "").then((r) => r.json()).then((data) => {
+      void demoGet(owner0 ?? "").then((r) => r.json()).then((data) => {
         if (cancelled) return;
         const agents = data.session?.agents as DemoAgent[] | undefined;
         if (agents) { setUsedDemos(agents.length); setExistingDemoId(agents[agents.length - 1]?.id); if (agents.length >= DEMO.maxAgents) setUpsell(true); }
@@ -183,9 +180,9 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     if (!id) return;
     let cancelled = false;
     setImportError("");
-    if (!publicKey) { setImporting(false); return; }
+    if (!owner0) { setImporting(false); return; }
     setImporting(true);
-    void demoGet(publicKey.toBase58()).then(async (r) => {
+    void demoGet(owner0).then(async (r) => {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Could not load your preview agent.");
       const agent = (data.session?.agents as DemoAgent[] | undefined)?.find((a) => a.id === id);
@@ -205,7 +202,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     }).catch((e) => { if (!cancelled) setImportError(e instanceof Error ? e.message : "Could not load preview."); })
       .finally(() => { if (!cancelled) setImporting(false); });
     return () => { cancelled = true; };
-  }, [demo, publicKey]);
+  }, [demo, owner0]);
 
   const go = (to: number) => {
     const p = to > step ? validate(step) : null;
@@ -223,7 +220,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
 
   const body = () => ({
     name: f.name.trim(), ticker: f.ticker, description: f.description, thesis: f.thesis, avatarSeed: seed, seedSol: f.chain === "arc" ? 0 : Number(f.seedSol), allocation: f.allocation,
-    chain: f.chain, ...(f.chain === "solana" ? { pad: f.pad } : {}), ...((f.chain === "robinhood" || f.chain === "base") && rh.address ? { payout: rh.address } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
+    chain: f.chain, ...(f.chain === "solana" ? { pad: f.pad } : {}), ...((f.chain === "robinhood" || f.chain === "base") && owner0 ? { payout: owner0 } : {}), ...(f.chain === "arc" ? { argus: { buyTaxBps: Math.round(f.argus.buyTaxPct * 100), sellTaxBps: Math.round(f.argus.sellTaxPct * 100) } } : {}),
     ...(f.image ? { image: f.image } : {}),
     brain: f.brain === "mimir" ? { kind: "mimir" } : { kind: "byok", provider: f.brain, apiKey: f.apiKey.trim(), ...(f.model.trim() ? { model: f.model.trim() } : {}) },
     markets: { enabled: f.markets.enabled, categories: f.markets.categories, minEdge: f.markets.minEdge / 100, kellyFraction: f.markets.kellyFraction / 100, maxStakeUsdc: f.markets.maxStakeUsdc, budgetUsdc: f.markets.budgetUsdc, maxHoursToClose: f.markets.maxHoursToClose, create: { enabled: f.markets.opens, perDay: f.markets.opensPerDay } },
@@ -239,26 +236,26 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
     put({});
     try {
       if (demo) {
-        if (!publicKey) throw new Error("Connect your wallet first.");
-        const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() }, publicKey.toBase58());
+        if (!owner0) throw new Error("Connect your wallet first.");
+        const r = await demoPost<{ id: string; used: number }>({ action: "agent", input: body() }, owner0);
         put({ id: r.id, at: 2 });
         trackProductEvent("preview_created", { mode: "paper", chain: f.chain });
         setUsedDemos(r.used);
         setUpsell(true);
         return;
       }
-      if (!publicKey || !signMessage) throw new Error("Connect a wallet that can sign messages.");
-      const owner = publicKey.toBase58();
+      if (!owner0 || !signMessage) throw new Error("Connect your wallet first.");
+      const owner = owner0;
       if (!d.id) {
         put({ at: 0 });
-        if (f.chain === "robinhood" && !rh.address) throw new Error("Connect your Robinhood wallet: it funds the agent and gets its ETH back.");
-        if (f.chain === "base" && !rh.address) throw new Error("Connect your EVM wallet: it funds the agent on Base and gets its ETH back.");
+        // TODO(launch rework): Solana and Robinhood Chain launches have no wallet to pay their seed any more.
+        if (f.chain === "robinhood" || f.chain === "solana") throw new Error("Launching on this chain is paused while Mimir moves to EVM wallets. Pick Arc or Base.");
         const r = await signedPost<{ id: string; solana: string | null; robinhood: string | null; base: string | null; arc: string; fundLamports: string }>("/api/launch", { owner, signMessage, action: "create", agent: "new", body: body() });
-        put({ id: r.id, wallet: (f.chain === "robinhood" ? r.robinhood : f.chain === "base" ? r.base : r.solana) ?? undefined, arc: r.arc, fund: BigInt(r.fundLamports) });
+        put({ id: r.id, wallet: (f.chain === "base" ? r.base : undefined) ?? undefined, arc: r.arc, fund: BigInt(r.fundLamports) });
         trackProductEvent("live_agent_created", { mode: "live", chain: f.chain });
       }
       if (f.chain === "arc") {
-        // The owner tops up its Arc wallet from their Arc account; the launch call says so until the USDC is there.
+        // The owner tops up its Arc wallet from their own wallet; the launch call says so until the USDC is there.
         put({ at: 1 });
         try {
           const r = await signedPost<{ token: string }>(`/api/launch/${d.id}/launch`, { owner, signMessage, action: "launch", agent: d.id!, body: {} });
@@ -274,22 +271,10 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
       }
       if (!d.sig) {
         put({ at: 1 });
-        if (f.chain === "robinhood") {
-          if (!rh.sendEth) throw new Error("Connect your Robinhood wallet to send the seed ETH.");
-          const hash = await rh.sendEth(d.wallet!, d.fund!);
-          put({ sig: hash });
-          await createPublicClient({ transport: http(ROBINHOOD_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
-        } else if (f.chain === "base") {
-          if (!rh.sendEthBase) throw new Error("Connect your EVM wallet to send the seed ETH on Base.");
-          const hash = await rh.sendEthBase(d.wallet!, d.fund!);
-          put({ sig: hash });
-          await createPublicClient({ transport: http(BASE_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
-        } else {
-          const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: new PublicKey(d.wallet!), lamports: d.fund! }));
-          const sig = await sendTransaction(tx, connection);
-          put({ sig });
-          await connection.confirmTransaction(sig, "confirmed");
-        }
+        if (f.chain !== "base") throw new Error("Launching on this chain is paused while Mimir moves to EVM wallets. Pick Arc or Base.");
+        const hash = await sendEvmEth(BASE_CHAIN.id, d.wallet! as `0x${string}`, d.fund!);
+        put({ sig: hash });
+        await createPublicClient({ transport: http(BASE_CHAIN.rpcUrl) }).waitForTransactionReceipt({ hash, timeout: 120_000 });
       }
       if (!d.mint) {
         trackProductEvent("launch_funded", { mode: "live", chain: f.chain });
@@ -749,8 +734,8 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                   <input className="input font-mono" inputMode="decimal" value={f.seedSol} onChange={(e) => set("seedSol", e.target.value)} />
                 </Field>
                 <div className="grid gap-2 rounded-xl bg-cream/[0.04] p-4">
-                  <span className="text-[14px] text-cream">Your Robinhood wallet</span>
-                  <RobinhoodConnect />
+                  <span className="text-[14px] text-cream">Your wallet</span>
+                  <ConnectWalletButton />
                 </div>
                 <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + RH_LAUNCH_FEE_ETH).toFixed(4)} ETH.</p>
               </>
@@ -761,7 +746,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
                 </Field>
                 <div className="grid gap-2 rounded-xl bg-cream/[0.04] p-4">
                   <span className="text-[14px] text-cream">Your EVM wallet (pays on Base)</span>
-                  <RobinhoodConnect base />
+                  <ConnectWalletButton />
                 </div>
                 <p className="m-0 text-[14px] text-cream">You send {(Number(f.seedSol || 0) + BASE_LAUNCH_FEE_ETH).toFixed(4)} ETH on Base.</p>
               </>
@@ -791,7 +776,7 @@ export default function LaunchWizard({ demo = false }: { demo?: boolean }) {
             <button type="button" className="btn-primary !w-auto !px-6" onClick={() => go(flowSteps[stepIndex + 1])}>
               Continue
             </button>
-          ) : publicKey ? (
+          ) : owner0 ? (
             <button type="button" className="btn-primary !w-auto !px-6" onClick={() => { const p = validate(5); setError(p); if (!p) void run(); }}>
               {demo ? "Start preview agent" : "Sign and launch"}
             </button>

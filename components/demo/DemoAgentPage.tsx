@@ -6,12 +6,12 @@ import type { DemoAgent, DemoStake } from "@/lib/demo/types";
 import ShowcaseAgentDetails from "./ShowcaseAgentDetails";
 import DemoWalletGate from "./DemoWalletGate";
 import PreviewAgentDetails from "./PreviewAgentDetails";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { demoGet, demoPost } from "@/lib/demo/client";
 
 function OwnerControls({ agent, refresh }: { agent: DemoAgent; refresh: () => Promise<void> }) {
-  const { publicKey } = useWallet();
-  const owner = publicKey?.toBase58() ?? "";
+  const { address } = useMimirWallet();
+  const owner = address ?? "";
   const [owns, setOwns] = useState(false);
   const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);

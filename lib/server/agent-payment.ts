@@ -24,10 +24,9 @@ export async function treasury(): Promise<`0x${string}`> {
 }
 
 /**
- * Throws unless `txHash` paid at least `minWei` to the treasury from one of `payers` (the owner's bound Arc account
- * or the agent's Arc operator) and has not paid for an agent before. The payment is a USDC ERC-20 transfer
- * (0x3600…, 6 dp: the same balance as native USDC), so its Transfer log proves who paid whom even when a passkey
- * account sends it through the bundler; a plain native transfer from an EOA payer is accepted too.
+ * Throws unless `txHash` paid at least `minWei` to the treasury from one of `payers` (the owner's wallet or the
+ * agent's Arc operator) and has not paid for an agent before. The payment is a plain native USDC transfer from the
+ * payer, or a USDC ERC-20 transfer (0x3600…, 6 dp: the same balance), whose Transfer log proves who paid whom.
  */
 export async function verifyDeployPayment(txHash: unknown, minWei: bigint, payers: string[]): Promise<Hex> {
   if (typeof txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {

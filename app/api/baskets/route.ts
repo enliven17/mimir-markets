@@ -20,7 +20,7 @@ import { simulateVirtualBasket, VIRTUAL_BASKET_INITIAL_NAV } from "@/lib/baskets
 import { loadMemberSettlements } from "@/lib/baskets-performance";
 import { unitsToUsdc } from "@/lib/money";
 import { basketDirectory, isHouseBasketId } from "@/lib/house-baskets";
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
@@ -65,7 +65,7 @@ export async function POST(req: Request): Promise<Response> {
   const id = String(body.id ?? "").trim().toLowerCase();
   const name = String(body.name ?? "").trim();
   const thesis = String(body.thesis ?? "").trim();
-  const creatorWallet = normalizeAddress(body.creatorWallet);
+  const creatorWallet = normalizeOwner(body.creatorWallet);
   const signature = String(body.signature ?? "");
   const signedAt = Number(body.signedAt);
   const members = sanitizeMembers(body.members);
@@ -74,7 +74,7 @@ export async function POST(req: Request): Promise<Response> {
     return basketFail(400, "bad_id", "id must be 3-64 chars of [a-z0-9-], starting alphanumeric");
   }
   if (isHouseBasketId(id)) return basketFail(409, "basket_exists", "that id belongs to a council basket");
-  if (!creatorWallet) return basketFail(400, "bad_wallet", "creatorWallet must be a Solana public key");
+  if (!creatorWallet) return basketFail(400, "bad_wallet", "creatorWallet must be an EVM address");
   if (!isFreshSignature(signedAt)) {
     return basketFail(401, "stale_signature", "signedAt must be a ms timestamp within 5 minutes of now");
   }
@@ -86,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
     throw err;
   }
 
-  const signedOk = verifyAgentSignature({
+  const signedOk = await verifyOwnerSignature({
     address: creatorWallet,
     message: composeMessage({ id, name, thesis, creator: creatorWallet, members, signedAt }),
     signature,

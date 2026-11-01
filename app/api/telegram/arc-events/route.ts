@@ -5,13 +5,11 @@
  *   proposed   the oracle proposed a result → each participant's linked chats
  *   resolved   settled (won / lost / refunded) → each participant's linked chats
  *   cancelled  the creator cancelled → the creator's linked chats
- * Participants are Arc accounts; arc_accounts maps them to the Solana wallet a
- * chat follows. Auth: the events secret (MIMIR_EVENTS_SECRET) as a bearer token.
+ * Participants are the wallets themselves: a chat follows the EVM wallet it linked. Auth: the events secret (MIMIR_EVENTS_SECRET) as a bearer token.
  */
 import { secretMatches } from "@/lib/internal-secrets";
 import { NextResponse } from "next/server";
 
-import { getArcBindingByArc } from "@/lib/server/arc-accounts";
 import { broadcastArcMarket, deliverArc } from "@/lib/server/telegram";
 import { arcMarketUrl, esc, type AlertPref } from "@/lib/telegram";
 import { cardTypeFor, cardUrl } from "@/lib/telegram-card";
@@ -71,9 +69,8 @@ export async function POST(req: Request) {
     }
     for (const h of e.holders.slice(0, 200)) {
       const msg = personalText(e, h.side);
-      const binding = msg ? await getArcBindingByArc(getAddress(h.user)).catch(() => null) : null;
-      if (!msg || !binding) continue;
-      await deliverArc(binding.solana, msg.text, msg.pref, url, cardUrl(cardTypeFor(e, h.side), e.kind, e.marketId, h.side));
+      if (!msg) continue;
+      await deliverArc(getAddress(h.user), msg.text, msg.pref, url, cardUrl(cardTypeFor(e, h.side), e.kind, e.marketId, h.side));
       sent++;
     }
   }

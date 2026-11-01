@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { api } from "@/convex/_generated/api";
 import { signedPost } from "@/lib/launch/client";
@@ -19,15 +19,15 @@ const when = (t: number) => new Date(t).toISOString().slice(0, 16).replace("T", 
 
 export default function FeesBlock({ slug, ticker, owner, venue = "pump.fun" }: { slug: string; ticker: string; owner: string; venue?: string }) {
   const fees = useQuery(api.launchFeeDb.feesView, { slug });
-  const { publicKey, signMessage } = useWallet();
+  const { address, signMessage } = useMimirWallet();
   const [draft, setDraft] = useState<Allocation | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   if (!fees) return null;
-  const mine = !!publicKey && publicKey.toBase58() === owner && !!signMessage;
+  const mine = !!address && address === owner && !!signMessage;
 
   const save = async () => {
-    if (!draft || !publicKey || !signMessage) return;
+    if (!draft || !address || !signMessage) return;
     setBusy(true);
     setNote(null);
     try {

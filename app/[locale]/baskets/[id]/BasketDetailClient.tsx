@@ -4,10 +4,9 @@
  * One basket: the replayed curve and the follow card first, then the open
  * signals to mirror and the legs behind disclosures.
  *
- * Following is an ed25519 `signMessage` over `followMessage` (with signedAt,
- * so it cannot be replayed). Mirroring asks the API for an UNSIGNED challenge
- * transaction, signs it with the wallet and sends it to the layer it belongs
- * to. Mimir never signs for the follower and never holds funds.
+ * Following is a wallet signature (EIP-191) over `followMessage` (with signedAt, so it cannot be replayed). Mirroring
+ * asks the API for one Arc stake call, checks it, and sends it from the follower's wallet. Mimir never signs for the
+ * follower and never holds funds.
  *
  * The curve is an inline SVG sparkline rather than a chart library for one
  * line. The caveat under it is deliberate: it is a projection of settled
@@ -21,9 +20,8 @@ import { MIMIR_V3_ABI } from "@/lib/arc/markets";
 import BasketCurve from "@/components/baskets/BasketCurve";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
-import bs58 from "bs58";
 import { Check, TriangleAlert, Users } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
@@ -36,8 +34,6 @@ import PeepAvatar from "@/components/ui/PeepAvatar";
 import { followMessage, MAX_FOLLOW_CAP_USDC, MIN_FOLLOW_CAP_USDC, type MirrorSignal } from "@/lib/baskets";
 import { shortenAddress } from "@/lib/constants";
 import { formatUsdcBare, formatUsdcUnitsBare } from "@/lib/money";
-import { MAGICBLOCK_ER_RPC, MIMIR_PROGRAM_ID, SOLANA_RPC } from "@/lib/solana/config";
-import { verifyPreparedTransaction } from "@/sdk/verify-tx";
 
 interface Member {
   agentId: string;
@@ -80,23 +76,10 @@ interface SignalsPayload {
   signals: MirrorSignal[];
 }
 
-interface PreparedTx {
-  layer: "base" | "er";
-  rpcUrl: string;
-  transaction: string;
-  recentBlockhash: string;
-  lastValidBlockHeight: number;
-}
-
 const DEFAULT_CAP_USDC = 2;
 
 function pct(value: number): string {
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
-}
-
-/** Base64 → bytes without relying on a Buffer polyfill in the browser. */
-function fromBase64(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 function memberSeed(m: Pick<Member, "agentId" | "kind" | "wallet">): string {
@@ -105,9 +88,9 @@ function memberSeed(m: Pick<Member, "agentId" | "kind" | "wallet">): string {
 
 export default function BasketDetailClient({ basketId }: { basketId: string }) {
   const t = useTranslations("baskets");
-  const { publicKey, connected, signMessage, signTransaction } = useWallet();
+  const { address, connected, signMessage } = useMimirWallet();
   const arc = useArcAccount();
-  const follower = publicKey?.toBase58() ?? null;
+  const follower = address ?? null;
 
   const [data, setData] = useState<BasketDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -168,7 +151,7 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
         perMarketCapUsdc: nextCap,
         signedAt,
       });
-      const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+      const signature = await signMessage(message);
       const res = await fetch(`/api/baskets/${basketId}/subscribe`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -191,11 +174,11 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
   }
 
   /**
-   * Arc: the server returns one stake call; it is checked here before the passkey signs it (a challenge on this
-   * market, on MimirV3, for no more than the signal's stake) and sent from the follower's Arc account.
+   * Arc: the server returns one stake call; it is checked here before the wallet sends it (a challenge on this
+   * market, on MimirV3, for no more than the signal's stake).
    */
   async function mirrorOnArc(signal: MirrorSignal) {
-    if (!arc.session) throw new Error("Set up your Arc account on /wallet first: copies are staked from it.");
+    if (!arc.session) throw new Error("Connect your wallet first: copies are staked from it.");
     const res = await fetch(`/api/baskets/${basketId}/mirror`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -233,60 +216,7 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
         await mirrorOnArc(signal);
         return;
       }
-      if (!signTransaction) throw new Error(t("noSignTransaction"));
-      const res = await fetch(`/api/baskets/${basketId}/mirror`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ follower, claimId: signal.claimId }),
-      });
-      const payload = (await res.json().catch(() => ({}))) as {
-        reason?: string;
-        message?: string;
-        transactions?: PreparedTx[];
-      };
-      if (!res.ok) {
-        if (payload.reason === "balance_not_delegated") {
-          setNotice({
-            claimId: signal.claimId,
-            text: t("delegateFirst"),
-            delegate: true,
-          });
-          return;
-        }
-        throw new Error(payload.message ?? t("failed"));
-      }
-      const { Connection, PublicKey, Transaction } = await import("@solana/web3.js");
-      let last = "";
-      for (const p of payload.transactions ?? []) {
-        const tx = Transaction.from(fromBase64(p.transaction));
-        // Never sign what the server says blindly: only a Mimir challenge on
-        // this claim, paid by this wallet (sdk/verify-tx.ts, audit P1-8).
-        verifyPreparedTransaction(tx, {
-          programId: MIMIR_PROGRAM_ID,
-          operator: new PublicKey(follower),
-          expect: { action: "challenge", claimId: BigInt(signal.claimId) },
-        });
-        const signed = await signTransaction(tx);
-        // Our own RPC config, never the rpcUrl in the response.
-        const connection = new Connection(p.layer === "er" ? MAGICBLOCK_ER_RPC : SOLANA_RPC, "confirmed");
-        last = await connection.sendRawTransaction(signed.serialize(), {
-          skipPreflight: p.layer === "er",
-        });
-        const confirmed = await connection.confirmTransaction(
-          {
-            signature: last,
-            blockhash: p.recentBlockhash,
-            lastValidBlockHeight: p.lastValidBlockHeight,
-          },
-          "confirmed",
-        );
-        if (confirmed.value.err) throw new Error(t("failed"));
-      }
-      setNotice({
-        claimId: signal.claimId,
-        text: t("mirrored", { sig: shortenAddress(last, 6) }),
-      });
-      loadSignals();
+      throw new Error("Copies need Arc markets, which are not configured on this site.");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failed"));
     } finally {

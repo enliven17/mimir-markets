@@ -8,7 +8,7 @@
  */
 import { NextResponse } from "next/server";
 
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { campaignJoinMessage, INVITE_CODE_PATTERN } from "@/lib/campaign";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { campaignBoard, inviteCodeOf, joinCampaign } from "@/lib/server/campaign";
@@ -22,7 +22,7 @@ const TOP = 100;
 export async function GET(req: Request) {
   if (!(await allowRequest("campaign-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   if (!storeEnabled()) return NextResponse.json({ rows: [], total: 0, me: null });
-  const wallet = normalizeAddress(new URL(req.url).searchParams.get("wallet"));
+  const wallet = normalizeOwner(new URL(req.url).searchParams.get("wallet"));
   try {
     const board = await campaignBoard();
     const index = wallet ? board.findIndex((r) => r.wallet === wallet) : -1;
@@ -47,14 +47,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "body must be a JSON object" }, { status: read.ok ? 400 : read.status });
   }
   const body = read.value as Record<string, unknown>;
-  const wallet = normalizeAddress(body.wallet);
+  const wallet = normalizeOwner(body.wallet);
   const rawCode = typeof body.inviteCode === "string" ? body.inviteCode.trim().toUpperCase() : "";
   if (!wallet) return NextResponse.json({ error: "wallet is required" }, { status: 400 });
   if (rawCode && !INVITE_CODE_PATTERN.test(rawCode)) {
     return NextResponse.json({ error: "an invite code is 8 letters and digits" }, { status: 400 });
   }
   const inviteCode = rawCode || null;
-  if (!verifyAgentSignature({ address: wallet, message: campaignJoinMessage(wallet, inviteCode), signature: String(body.signature ?? "") })) {
+  if (!(await verifyOwnerSignature({ address: wallet, message: campaignJoinMessage(wallet, inviteCode), signature: String(body.signature ?? "") }))) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
   if (!storeEnabled()) return NextResponse.json({ error: "the campaign is not configured" }, { status: 503 });

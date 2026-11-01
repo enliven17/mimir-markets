@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * The admin panel: a read-only view of everything that runs Mimir. Sign in with an ADMIN_WALLETS Solana wallet by
+ * The admin panel: a read-only view of everything that runs Mimir. Sign in with an ADMIN_WALLETS EVM wallet by
  * signing a single-use challenge (lib/server/admin.ts); the session lasts 10 minutes, then the panel asks again.
  * The server answers 404 to anyone else. Refreshes every 30 s.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import bs58 from "bs58";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { SURFACE } from "@/components/arena/surface";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
@@ -47,8 +46,8 @@ function savedSession(wallet: string | null): Session | null {
 }
 
 export default function AdminPanel() {
-  const { publicKey, signMessage } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const { address, signMessage } = useMimirWallet();
+  const wallet = address ?? null;
   const [session, setSession] = useState<Session | null>(null);
   const [data, setData] = useState<AdminOverview | null>(null);
   const [denied, setDenied] = useState(false);
@@ -65,7 +64,7 @@ export default function AdminPanel() {
       const c = await fetch(`/api/admin/nonce?wallet=${wallet}`, { cache: "no-store" });
       if (!c.ok) return setDenied(true);
       const { nonce, message } = (await c.json()) as { nonce: string; message: string };
-      const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+      const signature = await signMessage(message);
       const r = await fetch("/api/admin/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet, nonce, signature }) });
       if (!r.ok) return setDenied(true);
       const s = { wallet, ...((await r.json()) as { token: string; expires: number }) };

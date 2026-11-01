@@ -60,7 +60,7 @@ export default defineSchema({
   arcPositions: defineTable({
     kind,
     marketId: v.number(),
-    /** Lowercase Arc address (the passkey smart account). */
+    /** Lowercase Arc address (the user's wallet). */
     user: v.string(),
     side: v.number(),
     amount: v.string(),

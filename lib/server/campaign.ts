@@ -8,6 +8,7 @@ import "server-only";
  * market creator) are left out, or they would top every column.
  */
 import { ARC } from "@/lib/arc/config";
+import { normalizeOwner } from "@/lib/owner";
 import { arcVolumeByUser } from "./arc-index";
 import { randomBytes } from "node:crypto";
 
@@ -34,36 +35,32 @@ export interface CampaignRow extends CampaignMetrics {
 
 const EMPTY: CampaignMetrics = { volumeUsdc: 0, agents: 0, baskets: 0, follows: 0, copies: 0 };
 
-/** The campaign restarts on Arc once its contracts are configured; points stay keyed by Solana address. */
+/** The campaign runs on Arc once its contracts are configured; points are keyed by the EVM wallet. */
 function onArc(): boolean {
   return Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
 }
 
 /**
- * Arc volume per Solana wallet: a passkey account counts for the wallet it is bound to, an agent's Arc operator for
- * the agent's owner. House addresses (council, market creator) map to nothing and never score.
+ * Arc volume per wallet: a wallet's own stakes count for it, an agent's Arc operator for the agent's owner. House
+ * addresses (council, market creator) never score: list them in CAMPAIGN_EXCLUDE_WALLETS (excluded()).
  */
 async function arcVolume(): Promise<Array<{ wallet: string; usdc: string }>> {
-  const [rows, bindings, agents] = await Promise.all([
+  const [rows, agents] = await Promise.all([
     arcVolumeByUser(),
-    store().list<{ solana: string; arc: string }>("arc_accounts", { limit: 5000 }),
     store().list<{ arc_operator: string | null; owner_wallet: string; status: string }>("agent_registry", { limit: 5000 }),
   ]);
   const operators = agents.filter((r) => r.arc_operator && r.status !== "revoked");
-  const owner = new Map<string, string>([
-    ...operators.map((r) => [String(r.arc_operator).toLowerCase(), r.owner_wallet] as const),
-    ...bindings.map((r) => [r.arc.toLowerCase(), r.solana] as const),
-  ]);
+  const owner = new Map<string, string>(operators.map((r) => [String(r.arc_operator).toLowerCase(), r.owner_wallet] as const));
   const totals = new Map<string, number>();
   for (const r of rows) {
-    const wallet = owner.get(r.user);
+    const wallet = owner.get(r.user) ?? normalizeOwner(r.user);
     if (wallet) totals.set(wallet, (totals.get(wallet) ?? 0) + r.usdc);
   }
   return [...totals].map(([wallet, usdc]) => ({ wallet, usdc: String(usdc) }));
 }
 
 function excluded(): Set<string> {
-  const env = (process.env.CAMPAIGN_EXCLUDE_WALLETS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const env = (process.env.CAMPAIGN_EXCLUDE_WALLETS ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((s) => normalizeOwner(s) ?? s);
   return new Set([...env, ...councilRoster().map((p) => p.address).filter(Boolean)]);
 }
 

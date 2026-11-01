@@ -2,7 +2,7 @@
 
 /** The owner's controls on a launched agent's page: pause or resume, shut down, withdraw part of its funds. */
 import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { signedPost } from "@/lib/launch/client";
 
@@ -11,12 +11,12 @@ type WithdrawChain = "solana" | "robinhood" | "base" | "arc";
 
 export default function OwnerControls({ slug, owner, status, venue = "solana" }: { slug: string; owner: string; status: string; venue?: string }) {
   const coin = COIN[venue] ?? null;
-  const { publicKey, signMessage } = useWallet();
+  const { address, signMessage } = useMimirWallet();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [chain, setChain] = useState<WithdrawChain>(venue === "robinhood" || venue === "base" || venue === "arc" ? venue : "solana");
   const [amount, setAmount] = useState("");
-  if (!publicKey || publicKey.toBase58() !== owner || !signMessage) return null;
+  if (!address || address !== owner || !signMessage) return null;
 
   const act = async (fn: () => Promise<string>) => {
     setBusy(true);

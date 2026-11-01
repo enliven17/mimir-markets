@@ -12,16 +12,16 @@ import "server-only";
  */
 import { store } from "@/lib/server/store";
 import { ARC } from "@/lib/arc/config";
-import { getArcBinding } from "@/lib/server/arc-accounts";
+import { normalizeOwner } from "@/lib/owner";
 import { arcClaimsChallengedBy, resolveArcAgentWallets } from "@/lib/server/arc-baskets";
 
 /** Baskets read Arc once its contracts are configured. */
 export const onArc = () => Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
 
-/** The address a follower stakes from: their Solana wallet, or on Arc the passkey account bound to it. */
+/** The address a follower stakes from: on Arc the follower's wallet itself (lowercased, as the index has it). */
 export async function stakingAddressOf(follower: string | null): Promise<string | null> {
   if (!follower || !onArc()) return follower;
-  return (await getArcBinding(follower).catch(() => null))?.arc.toLowerCase() ?? null;
+  return normalizeOwner(follower)?.toLowerCase() ?? null;
 }
 import { councilRoster } from "@/lib/server/council-roster";
 import { MIMIR_PROGRAM_ID, ST_ACTIVE, ST_OPEN, ST_RESOLVED } from "@/lib/solana/config";

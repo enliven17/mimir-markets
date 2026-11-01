@@ -2,7 +2,6 @@ import "./globals.css";
 import type { Viewport } from "next";
 import { headers } from "next/headers";
 import { fontVariables } from "@/lib/fonts";
-import { SolanaWalletProviders } from "@/lib/solana/wallet-providers";
 import MotionProvider from "@/components/motion/MotionProvider";
 import EvmConnectHost from "@/components/arc/EvmConnectHost";
 import { Toaster } from "sonner";
@@ -43,23 +42,21 @@ export default async function RootLayout({
       <body>
         <div className="wall" aria-hidden />
         <MotionProvider>
-          <SolanaWalletProviders>
-            {children}
-            <EvmConnectHost />
-            <Toaster
-              position="bottom-center"
-              toastOptions={{
-                style: {
-                  background: "rgb(16 10 11 / 0.96)",
-                  border: "0",
-                  boxShadow: "inset 0 1px 0 rgb(255 255 255 / .045), 0 28px 90px rgb(0 0 0 / .62)",
-                  color: "var(--cream)",
-                  borderRadius: 22,
-                  fontFamily: "var(--pixel)",
-                },
-              }}
-            />
-          </SolanaWalletProviders>
+          {children}
+          <EvmConnectHost />
+          <Toaster
+            position="bottom-center"
+            toastOptions={{
+              style: {
+                background: "rgb(16 10 11 / 0.96)",
+                border: "0",
+                boxShadow: "inset 0 1px 0 rgb(255 255 255 / .045), 0 28px 90px rgb(0 0 0 / .62)",
+                color: "var(--cream)",
+                borderRadius: 22,
+                fontFamily: "var(--pixel)",
+              },
+            }}
+          />
         </MotionProvider>
         {/* /_vercel/insights only exists on Vercel; elsewhere (Railway, CI) the script 404s. */}
         {process.env.VERCEL === "1" && <Analytics />}

@@ -1,16 +1,14 @@
 /**
- * Wallet proof: a signed statement that the caller controls a wallet, so a
- * server route can act for that wallet (access, invite codes, follows).
+ * Wallet proof: a signed statement that the caller controls an EVM wallet, so a server route can act for that wallet
+ * (follows, access, invite codes).
  *
- * The browser signs `walletProofMessage` once with the connected wallet
- * (ed25519, wallet-adapter `signMessage`, base58; a Robinhood Chain wallet signs
- * EIP-191 and sends 0x hex, lib/owner.ts) and sends it on requests as
+ * The browser signs `walletProofMessage` once with the connected wallet (EIP-191 personal_sign, lib/owner.ts) and
+ * sends it on requests as
  *
- *   x-mimir-wallet: <base58 pubkey | 0x address>
- *   x-mimir-proof:  <signedAt ms>.<base58 | 0x hex signature>
+ *   x-mimir-wallet: <0x address>
+ *   x-mimir-proof:  <signedAt ms>.<0x hex signature>
  *
- * It moves nothing and authorizes nothing else. It expires after
- * WALLET_PROOF_TTL_MS. Pure and isomorphic.
+ * It moves nothing and authorizes nothing else. It expires after WALLET_PROOF_TTL_MS. Pure and isomorphic.
  */
 
 export const WALLET_PROOF_TTL_MS = 24 * 60 * 60 * 1000;
@@ -34,11 +32,12 @@ export function formatProofHeader(signedAt: number, signature: string): string {
 export function parseProofHeader(
   value: string | null | undefined,
   now = Date.now(),
-): { signedAt: number; signature: string } | null {
-  const m = /^(\d{12,14})\.([1-9A-HJ-NP-Za-km-z]{64,90}|0x[0-9a-fA-F]{130})$/.exec((value ?? "").trim());
+): { signedAt: number; signature: `0x${string}` } | null {
+  // 65 bytes for a plain wallet; longer for a smart wallet (ERC-1271 / ERC-6492).
+  const m = /^(\d{12,14})\.(0x[0-9a-fA-F]{130,20000})$/.exec((value ?? "").trim());
   if (!m) return null;
   const signedAt = Number(m[1]);
   // A little clock skew into the future is fine; a lot is not.
   if (signedAt > now + 5 * 60_000 || now - signedAt > WALLET_PROOF_TTL_MS) return null;
-  return { signedAt, signature: m[2] };
+  return { signedAt, signature: m[2] as `0x${string}` };
 }

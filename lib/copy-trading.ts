@@ -75,7 +75,7 @@ export interface CopyPermission {
   minPayoutRatio: number;
   /** ms epoch the follower signed the grant; newer grants supersede older ones. */
   signedAt: number;
-  /** Base58 ed25519 signature over `copyPermissionMessage`. */
+  /** The follower's EIP-191 signature (0x) over `copyPermissionMessage`. */
   signature: string;
   createdAt: number;
 }

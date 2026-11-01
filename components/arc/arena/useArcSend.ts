@@ -1,25 +1,24 @@
 "use client";
 
 /**
- * Send market calls from the passkey account (one sponsored user operation,
- * the browser's passkey prompt), then nudge the Convex indexer so the page
- * shows the result in seconds instead of on the next cron tick.
+ * Send market calls from the connected wallet (one transaction per call, confirmed in the wallet, gas paid in USDC),
+ * then nudge the Convex indexer so the page shows the result in seconds instead of on the next cron tick.
  */
 import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
-import type { ArcSession, CallsReceipt } from "@/lib/arc/account";
-import type { ArcCall } from "@/lib/arc/cctp-arc";
+import type { ArcCall, ArcSession, CallsReceipt } from "@/lib/arc/session";
 
 function describe(err: unknown): string {
-  const e = err as { name?: string; message?: string; shortMessage?: string; cause?: { name?: string } };
-  if (e?.name === "NotAllowedError" || e?.cause?.name === "NotAllowedError") return "The passkey prompt was closed or timed out.";
+  const e = err as { code?: number; message?: string; shortMessage?: string };
+  if (e?.code === 4001 || /User rejected|rejected the request|denied/i.test(e?.message ?? "")) return "The transaction was cancelled in your wallet.";
   const msg = e?.shortMessage ?? e?.message ?? "Something went wrong.";
   // The contracts' own words, when the revert reason made it through.
   if (/PoolFull/.test(msg)) return "This market is full: challengers can stake at most 5× the creator's stake.";
   if (/BettingClosed|challenge window closed/.test(msg)) return "Staking has closed on this market.";
   if (/already challenged/.test(msg)) return "You already challenged this market.";
+  if (/insufficient funds/i.test(msg)) return "Not enough USDC on Arc for this and its gas.";
   return msg;
 }
 

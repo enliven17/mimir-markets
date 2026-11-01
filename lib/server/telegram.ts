@@ -228,7 +228,7 @@ export async function broadcastArcMarket(m: { question: string; stakeA: string; 
   }
 }
 
-/** A personal Arc message to every chat following `wallet` (Solana) that wants this kind. */
+/** A personal Arc message to every chat following `wallet` (an EVM address) that wants this kind. */
 export async function deliverArc(wallet: string, text: string, pref: AlertPref, url: string, card?: string): Promise<void> {
   if (!storeEnabled()) return;
   const chats = (await liveChats(wallet)).filter((c) => c[pref] !== false);

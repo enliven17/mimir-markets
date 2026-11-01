@@ -1,7 +1,7 @@
 /**
  * Who may open the admin panel, and how they prove it.
  *
- * Admins are the Solana wallets in ADMIN_WALLETS (comma list; empty or unset = nobody). Signing in is a fresh,
+ * Admins are the EVM wallets in ADMIN_WALLETS (comma list; empty or unset = nobody). Signing in is a fresh,
  * single-use challenge, not the 24-hour wallet proof:
  *   1. GET /api/admin/nonce?wallet=W: for an admin wallet, a random nonce bound to the site's domain, valid 10 min.
  *   2. The wallet signs the exact message (adminLoginMessage) and POSTs it to /api/admin/session; the nonce is spent
@@ -11,14 +11,15 @@
  */
 import { randomBytes } from "node:crypto";
 
-import { verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { put, store, take } from "./store";
 
 export const ADMIN_TTL_MS = 10 * 60_000;
 const TABLE = "admin_nonces";
 
 export function adminWallets(env: Record<string, string | undefined> = process.env): Set<string> {
-  return new Set((env.ADMIN_WALLETS ?? "").split(/[,\s]+/).filter(Boolean));
+  // Checksummed, so a lowercase entry still matches the normalized wallet a request names.
+  return new Set((env.ADMIN_WALLETS ?? "").split(/[,\s]+/).filter(Boolean).map((w) => normalizeOwner(w) ?? w));
 }
 
 export function adminLoginMessage(a: { domain: string; wallet: string; nonce: string; issuedAt: number }): string {
@@ -61,7 +62,7 @@ export async function startAdminSession(
   }
   if (originHost !== row.domain) return null;
   const message = adminLoginMessage({ domain: row.domain, wallet: row.wallet, nonce: a.nonce, issuedAt: row.issuedAt });
-  if (!verifyAgentSignature({ address: a.wallet, message, signature: a.signature })) return null;
+  if (!(await verifyOwnerSignature({ address: a.wallet, message, signature: a.signature }))) return null;
   const token = randomBytes(24).toString("hex");
   const expires = now + ADMIN_TTL_MS;
   await put(TABLE, `s:${token}`, { wallet: a.wallet, expires } satisfies SessionRow, { at: now });

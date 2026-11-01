@@ -9,7 +9,7 @@
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
-import { normalizeAddress } from "@/lib/agents/signature";
+import { normalizeOwner } from "@/lib/owner";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
@@ -45,8 +45,8 @@ async function copyable(c: NonNullable<ReturnType<typeof launchCx>>, id: string)
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!(await allowRequest("launch-copy-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const { id } = await ctx.params;
-  const follower = normalizeAddress(new URL(req.url).searchParams.get("follower"));
-  if (!follower) return fail(400, "follower must be a Solana public key");
+  const follower = normalizeOwner(new URL(req.url).searchParams.get("follower"));
+  if (!follower) return fail(400, "follower must be an EVM address");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
   const can = await copyable(c, id);

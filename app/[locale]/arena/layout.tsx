@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { pageMeta } from "@/lib/seo";
 
-// The Solana wallet context lives in the root layout, so this group only sets its metadata. Pages below set their
+// The wallet connection lives in the root layout, so this group only sets its metadata. Pages below set their
 // own canonical (a layout's would otherwise be inherited by every market).
 export const metadata = pageMeta({
   path: "/arena",

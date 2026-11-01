@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { demoCookie, newDemoToken, readDemoToken, sameDemoOrigin, sessionHash, walletDemoToken, matchesDemoWallet } from "../../lib/demo/session";
 import { PREVIEW_OWNER_HEADER, previewWalletMessage, verifiedPreviewOwner } from "../../lib/demo/auth";
 import { LAUNCH_HEADERS } from "../../lib/launch/auth";
-import { signAgentMessage } from "../../lib/agents/signature";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { Keypair } from "@solana/web3.js";
 import { demoRouter } from "../../lib/demo/router";
 
@@ -11,16 +11,16 @@ let env: NodeJS.ProcessEnv;
 beforeEach(() => { env = { ...process.env }; process.env.DEMO_GEMINI_API_KEY = "demo-key"; });
 afterEach(() => { process.env = env; });
 
-test("preview sign-in needs a fresh signature from the claimed wallet", () => {
-  const a = Keypair.generate(), b = Keypair.generate(); const owner = a.publicKey.toBase58(); const at = Date.now();
-  const request = (address: string, signedAt: number, message = previewWalletMessage(owner, signedAt)) => new Request("https://mimirmarkets.xyz/api/demo", { headers: {
-    [PREVIEW_OWNER_HEADER]: address, [LAUNCH_HEADERS.signedAt]: String(signedAt), [LAUNCH_HEADERS.signature]: signAgentMessage(message, a.secretKey),
+test("preview sign-in needs a fresh signature from the claimed wallet", async () => {
+  const a = privateKeyToAccount(generatePrivateKey()), b = privateKeyToAccount(generatePrivateKey()); const owner = a.address; const at = Date.now();
+  const request = async (address: string, signedAt: number, message = previewWalletMessage(owner, signedAt)) => new Request("https://mimirmarkets.xyz/api/demo", { headers: {
+    [PREVIEW_OWNER_HEADER]: address, [LAUNCH_HEADERS.signedAt]: String(signedAt), [LAUNCH_HEADERS.signature]: await a.signMessage({ message }),
   } });
-  assert.equal(verifiedPreviewOwner(request(owner, at)), owner);
-  assert.equal(verifiedPreviewOwner(request(b.publicKey.toBase58(), at)), null);
-  assert.equal(verifiedPreviewOwner(request(owner, at - 600_000)), null);
-  assert.equal(verifiedPreviewOwner(request(owner, at, "Mimir Launch")), null);
-  assert.equal(verifiedPreviewOwner(new Request("https://mimirmarkets.xyz/api/demo")), null);
+  assert.equal(await verifiedPreviewOwner(await request(owner, at)), owner);
+  assert.equal(await verifiedPreviewOwner(await request(b.address, at)), null);
+  assert.equal(await verifiedPreviewOwner(await request(owner, at - 600_000)), null);
+  assert.equal(await verifiedPreviewOwner(await request(owner, at, "Mimir Launch")), null);
+  assert.equal(await verifiedPreviewOwner(new Request("https://mimirmarkets.xyz/api/demo")), null);
 });
 
 test("preview cookies are bound to a verified wallet and the server secret", () => {

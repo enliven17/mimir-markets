@@ -109,7 +109,7 @@ export default async function TerminalPage({ params }: { params: Promise<{ local
       </Section>
 
       <p className="m-0 text-[13px] leading-relaxed text-dim">
-        The CLI only reads. To stake, open a market on this site with your passkey account. Market data is public at{" "}
+        The CLI only reads. To stake, open a market on this site with your wallet. Market data is public at{" "}
         <code className="break-all font-mono">/api/markets</code>.
       </p>
     </div>

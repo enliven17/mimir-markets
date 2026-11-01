@@ -10,6 +10,8 @@ import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
 
+import { normalizeOwner, verifyOwnerSignature } from "../owner";
+
 const BASE58_PUBKEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const BASE58_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 
@@ -58,4 +60,19 @@ export function verifyAgentSignature(args: {
   } catch {
     return false;
   }
+}
+
+/**
+ * A wallet that can own or operate an agent: an EVM address (a person's connected wallet, lib/owner.ts) or a base58
+ * Solana key (an agent's own ed25519 keypair, the SDK). Checksummed / canonical, or null.
+ */
+export function normalizeWallet(value: unknown): string | null {
+  return normalizeOwner(value) ?? normalizeAddress(value);
+}
+
+export const isSolanaKey = (wallet: string) => normalizeAddress(wallet) === wallet;
+
+/** Checks `signature` for whichever kind `address` is: EIP-191 for an EVM wallet, ed25519 for a Solana key. */
+export async function verifyWalletSignature(args: { address: string; message: string; signature: string }): Promise<boolean> {
+  return normalizeOwner(args.address) ? verifyOwnerSignature(args) : verifyAgentSignature(args);
 }

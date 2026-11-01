@@ -3,7 +3,7 @@
 /**
  * /arena/create on Arc: open a VS market (the default: you back one side,
  * challengers take the other, up to 5× your stake) or a two-sided pool, in
- * one form. One passkey prompt creates and funds it; then the market page.
+ * one form. One wallet transaction creates and funds it; then the market page.
  */
 import { useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
@@ -96,7 +96,7 @@ export default function ArcCreateForm() {
 
   const onCreate = async () => {
     if (problem || !contract || stake === null) return;
-    setStage("Confirm with your passkey…");
+    setStage("Confirm in your wallet…");
     const r = await send([
       createMarketCall(contract, {
         kind,
@@ -282,7 +282,7 @@ export default function ArcCreateForm() {
             </>
           )}
           {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
-          <p className="m-0 text-[12px] text-dim">{account.split ? `Account: ${usd(account.split.account)} · From your wallet: ${usd(account.split.wallet)}` : `Arc balance: ${account.balance === null ? "-" : usd(account.balance)}`}</p>
+          <p className="m-0 text-[12px] text-dim">{`USDC on Arc: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}</p>
         </AccountGate>
       </section>
     </div>

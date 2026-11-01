@@ -1,4 +1,3 @@
-import bs58 from "bs58";
 import { PREVIEW_OWNER_HEADER, previewWalletMessage } from "./auth";
 import { LAUNCH_HEADERS } from "../launch/auth";
 import type { SignMessage } from "../launch/client";
@@ -8,7 +7,7 @@ export function demoGet(owner: string, agentId?: string) {
 }
 export async function authorizePreview(owner: string, signMessage: SignMessage) {
   const signedAt = Date.now();
-  const signature = bs58.encode(await signMessage(new TextEncoder().encode(previewWalletMessage(owner, signedAt))));
+  const signature = await signMessage(previewWalletMessage(owner, signedAt));
   return demoPost({ action: "session" }, owner, { [LAUNCH_HEADERS.signedAt]: String(signedAt), [LAUNCH_HEADERS.signature]: signature });
 }
 export async function demoPost<T = { ok: boolean }>(body: unknown, owner: string, headers: Record<string, string> = {}): Promise<T> {

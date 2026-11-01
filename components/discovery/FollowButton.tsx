@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { walletProofHeaders, useWalletProof } from "@/components/wallet/useWalletProof";
 import { signedPost } from "@/lib/launch/client";
 type Inbox = { follows: string[]; items: { id: string; text: string; at: number; href: string }[] };
@@ -14,8 +14,8 @@ function load(wallet: string) {
 }
 export function useFollows() {
   const proof = useWalletProof();
-  const { publicKey } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const { address } = useMimirWallet();
+  const wallet = address ?? null;
   const { prove } = proof;
   const proven = proof.wallet === wallet && proof.proven, canSign = !!wallet && proof.canSign;
   const [inbox, setInbox] = useState<Inbox | null>(null), [error, setError] = useState("");
@@ -31,7 +31,7 @@ export function useFollows() {
   return { wallet, proven, prove, canSign, inbox, error, invalidate };
 }
 export default function FollowButton({ target, label = "Follow" }: { target: string; label?: string }) {
-  const { signMessage } = useWallet();
+  const { signMessage } = useMimirWallet();
   const { wallet, proven, prove, canSign, inbox, error, invalidate } = useFollows();
   const [busy, setBusy] = useState(false), [note, setNote] = useState("");
   const following = inbox?.follows.includes(target) ?? false;
@@ -40,5 +40,5 @@ export default function FollowButton({ target, label = "Follow" }: { target: str
     try { if (!proven || !inbox) { await prove(); requests.delete(wallet); window.dispatchEvent(new Event("mimir-follows")); setNote("Wallet verified. Choose Follow once your watchlist loads."); }
       else { await signedPost("/api/follows", { owner: wallet, signMessage, action: "follow", agent: "discovery", body: { target, active: !following } }); invalidate(); } }
     catch (e) { setNote(e instanceof Error ? e.message : "Could not update follow."); } finally { setBusy(false); }
-  }}>{busy ? "Updating…" : following ? `Following · ${label}` : label}</button>{note || error ? <span role="status" className="max-w-64 text-[11px] text-muted">{note || error}</span> : null}{!wallet ? <span className="text-[11px] text-muted">Connect a Solana wallet to follow.</span> : null}</span>;
+  }}>{busy ? "Updating…" : following ? `Following · ${label}` : label}</button>{note || error ? <span role="status" className="max-w-64 text-[11px] text-muted">{note || error}</span> : null}{!wallet ? <span className="text-[11px] text-muted">Connect your wallet to follow.</span> : null}</span>;
 }

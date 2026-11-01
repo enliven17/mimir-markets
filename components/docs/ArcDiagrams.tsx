@@ -37,17 +37,17 @@ export function Figure({ label, caption, children }: { label: string; caption: s
   );
 }
 
-/** (a) The system: money in from Solana, markets on Arc, the house agents and the index on the backend, the app on top. */
+/** (a) The system: the user's wallet, markets on Arc, the house agents and the index on the backend, the app on top. */
 export function SystemDiagram() {
   return (
     <Figure
-      label="System overview. A Solana wallet sends USDC over Circle CCTP to the user's passkey account on Arc. The account stakes into the MimirV3 and MimirPool contracts. Mimir's backend indexes the contracts and runs the oracle and the council, which write back to the contracts. The web app reads the index live and sends the user's operations from the passkey account."
-      caption="USDC enters from Solana over CCTP, every stake and payout happens on Arc, and Mimir's backend keeps the index, the oracle and the council running beside the contracts."
+      label="System overview. The user's EVM wallet holds USDC on Arc and stakes straight into the MimirV3 and MimirPool contracts, paying gas in USDC. Mimir's backend indexes the contracts and runs the oracle and the council, which write back to the contracts. The web app reads the index live and sends each transaction from the user's wallet."
+      caption="USDC stays in your wallet until you stake, every stake and payout happens on Arc, and Mimir's backend keeps the index, the oracle and the council running beside the contracts."
     >
       <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)_64px_minmax(0,1.15fr)] md:items-center">
-        <Node tag="Solana" title="Your wallet" sub="Phantom, Solflare, any wallet. Holds your USDC." />
-        <Link label="CCTP ~15 s" />
-        <Node tag="Arc" title="Passkey account" sub="Face ID or fingerprint. Gas sponsored by Circle." hot />
+        <Node tag="Arc · Base" title="Your wallet" sub="MetaMask, Rabby, Coinbase Wallet, any EVM wallet." />
+        <Link label="connect" />
+        <Node tag="Arc" title="Your USDC" sub="Stake and gas, both in USDC. No approvals." hot />
         <Link label="stake" delay={1.1} />
         <Node tag="Arc · contracts" title="MimirV3 · MimirPool" sub="VS duels and two-sided pools. Native USDC escrow." hot />
       </div>

@@ -134,7 +134,7 @@ export default function ArcStakePanel({
         ) : null}
 
         <p className="m-0 text-[12px] text-dim">
-          {account.split ? `Account: ${usd(account.split.account)} · From your wallet: ${usd(account.split.wallet)}` : `Arc balance: ${account.balance === null ? "-" : usd(account.balance)}`}
+          {`USDC on Arc: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}
         </p>
 
         {blocker === "not-enough" ? (
@@ -145,7 +145,7 @@ export default function ArcStakePanel({
           <>
             {blocker ? <p className="m-0 text-[13px] text-pending">{blocker}</p> : null}
             <button className={BTN_PRIMARY} disabled={busy || Boolean(blocker) || !contract} onClick={() => void onStake()}>
-              {busy ? "Confirm with your passkey…" : m.kind === "vs" ? `Challenge with ${stake ? usd(stake) : "-"}` : `Stake ${stake ? usd(stake) : "-"}`}
+              {busy ? "Confirm in your wallet…" : m.kind === "vs" ? `Challenge with ${stake ? usd(stake) : "-"}` : `Stake ${stake ? usd(stake) : "-"}`}
             </button>
           </>
         )}

@@ -25,34 +25,6 @@ test("a batch with a failing must-step writes nothing", async () => {
   assert.deepEqual(await s.get("x", "a"), { v: 1 });
 });
 
-test("the wallet relay: first answer wins, one read takes it, expired answers are never returned", () =>
-  withStore(async () => {
-    const { putRelay, takeRelay, TTL_MS } = await import("../../lib/server/wallet-relay");
-    const op = "A".repeat(22);
-    assert.equal(await putRelay(op, { nonce: "n1", data: "d1" }, 1_000), true);
-    assert.equal(await putRelay(op, { nonce: "n2", data: "d2" }, 1_001), false);
-    assert.deepEqual(await takeRelay(op, 2_000), { nonce: "n1", data: "d1" });
-    assert.equal(await takeRelay(op, 2_001), null);
-    const late = "B".repeat(22);
-    await putRelay(late, { data: "x" }, 1_000);
-    assert.equal(await takeRelay(late, 1_000 + TTL_MS + 1), null);
-  }));
-
-test("an Arc account binds to one Solana wallet; a wallet moving frees its old account", () =>
-  withStore(async () => {
-    const { upsertArcBinding, getArcBindingByArc, ArcAccountTakenError, ArcRebindTooSoonError, REBIND_COOLDOWN_MS: DAY } = await import("../../lib/server/arc-accounts");
-    await upsertArcBinding({ solana: "S1", arc: "0xA", credentialId: null, now: 1 });
-    await assert.rejects(() => upsertArcBinding({ solana: "S2", arc: "0xA", credentialId: null }), ArcAccountTakenError);
-    await upsertArcBinding({ solana: "S1", arc: "0xA", credentialId: "c", now: 2 });
-    // Moving to another account within a day is refused; after it, allowed.
-    await assert.rejects(() => upsertArcBinding({ solana: "S1", arc: "0xB", credentialId: null, now: 3 }), ArcRebindTooSoonError);
-    await upsertArcBinding({ solana: "S1", arc: "0xB", credentialId: null, now: 2 + DAY });
-    assert.equal(await getArcBindingByArc("0xA"), null);
-    assert.equal((await getArcBindingByArc("0xB"))?.solana, "S1");
-    await upsertArcBinding({ solana: "S2", arc: "0xA", credentialId: null, now: 4 + DAY });
-    assert.equal((await getArcBindingByArc("0xA"))?.solana, "S2");
-  }));
-
 test("rate limits count across calls in one window and reset in the next", () =>
   withStore(async () => {
     const { allowRequest } = await import("../../lib/server/rate-limit");

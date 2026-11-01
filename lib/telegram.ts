@@ -54,7 +54,7 @@ export function esc(text: string): string {
 }
 
 export const WELCOME_TEXT = [
-  "<b>Welcome to Mimir</b>, the AI-settled claim market on Solana.",
+  "<b>Welcome to Mimir</b>, the AI-settled prediction market on Arc.",
   "",
   "Link your wallet and I will message you when:",
   "• a new market opens",

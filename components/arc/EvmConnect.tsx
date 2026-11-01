@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The site's one EVM wallet connection, through Family's ConnectKit + wagmi: Arc, Robinhood Chain and Base on a single
- * config, so one connected account serves all three. Wallets come from EIP-6963 discovery (each browser extension by
+ * The site's one wallet connection, through Family's ConnectKit + wagmi: Arc and Base on a single config, so one
+ * connected account serves both. Wallets come from EIP-6963 discovery (each browser extension by
  * name, so the one the user picks is the one that opens), MetaMask, Coinbase Wallet and WalletConnect (QR and phone
  * wallets, every chain optional). Loaded only when an EVM wallet is wanted (EvmConnectHost), since wagmi + WalletConnect
  * is a heavy bundle. It hands useEvmWallet a bridge; proofs, sends and everything after stay there.
@@ -10,7 +10,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectKitProvider, getDefaultConfig, getDefaultConnectors, useModal } from "connectkit";
 import { useEffect, useRef } from "react";
-import { defineChain, getAddress, type Address } from "viem";
+import { getAddress, type Address } from "viem";
 import { base } from "viem/chains";
 import { createConfig, http, injected, useConfig, WagmiProvider } from "wagmi";
 import { disconnect, getAccount, switchChain, watchAccount, type GetAccountReturnType } from "wagmi/actions";
@@ -18,18 +18,10 @@ import { disconnect, getAccount, switchChain, watchAccount, type GetAccountRetur
 import { arcChain } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { BASE_CHAIN } from "@/lib/base/chain";
-import { ROBINHOOD_CHAIN } from "@/lib/robinhood/chain";
 
 import { evmAccountChanged, registerEvmBridge, reportEvmAccount, type Eip1193 } from "./useEvmWallet";
 
 const arc = arcChain();
-const robinhood = defineChain({
-  id: ROBINHOOD_CHAIN.id,
-  name: ROBINHOOD_CHAIN.name,
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [ROBINHOOD_CHAIN.rpcUrl] } },
-  blockExplorers: { default: { name: "Blockscout", url: ROBINHOOD_CHAIN.explorer } },
-});
 const baseChain = { ...base, rpcUrls: { default: { http: [BASE_CHAIN.rpcUrl] } } } as typeof base;
 
 const app = {
@@ -41,7 +33,7 @@ const app = {
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "";
 
 /**
- * A phone wallet's own browser (Robinhood Wallet, MetaMask, Coinbase) injects one provider and may not announce it over
+ * A phone wallet's own browser (MetaMask, Coinbase, Rabby) injects one provider and may not announce it over
  * EIP-6963: offer it as "Browser Wallet" there. On desktop EIP-6963 names every extension, so no `window.ethereum` pick.
  */
 const inWalletBrowser =
@@ -52,11 +44,10 @@ const inWalletBrowser =
 const config = createConfig(
   getDefaultConfig({
     // Base first: the most wallets know it, so a WalletConnect session opens there. Every chain stays optional.
-    chains: [baseChain, arc, robinhood],
+    chains: [baseChain, arc],
     transports: {
       [baseChain.id]: http(BASE_CHAIN.rpcUrl),
       [arc.id]: http(ARC.chain.rpcUrl),
-      [robinhood.id]: http(ROBINHOOD_CHAIN.rpcUrl),
     },
     connectors: [
       ...(inWalletBrowser ? [injected({ shimDisconnect: true })] : []),

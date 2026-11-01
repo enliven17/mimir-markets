@@ -6,7 +6,7 @@
  * GET  /api/launch?owner=<base58>  that wallet's agents (public views).
  */
 import { api } from "@/convex/_generated/api";
-import { normalizeAddress } from "@/lib/agents/signature";
+import { normalizeOwner } from "@/lib/owner";
 import { checkKey } from "@/lib/launch/byok";
 import { CreateBody, create } from "@/lib/launch/flow";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
@@ -25,8 +25,8 @@ export const maxDuration = 30;
 
 export async function GET(req: Request) {
   if (!(await allowRequest("launch-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
-  const owner = normalizeAddress(new URL(req.url).searchParams.get("owner"));
-  if (!owner) return fail(400, "owner must be a Solana public key");
+  const owner = normalizeOwner(new URL(req.url).searchParams.get("owner"));
+  if (!owner) return fail(400, "owner must be an EVM address");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
   return Response.json({ agents: await c.client.query(api.launch.byOwner, { owner }) }, { headers: { "cache-control": "no-store" } });

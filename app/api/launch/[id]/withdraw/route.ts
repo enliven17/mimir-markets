@@ -14,7 +14,7 @@ import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { getSolana } from "@/lib/launch/solana/env";
 import { getRobinhood } from "@/lib/launch/robinhood/env";
 import { getBase } from "@/lib/launch/base/env";
-import { getArcBinding } from "@/lib/server/arc-accounts";
+import { normalizeOwner } from "@/lib/owner";
 import { transferNative } from "@/lib/server/circle-w3s";
 import { allowRequest } from "@/lib/server/rate-limit";
 
@@ -77,8 +77,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return Response.json({ tx });
     }
     if (!a.arc) return fail(409, "This agent has no Arc wallet.");
-    const to = (await getArcBinding(g.owner))?.arc;
-    if (!to) return fail(409, "Link an Arc account to your wallet first; withdrawals go there.");
+    // The owner's EVM wallet is their account on Arc: withdrawals go straight to it.
+    const to = normalizeOwner(g.owner);
+    if (!to) return fail(409, "Withdrawals on Arc go to your EVM wallet: sign in with one.");
     const wei = BigInt(Math.floor(amount * 1e6)) * 1_000_000_000_000n;
     const balance = await arcPublicClient(ARC).getBalance({ address: a.arc.address as `0x${string}` });
     // Mimir's share of its Argus fees (convex/launchArgus.ts) sits in the same wallet until the next fee round sends it.

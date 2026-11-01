@@ -1,5 +1,5 @@
 /**
- * Mimir's Arc markets from the app's side: the calls a passkey account sends
+ * Mimir's Arc markets from the app's side: the calls the user's wallet sends
  * (create, stake, challenge) and the quotes the stake
  * UI shows. Pure and isomorphic; amounts are native USDC wei (18 dp), what
  * msg.value spends.
@@ -13,7 +13,7 @@
  */
 import { encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address, type PublicClient } from "viem";
 
-import type { ArcCall } from "./cctp-arc";
+import type { ArcCall } from "./session";
 import { ARC } from "./config";
 import { COPY_FEE_BPS, REFERRER_FEE_BPS } from "./fees";
 

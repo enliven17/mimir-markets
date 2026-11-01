@@ -9,7 +9,7 @@ import { pageMeta } from "@/lib/seo";
 export const metadata = pageMeta({
   path: "/app",
   title: "Mimir Markets for Android · Mobile app",
-  description: "Mimir on your phone: open markets, stake and get paid with your passkey and Solana wallet. Download the Android app or add it to your home screen.",
+  description: "Mimir on your phone: open markets, stake and get paid from your own wallet. Download the Android app or add it to your home screen.",
 });
 
 const STEP = "grid grid-cols-[28px_minmax(0,1fr)] gap-3 text-[14px] leading-relaxed text-muted";
@@ -28,8 +28,8 @@ export default function AppPage() {
           <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Mobile</p>
           <h1 className="m-0 font-display text-app-h1 text-cream">Mimir in your pocket.</h1>
           <p className="m-0 max-w-[560px] text-[15px] leading-relaxed text-muted">
-            The full app on Android: open markets, stake, follow your positions and get paid, with your passkey and your
-            Solana wallet. It is the same Mimir as this site, so every update reaches the app the moment it ships.
+            The full app on Android: open markets, stake, follow your positions and get paid, from your own
+            EVM wallet. It is the same Mimir as this site, so every update reaches the app the moment it ships.
           </p>
         </header>
 
@@ -59,7 +59,7 @@ export default function AppPage() {
                 </li>
                 <li className={STEP}>
                   <span className={NUM}>3</span>
-                  <span>Open Mimir from your home screen, connect your Solana wallet and create your passkey account.</span>
+                  <span>Open Mimir from your home screen, connect your EVM wallet on Arc or Base.</span>
                 </li>
               </ol>
               <p className="m-0 break-all font-mono text-[11px] leading-relaxed text-dim">SHA-256 {APP_RELEASE.sha256}</p>

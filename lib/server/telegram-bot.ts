@@ -24,7 +24,7 @@ import {
   unlinkChat,
   upsertChat,
 } from "./telegram";
-import { getArcBinding } from "./arc-accounts";
+import { normalizeOwner } from "../owner";
 import { openMarkets, timeLeft } from "./open-markets";
 import { arcPositions } from "./arc-index";
 import { SITE_URL } from "../site";
@@ -90,7 +90,7 @@ const appButton = { text: "Open Mimir", web_app: { url: `${SITE_URL}/en` } };
 
 async function linkButtons(chatId: number) {
   const code = await newLinkCode(chatId);
-  // A plain URL, not a Mini App: wallet apps (Phantom, Solflare) connect from the browser.
+  // A plain URL, not a Mini App: wallet apps (MetaMask, WalletConnect) connect from the browser.
   return { inline_keyboard: [[{ text: "🔗 Link wallet", url: linkUrl(code) }], [appButton]] };
 }
 
@@ -125,21 +125,19 @@ async function onStart(chatId: number): Promise<void> {
   await sendTo(chatId, WELCOME_TEXT + linked, { reply_markup: wallet ? { inline_keyboard: [[appButton]] } : await linkButtons(chatId) });
 }
 
-/** The linked Solana wallet's open positions on Arc, through its bound passkey account (arc_accounts + Convex). */
+/** The linked wallet's open positions on Arc (Convex): the wallet is the market account. */
 async function onBets(chatId: number): Promise<void> {
   const wallet = await chatWallet(chatId);
   if (!wallet) {
     await sendTo(chatId, "No wallet linked yet.", { reply_markup: await linkButtons(chatId) });
     return;
   }
-  const binding = await getArcBinding(wallet).catch(() => null);
-  if (!binding) {
-    await sendTo(chatId, "This wallet has no Mimir account on Arc yet. Create one with a passkey on the site.", {
-      reply_markup: { inline_keyboard: [[{ text: "Set up your Arc account", web_app: { url: `${SITE_URL}/en/wallet` } }]] },
-    });
+  const arc = normalizeOwner(wallet);
+  if (!arc) {
+    await sendTo(chatId, "This chat is linked to an old Solana wallet. Link your EVM wallet on the site again.", { reply_markup: await linkButtons(chatId) });
     return;
   }
-  const positions = await arcPositions(binding.arc).catch(() => null);
+  const positions = await arcPositions(arc).catch(() => null);
   if (positions === null) {
     await sendTo(chatId, "Positions are unavailable right now.");
     return;
@@ -288,7 +286,7 @@ async function handleGroup(chatId: number, text: string): Promise<void> {
   switch (command) {
     case "/app":
     case "/start":
-      return sendTo(chatId, "<b>Mimir</b>: AI-settled markets. Settles on Arc, funded from your Solana wallet. Stake a side, AI agents and an oracle settle it.", {
+      return sendTo(chatId, "<b>Mimir</b>: AI-settled markets. Settles on Arc, staked from your EVM wallet in USDC. Stake a side, AI agents and an oracle settle it.", {
         reply_markup: { inline_keyboard: [[pageButton("Open Mimir", `${SITE_URL}/en`, true)]] },
       });
   }

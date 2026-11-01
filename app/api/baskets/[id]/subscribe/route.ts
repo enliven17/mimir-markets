@@ -20,7 +20,7 @@ import {
 } from "@/lib/baskets";
 import { getSubscription, setSubscription } from "@/lib/baskets-store";
 import { findBasket } from "@/lib/house-baskets";
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson, readJsonBody } from "@/lib/server/basket-http";
@@ -39,12 +39,12 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const body = await readJsonBody(req);
   if (!body) return basketFail(400, "malformed_json", "body is not a JSON object");
 
-  const follower = normalizeAddress(body.follower);
+  const follower = normalizeOwner(body.follower);
   const signature = String(body.signature ?? "");
   const perMarketCapUsdc = Number(body.perMarketCapUsdc ?? 0);
   const signedAt = Number(body.signedAt);
 
-  if (!follower) return basketFail(400, "bad_wallet", "follower must be a Solana public key");
+  if (!follower) return basketFail(400, "bad_wallet", "follower must be an EVM address");
   if (!isFreshSignature(signedAt)) {
     return basketFail(401, "stale_signature", "signedAt must be a ms timestamp within 5 minutes of now");
   }
@@ -59,7 +59,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");
 
-  const signedOk = verifyAgentSignature({
+  const signedOk = await verifyOwnerSignature({
     address: follower,
     message: followMessage({ basketId: id, follower, perMarketCapUsdc, signedAt }),
     signature,
