@@ -1,6 +1,6 @@
 /**
- * GET /api/markets?state=live|closing|settled|all&kind=vs|pool&limit=: Arc markets from the backend index, public
- * and read-only (lib/server/public-markets.ts). The CLI reads this. Rate-limited per IP.
+ * GET /api/markets?state=live|closing|settled|all&kind=vs|pool&chain=base|arc&limit=: markets on every chain (or one)
+ * from the backend index, public and read-only (lib/server/public-markets.ts). The CLI reads this. Rate-limited per IP.
  */
 import { NextResponse } from "next/server";
 
@@ -17,12 +17,14 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") ?? "all").toLowerCase() as MarketFilter;
   const kind = sp.get("kind")?.toLowerCase();
+  const chain = sp.get("chain")?.toLowerCase();
+  if (chain && chain !== "arc" && chain !== "base") return NextResponse.json({ success: false, error: "chain must be base or arc" }, { status: 400 });
   const limit = Math.min(Math.max(Number(sp.get("limit") ?? 100) || 100, 1), 500);
   if (!FILTERS.has(state)) return NextResponse.json({ success: false, error: "state must be live, closing, settled or all" }, { status: 400 });
   if (kind && kind !== "vs" && kind !== "pool") return NextResponse.json({ success: false, error: "kind must be vs or pool" }, { status: 400 });
   try {
     const now = Math.floor(Date.now() / 1000);
-    const rows = (await arcMarketList(kind as "vs" | "pool" | undefined)) as IndexedMarket[];
+    const rows = (await arcMarketList(kind as "vs" | "pool" | undefined, chain as "arc" | "base" | undefined)) as IndexedMarket[];
     const markets = filterMarkets(rows.map((m) => toPublic(m, now)), state, now).slice(0, limit);
     return NextResponse.json({ success: true, data: { markets } }, { headers: { "cache-control": "public, s-maxage=10" } });
   } catch (err) {

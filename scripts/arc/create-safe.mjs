@@ -1,5 +1,5 @@
 // Create a Safe v1.4.1 multisig on Arc from the canonical deployments (SafeL2 + SafeProxyFactory + the
-// CompatibilityFallbackHandler), for the owner / arbiter / treasury roles (docs/ARC.md, MAINNET-TODO.md).
+// CompatibilityFallbackHandler), for the owner / arbiter / treasury roles (docs/CHAINS.md, MAINNET-TODO.md).
 //
 //   SAFE_OWNERS=0xA,0xB,0xC SAFE_THRESHOLD=2 PAYER_KEY=0x… [ARC_RPC=…] [SAFE_SALT=0] node scripts/arc/create-safe.mjs
 //

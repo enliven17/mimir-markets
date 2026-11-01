@@ -1,5 +1,6 @@
 /**
- * Arc network config: the chain, native USDC and Mimir's market contracts (docs/ARC.md).
+ * Arc network config: the chain, native USDC and Mimir's market contracts on Arc. The market-chain registry
+ * (lib/chains/registry.ts, docs/CHAINS.md) builds Arc's entry from it; Base is described there.
  *
  * One switch, NEXT_PUBLIC_ARC_NETWORK (`testnet` default | `mainnet`). Pure and isomorphic (strings only, no SDK
  * imports), so the server routes and the browser share it.

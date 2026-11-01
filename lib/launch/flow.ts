@@ -1,7 +1,8 @@
 /**
  * Mimir Launch: creating an agent. Free and in one call: validate the owner's form, check a BYOK key with one tiny
- * call, make the agent's Arc wallet (Circle, developer-controlled) and store it live. The agent stakes on Mimir
- * markets from that wallet once its owner sends it USDC (it pays its own gas), and the owner can withdraw any time.
+ * call, make the agent's wallets (Circle, developer-controlled: Arc, and Base when Base markets are enabled) and store
+ * it live. The agent stakes on Mimir markets from the wallet on each chain once its owner funds it (Arc: USDC, which
+ * also pays gas; Base: USDC plus a little ETH for gas, no gas station), and the owner can withdraw any time.
  * Its own token is optional and separate: the owner launches it from their own wallet (lib/launch/token.ts).
  * State lives in Convex (convex/launch.ts). Dependencies are injected for tests.
  */
@@ -40,6 +41,8 @@ export type CreateInput = z.infer<typeof CreateBody>;
 export interface Wallets {
   /** The agent's Arc wallet (Circle, developer-controlled): it stakes and pays its own gas in USDC. */
   arc: (slug: string) => Promise<{ id: string; address: string }>;
+  /** Its Base wallet (Circle, BASE / BASE-SEPOLIA), when Base markets are enabled; null = made later on first use. */
+  base?: (slug: string) => Promise<{ id: string; address: string } | null>;
 }
 export type KeyCheck = (provider: ByokProvider, apiKey: string, model: string) => Promise<"ok" | "bad-key" | "busy">;
 
@@ -60,12 +63,15 @@ export async function create({ client, secret }: Cx, deps: { wallets: Wallets; c
   }
   const { enabled, budgetUsdc, create: opens, ...rules } = input.markets;
   const arc = await deps.wallets.arc(slug);
+  // A Base wallet that cannot be made now is made by the agent's first Base tick instead (convex/launchArc.ts).
+  const base = deps.wallets.base ? await deps.wallets.base(slug).catch(() => null) : null;
   const r = await client.mutation(api.launch.create, {
     secret, slug, uid, owner, name: input.name, ticker: input.ticker, avatarSeed: input.avatarSeed ?? slug, thesis: input.thesis, brain,
     markets: { enabled, budgetUsdc, rules: { ...DEFAULT_MARKET_RULES, ...rules }, create: opens },
     arc: { walletId: arc.id, address: arc.address },
+    ...(base ? { base: { walletId: base.id, address: base.address } } : {}),
   });
   // Lost a race for the ticker after the wallet was made: it is simply never funded.
   if (!r.ok) return { ok: false as const, status: 409, error: r.reason === "reserved" ? `$${input.ticker} belongs to Mimir's own agents. Pick another ticker.` : `Too many agents named $${input.ticker}. Pick another ticker.` };
-  return { ok: true as const, id: r.slug, arc: arc.address };
+  return { ok: true as const, id: r.slug, arc: arc.address, base: base?.address ?? null };
 }

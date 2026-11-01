@@ -110,7 +110,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string }>
   if (!q) return new Response("bad card request", { status: 400 });
   if (!(await allowRequest("telegram-card", clientIp(req), 120, 60_000))) return new Response("slow down", { status: 429 });
 
-  const market = await arcMarketDetail(q.kind, q.id).catch(() => null);
+  const market = await arcMarketDetail(q.kind, q.id, q.chain).catch(() => null);
   if (!market) return new Response("no such market", { status: 404 });
 
   const [display, pixel, mono, hornPng] = await assets;

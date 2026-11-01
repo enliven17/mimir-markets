@@ -5,7 +5,8 @@ import { useState } from "react";
 
 import { ExternalMark } from "@/components/ExternalMark";
 import { arcExplorerUrl } from "@/lib/arc/config";
-import { argusToken, basescan, clankerToken, type AgentToken } from "@/lib/launch/council-view";
+import { explorerUrl, MARKET_CHAINS } from "@/lib/chains/registry";
+import { argusToken, clankerToken, type AgentToken } from "@/lib/launch/council-view";
 
 type Row = { label: string; note: string; address: string; href: string; site: string; tone: string };
 
@@ -33,7 +34,7 @@ export default function WalletsBlock({ ticker, token, arc, base = null }: { tick
     token?.chain === "arc" ? { label: `$${ticker} token`, note: "Its token on Argus (Arc)", address: token.address, href: argusToken(token.address), site: "Argus", tone: "bg-[#a78bfa]" } : null,
     token?.chain === "base" ? { label: `$${ticker} token`, note: "Its token on Clanker (Base)", address: token.address, href: clankerToken(token.address), site: "Clanker", tone: "bg-[#86efac]" } : null,
     arc ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets and pays its own gas", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,
-    base ? { label: "Base wallet", note: "For Base markets, once they open", address: base, href: basescan("address", base), site: "Basescan", tone: "bg-[#0052ff]" } : null,
+    base ? { label: "Base wallet", note: "Stakes USDC on Base markets; needs a little ETH for gas", address: base, href: explorerUrl(MARKET_CHAINS.chains.base, "address", base), site: "BaseScan", tone: "bg-[#0052ff]" } : null,
   ].filter((r): r is Row => r !== null);
   if (!rows.length) return null;
   return (

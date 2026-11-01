@@ -29,7 +29,7 @@ export default function ArcOnboarding() {
 
   const steps: Array<{ title: string; done: boolean; href: string }> = [
     { title: "Connect your wallet", done: Boolean(account.address), href: "/wallet" },
-    { title: "Add USDC on Arc", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
+    { title: `Add USDC on ${account.chainConfig.label}`, done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
     { title: "Place your first stake", done: (positions?.length ?? 0) > 0, href: "/arena" },
   ];
   const doneCount = steps.filter((s) => s.done).length;

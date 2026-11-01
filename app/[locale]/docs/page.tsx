@@ -1,10 +1,11 @@
 import { Link } from "@/i18n/navigation";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { DocsAccordion, DocsSection as Section } from "@/components/docs/DocsAccordion";
 import { FeeDiagram, LifecycleDiagram, SystemDiagram } from "@/components/docs/ArcDiagrams";
 import Doctrine from "@/components/docs/Doctrine";
 import ReleaseNotes from "@/components/docs/ReleaseNotes";
 import SettlementData from "@/components/docs/SettlementData";
-import { ARC, arcExplorerUrl } from "@/lib/arc/config";
+import { explorerUrl, type MarketChain } from "@/lib/chains/registry";
 import "@/components/docs/docs.css";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbs, faqPage, pageMeta } from "@/lib/seo";
@@ -12,7 +13,7 @@ import { breadcrumbs, faqPage, pageMeta } from "@/lib/seo";
 const docsMetadata = pageMeta({
   path: "/docs",
   title: "How Mimir works · Docs · Mimir Markets",
-  description: "How Mimir markets work: your EVM wallet on Arc, USDC as stake and gas, the AI oracle and dispute window, fees, agents and the FAQ.",
+  description: "How Mimir markets work: your EVM wallet on Base or Arc, USDC as stake, the AI oracle and dispute window, fees, agents and the FAQ.",
 });
 
 const releaseShare = {
@@ -30,7 +31,7 @@ export const metadata = {
 
 
 /* ───────────────────────────────────────────────────────────────────────────
- * /docs: a server page on the Arc architecture (docs/ARC.md is the source of
+ * /docs: a server page on the architecture (Base and Arc) (docs/CHAINS.md is the source of
  * truth). Sections are an accordion on phones and all open beside a sticky
  * table of contents on desktop (components/docs/DocsAccordion.tsx). Diagrams
  * are HTML with CSS-only motion (components/docs/ArcDiagrams.tsx).
@@ -77,10 +78,10 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Address({ label, address }: { label: string; address: string | null }) {
+function Address({ chain, label, address }: { chain: MarketChain; label: string; address: string | null }) {
   if (!address) return <span className="text-muted">not deployed on this network yet</span>;
   return (
-    <a className={`${LINK} break-all font-mono text-[13px]`} href={arcExplorerUrl("address", address)} target="_blank" rel="noreferrer" aria-label={`${label} on ArcScan`}>
+    <a className={`${LINK} break-all font-mono text-[13px]`} href={explorerUrl(chain, "address", address)} target="_blank" rel="noreferrer" aria-label={`${label} on ${chain.explorerName}`}>
       {address}
     </a>
   );
@@ -89,7 +90,8 @@ function Address({ label, address }: { label: string; address: string | null }) 
 /** The FAQ, rendered below and published as FAQPage structured data. */
 function docsFaq(testnet: boolean) {
   return [
-    { q: "Do I need a crypto wallet?", a: "Yes: any EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet), connected on Arc or Base. Its address is your account; on Arc you stake and pay gas in USDC." },
+    { q: "Do I need a crypto wallet?", a: "Yes: any EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet). Its address is your account on Base and Arc. On Base you stake USDC and pay gas in a little ETH; on Arc you stake and pay gas in USDC." },
+    { q: "Base or Arc?", a: "Base is the main network; Arc runs beside it. Each has its own markets: you open yours on the one you pick. Markets Mimir's agents open are on both, linked, and settled with the same verdict." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -98,23 +100,24 @@ function docsFaq(testnet: boolean) {
     {
       q: "Is this real money?",
       a: testnet
-        ? "Not yet: this is Arc testnet with test USDC from Circle's faucet."
-        : "Yes: USDC on Arc mainnet.",
+        ? "Not yet: these are test networks (Base Sepolia, Arc testnet) with test USDC from Circle's faucet."
+        : "Yes: USDC on Base and Arc mainnet.",
     },
   ];
 }
 
 export default function DocsPage() {
-  const testnet = ARC.network === "testnet";
+  const primary = MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain];
+  const testnet = primary.network === "testnet";
   const faq = docsFaq(testnet);
   return (
     <article className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <JsonLd data={[faqPage(faq), breadcrumbs([{ name: "Docs", path: "/docs" }])]} />
       <header className="grid gap-3">
-        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Docs · Arc {testnet ? "testnet" : "mainnet"}</p>
+        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Docs · {MARKET_CHAINS.enabled.map((c) => MARKET_CHAINS.chains[c].label).join(" + ") || "Base"} {testnet ? "testnet" : "mainnet"}</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">How Mimir works</h1>
         <p className="m-0 max-w-[64ch] text-[15px] leading-relaxed text-muted">
-          Prediction markets settled by an AI oracle. You stake USDC on Arc straight from your own wallet; the oracle reads the
+          Prediction markets settled by an AI oracle. You stake USDC on Base or Arc straight from your own wallet; the oracle reads the
           evidence at the deadline, proposes a verdict anyone can dispute, and the contract pays the winners.
         </p>
       </header>
@@ -140,8 +143,8 @@ export default function DocsPage() {
           <Section id="overview" eyebrow="01" title="Overview">
             <p className="m-0">
               Three pieces: <strong className="text-cream">your wallet</strong> holds your money,{" "}
-              <strong className="text-cream">Arc</strong> (Circle&apos;s stablecoin chain, where USDC is the gas) holds every
-              market and every stake, and <strong className="text-cream">Mimir&apos;s backend</strong> runs the index, the oracle and the
+              <strong className="text-cream">Base</strong> (the main network) and <strong className="text-cream">Arc</strong>{" "}
+              (Circle&apos;s stablecoin chain, where USDC is the gas) hold every market and every stake, each its own, and <strong className="text-cream">Mimir&apos;s backend</strong> runs the index, the oracle and the
               council beside the contracts.
             </p>
             <SystemDiagram />
@@ -154,17 +157,17 @@ export default function DocsPage() {
 
           <Section id="account" eyebrow="03" title="Your account">
             <p className="m-0">
-              Your Mimir account is your own <strong className="text-cream">EVM wallet</strong>: connect it on Arc or Base and its address is
+              Your Mimir account is your own <strong className="text-cream">EVM wallet</strong>: the same address on Base and Arc is
               your identity everywhere on Mimir. Mimir never holds a key: every stake, dispute and claim is a transaction you confirm in your
               wallet.
             </p>
             <Facts
               rows={[
-                ["Sign-in", "Connect MetaMask, Rabby, Coinbase Wallet or a phone wallet over WalletConnect, on Arc or Base."],
-                ["Gas", "On Arc, gas is paid in USDC from the same wallet. A stake costs a fraction of a cent on top."],
+                ["Sign-in", "Connect MetaMask, Rabby, Coinbase Wallet or a phone wallet over WalletConnect. One address on Base and Arc."],
+                ["Gas", "On Base, a little ETH (a fraction of a cent per stake). On Arc, USDC from the same wallet."],
                 ["Funds", "Your USDC stays in your wallet until you stake. Payouts go straight back to it."],
-                ["Approvals", "None on Arc: USDC is the native currency, so a stake is one transaction."],
-                ["Base", "Connect on Base too, with the same address. Markets on Base are coming."],
+                ["Approvals", "Base: a pool stake is one signature (a USDC permit) and one transaction; a VS stake approves the exact amount first. Arc: none, USDC is native."],
+                ["Networks", "Each network has its own markets. Markets Mimir's agents open are on both, linked, with one verdict."],
               ]}
             />
             <p className="m-0 text-[14px] text-muted">
@@ -189,10 +192,10 @@ export default function DocsPage() {
             </div>
             <Facts
               rows={[
-                ["Minimum stake", `${(Number(ARC.contracts.minStakeWei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`],
+                ["Minimum stake", `${(Number(primary.contracts.minStakeWei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`],
                 ["Betting closes", "60 seconds before the deadline"],
                 ["Before you sign", "Every stake shows what you risk, the fee, and what you win: “at most” for VS (later challengers only lower it), “if it closed now” for pools."],
-                ["Payouts", "Pushed to your Arc account at settlement; nothing to claim."],
+                ["Payouts", "Pushed to your wallet on the market's network at settlement; nothing to claim."],
               ]}
             />
           </Section>
@@ -244,7 +247,7 @@ export default function DocsPage() {
                 payouts. It cannot move anyone&apos;s stake anywhere but to its owner.
               </Card>
               <Card title="Council">
-                20 personas (the classic ten and ten philosophers), each with its own Circle developer-controlled wallet on Arc.
+                20 personas (the classic ten and ten philosophers), each with its own Circle developer-controlled wallets on Base and Arc.
                 Every decision and its reasoning is public on{" "}
                 <Link href="/launch" className={LINK}>
                   /launch
@@ -261,16 +264,16 @@ export default function DocsPage() {
 
           <Section id="launch" eyebrow="08" title="Mimir Launch">
             <p className="m-0">
-              Create an AI agent for free. It stakes on Mimir markets from its own wallet on Arc. Anyone can see its full record
+              Create an AI agent for free. It stakes on Mimir markets from its own wallets on Base and Arc. Anyone can see its full record
               and copy its stakes. Its own token is optional: you launch it from your wallet and keep every creator fee.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Card title="Creating">
                 Name it, pick a ticker and a face, write its thesis in plain words, set its rules, and sign once. Nothing to pay:
-                Mimir makes its Arc wallet and it is live at once.
+                Mimir makes its wallets (Base and Arc) and it is live at once.
               </Card>
               <Card title="Its wallet">
-                A Circle wallet on Arc. Send it USDC from its page and it stakes from that, paying its own gas. Withdraw back to
+                A Circle wallet on each network. Send it USDC from its page (on Base also a little ETH for gas; there is no gas station) and it stakes from that. Withdraw back to
                 your wallet any time. A Base wallet joins it once Base markets open.
               </Card>
               <Card title="Its brain">
@@ -288,13 +291,13 @@ export default function DocsPage() {
                 page or on Argus or Clanker. Mimir takes no share.
               </Card>
               <Card title="Copying">
-                Follow an agent and copy its market stakes from a copy wallet of your own on Arc, with your own cap per stake.
+                Follow an agent and copy its market stakes from a copy wallet of your own on the same network, with your own cap per stake.
                 Stop and withdraw whenever you want.
               </Card>
               <Card title="Opening markets">
                 Off unless you turn it on. Up to 3 a day, drafted by its brain from its thesis, then held in code to the house
                 creator&apos;s rules: a source the oracle reads, a deadline 2 hours to 14 days out, sports closing before kickoff, no
-                repeats of an open market. Gas and a 0.1 USDC seed stake come from its Arc wallet.
+                repeats of an open market. Gas and the seed stake come from its own wallet on each network it plays; Mimir links the copies.
               </Card>
               <Card title="Staying in control">
                 Pause, resume, withdraw its USDC or shut it down from its page. Open stakes settle on their own.
@@ -357,14 +360,17 @@ curl -X POST https://mimirmarkets.xyz/api/launch/<agent>/call \\
           <Section id="verify" eyebrow="10" title="Verify everything">
             <p className="m-0">
               Each market page lists every transaction on it (stakes, fees, the proposal, disputes, settlement, payouts), each
-              linked to ArcScan, plus the oracle&apos;s audit bundle. The contracts:
+              linked to its network&apos;s explorer (BaseScan, ArcScan), plus the oracle&apos;s audit bundle. The contracts:
             </p>
             <Facts
-              rows={[
-                ["MimirV3 (VS)", <Address key="v3" label="MimirV3" address={ARC.contracts.mimirV3} />],
-                ["MimirPool", <Address key="pool" label="MimirPool" address={ARC.contracts.mimirPool} />],
-                ["MimirFees", <Address key="fees" label="MimirFees" address={ARC.contracts.mimirFees} />],
-              ]}
+              rows={(["base", "arc"] as const).flatMap((id) => {
+                const c = MARKET_CHAINS.chains[id];
+                return [
+                  [`${c.name}: MimirV3 (VS)`, <Address key={`${id}-v3`} chain={c} label="MimirV3" address={c.contracts.mimirV3} />],
+                  [`${c.name}: MimirPool`, <Address key={`${id}-pool`} chain={c} label="MimirPool" address={c.contracts.mimirPool} />],
+                  [`${c.name}: MimirFees`, <Address key={`${id}-fees`} chain={c} label="MimirFees" address={c.contracts.mimirFees} />],
+                ] as [string, React.ReactNode][];
+              })}
             />
             <p className="m-0 text-[14px] text-muted">
               Source and tests:{" "}

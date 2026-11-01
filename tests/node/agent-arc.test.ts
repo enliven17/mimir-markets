@@ -28,11 +28,17 @@ test("pool stakes take a side; dispute carries the 2 USDC bond; deposit is not a
   const pool = prepareArcWrite({ action: "challenge", params: { claimId: 3n, stakeUnits: 2_000_000n } }, { kind: "pool", side: 1 }).transactions[0];
   assert.deepEqual(decodeFunctionData({ abi: MIMIR_POOL_ABI, data: pool.data }).args.slice(0, 2), [3n, 1]);
   assert.equal(prepareArcWrite({ action: "dispute", params: { claimId: 3n } }, {}).transactions[0].value, parseEther("2").toString());
-  assert.throws(() => prepareArcWrite({ action: "deposit", params: {} }, {}), /not needed on Arc/);
+  assert.throws(() => prepareArcWrite({ action: "deposit", params: {} }, {}), /not needed/);
   assert.throws(() => prepareArcWrite({ action: "challenge", params: { claimId: 1n, stakeUnits: 2_000_000n } }, { kind: "pool", side: 3 }), /side/);
 });
 
 test("arc operators must be EVM addresses", () => {
   assert.equal(arcOperatorOf("0x0c6eea6557fe5c36e34ff8c4dfc0b6035b356fa7"), "0x0c6eea6557fe5c36E34ff8C4dfC0b6035b356FA7");
   assert.equal(arcOperatorOf("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"), null);
+});
+
+test("chain: base is refused while Base contracts are not configured here; arc stays the default then", () => {
+  assert.throws(() => prepareArcWrite({ action: "challenge", params: { claimId: 1n, stakeUnits: 2_000_000n } }, { chain: "base" }), /Base markets are not configured/);
+  assert.throws(() => prepareArcWrite({ action: "challenge", params: { claimId: 1n, stakeUnits: 2_000_000n } }, { chain: "sol" }), /chain must be/);
+  assert.equal(prepareArcWrite({ action: "challenge", params: { claimId: 1n, stakeUnits: 2_000_000n } }, {}).chain, "arc");
 });

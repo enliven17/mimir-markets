@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * /arena/arc/<kind>/<id>: one Arc market, live from Convex. The question,
- * both sides with their money, time left or the verdict, the stake box while
- * betting is open, and who is in.
+ * /arena/<chain>/<kind>/<id>: one market on Base or Arc, live from Convex. The
+ * question, its network, both sides with their money, time left or the verdict,
+ * the stake box while betting is open, who is in, and the same market on the
+ * other network when Mimir opened it on both (linked).
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -15,8 +16,10 @@ import { useNowSec } from "@/components/arena/settlement/useSettleAction";
 import Skeleton from "@/components/ui/Skeleton";
 import Modal from "@/components/ui/Modal";
 import { Link } from "@/i18n/navigation";
-import { ARC, arcExplorerUrl } from "@/lib/arc/config";
 import type { ArcMarketKind } from "@/lib/arc/markets";
+import { marketPath } from "@/lib/chains/links";
+import { explorerUrl, MARKET_CHAINS, marketChain, marketContract, type MarketChainId } from "@/lib/chains/registry";
+import { ChainBadge } from "../NetworkLogos";
 import RollingNumber from "@/components/motion/RollingNumber";
 import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
@@ -56,16 +59,17 @@ function useWide(): boolean {
   return wide;
 }
 
-export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind; marketId: number }) {
+export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain?: MarketChainId; kind: ArcMarketKind; marketId: number }) {
   // Right after the creator opened it (ArcCreateForm sends ?new=1): the share prompt instead of the small buttons.
   const [fresh, setFresh] = useState(false);
   useEffect(() => setFresh(new URLSearchParams(window.location.search).get("new") === "1"), []);
-  const m = useQuery(api.arc.market, { kind, marketId });
+  const m = useQuery(api.arc.market, { chain, kind, marketId });
+  const cfg = marketChain(chain);
   // Live bets: a chip flies into the side that was backed and the bar jolts (BetFx.tsx).
   const bets = useNewBets(m?.events);
   const splitRef = useRef<HTMLDivElement>(null);
   useJoltOn(splitRef, bets.at(-1)?.id, 0.6);
-  const account = useArcAccount();
+  const account = useArcAccount(chain);
   const address = account.address;
   const now = useNowSec(15_000);
   const wide = useWide();
@@ -96,13 +100,15 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
   const pct = shareA(m);
   const sideName = (s: number) => (s === 1 ? m.labelA : s === 2 ? m.labelB : s === 3 ? "Draw" : "Unresolvable");
   const mine = me ? m.positions.filter((p) => p.user === me) : [];
-  const contract = kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
+  const contract = marketContract(cfg, kind);
+  const linked = (m.linked ?? []).filter((l) => MARKET_CHAINS.chains[l.chain].enabled);
 
   return (
     <div className="mx-auto grid w-full min-w-0 max-w-[1040px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
       <div className="grid min-w-0 content-start gap-6">
         <header className="grid gap-4">
           <p className="m-0 flex flex-wrap items-center gap-2 text-[12px] text-muted">
+            <ChainBadge chain={chain} />
             <span className="rounded-full bg-panel-raised px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-coral">{KIND_LABEL[kind]}</span>
             <span className="font-mono text-dim">#{m.marketId}</span>
             <span>· {m.category}</span>
@@ -113,10 +119,20 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             </span>
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>
-          {fresh ? null : <ShareMarket kind={kind} marketId={m.marketId} question={m.question} />}
+          {linked.length ? (
+            <p className="m-0 flex flex-wrap items-center gap-2 text-[13px] text-muted">
+              {linked.map((l) => (
+                <Link key={`${l.chain}:${l.marketId}`} href={marketPath(l.chain, l.kind, l.marketId)} className="inline-flex items-center gap-2 text-coral hover:underline">
+                  Also on <ChainBadge chain={l.chain} /> →
+                </Link>
+              ))}
+              <span className="text-dim">Same question, separate money; settled with the same verdict.</span>
+            </p>
+          ) : null}
+          {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} />}
         </header>
 
-        {fresh ? <ShareMarket kind={kind} marketId={m.marketId} question={m.question} fresh /> : null}
+        {fresh ? <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} fresh /> : null}
 
         <section aria-label="Sides" className={`${SURFACE} grid gap-4 p-5`}>
           <div className="grid grid-cols-2 gap-3">
@@ -161,14 +177,14 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
           ) : null}
         </section>
 
-        <FollowButton target={`market:${kind}:${marketId}`} label="Follow market updates" />
+        <FollowButton target={chain === "arc" ? `market:${kind}:${marketId}` : `market:${chain}:${kind}:${marketId}`} label="Follow market updates" />
         <SettlementTimeline market={m} events={m.events} now={now} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Who is in</h2>
           <ul className="m-0 grid list-none gap-1.5 p-0">
             {m.positions.map((p) => (
               <li key={p._id} className="flex items-center justify-between gap-3 text-[13px]">
-                <a href={arcExplorerUrl("address", p.user)} target="_blank" rel="noreferrer" className="font-mono text-muted hover:text-cream">
+                <a href={explorerUrl(cfg, "address", p.user)} target="_blank" rel="noreferrer" className="font-mono text-muted hover:text-cream">
                   {short(p.user)}
                   {p.user === me ? <span className="ml-2 text-coral">you</span> : null}
                 </a>
@@ -189,14 +205,14 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             {contract ? (
               <>
                 {" · "}
-                <a href={arcExplorerUrl("address", contract)} target="_blank" rel="noreferrer" className="text-coral hover:underline">
+                <a href={explorerUrl(cfg, "address", contract)} target="_blank" rel="noreferrer" className="text-coral hover:underline">
                   contract
                 </a>
               </>
             ) : null}
           </p>
         </section>
-        <ArcCouncilTakes kind={kind} marketId={m.marketId} labelA={m.labelA} labelB={m.labelB} />
+        <ArcCouncilTakes chain={chain} kind={kind} marketId={m.marketId} labelA={m.labelA} labelB={m.labelB} />
         <section aria-label="Every transaction" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Every transaction</h2>
           <ArcActivity m={m} events={m.events} verdict={m.verdict ?? null} />
@@ -226,7 +242,7 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
             <h2 className="m-0 font-display text-[1.4rem] leading-none text-cream">{PHASE_LABEL[phase]}</h2>
             <p className="m-0 text-[14px] leading-relaxed text-muted">
               {phase === "resolved" || phase === "cancelled"
-                ? "Payouts go straight to the winners' Arc accounts."
+                ? `Payouts go straight to the winners' wallets on ${cfg.label}.`
                 : phase === "disputed" && m.vetoed
                   ? "The owner vetoed the proposed result; the arbiter rules on it. If no ruling comes, every stake is refunded."
                   : "Staking has closed. The oracle proposes a result, then anyone may dispute it before it settles."}

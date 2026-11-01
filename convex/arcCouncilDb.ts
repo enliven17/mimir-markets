@@ -2,21 +2,24 @@
 // market pages and so a considered "no" is not re-asked of the LLM until it expires.
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
+import { vChain } from "./schema";
 
 const kind = v.union(v.literal("vs"), v.literal("pool"));
+const chainArg = v.optional(vChain);
 
-/** Decisions still standing (until > now), as "slug:kind:id" keys. */
+/** Decisions still standing (until > now), as "slug:chain:kind:id" keys. */
 export const standing = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
     const rows = await ctx.db.query("arcCouncilDecisions").withIndex("by_until", (q) => q.gt("until", now)).take(4000);
-    return rows.map((r) => `${r.slug}:${r.kind}:${r.marketId}`);
+    return rows.map((r) => `${r.slug}:${r.chain ?? "arc"}:${r.kind}:${r.marketId}`);
   },
 });
 
 export const record = internalMutation({
   args: {
     slug: v.string(),
+    chain: vChain,
     kind,
     marketId: v.number(),
     outcome: v.union(v.literal("staked"), v.literal("abstained"), v.literal("retry"), v.literal("failed")),
@@ -30,11 +33,11 @@ export const record = internalMutation({
   handler: async (ctx, d) => {
     const prev = await ctx.db
       .query("arcCouncilDecisions")
-      .withIndex("by_persona_market", (q) => q.eq("slug", d.slug).eq("kind", d.kind).eq("marketId", d.marketId))
+      .withIndex("by_persona_market", (q) => q.eq("slug", d.slug).eq("chain", d.chain).eq("kind", d.kind).eq("marketId", d.marketId))
       .unique();
     if (d.lean === 1 || d.lean === 2) {
-      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", d.kind).eq("marketId", d.marketId)).unique();
-      if (m && !m.isPrivate && (!prev || prev.lean !== d.lean)) await ctx.db.insert("discoverySignals", { marketKind: d.kind, marketId: d.marketId, category: m.category, slug: d.slug,
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", d.chain).eq("kind", d.kind).eq("marketId", d.marketId)).unique();
+      if (m && !m.isPrivate && (!prev || prev.lean !== d.lean)) await ctx.db.insert("discoverySignals", { marketChain: d.chain, marketKind: d.kind, marketId: d.marketId, category: m.category, slug: d.slug,
         type: prev?.lean === 1 || prev?.lean === 2 ? "opinion_changed" : "forecast", text: `${d.slug} ${prev?.lean === 1 || prev?.lean === 2 ? "changed its view to" : "leans toward"} ${d.lean === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
     }
     if (prev) await ctx.db.replace(prev._id, { ...d, at: Date.now() });
@@ -44,35 +47,36 @@ export const record = internalMutation({
 
 /** What the council thought about one market: shown on its page. */
 export const forMarket = query({
-  args: { kind, marketId: v.number() },
-  handler: async (ctx, { kind, marketId }) =>
-    (await ctx.db.query("arcCouncilDecisions").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).collect())
+  args: { chain: chainArg, kind, marketId: v.number() },
+  handler: async (ctx, { chain = "arc", kind, marketId }) =>
+    (await ctx.db.query("arcCouncilDecisions").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).collect())
       .filter((d) => d.outcome === "staked" || d.outcome === "abstained")
       .map(({ slug, outcome, rationale, confidence, amount, txHash, at }) => ({ slug, outcome, rationale, confidence, amount, txHash, at })),
 });
 
-/** Markets that already have a council take, as "kind:id" keys, and who opened each and when it was written. */
+/** Markets that already have a council take, as "chain:kind:id" keys, and who opened each and when it was written. */
 export const takenMarkets = internalQuery({
   args: {},
   // The newest 5000 takes: older ones belong to markets long closed (writeTakes only looks at open markets).
-  handler: async (ctx) => (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.kind}:${t.marketId}`, creator: t.creator ?? "", slug: t.slug, at: t.at })),
+  handler: async (ctx) =>
+    (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.chain ?? "arc"}:${t.kind}:${t.marketId}`, creator: t.creator ?? "", slug: t.slug, at: t.at })),
 });
 
 export const saveTake = internalMutation({
-  args: { kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), creator: v.string() },
+  args: { chain: vChain, kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), creator: v.string() },
   handler: async (ctx, t) => {
-    const prev = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("kind", t.kind).eq("marketId", t.marketId)).first();
+    const prev = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", t.chain).eq("kind", t.kind).eq("marketId", t.marketId)).first();
     if (!prev) {
       await ctx.db.insert("arcMarketTakes", { ...t, at: Date.now() });
-      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", t.kind).eq("marketId", t.marketId)).unique();
-      if (m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketKind: t.kind, marketId: t.marketId, category: m.category, slug: t.slug, type: "forecast", text: `${t.slug} leans toward ${t.lean === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", t.chain).eq("kind", t.kind).eq("marketId", t.marketId)).unique();
+      if (m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketChain: t.chain, marketKind: t.kind, marketId: t.marketId, category: m.category, slug: t.slug, type: "forecast", text: `${t.slug} leans toward ${t.lean === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
     }
   },
 });
 
 /** The council's take on one market, shown under it. */
 export const takeFor = query({
-  args: { kind, marketId: v.number() },
-  handler: async (ctx, { kind, marketId }) =>
-    (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("kind", kind).eq("marketId", marketId)).first()) ?? null,
+  args: { chain: chainArg, kind, marketId: v.number() },
+  handler: async (ctx, { chain = "arc", kind, marketId }) =>
+    (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).first()) ?? null,
 });

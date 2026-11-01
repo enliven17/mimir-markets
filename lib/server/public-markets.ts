@@ -1,15 +1,20 @@
 /**
- * The public read of Arc markets (GET /api/markets, /api/markets/[kind]/[id]): the shape the CLI and any outside
- * reader gets, built from the backend index. USDC amounts are decimal strings (18-decimal native USDC on Arc).
+ * The public read of Mimir markets on every chain (GET /api/markets, /api/markets/[kind]/[id]?chain=): the shape the
+ * CLI and any outside reader gets, built from the backend index. USDC amounts are decimal strings (the index keeps
+ * 18-dp units on every chain, lib/chains/amounts.ts). `id` is "<kind>-<n>" on Arc (as before Base) and
+ * "base-<kind>-<n>" on Base: market numbers repeat across chains.
  */
 import { LOCK_SECONDS } from "@/lib/arc/markets";
 import { arcMarketUrl } from "@/lib/telegram";
+import { marketRef } from "@/lib/chains/links";
 
 export type MarketKind = "vs" | "pool";
 export type MarketPhase = "open" | "awaiting" | "proposed" | "disputed" | "resolved" | "cancelled";
 export type MarketFilter = "live" | "closing" | "settled" | "all";
 
 export interface IndexedMarket {
+  /** Absent on Arc rows indexed before Base. */
+  chain?: "arc" | "base";
   kind: MarketKind;
   marketId: number;
   creator: string;
@@ -30,6 +35,7 @@ export interface IndexedMarket {
 
 export interface PublicMarket {
   id: string;
+  chain: "arc" | "base";
   kind: MarketKind;
   marketId: number;
   question: string;
@@ -66,8 +72,10 @@ export function phaseOf(m: Pick<IndexedMarket, "status" | "deadline">, now: numb
 export function toPublic(m: IndexedMarket, now: number): PublicMarket {
   const phase = phaseOf(m, now);
   const settled = phase === "resolved" || phase === "cancelled";
+  const chain = m.chain ?? "arc";
   return {
-    id: `${m.kind}-${m.marketId}`,
+    id: marketRef(chain, m.kind, m.marketId),
+    chain,
     kind: m.kind,
     marketId: m.marketId,
     question: m.question,
@@ -81,7 +89,7 @@ export function toPublic(m: IndexedMarket, now: number): PublicMarket {
     winner: settled ? m.winner : null,
     summary: m.summary || null,
     resolutionUrl: m.resolutionUrl,
-    url: arcMarketUrl(m.kind, m.marketId),
+    url: arcMarketUrl(m.kind, m.marketId, chain),
   };
 }
 
@@ -112,9 +120,13 @@ export function oldCliGone(req: Request): Response | null {
   );
 }
 
-/** "vs-12", "pool-3", "12" or "#12" (VS by default) → kind and id; null when it isn't one. */
-export function parseMarketRef(ref: string): { kind: MarketKind; marketId: number } | null {
-  const m = /^(?:(vs|pool)[-#:]?)?#?(\d{1,9})$/i.exec(ref.trim());
+/**
+ * "vs-12", "pool-3", "12" or "#12" (VS by default, Arc) → kind and id; "base-pool-3" names a Base market. Null when it
+ * isn't one. `chain` is only set when the ref names one.
+ */
+export function parseMarketRef(ref: string): { chain?: "arc" | "base"; kind: MarketKind; marketId: number } | null {
+  const m = /^(?:(arc|base)[-:])?(?:(vs|pool)[-#:]?)?#?(\d{1,9})$/i.exec(ref.trim());
   if (!m) return null;
-  return { kind: (m[1]?.toLowerCase() as MarketKind | undefined) ?? "vs", marketId: Number(m[2]) };
+  const chain = m[1]?.toLowerCase() as "arc" | "base" | undefined;
+  return { ...(chain ? { chain } : {}), kind: (m[2]?.toLowerCase() as MarketKind | undefined) ?? "vs", marketId: Number(m[3]) };
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useQuery } from "convex/react";
+import { marketPath } from "@/lib/chains/links";
 import { api } from "@/convex/_generated/api";
 import { Link } from "@/i18n/navigation";
 import FollowButton, { useFollows } from "./FollowButton";
@@ -14,6 +15,6 @@ export default function CouncilRadar() {
         <ul className="m-0 grid list-none gap-2 p-0">{inbox.items.map((item) => <li key={item.id}><Link className="text-[13px] text-coral" href={item.href}>{item.text}</Link><span className="ml-2 text-[11px] text-muted">{new Date(item.at).toLocaleString("en-US")}</span></li>)}</ul>{!inbox.items.length ? <p className="text-[12px] text-muted">No matching updates yet. New forecasts, side changes, market series and settlement changes appear here after you follow.</p> : null}</> : null}
     </section>
     {rows === undefined ? <p role="status" className="text-muted">Loading council forecasts…</p> : !rows.length ? <p className="text-muted">No directional forecasts on upcoming public markets yet. Recorded directions appear after the council next evaluates them.</p> : null}
-    <div className="grid gap-4 sm:grid-cols-2">{rows?.map((m) => <article key={`${m.kind}:${m.marketId}`} className="grid gap-3 rounded-2xl bg-cream/[0.04] p-5"><Link className="font-display text-[1.4rem] text-cream" href={`/arena/arc/${m.kind}/${m.marketId}`}>{m.question}</Link><p className="m-0 text-[13px] text-muted">{m.a} lean {m.labelA} · {m.b} lean {m.labelB} · {m.unknown} without a recorded side</p><p className="m-0 text-[12px] text-muted">{m.a && m.b ? "Council divided" : "Recorded views agree"} · latest view {new Date(m.updatedAt).toLocaleString("en-US")} · deadline {new Date(m.deadline * 1000).toLocaleString("en-US")}</p><div className="flex flex-wrap gap-2"><FollowButton target={`market:${m.kind}:${m.marketId}`} label="Follow market" /><FollowButton target={`topic:${m.category}`} label={`Follow ${m.category}`} /></div></article>)}</div>
+    <div className="grid gap-4 sm:grid-cols-2">{rows?.map((m) => <article key={`${m.chain}:${m.kind}:${m.marketId}`} className="grid gap-3 rounded-2xl bg-cream/[0.04] p-5"><Link className="font-display text-[1.4rem] text-cream" href={marketPath(m.chain, m.kind, m.marketId)}>{m.question}</Link><p className="m-0 text-[13px] text-muted">{m.a} lean {m.labelA} · {m.b} lean {m.labelB} · {m.unknown} without a recorded side</p><p className="m-0 text-[12px] text-muted">{m.a && m.b ? "Council divided" : "Recorded views agree"} · latest view {new Date(m.updatedAt).toLocaleString("en-US")} · deadline {new Date(m.deadline * 1000).toLocaleString("en-US")}</p><div className="flex flex-wrap gap-2"><FollowButton target={m.chain === "arc" ? `market:${m.kind}:${m.marketId}` : `market:${m.chain}:${m.kind}:${m.marketId}`} label="Follow market" /><FollowButton target={`topic:${m.category}`} label={`Follow ${m.category}`} /></div></article>)}</div>
   </div>;
 }

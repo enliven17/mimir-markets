@@ -11,18 +11,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectKitProvider, getDefaultConfig, getDefaultConnectors, useModal } from "connectkit";
 import { useEffect, useRef } from "react";
 import { getAddress, type Address } from "viem";
-import { base } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 import { createConfig, http, injected, useConfig, WagmiProvider } from "wagmi";
 import { disconnect, getAccount, switchChain, watchAccount, type GetAccountReturnType } from "wagmi/actions";
 
 import { arcChain } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { BASE_CHAIN } from "@/lib/base/chain";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 
 import { evmAccountChanged, registerEvmBridge, reportEvmAccount, type Eip1193 } from "./useEvmWallet";
 
 const arc = arcChain();
 const baseChain = { ...base, rpcUrls: { default: { http: [BASE_CHAIN.rpcUrl] } } } as typeof base;
+// Base markets on testnet live on Base Sepolia: the wallet must know it too (agent tokens stay on Base mainnet).
+const baseMarkets = MARKET_CHAINS.chains.base;
+const sepolia = baseMarkets.network === "testnet" ? ({ ...baseSepolia, rpcUrls: { default: { http: baseMarkets.rpcUrls } } } as unknown as typeof baseSepolia) : null;
 
 const app = {
   name: "Mimir",
@@ -44,11 +48,12 @@ const inWalletBrowser =
 const config = createConfig(
   getDefaultConfig({
     // Base first: the most wallets know it, so a WalletConnect session opens there. Every chain stays optional.
-    chains: [baseChain, arc],
-    transports: {
-      [baseChain.id]: http(BASE_CHAIN.rpcUrl),
-      [arc.id]: http(ARC.chain.rpcUrl),
-    },
+    chains: sepolia ? [baseChain, sepolia, arc] : [baseChain, arc],
+    transports: Object.fromEntries([
+      [baseChain.id, http(BASE_CHAIN.rpcUrl)],
+      ...(sepolia ? [[sepolia.id, http(baseMarkets.rpcUrl)]] : []),
+      [arc.id, http(ARC.chain.rpcUrl)],
+    ]) as Record<number, ReturnType<typeof http>>,
     connectors: [
       ...(inWalletBrowser ? [injected({ shimDisconnect: true })] : []),
       // No Aave Account: its social-login popup is not a wallet anyone here asked for.

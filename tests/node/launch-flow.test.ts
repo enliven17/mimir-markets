@@ -51,7 +51,7 @@ test("create: free and live at once, with its Arc wallet; no funding step", asyn
   const f = fakeCx();
   const r = await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
   assert.ok(r.ok);
-  assert.deepEqual(r, { ok: true, id: "njord", arc: "0x00000000000000000000000000000000000000ab" });
+  assert.deepEqual(r, { ok: true, id: "njord", arc: "0x00000000000000000000000000000000000000ab", base: null });
   const a = f.agent()!;
   assert.equal(a.status, "live");
   assert.deepEqual([a.arc.address, a.brain.kind, a.markets.enabled], ["0x00000000000000000000000000000000000000ab", "mimir", true]);

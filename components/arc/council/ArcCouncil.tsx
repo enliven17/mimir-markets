@@ -7,6 +7,7 @@
  * index (convex/arcViews.ts), bankrolls straight from the Arc RPC.
  */
 import { useEffect, useMemo, useState } from "react";
+import { marketPath } from "@/lib/chains/links";
 import { useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 import type { Address } from "viem";
@@ -59,7 +60,7 @@ export default function ArcCouncil() {
         recentBets: (c?.recentBets ?? []).map((b) => ({
           claimId: b.marketId,
           stake: units(b.amount),
-          href: `/arena/arc/${b.kind}/${b.marketId}`,
+          href: marketPath(b.chain, b.kind, b.marketId),
           label: `${b.kind === "vs" ? "VS" : "Pool"} #${b.marketId}`,
         })),
       };

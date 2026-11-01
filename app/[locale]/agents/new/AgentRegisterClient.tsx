@@ -15,6 +15,7 @@
  * agent should keep them apart: the owner cold, the operator hot.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { useTranslations } from "next-intl";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { Check, Copy } from "@/components/icons";
@@ -91,8 +92,10 @@ export default function AgentRegisterClient() {
   const [result, setResult] = useState<Registered | null>(null);
   const [copied, setCopied] = useState(false);
   // On Arc: the EVM address the agent signs with, and the deploy fee paid from the connected wallet.
-  const arc = useArcAccount();
-  const onArc = arcArenaEnabled;
+  // The deploy fee is paid on Arc (native USDC): this account stays on Arc.
+  const arc = useArcAccount("arc");
+  // The deploy fee is paid on Arc while Arc is configured (the API verifies it there).
+  const onArc = arcArenaEnabled && MARKET_CHAINS.chains.arc.enabled;
   const [arcOperator, setArcOperator] = useState("");
   const [paymentTx, setPaymentTx] = useState<string | null>(null);
   const deployUsd = AGENT_DEPLOY_USD;
@@ -183,7 +186,7 @@ export default function AgentRegisterClient() {
 
       // 2. Owner envelope: this wallet authorizes the record.
       const reg = envelope("register", {
-        ...(onArc && isAddress(arcOperator.trim()) ? { arcOperator: arcOperator.trim() } : {}),
+        ...(arcArenaEnabled && isAddress(arcOperator.trim()) ? { arcOperator: arcOperator.trim() } : {}),
         ...(paid ? { paymentTx: paid } : {}),
         ownerWallet: wallet,
         operatorWallet: wallet,

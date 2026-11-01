@@ -153,9 +153,9 @@ async function onBets(chatId: number): Promise<void> {
   const lines = live.map((p) => {
     const m = p.market!;
     const side = p.side === 1 ? m.labelA : m.labelB;
-    return `• <a href="${arcMarketUrl(p.kind, p.marketId)}">${p.kind === "vs" ? "VS" : "Pool"} #${p.marketId}</a> ${esc(side)}, ${p.amountUsd.toFixed(2)} USDC, closes ${new Date(m.deadline * 1000).toUTCString().slice(5, 22)} UTC`;
+    return `• <a href="${arcMarketUrl(p.kind, p.marketId, p.chain)}">${p.chain === "base" ? "Base " : "Arc "}${p.kind === "vs" ? "VS" : "Pool"} #${p.marketId}</a> ${esc(side)}, ${p.amountUsd.toFixed(2)} USDC, closes ${new Date(m.deadline * 1000).toUTCString().slice(5, 22)} UTC`;
   });
-  await sendTo(chatId, ["<b>Your open positions on Arc</b>", ...lines].join("\n"));
+  await sendTo(chatId, ["<b>Your open positions</b>", ...lines].join("\n"));
 }
 
 /** Telegram user ids allowed to /announce (TELEGRAM_ADMIN_IDS, comma-separated). Empty = nobody. */
@@ -236,7 +236,7 @@ async function onPublic(chatId: number, command: string): Promise<boolean> {
 async function onMarkets(chatId: number): Promise<void> {
   const { total, markets } = await openMarkets(5);
   const lines = markets.map(
-    (m) => `• <a href="${arcMarketUrl(m.kind, m.marketId)}">${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}</a> ${esc(m.question.slice(0, 90))} · ${timeLeft(m.deadline)}`,
+    (m) => `• <a href="${m.url}">${m.chain === "base" ? "Base " : "Arc "}${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}</a> ${esc(m.question.slice(0, 90))} · ${timeLeft(m.deadline)}`,
   );
   const text = [
     `<b>Open markets · ${total}</b>`,

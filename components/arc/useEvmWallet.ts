@@ -7,12 +7,12 @@
  * switches to its chain right before sending.
  */
 import { useSyncExternalStore } from "react";
-import { numberToHex, toHex, type Address, type Hex } from "viem";
+import { createWalletClient, custom, numberToHex, toHex, type Address, type Hex } from "viem";
 
-import { arcPublicClient } from "@/lib/arc/chain";
-import { ARC } from "@/lib/arc/config";
 import { eoaSession, type ArcSession } from "@/lib/arc/session";
 import { BASE_CHAIN } from "@/lib/base/chain";
+import { chainPublicClient, viemChainOf } from "@/lib/chains/client";
+import { MARKET_CHAINS, marketChain, type MarketChainId } from "@/lib/chains/registry";
 
 export interface Eip1193 {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -97,7 +97,8 @@ function setAccount(next: Partial<EvmAccount>) {
 /** The network name for a wallet label, or null when not known. */
 export const evmNetworkName = (intent: EvmChainIntent | null) => (intent === "arc" ? "Arc" : intent === "base" ? "Base" : null);
 
-const intentOfChain = (chainId: number): EvmChainIntent | null => (chainId === ARC.chain.id ? "arc" : chainId === BASE_CHAIN.id ? "base" : null);
+const intentOfChain = (chainId: number): EvmChainIntent | null =>
+  chainId === MARKET_CHAINS.chains.arc.chainId ? "arc" : chainId === MARKET_CHAINS.chains.base.chainId || chainId === BASE_CHAIN.id ? "base" : null;
 
 /** EvmConnect reports the wagmi account here (address null once disconnected). */
 export function reportEvmAccount(address: Address | null, via: EvmAccount["via"]) {
@@ -221,14 +222,36 @@ export async function sendEvmEth(chainId: number, to: Address, wei: bigint): Pro
   return sendEvmTransaction(chainId, { from, to, value: numberToHex(wei) });
 }
 
-/** The market session on Arc for the connected wallet: each call is a transaction from it, paid in USDC. */
-export function arcSessionFor(address: Address): ArcSession {
+/**
+ * The market session on `chain` for the connected wallet: each call is a transaction from it (Arc: gas in USDC; Base:
+ * gas in ETH). Base calldata carries Mimir's Builder Code suffix when NEXT_PUBLIC_BASE_BUILDER_SUFFIX is set.
+ */
+export function marketSessionFor(chain: MarketChainId, address: Address): ArcSession {
+  const c = marketChain(chain);
+  const suffix = chain === "base" ? builderSuffix() : null;
   return eoaSession({
-    chainId: ARC.chain.id,
+    chainId: c.chainId,
     address,
     switchChain: switchEvmChain,
-    sendTransaction: (tx) => sendEvmTransaction(ARC.chain.id, tx),
-    waitForReceipt: (hash) => arcPublicClient().waitForTransactionReceipt({ hash, timeout: 120_000 }),
+    sendTransaction: (tx) => sendEvmTransaction(c.chainId, suffix ? { ...tx, data: `${tx.data}${suffix.slice(2)}` as Hex } : tx),
+    waitForReceipt: (hash) => chainPublicClient(c).waitForTransactionReceipt({ hash, timeout: 120_000 }),
     signMessage: (message) => signWithEvm(address, message),
   });
+}
+
+/** The market session on Arc (older callers). */
+export const arcSessionFor = (address: Address): ArcSession => marketSessionFor("arc", address);
+
+/** The pre-encoded ERC-8021 suffix (lib/base/builder-code.ts) from the public env; null when unset or malformed. */
+function builderSuffix(): Hex | null {
+  const v = process.env.NEXT_PUBLIC_BASE_BUILDER_SUFFIX?.trim().toLowerCase();
+  return v && /^0x([0-9a-f]{2})+80218021802180218021802180218021$/.test(v) ? (v as Hex) : null;
+}
+
+/** EIP-712 typed data signed by the connected wallet (eth_signTypedData_v4 through viem), on `chain`. */
+export async function signTypedDataWithEvm(chain: MarketChainId, address: Address, typed: Parameters<ReturnType<typeof createWalletClient>["signTypedData"]>[0]): Promise<Hex> {
+  const p = await need(address);
+  await switchEvmChain(marketChain(chain).chainId);
+  const client = createWalletClient({ account: address, chain: viemChainOf(marketChain(chain)), transport: custom(p) });
+  return client.signTypedData({ ...typed, account: address } as Parameters<typeof client.signTypedData>[0]);
 }

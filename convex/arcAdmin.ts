@@ -38,7 +38,7 @@ export const overview = query({
     // Every read is bounded (Convex caps one query at ~16k documents): the newest rows of each table, with `capped`
     // telling the panel when a total is a lower bound. Fees come from FeeAccrued events only (by_name index).
     const CAP = { markets: 3000, positions: 4000, fees: 3000, verdicts: 1000, tries: 300, takes: 1000, decisions: 1000 };
-    const [markets, positions, events, verdicts, tries, takes, decisions, heartbeats, cursor] = await Promise.all([
+    const [markets, positions, events, verdicts, tries, takes, decisions, heartbeats, cursor, baseCursor] = await Promise.all([
       ctx.db.query("arcMarkets").order("desc").take(CAP.markets),
       ctx.db.query("arcPositions").order("desc").take(CAP.positions),
       ctx.db.query("arcEvents").withIndex("by_name", (q) => q.eq("name", "FeeAccrued")).order("desc").take(CAP.fees),
@@ -48,6 +48,7 @@ export const overview = query({
       ctx.db.query("arcCouncilDecisions").order("desc").take(CAP.decisions),
       ctx.db.query("arcHeartbeats").take(50),
       ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", "arc")).unique(),
+      ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", "base")).unique(),
     ]);
     const capped = {
       markets: markets.length >= CAP.markets,
@@ -59,16 +60,21 @@ export const overview = query({
 
     const creatorWallet = jsonEnv<{ address?: string }>("ARC_CREATOR_WALLET");
     const house = creatorWallet?.address?.toLowerCase() ?? null;
+    const baseHouse = jsonEnv<{ address?: string }>("BASE_CREATOR_WALLET")?.address?.toLowerCase() ?? null;
+    const isHouse = (a: string) => a.toLowerCase() === house || a.toLowerCase() === baseHouse;
     const council = Object.entries(jsonEnv<Record<string, { address: string }>>("ARC_COUNCIL_WALLETS") ?? {}).map(([slug, w]) => ({ slug, address: w.address.toLowerCase() }));
-    const councilSet = new Set(council.map((c) => c.address));
+    const baseCouncil = Object.entries(jsonEnv<Record<string, { address: string }>>("BASE_COUNCIL_WALLETS") ?? {}).map(([slug, w]) => ({ slug, address: w.address.toLowerCase() }));
+    const councilSet = new Set([...council, ...baseCouncil].map((c) => c.address));
     const oracleKey = process.env.ARC_ORACLE_KEY?.trim();
     const oracleAddress = oracleKey && /^0x[0-9a-fA-F]{64}$/.test(oracleKey) ? privateKeyToAccount(oracleKey as `0x${string}`).address : null;
 
-    const key = (k: string, id: number) => `${k}:${id}`;
-    const byKey = new Map(markets.map((m) => [key(m.kind, m.marketId), m]));
+    // Market ids repeat across chains: every key names the chain (a row without one is Arc's).
+    type Keyed = { chain?: "arc" | "base"; kind: string; marketId: number };
+    const key = (r: Keyed) => `${r.chain ?? "arc"}:${r.kind}:${r.marketId}`;
+    const byKey = new Map(markets.map((m) => [key(m), m]));
     const posByMarket = new Map<string, typeof positions>();
     for (const p of positions) {
-      const k = key(p.kind, p.marketId);
+      const k = key(p);
       posByMarket.set(k, [...(posByMarket.get(k) ?? []), p]);
     }
 
@@ -84,7 +90,7 @@ export const overview = query({
       const pot = BigInt(m.stakeA) + BigInt(m.stakeB);
       if (!FINAL.has(m.status)) owed[m.kind] += pot + (m.status === "disputed" ? DISPUTE_BOND : 0n);
       else if (m.kind === "pool") {
-        const legs = (posByMarket.get(key(m.kind, m.marketId)) ?? []).filter((p) => !p.claimed);
+        const legs = (posByMarket.get(key(m)) ?? []).filter((p) => !p.claimed);
         const contested = BigInt(m.stakeA) > 0n && BigInt(m.stakeB) > 0n;
         if (contested && (m.winner === 1 || m.winner === 2)) {
           const winStake = m.winner === 1 ? BigInt(m.stakeA) : BigInt(m.stakeB);
@@ -94,16 +100,17 @@ export const overview = query({
       }
     }
 
-    const verdictOf = new Map(verdicts.map((x) => [key(x.kind, x.marketId), x]));
-    const takeOf = new Map(takes.map((t) => [key(t.kind, t.marketId), t]));
+    const verdictOf = new Map(verdicts.map((x) => [key(x), x]));
+    const takeOf = new Map(takes.map((t) => [key(t), t]));
     const row = (m: (typeof markets)[number]) => ({
+      chain: m.chain ?? "arc",
       kind: m.kind,
       marketId: m.marketId,
       question: m.question,
       category: m.category,
       status: m.status,
       creator: m.creator,
-      creatorRole: m.creator.toLowerCase() === house ? "house" : councilSet.has(m.creator.toLowerCase()) ? "council" : "user",
+      creatorRole: isHouse(m.creator) ? "house" : councilSet.has(m.creator.toLowerCase()) ? "council" : "user",
       deadline: m.deadline,
       disputableUntil: m.disputableUntil,
       refundAt: m.refundAt,
@@ -111,7 +118,7 @@ export const overview = query({
       stakeB: m.stakeB,
       participants: m.participants,
       winner: m.winner,
-      hasTake: takeOf.has(key(m.kind, m.marketId)),
+      hasTake: takeOf.has(key(m)),
     });
 
     const live = markets.filter((m) => !FINAL.has(m.status)).sort((a, b) => a.deadline - b.deadline).slice(0, 200).map(row);
@@ -120,20 +127,20 @@ export const overview = query({
       .sort((a, b) => b.updatedBlock - a.updatedBlock)
       .slice(0, 25)
       .map((m) => {
-        const vd = verdictOf.get(key(m.kind, m.marketId));
+        const vd = verdictOf.get(key(m));
         return { ...row(m), confidence: vd?.confidence ?? null, summary: (vd?.summary ?? m.summary).slice(0, 200), txHash: vd?.txHash ?? null };
       });
     const queue = tries
       .map((t) => {
-        const m = byKey.get(key(t.kind, t.marketId));
-        return { kind: t.kind, marketId: t.marketId, attempts: t.attempts, notBefore: t.notBefore, lastError: t.lastError?.slice(0, 300) ?? null, question: m?.question ?? "", status: m?.status ?? null };
+        const m = byKey.get(key(t));
+        return { chain: t.chain ?? "arc", kind: t.kind, marketId: t.marketId, attempts: t.attempts, notBefore: t.notBefore, lastError: t.lastError?.slice(0, 300) ?? null, question: m?.question ?? "", status: m?.status ?? null };
       })
       .filter((t) => t.status !== "resolved" && t.status !== "cancelled");
     // Past the deadline and waiting on the oracle (VS needs a challenger to be decided; a pool needs nothing).
     const waiting = markets.filter((m) => m.deadline <= now && (m.kind === "vs" ? m.status === "active" : m.status === "open")).length;
 
     const users = new Set(positions.map((p) => p.user));
-    const people = [...users].filter((u) => u !== house && !councilSet.has(u) && u !== oracleAddress?.toLowerCase());
+    const people = [...users].filter((u) => !isHouse(u) && !councilSet.has(u) && u !== oracleAddress?.toLowerCase());
     const fees = events.filter((e) => e.name === "FeeAccrued").reduce((s, e) => s + BigInt(e.amount ?? "0"), 0n);
     const decisionCounts: Record<string, number> = {};
     for (const d of decisions) decisionCounts[d.outcome] = (decisionCounts[d.outcome] ?? 0) + 1;
@@ -143,14 +150,15 @@ export const overview = query({
       now,
       capped,
       cursorBlock: cursor?.block ?? null,
-      heartbeats: heartbeats.filter((h) => h.name !== "arc-poke").map((h) => ({ name: h.name, at: h.at })),
+      baseCursorBlock: baseCursor?.block ?? null,
+      heartbeats: heartbeats.filter((h) => !h.name.endsWith("-poke")).map((h) => ({ name: h.name, at: h.at })),
       markets: {
         total: markets.length,
         counts,
         byRole: {
-          house: markets.filter((m) => m.creator.toLowerCase() === house).length,
+          house: markets.filter((m) => isHouse(m.creator)).length,
           council: markets.filter((m) => councilSet.has(m.creator.toLowerCase())).length,
-          user: markets.filter((m) => m.creator.toLowerCase() !== house && !councilSet.has(m.creator.toLowerCase())).length,
+          user: markets.filter((m) => !isHouse(m.creator) && !councilSet.has(m.creator.toLowerCase())).length,
         },
         createdLast24h: markets.filter((m) => m.createdAt * 1000 > dayAgo).length,
         volumeUsd: markets.reduce((s, m) => s + m.volumeUsd, 0),
@@ -177,7 +185,7 @@ export const overview = query({
         [
           "ORACLE_GEMINI_API_KEY", "ORACLE_ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GEMINI_API_KEYS", "COUNCIL_GEMINI_API_KEY",
           "CREATOR_GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GROQ_API_KEYS", "OPENROUTER_API_KEY", "OPENROUTER_API_KEYS", "TYPESAFE_API_KEY",
-          "ARC_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET",
+          "ARC_ORACLE_KEY", "BASE_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET",
         ].map((k) => [k, keyCount(k)]),
       ),
     };

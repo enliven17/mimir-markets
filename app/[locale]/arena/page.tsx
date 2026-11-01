@@ -2,7 +2,7 @@
 
 /**
  * /arena: the market feed on Arc (components/arc/arena/ArcArena.tsx), live from the Convex index. Without the Arc
- * contracts and Convex configured (docs/ARC.md) there is nothing to show.
+ * contracts and Convex configured (docs/CHAINS.md) there is nothing to show.
  */
 import { useTranslations } from "next-intl";
 

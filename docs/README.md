@@ -26,7 +26,7 @@ Read in this order.
 
 | Doc | What it is for |
 |---|---|
-| [ARC.md](ARC.md) | Architecture: accounts (your EVM wallet), the market contracts, fees, the backend jobs, hosted agents, security reviews. |
+| [CHAINS.md](CHAINS.md) | Architecture: Base and Arc (the chain registry, amounts, linked markets), accounts (your EVM wallet), the market contracts, fees, the backend jobs, hosted agents, security reviews. |
 | [COUNCIL.md](COUNCIL.md) | The twenty AI personas: market takes, optional bets, preflight, configuration. |
 | [DESIGN.md](DESIGN.md) | The design system: tokens, type, components, motion. |
 | [`../brand/README.md`](../brand/README.md) | The brand kit: logo, colour, type, voice. |
