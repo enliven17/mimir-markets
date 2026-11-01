@@ -14,6 +14,8 @@
  */
 import { decodeFunctionData } from "viem";
 import { useArcAccount } from "@/components/arc/arena/useArcAccount";
+import { toIndexUnits } from "@/lib/chains/amounts";
+import { ERC20_ABI } from "@/lib/chains/client";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
 import { ARC } from "@/lib/arc/config";
 import { MIMIR_V3_ABI } from "@/lib/arc/markets";
@@ -89,7 +91,9 @@ function memberSeed(m: Pick<Member, "agentId" | "kind" | "wallet">): string {
 export default function BasketDetailClient({ basketId }: { basketId: string }) {
   const t = useTranslations("baskets");
   const { address, connected, signMessage } = useMimirWallet();
-  const arc = useArcAccount();
+  // One account per chain: a copy goes to the chain its signal is on (copies follow the leader's chain).
+  const arc = useArcAccount("arc");
+  const base = useArcAccount("base");
   const follower = address ?? null;
 
   const [data, setData] = useState<BasketDetail | null>(null);
@@ -178,30 +182,46 @@ export default function BasketDetailClient({ basketId }: { basketId: string }) {
    * market, on MimirV3, for no more than the signal's stake).
    */
   async function mirrorOnArc(signal: MirrorSignal) {
-    if (!arc.session) throw new Error("Connect your wallet first: copies are staked from it.");
+    const account = signal.chain === "base" ? base : arc;
+    const cfg = account.chainConfig;
+    if (!account.session) throw new Error("Connect your wallet first: copies are staked from it.");
     const res = await fetch(`/api/baskets/${basketId}/mirror`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ follower, claimId: signal.claimId }),
+      body: JSON.stringify({ follower, claimId: signal.claimId, chain: cfg.id }),
     });
-    const payload = (await res.json().catch(() => ({}))) as { message?: string; call?: { to: string; data: `0x${string}`; value: string } };
-    if (!res.ok || !payload.call) throw new Error(payload.message ?? t("failed"));
-    const { call } = payload;
-    const decoded = decodeFunctionData({ abi: MIMIR_V3_ABI, data: call.data });
-    const value = BigInt(call.value);
+    type Call = { to: string; data: `0x${string}`; value: string };
+    const payload = (await res.json().catch(() => ({}))) as { message?: string; call?: Call; calls?: Call[] };
+    const calls = payload.calls ?? (payload.call ? [payload.call] : []);
+    if (!res.ok || !calls.length) throw new Error(payload.message ?? t("failed"));
+    // Checked here before the wallet signs: at most one exact USDC approve to MimirV3 (Base), then a challenge on this
+    // market for no more than the signal's stake.
     const cap = BigInt(signal.suggestedStakeUnits) * 1_000_000_000_000n;
+    const v3 = cfg.contracts.mimirV3?.toLowerCase();
+    const stake = calls[calls.length - 1];
+    const decoded = decodeFunctionData({ abi: MIMIR_V3_ABI, data: stake.data });
+    const amount = toIndexUnits(cfg, decoded.args[1] as bigint);
+    const approves = calls.slice(0, -1);
+    const approvesOk = approves.every((c) => {
+      if (cfg.usdc.kind !== "erc20" || c.to.toLowerCase() !== cfg.usdc.address.toLowerCase()) return false;
+      const a = decodeFunctionData({ abi: ERC20_ABI, data: c.data });
+      return a.functionName === "approve" && String(a.args[0]).toLowerCase() === v3 && toIndexUnits(cfg, a.args[1] as bigint) <= cap;
+    });
     if (
-      call.to.toLowerCase() !== ARC.contracts.mimirV3?.toLowerCase() ||
+      approves.length > 1 ||
+      !approvesOk ||
+      stake.to.toLowerCase() !== v3 ||
       decoded.functionName !== "challengeClaim" ||
       decoded.args[0] !== BigInt(signal.claimId) ||
-      decoded.args[1] !== value ||
-      value > cap
+      (cfg.usdc.kind === "native" && BigInt(stake.value) !== amount) ||
+      (cfg.usdc.kind === "erc20" && BigInt(stake.value) !== 0n) ||
+      amount > cap
     ) {
       throw new Error("The copy transaction did not match the signal; nothing was signed.");
     }
-    const receipt = await arc.session.sendCalls([{ to: call.to as `0x${string}`, data: call.data, value }]);
+    const receipt = await account.session.sendCalls(calls.map((c) => ({ to: c.to as `0x${string}`, data: c.data, value: BigInt(c.value) })));
     setNotice({ claimId: signal.claimId, text: t("mirrored", { sig: shortenAddress(receipt.txHash, 6) }) });
-    void arc.reload();
+    void account.reload();
     loadSignals();
   }
 

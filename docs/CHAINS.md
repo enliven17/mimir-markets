@@ -1,52 +1,109 @@
-# Architecture: markets on Arc, any EVM wallet
+# Architecture: markets on Base and Arc, any EVM wallet
 
-Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People connect any **EVM wallet**
-(ConnectKit: injected wallets, WalletConnect) on Arc or Base; its address is their account. Markets on **Base** come
-next, on their own ERC-20 USDC contracts (`contracts/*Erc20.sol`, `scripts/base/`).
+Markets, stakes, settlement and payouts live on chain, on two networks with their own contracts and their own
+markets:
+
+- **Base** (primary): `MimirV3Erc20` (VS) and `MimirPoolErc20` (pools) with Circle's ERC-20 USDC (6 decimals). Gas is
+  ETH. Base Sepolia on testnet.
+- **Arc** (Circle's stablecoin chain): `MimirV3` and `MimirPool` with native USDC (18 decimals), which also pays the
+  gas. It runs beside Base for now and is switched off by config later (`NEXT_PUBLIC_MARKET_CHAINS=base`).
+
+People connect any **EVM wallet** (ConnectKit: injected wallets, WalletConnect); the same address is their account on
+both. A market lives on the chain it was opened on. Mimir's own agents open their markets on every enabled chain and
+link the copies (below).
 
 ## The shape of it
 
 ```
- the user's EVM wallet ── signs and sends ──▶ MimirV3 (VS) / MimirPool on Arc ──events──▶ the backend
-        │  (stakes and gas in USDC)                    ▲                                indexer, oracle,
-        │                                              │ payouts                        council, creator,
+ the user's EVM wallet ── signs and sends ──▶ MimirV3 / MimirPool on Base or Arc ──events──▶ the backend
+        │  (Base: USDC + ETH gas;                       ▲                                one indexer per chain,
+        │   Arc: USDC, gas in USDC)                     │ payouts                        oracle, council, creator,
         └── an agent's token (optional) ──▶ Argus (Arc) / Clanker (Base)                hosted agents
 ```
 
-- **No relayer, no hot key for users.** Every user action is a transaction from the user's own wallet, gas paid in
-  USDC on Arc. `msg.sender` is the user, so positions and payouts are theirs.
+- **No relayer, no hot key for users.** Every user action is a transaction from the user's own wallet. `msg.sender`
+  is the user, so positions and payouts are theirs.
 - **Mimir's own actors** (oracle, council personas, market creator) and hosted agents sign through Circle
   developer-controlled wallets or a dedicated oracle key; no persona key sits on Mimir's servers.
-- **Connected agents** bring their own EVM key; the agent API returns unsigned Arc transactions ([AGENTS.md](AGENTS.md)).
+- **Connected agents** bring their own EVM key; the agent API returns unsigned transactions for the chain they name
+  ([AGENTS.md](AGENTS.md)).
+
+## Chains in code
+
+One registry, `lib/chains/registry.ts`, describes each market chain: id (`base` | `arc`), network, chain id, RPCs,
+explorer, gas token, USDC (native 18 dp or ERC-20 6 dp, address, permit), contracts, deploy block and minimum stake.
+The browser reads `NEXT_PUBLIC_*` names (`MARKET_CHAINS`), the backend its own (`serverMarketChains`). A chain is
+**enabled** when both market contracts are set and it is in `NEXT_PUBLIC_MARKET_CHAINS` / `MARKET_CHAINS` (default
+`base,arc`). A chain without contracts is simply off: no index, no oracle, no UI, never a crash. The default chain for
+new markets is Base when enabled (`NEXT_PUBLIC_DEFAULT_MARKET_CHAIN` overrides). `lib/arc/config.ts` keeps the Arc
+specifics and feeds the registry.
+
+**Amounts.** Off chain every USDC amount is one unit: an 18-decimal integer ("index units", what Arc's native USDC
+already is). The Base indexer scales 6-dp amounts by 1e12 on the way in, so the index, quotes, the UI and agent sizing
+never care which chain a number came from. Transaction builders scale back exactly (`lib/chains/amounts.ts`): an
+amount finer than 6 decimals is refused (`SubUnitAmountError`), and computed amounts (a max that fits, a Kelly size)
+are rounded down first, so the dust stays with the user.
+
+**Base transactions** (`lib/chains/calls.ts`, `lib/chains/send.ts`). The contract pulls the USDC with `transferFrom`:
+
+- the allowance already covers it: the call alone;
+- a pool create, stake or dispute: the wallet signs an EIP-2612 permit, then one transaction (`...WithPermit`); a
+  wallet that cannot sign typed data falls back to approve + call;
+- VS (no permit variants: EIP-170 size): approve exactly the amount, then the call.
+
+A wallet with no ETH on Base is stopped before the wallet opens, with a plain message. Base calldata carries Mimir's
+ERC-8021 Builder Code when `NEXT_PUBLIC_BASE_BUILDER_SUFFIX` is set.
+
+**Routes.** A market page is `/arena/<chain>/<kind>/<id>`; `/arena/arc/<kind>/<id>` (every older link) is the same
+route with `chain = arc`. Share refs are `<kind>-<id>` on Arc and `base-<kind>-<id>` on Base.
+
+## Linked markets
+
+When the house creator or a hosted agent opens a market and more than one chain is enabled, it opens it on each chain
+it can fund and links them with a shared `pairKey` (`lib/chains/linked.ts`, `marketLinks` and `arcMarkets.pairKey`).
+The money stays separate per chain. The market page shows "Also on Base/Arc". The oracle decides the outcome once and
+proposes the same decision on every linked market; what stays per market is what depends on its own stakes (an
+uncontested pool refunds, stakes placed after the outcome was known refund). A mainnet market never reuses a decision
+made for a testnet one.
 
 ## Accounts
 
-- **Connect:** any EVM wallet, on Arc or Base. Connecting never switches the network; a transaction switches to its
-  chain right before sending (`components/arc/useEvmWallet.ts`).
+- **Connect:** any EVM wallet. Connecting never switches the network; a transaction switches to its chain right before
+  sending (`components/arc/useEvmWallet.ts`). The wallet menu and the portfolio show USDC on every enabled chain (and
+  ETH for gas on Base).
 - **Prove:** routes that act for a wallet take an EIP-191 signature of a readable message (`lib/owner.ts`); a smart
   wallet's ERC-1271 signature is checked on Arc, then on Base.
 - **Open access:** no invite code. Per-account stake caps, rate limits and wallet proofs still apply.
-- **One balance, two views:** USDC on Arc is native (18 decimals, what `msg.value` spends) and also the ERC-20 at
-  `0x3600…0000` (6 decimals). The market contracts spend it natively.
+- **Arc USDC, one balance, two views:** native (18 decimals, what `msg.value` spends) and the ERC-20 at `0x3600…0000`
+  (6 decimals). The Arc market contracts spend it natively.
 
 ## Hosted agents (Mimir Launch)
 
 - **Free to create** (`lib/launch/flow.ts`, `convex/launch.ts`): the owner signs once; Mimir makes the agent's Circle
-  wallet on Arc and stores it live. No funding step.
-- **Staking** (`convex/launchArc.ts`, `lib/launch/markets.ts`): every 10 minutes per agent, its brain gives P(side A)
-  for the open pools its rules allow; it stakes the best edge at a fraction of Kelly from its own wallet, which the
-  owner funds with USDC and can withdraw from. It may also open markets (`convex/launchMarkets.ts`) when allowed.
+  wallets (Arc, and Base: blockchain `BASE` / `BASE-SEPOLIA`) and stores it live. No funding step. A Base wallet that
+  could not be made then is made by its first Base tick (needs `CIRCLE_WALLET_SET_ID` in the Convex env).
+- **Staking** (`convex/launchArc.ts`, `lib/launch/markets.ts`): every 10 minutes per agent and per chain its rules
+  allow (`chains`, default both), its brain gives P(side A) for the open pools there; it stakes the best edge at a
+  fraction of Kelly from its own wallet on that chain. On Base that is approve + stake, and gas is ETH: **there is no
+  gas station, the owner (or Mimir) sends the agent's Base wallet a little ETH.** The owner funds and withdraws per
+  chain from the agent page. It may also open markets (`convex/launchMarkets.ts`) when allowed, linked across chains.
 - **Copying** (`lib/launch/copy-stake.ts`, `convex/launchCopyJobs.ts`): followers mirror its pool stakes from Circle
-  copy wallets of their own, under their own cap.
+  copy wallets of their own, under their own cap. **Copies follow the leader's chain**: a Base stake is copied from
+  the follower's Base copy wallet, an Arc stake from the Arc one. Basket copies do the same.
 - **Its token (optional)** (`lib/launch/token.ts`): built server-side for the owner's wallet as creator (Argus on Arc:
   `lib/launch/argus*.ts`, creatorBps 10000; Clanker v4 on Base: `lib/launch/base/`, the owner as admin and only reward
   recipient), signed and sent by the owner, then recorded once its receipt checks out (sender and creator are the
   owner, the symbol is the agent's ticker). Every creator fee goes to the owner, who claims from the agent page
   (Argus splitter `distribute()` + `claim(owner)`; ClankerFeeLocker `claim(owner, WETH)`). Mimir holds nothing.
-- **Council agents** have an Arc wallet (`ARC_COUNCIL_WALLETS`) and an optional Base wallet in
-  `lib/launch/council.json` (address and Circle wallet id), for Base markets later.
+- **Council agents** stake from `ARC_COUNCIL_WALLETS` on Arc and `BASE_COUNCIL_WALLETS` on Base
+  (`scripts/arc/council-wallets.ts --chain base` makes them). A persona with no wallet on a chain does not stake there.
 
 ## Market contracts (`contracts/`)
+
+Base runs the ERC-20 ports (`MimirV3Erc20`, `MimirPoolErc20`; their header comments list every difference: USDC
+pulled with `transferFrom`, the pool's permit variants, `DISPUTE_BOND` 2e6, failed payout pushes parked for
+`withdrawTo`). Every rule below holds on both chains. Deploy: `scripts/base/deploy-markets.mts` (Base),
+`scripts/arc/deploy.mjs` (Arc). `MimirFees` is the same contract on both.
 
 | Contract | What it does |
 |---|---|
@@ -86,10 +143,11 @@ Scheduled jobs, each run finishing on its own and retried on the next tick (`con
 
 | Job | Every | What |
 |---|---|---|
-| Indexer (`arcSync`) | 30 s | Reads both contracts' logs into markets, positions and every transaction (shown on each market page). Posts market events to the Telegram route. |
-| Oracle (`arcOracle`) | 1 min | Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
-| Council (`arcCouncil`) | 5 min | One forecast take per market from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
-| Market creator (`arcCreator`) | 1 h | Opens house VS markets from live data within `CREATOR_DAILY_BUDGET_USDC` (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1), cancels its own unchallenged ones. |
+| Indexers (`arcSync`, one per chain) | 30 s | Reads both contracts' logs into markets, positions and every transaction (shown on each market page), Base amounts scaled to 18 dp. Base stays `BASE_CONFIRMATIONS` (6) blocks behind its head. Posts market events to the Telegram route. Cursors are per chain (`arcCursor` name `arc` / `base`). |
+| Oracle (`arcOracle`) | 2 min | One pass per enabled chain. Linked markets reuse one decision. Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
+| Council (`arcCouncil`) | 15 min | On every enabled chain, from that chain's wallets. One forecast take per market from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
+| Market creator (`arcCreator`) | 1 h | Opens house pools from live data on every enabled chain where `ARC_CREATOR_WALLET` / `BASE_CREATOR_WALLET` is set, linked, within `CREATOR_DAILY_BUDGET_USDC` per chain (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1); cancels its own unchallenged VS claims. |
+| Watchdog (`arcWatch`) | 10 min | Per chain: roles, pause, proposals that are not our oracle's, disputes, stuck markets, low gas (USDC on Arc, ETH on Base). |
 | Hosted agents (`launchArc`, `launchMarketsDb`) | 5 min, 1 h | Agents stake on markets (`LAUNCH_ARC=1`) and open their own when allowed. |
 
 Model keys are split by role so the oracle's quota is never spent by anything else (`lib/llm.ts`): the oracle uses
@@ -164,10 +222,28 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 | L-3 | Low | Tickets from a rotated-out signer stayed valid | Signer epochs; `cancelOwnershipTransfer()` |
 | Caps | Low | Unbounded inputs | Payout ≤ 10×, deadline ≤ 1 year, entry fee ≤ 1% |
 
+## The oracle key on Base
+
+The contracts' `oracle` role is one EOA per deployment. On Base it is `BASE_ORACLE_KEY`, or `ARC_ORACLE_KEY` when that
+is unset, so one settlement address can serve both chains (deploy Base with `BASE_ORACLE` = that address). On Base it
+pays gas in **ETH**: keep it funded (the watchdog warns under 0.003 ETH). On Arc it pays in USDC.
+
+## Switching on Base (ops)
+
+1. Deploy: `scripts/base/deploy-markets.mts`; it prints the site and backend env lines.
+2. Site env: `NEXT_PUBLIC_BASE_NETWORK`, `NEXT_PUBLIC_BASE_RPC`, `NEXT_PUBLIC_MIMIR_BASE_*`. Backend (Convex):
+   `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `BASE_ORACLE_KEY` (optional), `BASE_CREATOR_WALLET`,
+   `BASE_COUNCIL_WALLETS`, `CIRCLE_WALLET_SET_ID`.
+3. Fund with ETH (gas) and USDC: the oracle, the house creator, the council's Base wallets.
+4. Deploy the backend. The Arc indexer tags pre-Base rows `chain: "arc"` on its first tick (`convex/chainMigrate.ts`);
+   `npx convex run chainMigrate:run` does the same by hand. Until it has run, Arc reads may miss rows for a tick.
+5. To switch Arc off later: `NEXT_PUBLIC_MARKET_CHAINS=base` and `MARKET_CHAINS=base`. Open Arc markets still settle
+   on chain through `refundExpired` if the oracle stops; keep Arc enabled on the backend until they are settled.
+
 ## Costs
 
 - **Circle Wallets:** the first 1,000 monthly active wallets free, then $0.05 down to $0.02 a wallet a month.
-- **Gas:** paid by each wallet in USDC on Arc; about a cent or less at 25 gwei.
+- **Gas:** paid by each wallet: USDC on Arc (about a cent or less at 25 gwei), ETH on Base (a fraction of a cent).
 - **The house:** the market creator's daily budget (default 1 USDC) and, on testnet, council bets.
 
 ## Before mainnet

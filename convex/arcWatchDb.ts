@@ -1,21 +1,22 @@
 // The watchdog's reads and its "already told the admin" memory (convex/arcWatch.ts).
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { vChain } from "./schema";
 
-/** What the watchdog checks from the index: live proposals with our recorded verdict, open disputes, stuck retries, job heartbeats. */
+/** What the watchdog checks from one chain's index: live proposals with our recorded verdict, open disputes, stuck retries, job heartbeats. */
 export const snapshot = internalQuery({
-  args: { now: v.number() },
-  handler: async (ctx, { now }) => {
-    const byStatus = (st: "proposed" | "disputed") =>
-      ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st)).take(200);
+  args: { chain: vChain, now: v.number() },
+  handler: async (ctx, { chain, now }) => {
+    const byStatus = async (st: "proposed" | "disputed") =>
+      (await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st)).take(400)).filter((m) => (m.chain ?? "arc") === chain);
     const proposed = [];
     for (const m of await byStatus("proposed")) {
       if (m.disputableUntil <= now) continue;
-      const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("kind", m.kind).eq("marketId", m.marketId)).order("desc").first();
+      const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", m.kind).eq("marketId", m.marketId)).order("desc").first();
       proposed.push({ kind: m.kind, marketId: m.marketId, question: m.question, disputableUntil: m.disputableUntil, verdictSide: verdict?.side ?? null });
     }
     const disputed = (await byStatus("disputed")).map((m) => ({ kind: m.kind, marketId: m.marketId, question: m.question, vetoed: m.vetoed ?? false, refundAt: m.refundAt }));
-    const stuck = (await ctx.db.query("arcOracleTries").take(500)).filter((t) => t.attempts >= 6 && t.lastError).map((t) => ({ kind: t.kind, marketId: t.marketId, attempts: t.attempts, lastError: t.lastError ?? "" }));
+    const stuck = (await ctx.db.query("arcOracleTries").take(1000)).filter((t) => (t.chain ?? "arc") === chain && t.attempts >= 6 && t.lastError).map((t) => ({ kind: t.kind, marketId: t.marketId, attempts: t.attempts, lastError: t.lastError ?? "" }));
     const heartbeats = (await ctx.db.query("arcHeartbeats").take(50)).map((h) => ({ name: h.name, at: h.at }));
     return { proposed, disputed, stuck, heartbeats };
   },

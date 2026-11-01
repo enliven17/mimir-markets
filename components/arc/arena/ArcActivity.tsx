@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Every transaction on an Arc market, newest first, each linked to ArcScan:
+ * Every transaction on a market, newest first, each linked to its chain's explorer (BaseScan, ArcScan):
  * opening, stakes and challenges, the oracle's proposal, disputes, settlement
  * and payouts. Plus the oracle's verdict with its audit bundle, whose hash is
  * the evidenceHash written on chain. Transparency is the point: nothing here
@@ -10,7 +10,7 @@
 import { useState } from "react";
 
 import type { Doc } from "@/convex/_generated/dataModel";
-import { arcExplorerUrl } from "@/lib/arc/config";
+import { explorerUrl as chainExplorerUrl, marketChain } from "@/lib/chains/registry";
 import { usdFine, type ArcMarket } from "./shared";
 import { ExternalMark } from "@/components/ExternalMark";
 
@@ -76,7 +76,7 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
         <div className="grid gap-3 rounded-xl bg-panel p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="m-0 text-[14px] text-cream">Oracle verdict</h3>
-            <a href={arcExplorerUrl("tx", verdict.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
+            <a href={chainExplorerUrl(marketChain(m.chain ?? "arc"), "tx", verdict.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
               {short(verdict.txHash)} <ExternalMark />
             </a>
           </div>
@@ -104,12 +104,12 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
         {events.map((e) => (
           <li key={e._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b border-line py-2.5 text-[13px] last:border-0">
             <span className="truncate text-cream">{label(m, e)}</span>
-            <a href={arcExplorerUrl("tx", e.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
+            <a href={chainExplorerUrl(marketChain(m.chain ?? "arc"), "tx", e.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
               {short(e.txHash)} <ExternalMark />
             </a>
             <span className="truncate text-[12px] text-muted">
               {e.user ? (
-                <a href={arcExplorerUrl("address", e.user)} target="_blank" rel="noreferrer" className="font-mono hover:text-cream">
+                <a href={chainExplorerUrl(marketChain(m.chain ?? "arc"), "address", e.user)} target="_blank" rel="noreferrer" className="font-mono hover:text-cream">
                   {short(e.user)}
                 </a>
               ) : null}

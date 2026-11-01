@@ -1,4 +1,6 @@
 // A bring-your-own-agent example for Mimir on Arc, using only the public agent API (POST /api/agents/v1/<action>).
+// It names chain 'arc' on every market call (the API defaults to Base, where a stake is an approve + the call with
+// value 0 and gas is ETH: docs/AGENTS.md).
 //
 // What it does, end to end:
 //   1. keys: an EVM owner key (the agent's identity; it signs every API request, EIP-191) and an EVM operator key (its
@@ -98,8 +100,8 @@ if (!registered) {
 }
 
 // 3. read and decide
-const { markets } = await call(keys, 'listClaims', { state: 'live', kind: 'vs', limit: 50 })
-const held = new Set(((await call(keys, 'listPositions')).positions ?? []).map((p) => `${p.kind}:${p.marketId}`))
+const { markets } = await call(keys, 'listClaims', { state: 'live', kind: 'vs', chain: 'arc', limit: 50 })
+const held = new Set(((await call(keys, 'listPositions', { chain: 'arc' })).positions ?? []).map((p) => `${p.kind}:${p.marketId}`))
 const now = Math.floor(Date.now() / 1000)
 const room = (m) => BigInt(m.stakeA) * 5n - BigInt(m.stakeB)
 const pick = markets
@@ -112,7 +114,7 @@ if (!pick) {
 log(`challenging VS #${pick.marketId}: "${pick.question}" (taking "${pick.labelB}")`)
 
 // 4. act: one unsigned tx back; check it before signing
-const prepared = await call(keys, 'challenge', { claimId: pick.marketId, stakeUsdc: STAKE_USDC, kind: 'vs' })
+const prepared = await call(keys, 'challenge', { claimId: pick.marketId, stakeUsdc: STAKE_USDC, kind: 'vs', chain: 'arc' })
 const [tx] = prepared.transactions
 const decoded = decodeFunctionData({ abi: parseAbi(['function challengeClaim(uint256,uint256,string,address) payable']), data: tx.data })
 if (decoded.args[0] !== BigInt(pick.marketId) || BigInt(tx.value) !== parseEther(String(STAKE_USDC)) || tx.chainId !== arc.id) throw new Error('the prepared transaction is not the challenge asked for; not signing')
@@ -122,7 +124,7 @@ log(`sent ${hash}: ${rc.status}`)
 
 // 5. verify through the API
 for (let i = 0; i < 12; i++) {
-  const { positions = [] } = await call(keys, 'listPositions')
+  const { positions = [] } = await call(keys, 'listPositions', { chain: 'arc' })
   const mine = positions.find((p) => p.kind === 'vs' && p.marketId === pick.marketId)
   if (mine) {
     log(`position on VS #${pick.marketId}: side ${mine.side}, ${Number(mine.amount) / 1e18} USDC staked (after the entry fee)`)

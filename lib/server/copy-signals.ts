@@ -36,7 +36,8 @@ export async function buildCopyInstructions(
     if (!signalWallet) continue;
 
     const [claims, usage] = await Promise.all([
-      claimsChallengedBy([signalWallet], [ST_OPEN, ST_ACTIVE], 100).catch(() => []),
+      // Copy trading prepares Arc transactions only (app/api/copy/signals): Base claims are left to baskets for now.
+      claimsChallengedBy([signalWallet], [ST_OPEN, ST_ACTIVE], 100).then((cs) => cs.filter((c) => (c.chain ?? "arc") === "arc")).catch(() => []),
       // Without the ledger there is no way to know what was spent: refuse to
       // size anything rather than assume nothing was.
       loadUsage(permission.id, now, onArc() ? arcClaimStates : undefined).catch(() => null),

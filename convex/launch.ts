@@ -5,7 +5,7 @@ import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } fr
 import type { Doc } from "./_generated/dataModel";
 import { secretMatches } from "../lib/internal-secrets";
 import { reservedLaunchSlug } from "../lib/launch/copy-key";
-import { vAgentToken } from "./schema";
+import { vAgentToken, vChain } from "./schema";
 
 function allowed(secret: string) {
   if (!secretMatches("launch", secret)) throw new Error("not allowed");
@@ -31,6 +31,8 @@ export const create = mutation({
     brain: vBrain,
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
     arc: v.object({ walletId: v.string(), address: v.string() }),
+    /** Its Base wallet (Circle), when Base markets are enabled; else made on first use (setBaseWallet). */
+    base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
   },
   handler: async (ctx, { secret, ...a }) => {
     allowed(secret);
@@ -43,7 +45,9 @@ export const create = mutation({
       slug = `${a.slug}-${n}`;
     }
     const id = await ctx.db.insert("launchAgents", { ...a, slug, status: "live", createdAt: Date.now() });
-    await log(ctx, id, "rules", "created: send USDC to its Arc wallet and it starts staking", { chain: "arc" });
+    await log(ctx, id, "rules", a.base
+      ? "created: send USDC to its Base wallet (plus a little ETH for gas) or to its Arc wallet, and it starts staking"
+      : "created: send USDC to its Arc wallet and it starts staking", { chain: a.base ? "base" : "arc" });
     return { ok: true as const, slug };
   },
 });
@@ -55,7 +59,7 @@ export const forOwner = query({
     allowed(secret);
     const a = await bySlug(ctx, slug);
     return a && {
-      owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, uid: a.uid, arc: a.arc, token: a.token ?? null,
+      owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, uid: a.uid, arc: a.arc, base: a.base ?? null, token: a.token ?? null,
     };
   },
 });
@@ -140,23 +144,44 @@ export const byOwner = query({
     (await ctx.db.query("launchAgents").withIndex("by_owner", (q) => q.eq("owner", owner)).order("desc").take(50)).map(publicView),
 });
 
-// ---------------- the Arc market tick (convex/launchArc.ts) ----------------
+/** The agent's Base wallet, made on first use by the tick (convex/launchArc.ts); never replaced once stored. */
+export const setBaseWallet = internalMutation({
+  args: { id: v.id("launchAgents"), base: v.object({ walletId: v.string(), address: v.string() }) },
+  handler: async (ctx, { id, base }) => {
+    const a = await ctx.db.get(id);
+    if (!a || a.base) return a?.base ?? null;
+    await ctx.db.patch(id, { base });
+    await log(ctx, id, "rules", "its Base wallet is ready: send it USDC and a little ETH for gas to stake on Base", { chain: "base" });
+    return base;
+  },
+});
+
+// ---------------- the market tick (convex/launchArc.ts) ----------------
 
 /**
- * What an agent holds on Arc and how much is still out (unsettled), from the chain (the indexed positions) and from
- * our own records: a Circle call that timed out can still land, and the index sees it within seconds, so it is never
- * staked twice. Also used by convex/launchMarketsDb.ts for the seed stake of a market it opens.
+ * What an agent holds on every chain (keys "chain:kind:id") and how much is still out (unsettled, USDC across chains),
+ * from the chain (the indexed positions of its Arc and Base wallets) and from our own records: a Circle call that timed
+ * out can still land, and the index sees it within seconds, so it is never staked twice. Also used by
+ * convex/launchMarketsDb.ts for the seed stake of a market it opens.
  */
 export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents">): Promise<{ held: string[]; openUsdc: number }> {
   const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
-  const onChain = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a.arc.address.toLowerCase())).collect();
   const out = new Map<string, number>();
-  for (const p of onChain) out.set(`${p.kind}:${p.marketId}`, (out.get(`${p.kind}:${p.marketId}`) ?? 0) + Number(BigInt(p.amount)) / 1e18);
-  for (const s of recorded) if (!out.has(`${s.kind}:${s.marketId}`)) out.set(`${s.kind}:${s.marketId}`, s.usdc);
+  const wallets = [...new Set([a.arc.address, a.base?.address].filter((w): w is string => Boolean(w)).map((w) => w.toLowerCase()))];
+  for (const w of wallets) {
+    for (const p of await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w)).collect()) {
+      const k = `${p.chain ?? "arc"}:${p.kind}:${p.marketId}`;
+      out.set(k, (out.get(k) ?? 0) + Number(BigInt(p.amount)) / 1e18);
+    }
+  }
+  for (const s of recorded) {
+    const k = `${s.chain ?? "arc"}:${s.kind}:${s.marketId}`;
+    if (!out.has(k)) out.set(k, s.usdc);
+  }
   let openUsdc = 0;
   for (const [key, usdc] of out) {
-    const [kind, id] = key.split(":");
-    const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", kind as "vs" | "pool").eq("marketId", Number(id))).unique();
+    const [chain, kind, id] = key.split(":") as ["arc" | "base", "vs" | "pool", string];
+    const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", Number(id))).unique();
     if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
   }
   return { held: [...out.keys()], openUsdc };
@@ -174,18 +199,18 @@ export const claimMarketAgents = internalMutation({
     for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
     return Promise.all(due.map(async (a) => {
       const { held, openUsdc } = await holdings(ctx, a);
-      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc, held, openUsdc };
+      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc, base: a.base ?? null, held, openUsdc };
     }));
   },
 });
 
 export const recordStake = internalMutation({
-  args: { agent: v.id("launchAgents"), kind: v.union(v.literal("vs"), v.literal("pool")), marketId: v.number(), side: v.number(), usdc: v.number(), p: v.number(), edge: v.number(), why: v.string(), tx: v.string(), text: v.string() },
+  args: { agent: v.id("launchAgents"), chain: vChain, kind: v.union(v.literal("vs"), v.literal("pool")), marketId: v.number(), side: v.number(), usdc: v.number(), p: v.number(), edge: v.number(), why: v.string(), tx: v.string(), text: v.string() },
   handler: async (ctx, { text, ...s }) => {
     await ctx.db.insert("launchStakes", { ...s, at: Date.now() });
-    await log(ctx, s.agent, "stake", text, { chain: "arc", tx: s.tx });
-    const [a, m] = await Promise.all([ctx.db.get(s.agent), ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", s.kind).eq("marketId", s.marketId)).unique()]);
-    if (a && m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketKind: s.kind, marketId: s.marketId, category: m.category, slug: a.slug,
+    await log(ctx, s.agent, "stake", text, { chain: s.chain, tx: s.tx });
+    const [a, m] = await Promise.all([ctx.db.get(s.agent), ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", s.chain).eq("kind", s.kind).eq("marketId", s.marketId)).unique()]);
+    if (a && m && !m.isPrivate) await ctx.db.insert("discoverySignals", { marketChain: s.chain, marketKind: s.kind, marketId: s.marketId, category: m.category, slug: a.slug,
       type: "agent_stake", text: `${a.name} staked on ${s.side === 1 ? m.labelA : m.labelB}: ${m.question}`, at: Date.now() });
   },
 });
@@ -219,10 +244,11 @@ export const publicMarketRecord = query({
     const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address.toLowerCase())).take(301);
     const records = [];
     for (const p of rows.slice(0, 300)) {
-      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", p.kind).eq("marketId", p.marketId)).unique();
+      const chain = p.chain ?? "arc";
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
       if (!m || m.isPrivate) continue;
       const outcome = m.status === "cancelled" || (m.status === "resolved" && m.winner > 2) ? "refunded" : m.status !== "resolved" ? "open" : m.winner === p.side ? "won" : "lost";
-      records.push({ kind: p.kind, marketId: p.marketId, question: m.question, outcome, netStake: p.amount, claimed: p.claimed ?? null });
+      records.push({ chain, kind: p.kind, marketId: p.marketId, question: m.question, outcome, netStake: p.amount, claimed: p.claimed ?? null });
     }
     return { records, limited: rows.length > 300 };
   },
@@ -240,13 +266,14 @@ export const arcRecord = query({
     const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user)).order("desc").take(300);
     const bets = [];
     for (const p of positions) {
-      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("kind", p.kind).eq("marketId", p.marketId)).unique();
+      const chain = p.chain ?? "arc";
+      const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
       if (!m) continue;
       const usdc = Number(BigInt(p.amount)) / 1e18;
       const same = Number(BigInt(p.side === 1 ? m.stakeA : m.stakeB)) / 1e18, other = Number(BigInt(p.side === 1 ? m.stakeB : m.stakeA)) / 1e18;
       const outcome = m.status === "cancelled" || (m.status === "resolved" && m.winner > 2) ? "refunded" : m.status !== "resolved" ? "open" : m.winner === p.side ? "won" : "lost";
       const pnl = outcome === "won" ? (same > 0 ? (usdc / same) * other : 0) : outcome === "lost" ? -usdc : 0;
-      bets.push({ kind: p.kind, marketId: p.marketId, side: p.side, label: p.side === 1 ? m.labelA : m.labelB, question: m.question, usdc, outcome, pnl, deadline: m.deadline });
+      bets.push({ chain, kind: p.kind, marketId: p.marketId, side: p.side, label: p.side === 1 ? m.labelA : m.labelB, question: m.question, usdc, outcome, pnl, deadline: m.deadline });
     }
     return bets;
   },

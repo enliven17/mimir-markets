@@ -5,6 +5,7 @@
  * stakes and the oracle's verdicts on Arc.
  */
 import { useState } from "react";
+import { marketPath } from "@/lib/chains/links";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { SURFACE } from "@/components/arena/surface";
@@ -17,6 +18,7 @@ import { isPendingVerdict } from "@/lib/claim-status";
 
 interface ClaimRow {
   id: number;
+  chain?: "arc" | "base";
   kind: "vs" | "pool";
   question: string;
   category: string;
@@ -202,7 +204,7 @@ export default function StatsClient() {
                 return (
                   <li key={`${s.kind}-${s.id}`} className="[contain-intrinsic-size:auto_76px] [content-visibility:auto]">
                     <Link
-                      href={`/arena/arc/${s.kind}/${s.id}`}
+                      href={marketPath(s.chain, s.kind, s.id)}
                       className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-cream/[0.03]"
                     >
                       <div className="min-w-0 flex-1">

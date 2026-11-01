@@ -4,6 +4,8 @@
  * GET  /api/launch?owner=<0x...>   that wallet's agents (public views).
  */
 import { api } from "@/convex/_generated/api";
+import { circleBlockchain } from "@/lib/chains/house";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { normalizeOwner } from "@/lib/owner";
 import { checkKey } from "@/lib/launch/byok";
 import { CreateBody, create } from "@/lib/launch/flow";
@@ -41,10 +43,17 @@ export async function POST(req: Request) {
           const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
           return { id: w.id, address: w.address };
         },
+        // Base markets on: its Base wallet too (BASE / BASE-SEPOLIA). It needs ETH for gas, sent by its owner or Mimir.
+        base: MARKET_CHAINS.chains.base.enabled
+          ? async (slug) => {
+              const [w] = await createWallets([slug], circleBlockchain("base", MARKET_CHAINS.chains.base.network), "mimir-launch");
+              return { id: w.id, address: w.address };
+            }
+          : undefined,
       },
     }, g.owner, parsed.data);
     if (!r.ok) return fail(r.status, r.error);
-    return Response.json({ id: r.id, arc: r.arc });
+    return Response.json({ id: r.id, arc: r.arc, base: r.base });
   } catch (e) {
     console.error("[launch] create failed:", e);
     const msg = e instanceof Error ? e.message : "";

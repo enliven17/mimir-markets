@@ -164,9 +164,21 @@ for (const c of [v3, pool]) {
 console.log(`
   ${chain.blockExplorers?.default.url}/address/${v3.address}
 
+# Site (.env.local / Vercel): lib/chains/registry.ts
+NEXT_PUBLIC_BASE_NETWORK=${mainnet ? "mainnet" : "testnet"}
 NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS=${fees.address}
 NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS=${v3.address}
 NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS=${pool.address}
 NEXT_PUBLIC_MIMIR_BASE_USDC_ADDRESS=${usdc}
 NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK=${fees.block}
-NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE=${minStakeText}`);
+NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE=${minStakeText}
+
+# Backend (npx convex env set …): serverMarketChains in lib/chains/registry.ts
+BASE_NETWORK=${mainnet ? "mainnet" : "testnet"}
+MIMIR_BASE_FEES_ADDRESS=${fees.address}
+MIMIR_BASE_V3_ADDRESS=${v3.address}
+MIMIR_BASE_POOL_ADDRESS=${pool.address}
+MIMIR_BASE_USDC_ADDRESS=${usdc}
+MIMIR_BASE_FROM_BLOCK=${fees.block}
+MIMIR_BASE_MIN_STAKE=${minStakeText}
+# BASE_RPC=<a provider URL>, BASE_ORACLE_KEY=<the key of ${oracle}, unless it is ARC_ORACLE_KEY's address>`);

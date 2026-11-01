@@ -8,8 +8,9 @@
  * replayed nonce, a taken agent id or on-chain state that makes the write
  * pointless, 429 for rate limits, 503 when the database or chain is down.
  *
- * On-chain writes never touch a key here: they return unsigned Arc
- * transactions for the agent to sign with its Arc operator key and send itself.
+ * On-chain writes never touch a key here: they return unsigned transactions on the
+ * request's market chain (`chain`: "base", the default, or "arc") for the agent to
+ * sign with its operator key (one EVM address on both chains) and send itself.
  */
 import {
   AgentEnvelopeError,
@@ -24,7 +25,8 @@ import {
 } from "@/lib/agents/api";
 import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
-import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareArcWrite } from "@/lib/agents/arc-chain";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
+import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareChainWrite } from "@/lib/agents/arc-chain";
 import { deployPriceWei, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
 import { normalizeOwner } from "@/lib/owner";
 import { dryRun } from "@/lib/agents/dry-run";
@@ -261,13 +263,14 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
     throw new AgentEnvelopeError("operator proof does not match", 401, "bad_operator_proof");
   }
 
-  // On Arc: where the agent's transactions come from, and the deploy fee ($1).
+  // Where the agent's transactions come from (one EVM operator for Base and Arc), and the deploy fee ($1), which is
+  // paid on Arc in native USDC while Arc is configured (lib/server/agent-payment.ts).
   const arcOperator = env.body.arcOperator === undefined ? null : arcOperatorOf(env.body.arcOperator);
   if (env.body.arcOperator !== undefined && !arcOperator) {
     throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
   }
   let payment: { hash: `0x${string}`; wei: bigint } | null = null;
-  if (arcAgentsEnabled()) {
+  if (MARKET_CHAINS.chains.arc.enabled) {
     const wei = deployPriceWei();
     // The connected EVM wallet is the owner's account on Arc: it pays the fee itself.
     const ownerArc = normalizeOwner(ownerWallet) ?? "";
@@ -365,16 +368,16 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
     if (!arcAgentsEnabled()) {
       if (reservation !== null) await releaseStake(reservation, "chain_unavailable").catch(() => undefined);
-      throw new AgentEnvelopeError("Arc markets are not configured on this deployment", 503, "chain_unavailable");
+      throw new AgentEnvelopeError("markets are not configured on this deployment", 503, "chain_unavailable");
     }
     if (!agent.arcOperator) {
       if (reservation !== null) await releaseStake(reservation, "no_arc_operator").catch(() => undefined);
-      throw new AgentEnvelopeError("set an Arc operator first (setArcOperator): Arc transactions are sent from it", 409, "no_arc_operator");
+      throw new AgentEnvelopeError("set an operator first (setArcOperator): transactions are sent from it, on Base and Arc", 409, "no_arc_operator");
     }
     let arc;
     try {
       await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
-      arc = prepareArcWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body);
+      arc = await onChain(() => prepareChainWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
     } catch (err) {
       if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
       throw err;
@@ -385,10 +388,13 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       body: {
         ok: true,
         action: env.action,
-        chain: "arc",
+        chain: arc.chain,
         signer: agent.arcOperator,
         transactions: arc.transactions,
-        submit: "Sign each transaction with the Arc operator key (value is native USDC in wei) and send it to Arc, in order.",
+        submit:
+          arc.chain === "base"
+            ? "Sign each transaction with the operator key and send it to Base, in order, waiting for each to land (an approve comes first when the USDC allowance is short). Gas is ETH on Base."
+            : "Sign each transaction with the operator key (value is native USDC in wei) and send it to Arc, in order.",
       },
     };
   }
@@ -517,27 +523,27 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       }
       const limit = Math.min(Math.max(Number(env.body.limit ?? 50) || 50, 1), 200);
       requireArc();
-      const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind }));
-      return { status: 200, body: { ok: true, chain: "arc", source: "index", markets } };
+      const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind, chain: env.body.chain }));
+      return { status: 200, body: { ok: true, chain: env.body.chain ?? "all", source: "index", markets } };
     }
 
     case "getClaim": {
       const claimId = parseClaimId(env.body.claimId);
       requireArc();
-      const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId)));
+      const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId), env.body));
       if (!market) throw new AgentEnvelopeError(`market ${claimId} does not exist`, 404, "unknown_claim");
-      return { status: 200, body: { ok: true, chain: "arc", market } };
+      return { status: 200, body: { ok: true, chain: market.chain, market } };
     }
 
     case "getBalances": {
       const operator = requireArcOperator(agent);
-      return { status: 200, body: { ok: true, chain: "arc", arcOperator: operator, ...(await onChain(() => arcOperatorBalance(operator))) } };
+      return { status: 200, body: { ok: true, arcOperator: operator, ...(await onChain(() => arcOperatorBalance(operator, env.body))) } };
     }
 
     case "listPositions": {
       const operator = requireArcOperator(agent);
-      const positions = await onChain(() => arcOperatorPositions(operator));
-      return { status: 200, body: { ok: true, chain: "arc", source: "index", arcOperator: operator, positions } };
+      const positions = await onChain(() => arcOperatorPositions(operator, env.body));
+      return { status: 200, body: { ok: true, chain: env.body.chain ?? "all", source: "index", arcOperator: operator, positions } };
     }
 
     case "listEarnings": {
@@ -546,8 +552,8 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         body: {
           ok: true,
           payoutWallet: agent.payoutWallet,
-          // On Arc the contracts pay a referrer's share straight to it at payout: nothing accrues here to claim.
-          note: "Referrer and copy fees on Arc are paid by the contracts directly to the wallet named in the stake.",
+          // The contracts pay a referrer's share straight to it at payout: nothing accrues here to claim.
+          note: "Referrer and copy fees are paid by the contracts (on Base and Arc) directly to the wallet named in the stake.",
         },
       };
     }
@@ -558,7 +564,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
 }
 
 function requireArc(): void {
-  if (!arcAgentsEnabled()) throw new AgentEnvelopeError("Arc markets are not configured on this deployment", 503, "chain_unavailable");
+  if (!arcAgentsEnabled()) throw new AgentEnvelopeError("markets are not configured on this deployment", 503, "chain_unavailable");
 }
 
 function requireArcOperator(agent: AgentRecord): `0x${string}` {

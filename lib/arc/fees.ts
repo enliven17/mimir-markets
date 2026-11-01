@@ -1,5 +1,5 @@
 /**
- * Mimir's fees on Arc (docs/ARC.md). Every on-chain entry (opening a market, a
+ * Mimir's fees on Arc (docs/CHAINS.md). Every on-chain entry (opening a market, a
  * stake, an agent's stake) pays an entry fee taken from the stake. Copy stakes
  * add 1% of the profit to the basket creator and 1% to Mimir, on wins only.
  * Deploying an agent costs a flat USDC price. Pure and isomorphic.

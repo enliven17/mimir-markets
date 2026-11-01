@@ -21,8 +21,11 @@ const market = {
 };
 
 test("card requests are validated", () => {
-  assert.deepEqual(q("won", "kind=vs&id=12&side=2"), { type: "won", kind: "vs", id: 12, side: 2 });
-  assert.deepEqual(q("new", "kind=pool&id=3&v=1"), { type: "new", kind: "pool", id: 3, side: 0 });
+  assert.deepEqual(q("won", "kind=vs&id=12&side=2"), { type: "won", chain: "arc", kind: "vs", id: 12, side: 2 });
+  assert.deepEqual(q("new", "kind=pool&id=3&v=1"), { type: "new", chain: "arc", kind: "pool", id: 3, side: 0 });
+  // A Base market's card names its chain; an unknown chain is refused.
+  assert.deepEqual(q("new", "kind=pool&id=3&chain=base"), { type: "new", chain: "base", kind: "pool", id: 3, side: 0 });
+  assert.equal(q("new", "kind=pool&id=3&chain=sol"), null, "unknown chain");
   assert.equal(q("winning", "kind=vs&id=1"), null, "unknown type");
   assert.equal(q("new", "kind=evm&id=1"), null, "unknown kind");
   assert.equal(q("new", "kind=vs&id=0"), null);

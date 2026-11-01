@@ -23,6 +23,7 @@ import type * as arcTriage from "../arcTriage.js";
 import type * as arcViews from "../arcViews.js";
 import type * as arcWatch from "../arcWatch.js";
 import type * as arcWatchDb from "../arcWatchDb.js";
+import type * as chainMigrate from "../chainMigrate.js";
 import type * as councilOpinions from "../councilOpinions.js";
 import type * as crons from "../crons.js";
 import type * as discovery from "../discovery.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   arcViews: typeof arcViews;
   arcWatch: typeof arcWatch;
   arcWatchDb: typeof arcWatchDb;
+  chainMigrate: typeof chainMigrate;
   councilOpinions: typeof councilOpinions;
   crons: typeof crons;
   discovery: typeof discovery;

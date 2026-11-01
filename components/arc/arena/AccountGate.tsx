@@ -16,7 +16,9 @@ export default function AccountGate({ account, children }: { account: ReturnType
   return (
     <div className="grid gap-3">
       <p className="m-0 text-[14px] leading-relaxed text-muted">
-        Markets settle on Arc. Connect an EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet) with USDC on Arc; gas is paid in USDC too.
+        {account.chainConfig.gas.symbol === "ETH"
+          ? `This market is on ${account.chainConfig.label}. Connect an EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet) with USDC on ${account.chainConfig.label} and a little ETH for gas.`
+          : `This market is on ${account.chainConfig.label}. Connect an EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet) with USDC on ${account.chainConfig.label}; gas is paid in USDC too.`}
       </p>
       <button type="button" disabled={account.wallet.connecting} onClick={sheet.open} onPointerEnter={sheet.warm} className={BTN_PRIMARY}>
         {account.wallet.connecting ? "Connecting…" : "Connect wallet"}

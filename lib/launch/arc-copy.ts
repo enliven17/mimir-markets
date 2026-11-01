@@ -1,7 +1,8 @@
 /**
- * Mimir Launch copy staking, the Arc fan-out: after an agent (or a council persona) stakes on a pool, schedule one copy
- * job per active follower (convex/launchCopyJobs.ts arcOne, lib/launch/copy-stake.ts), keyed on (subscription, agent
- * stake tx) so it runs once. The agent's action only schedules: no follower's Circle call can hold it up. `copyKey` is
+ * Mimir Launch copy staking, the fan-out: after an agent (or a council persona) stakes on a pool, schedule one copy
+ * job per active follower with a copy wallet on that market's chain (convex/launchCopyJobs.ts arcOne,
+ * lib/launch/copy-stake.ts), keyed on (subscription, chain, agent stake tx) so it runs once. Copies follow the leader's
+ * chain: a Base stake is copied from the follower's Base copy wallet, an Arc stake from their Arc one. The agent's action only schedules: no follower's Circle call can hold it up. `copyKey` is
  * lib/launch/copy-key.ts (council:<slug> / launch:<slug>). Relative imports: the Convex actions import this.
  */
 import type { GenericActionCtx, GenericDataModel } from "convex/server";
@@ -14,16 +15,17 @@ export async function copyArcStake(
   ctx: Pick<GenericActionCtx<GenericDataModel>, "runQuery" | "scheduler">,
   log: Log,
   copyKey: string,
-  market: { kind: "vs" | "pool"; marketId: number },
+  market: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number },
   side: number,
   agentTx: string,
 ): Promise<number> {
   // Pools only: a VS market's challenger side has a capped room the copies would have to share.
   if (market.kind !== "pool") return 0;
   try {
-    const subs = await ctx.runQuery(internal.launchCopy.arcSubs, { agent: copyKey });
+    const chain = market.chain ?? "arc";
+    const subs = await ctx.runQuery(internal.launchCopy.arcSubs, { agent: copyKey, chain });
     for (const s of subs) {
-      await ctx.scheduler.runAfter(0, internal.launchCopyJobs.arcOne, { key: `${s.id}:arc:${agentTx}`, sub: s.id as Id<"launchCopies">, marketId: market.marketId, side });
+      await ctx.scheduler.runAfter(0, internal.launchCopyJobs.arcOne, { key: `${s.id}:${chain}:${agentTx}`, sub: s.id as Id<"launchCopies">, chain, marketId: market.marketId, side });
     }
     return subs.length;
   } catch (err) {

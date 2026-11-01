@@ -164,5 +164,5 @@ export function marketUrlButton(url: string) {
 }
 
 /** An Arc market page. */
-export const arcMarketUrl = (kind: "vs" | "pool", id: number) => `${SITE_URL}/en/arena/arc/${kind}/${id}`;
+export const arcMarketUrl = (kind: "vs" | "pool", id: number, chain: "arc" | "base" = "arc") => `${SITE_URL}/en/arena/${chain}/${kind}/${id}`;
 

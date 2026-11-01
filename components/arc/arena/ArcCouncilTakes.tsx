@@ -16,7 +16,7 @@ import { useQuery } from "convex/react";
 
 import { getPersonaBySlug } from "@/agents/council/personas";
 import { api } from "@/convex/_generated/api";
-import { arcExplorerUrl } from "@/lib/arc/config";
+import { explorerUrl, marketChain, type MarketChainId } from "@/lib/chains/registry";
 import type { ArcMarketKind } from "@/lib/arc/markets";
 import { SURFACE } from "@/components/arena/surface";
 import { usd } from "./shared";
@@ -89,10 +89,10 @@ function Carousel({ children, count }: { children: ReactNode; count: number }) {
   );
 }
 
-export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { kind: ArcMarketKind; marketId: number; labelA: string; labelB: string }) {
-  const takes = useQuery(api.arcCouncilDb.forMarket, { kind, marketId });
-  const initialTake = useQuery(api.arcCouncilDb.takeFor, { kind, marketId });
-  const opinions = useQuery(api.councilOpinions.forMarket, { kind, marketId });
+export default function ArcCouncilTakes({ chain = "arc", kind, marketId, labelA, labelB }: { chain?: MarketChainId; kind: ArcMarketKind; marketId: number; labelA: string; labelB: string }) {
+  const takes = useQuery(api.arcCouncilDb.forMarket, { chain, kind, marketId });
+  const initialTake = useQuery(api.arcCouncilDb.takeFor, { chain, kind, marketId });
+  const opinions = useQuery(api.councilOpinions.forMarket, { chain, kind, marketId });
   const take = (initialTake ? opinions?.find((o) => o.slug === initialTake.slug) : opinions?.[0]) ?? initialTake;
   const additional = opinions?.filter((o) => o.slug !== take?.slug) ?? [];
   if (!take && (!takes || takes.length === 0) && !additional.length) return null;
@@ -129,7 +129,7 @@ export default function ArcCouncilTakes({ kind, marketId, labelA, labelB }: { ki
             <span className="flex items-baseline justify-between gap-2 text-[13px]">
               <Who slug={t.slug} />
               {t.outcome === "staked" && t.txHash ? (
-                <a href={arcExplorerUrl("tx", t.txHash)} target="_blank" rel="noreferrer" className="flex-none font-mono text-[12px] text-coral hover:underline">
+                <a href={explorerUrl(marketChain(chain), "tx", t.txHash)} target="_blank" rel="noreferrer" className="flex-none font-mono text-[12px] text-coral hover:underline">
                   tx <ExternalMark />
                 </a>
               ) : null}

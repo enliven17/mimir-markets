@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * /arena/create on Arc: open a VS market (the default: you back one side,
+ * /arena/create: open a VS market (the default: you back one side,
  * challengers take the other, up to 5× your stake) or a two-sided pool, in
- * one form. One wallet transaction creates and funds it; then the market page.
+ * one form, on the chain you pick (Base by default; each chain has its own
+ * markets). Arc: one transaction creates and funds it. Base: a USDC permit
+ * signature then one transaction for a pool, approve + create for VS; gas in
+ * ETH. Then the market page.
  */
 import { useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
@@ -11,9 +14,12 @@ import { parseEventLogs } from "viem";
 
 import { SURFACE } from "@/components/arena/surface";
 import { Link, useRouter } from "@/i18n/navigation";
-import { arcPublicClient } from "@/lib/arc/chain";
-import { ARC } from "@/lib/arc/config";
-import { createMarketCall, entryFeeOf, LOCK_SECONDS, MIMIR_POOL_ABI, MIMIR_V3_ABI, MIN_STAKE_WEI, parseUsdc, vsCreatorQuote, type ArcMarketKind } from "@/lib/arc/markets";
+import { entryFeeOf, LOCK_SECONDS, parseUsdc, vsCreatorQuote, type ArcMarketKind } from "@/lib/arc/markets";
+import { ARC_POOL_ABI, ARC_V3_ABI } from "@/lib/chains/calls";
+import { chainPublicClient } from "@/lib/chains/client";
+import { marketPath } from "@/lib/chains/links";
+import { MARKET_CHAINS, marketContract, type MarketChainId } from "@/lib/chains/registry";
+import { ChainPicker } from "../NetworkLogos";
 import { CATEGORIES } from "@/lib/constants";
 import { mentionsPastDay } from "@/lib/past-date";
 import { api } from "@/convex/_generated/api";
@@ -57,8 +63,11 @@ const MARKETS_PER_DAY = 3;
 
 export default function ArcCreateForm() {
   const router = useRouter();
-  const account = useArcAccount();
-  const { send, busy, error } = useArcSend(account.session);
+  const [chain, setChain] = useState<MarketChainId>(MARKET_CHAINS.defaultChain);
+  const account = useArcAccount(chain);
+  const cfg = account.chainConfig;
+  const MIN_STAKE_WEI = cfg.contracts.minStakeWei;
+  const { send, busy, error } = useArcSend(account);
   const [kind, setKind] = useState<ArcMarketKind>("vs");
   const [question, setQuestion] = useState("");
   const [labelA, setLabelA] = useState("Yes");
@@ -71,13 +80,13 @@ export default function ArcCreateForm() {
   const [stage, setStage] = useState<string | null>(null);
   const [series, setSeries] = useState("");
   const [threshold, setThreshold] = useState("");
-  const seriesMarkets = useQuery(api.arc.markets, series ? { limit: 500 } : "skip");
+  const seriesMarkets = useQuery(api.arc.markets, series ? { chain, limit: 500 } : "skip");
   useEffect(() => { const id = new URLSearchParams(window.location.search).get("series"); if (MARKET_SERIES.some((s) => s.id === id)) setSeries(id!); }, []);
 
   const stake = parseUsdc(amount);
   const deadlineSec = Math.floor(new Date(deadline).getTime() / 1000);
   const duplicate = seriesMarkets?.find((m) => m.kind === "pool" && m.deadline === deadlineSec && (m.status === "open" || m.status === "active") && seriesForMarket(m) === series);
-  const contract = kind === "vs" ? ARC.contracts.mimirV3 : ARC.contracts.mimirPool;
+  const contract = marketContract(cfg, kind);
 
   const openedToday = useQuery(api.arc.openedToday, account.address ? { creator: account.address } : "skip");
   const problem = useMemo(() => {
@@ -91,14 +100,16 @@ export default function ArcCreateForm() {
     if (!Number.isFinite(deadlineSec) || deadlineSec < now + MIN_LEAD_SECONDS) return "Set the deadline at least 10 minutes from now.";
     if (stake === null || stake < MIN_STAKE_WEI) return `Stake at least ${usd(MIN_STAKE_WEI)}.`;
     if (account.balance !== null && stake > account.balance) return "not-enough";
+    if (cfg.gas.symbol === "ETH" && account.gas === 0n) return `Your wallet needs a little ETH on ${cfg.label} for gas.`;
     return null;
-  }, [question, labelA, labelB, url, deadlineSec, stake, account.balance, openedToday]);
+  }, [question, labelA, labelB, url, deadlineSec, stake, account.balance, account.gas, openedToday, MIN_STAKE_WEI, cfg]);
 
   const onCreate = async () => {
     if (problem || !contract || stake === null) return;
-    setStage("Confirm in your wallet…");
-    const r = await send([
-      createMarketCall(contract, {
+    setStage(cfg.usdc.kind === "erc20" ? "Confirm in your wallet (approve or sign, then open)…" : "Confirm in your wallet…");
+    const r = await send({
+      type: "create",
+      market: {
         kind,
         question: question.trim(),
         labelA: labelA.trim(),
@@ -108,34 +119,46 @@ export default function ArcCreateForm() {
         deadline: deadlineSec,
         stake,
         side,
-      }),
-    ]);
+      },
+    });
     if (!r) return setStage(null);
     setStage("Opening the market page…");
-    const receipt = await arcPublicClient().getTransactionReceipt({ hash: r.txHash });
+    const receipt = await chainPublicClient(cfg).getTransactionReceipt({ hash: r.txHash });
     const logs =
       kind === "vs"
-        ? parseEventLogs({ abi: MIMIR_V3_ABI, logs: receipt.logs, eventName: "ClaimCreated" })
-        : parseEventLogs({ abi: MIMIR_POOL_ABI, logs: receipt.logs, eventName: "MarketCreated" });
+        ? parseEventLogs({ abi: ARC_V3_ABI, logs: receipt.logs, eventName: "ClaimCreated" })
+        : parseEventLogs({ abi: ARC_POOL_ABI, logs: receipt.logs, eventName: "MarketCreated" });
     const id = logs.find((l) => l.address.toLowerCase() === contract.toLowerCase())?.args.id;
     if (id === undefined) return setStage(null);
-    router.push(`/arena/arc/${kind}/${id}?new=1`);
+    router.push(`${marketPath(chain, kind, Number(id))}?new=1`);
   };
 
   return (
     <div className="mx-auto grid w-full max-w-[720px] gap-6">
       <header className="grid gap-2">
-        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Arc · {ARC.network}</p>
+        <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">{cfg.name}</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">Open a market</h1>
       </header>
 
       <section className={`${SURFACE} grid gap-5 p-5 sm:p-7`}>
+        {MARKET_CHAINS.enabled.length > 1 ? (
+          <div className="grid gap-1.5 text-[13px] text-muted">
+            <span>Network</span>
+            <ChainPicker
+              chains={MARKET_CHAINS.enabled}
+              value={chain}
+              onChange={setChain}
+              hint={(c) => (c === "base" ? "USDC on Base, gas in ETH" : "USDC on Arc, gas in USDC")}
+            />
+            <span className="text-[12px] text-dim">Each network has its own markets: your market opens on the one you pick.</span>
+          </div>
+        ) : null}
         <details open={!!series} className="grid gap-3 rounded-xl bg-panel p-4"><summary className="cursor-pointer text-[14px] text-cream">Use a daily checkpoint template</summary>
           <div className="mt-3 grid gap-3"><label className="grid gap-1 text-[12px] text-muted">Series<select className={SELECT} value={series} onChange={(e) => setSeries(e.target.value)}><option value="">Choose a series</option>{MARKET_SERIES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
             <label className="grid gap-1 text-[12px] text-muted">USD threshold<input className={FIELD} type="number" min="0.000001" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)} /></label>
             <button type="button" className="justify-self-start text-[13px] text-coral" disabled={!series || !(Number(threshold) > 0)} onClick={() => { const draft = seriesDraft(series, Number(threshold), Date.now()); if (!draft) return; setKind("pool"); setQuestion(draft.question); setLabelA(draft.labelA); setLabelB(draft.labelB); setUrl(draft.resolutionUrl); setCategory(draft.category); setDeadline(localInput(draft.deadline)); }}>Apply template · review before signing</button>
             <p className="m-0 text-[12px] text-muted">Side A wins if the two-source USD price is strictly above the threshold at the 12:00 UTC checkpoint. Equality belongs to Side B. Unavailable or conflicting evidence follows the market's refund/dispute process. Each occurrence requires a new signature and stake.</p>
-            {duplicate ? <Link href={`/arena/arc/pool/${duplicate.marketId}`} className="text-[13px] text-coral">An open checkpoint for this date already exists. Join it to keep liquidity together →</Link> : null}
+            {duplicate ? <Link href={marketPath(chain, "pool", duplicate.marketId)} className="text-[13px] text-coral">An open checkpoint for this date already exists. Join it to keep liquidity together →</Link> : null}
           </div>
         </details>
         <div role="radiogroup" aria-label="Market type" className="grid grid-cols-2 gap-2">
@@ -264,7 +287,7 @@ export default function ArcCreateForm() {
         ) : null}
 
         <p className="m-0 text-[12px] leading-relaxed text-dim">
-          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to Arc accounts. A
+          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to the winners' wallets on {cfg.label}. A
           draw or an unresolvable market refunds everyone.
         </p>
 
@@ -282,7 +305,11 @@ export default function ArcCreateForm() {
             </>
           )}
           {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
-          <p className="m-0 text-[12px] text-dim">{`USDC on Arc: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}</p>
+          <p className="m-0 text-[12px] text-dim">
+            {cfg.gas.symbol === "ETH"
+              ? `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in ETH (${account.gas === null ? "-" : `${(Number(account.gas) / 1e18).toFixed(5)} ETH`})`
+              : `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}
+          </p>
         </AccountGate>
       </section>
     </div>

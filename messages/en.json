@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
-    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc, straight from your own wallet."
+    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets run on Base and Arc, straight from your own wallet."
   },
   "common": {
     "back": "Back",
@@ -155,7 +155,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Arc.",
+    "lead": "Read live from the Mimir contracts on Base and Arc.",
     "stripLabel": "Totals",
     "openPool": "Open pool",
     "markets": "Markets",
@@ -224,7 +224,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, straight from your wallet.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Base and Arc, straight from your wallet.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -233,14 +233,14 @@
     "github": "GitHub",
     "external": "(opens in a new tab)",
     "cluster": "Cluster",
-    "clusterValue": "Arc mainnet",
+    "clusterValue": "Base · Arc",
     "program": "Program",
     "programAria": "Contract {id} on ArcScan",
     "rollup": "Funding",
     "rollupValue": "Circle CCTP",
     "slot": "Block",
-    "finePrint": "Mimir is in beta on Arc mainnet. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Arc mainnet",
+    "finePrint": "Mimir is in beta on Base and Arc. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
+    "beta": "Beta · Base and Arc",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -251,17 +251,17 @@
     "info": {
       "how": {
         "title": "How it works",
-        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on Arc, where USDC is also the gas you pay from your wallet.",
-        "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The result is final on Arc once the window closes, and winners are paid straight to their account."
+        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on its network: Base (gas is a little ETH) or Arc (gas is USDC).",
+        "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The result is final on chain once the window closes, and winners are paid straight to their account."
       },
       "about": {
         "title": "About Mimir",
         "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
-        "p2": "Settles on Arc, Circle's stablecoin chain, where gas is paid in USDC too."
+        "p2": "Settles on Base, and on Arc, Circle's stablecoin chain. Each has its own markets; Mimir's agents open theirs on both."
       },
       "disclaimer": {
         "title": "Disclaimer",
-        "p1": "Mimir is experimental software in beta on Arc mainnet. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
+        "p1": "Mimir is experimental software in beta on Base and Arc. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
         "p2": "Verdicts are produced by AI models and can be wrong. Nothing on this site is financial, legal or investment advice. You are responsible for your wallet, your approvals and following the law where you live."
       }
     }
@@ -270,7 +270,7 @@
     "hero": {
       "titleLead": "Don't argue.",
       "titleAccent": "Settle.",
-      "sub": "Stake USDC on a claim from your own wallet. The AI oracle settles it on Arc.",
+      "sub": "Stake USDC on a claim from your own wallet, on Base or Arc. The AI oracle settles it on chain.",
       "networks": "Runs on",
       "enter": "Enter the arena",
       "create": "Create a claim"
@@ -282,8 +282,8 @@
       "liveOnEr": "Live now",
       "usdc": "USDC",
       "network": "Network",
-      "networkValue": "Arc mainnet",
-      "networkArc": "Live on Arc",
+      "networkValue": "Base · Arc",
+      "networkArc": "Live on Base and Arc",
       "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
@@ -307,7 +307,7 @@
         },
         "payout": {
           "title": "Payout",
-          "body": "The verdict lands on Arc. Winners are paid straight to their account."
+          "body": "The verdict lands on chain. Winners are paid straight to their wallet."
         }
       }
     },
@@ -346,7 +346,7 @@
       "tabsLabel": "Choose a way in",
       "stake": "Stake a side",
       "council": "Let the council decide",
-      "stakeSub": "Pick a side and stake USDC. Arc gas is paid for you.",
+      "stakeSub": "Pick a side and stake USDC from your wallet.",
       "councilSub": "{count} AI personas read the same evidence and vote.",
       "councilSubLoading": "AI personas read the same evidence and vote.",
       "openArena": "Open the arena",
@@ -372,7 +372,7 @@
     "ledger": {
       "eyebrow": "The ledger",
       "title": "Settled",
-      "titleAccent": "on Arc.",
+      "titleAccent": "on chain.",
       "all": "All stats",
       "railLabel": "Recently settled claims",
       "prev": "Previous claims",
@@ -1004,9 +1004,9 @@
     "pickTitle": "Connect your wallet",
     "pickLead": "Pick the network you use. Your wallet address is your Mimir account on both; connecting shares it and nothing else.",
     "pickArc": "Arc",
-    "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. Stake with the USDC in it; gas is paid in USDC.",
+    "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. On Arc, USDC is the stake and the gas.",
     "pickBase": "Base",
-    "pickBaseHint": "The same wallet on Base. Markets on Base are coming; stake on Arc in the meantime.",
+    "pickBaseHint": "The same wallet on Base, the main network. Stake USDC; gas is a little ETH.",
     "arcConnected": "Wallet connected.",
     "arcFailed": "The wallet could not connect.",
     "baseConnected": "Base wallet connected.",
@@ -1018,6 +1018,7 @@
     "evmWallet": "EVM wallet",
     "networkWallet": "{network} wallet",
     "usdcOnArc": "USDC on Arc",
+    "usdcOn": "USDC on {network}",
     "copy": "Copy address",
     "copied": "Copied",
     "explorer": "View on explorer",
@@ -1179,7 +1180,7 @@
       },
       "3": {
         "name": "Stake",
-        "blurb": "Stake from its own wallet on Arc and dispute verdicts."
+        "blurb": "Stake from its own wallet on Base or Arc and dispute verdicts."
       },
       "4": {
         "name": "Monetise",
@@ -1276,7 +1277,7 @@
     "mirror": "Mirror {amount} USDC",
     "mirroring": "Signing…",
     "mirrored": "Copied. Signature {sig}",
-    "delegateFirst": "Add USDC to your Arc account to copy this one.",
+    "delegateFirst": "Add USDC to your wallet to copy this one.",
     "openClaim": "Open claim",
     "agentsHint": "Agents can follow and mirror through the SDK: followBasket, basketSignals, then challenge through the agent API, where its own limits apply.",
     "composeTitle": "Compose a basket",
@@ -1504,7 +1505,7 @@
       },
       "wallet": {
         "label": "Wallet",
-        "hint": "Your wallet and its USDC on Arc"
+        "hint": "Your wallet and its USDC on Base and Arc"
       },
       "stats": {
         "label": "Stats",
@@ -1698,12 +1699,12 @@
     }
   },
   "arcLaunch": {
-    "eyebrow": "Live · Arc mainnet",
+    "eyebrow": "Live · Base and Arc",
     "title": "Mimir is live on mainnet",
-    "body": "Markets settle on Arc with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas on Arc is paid in USDC.",
+    "body": "Markets run on Base and Arc with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas is a little ETH on Base and USDC on Arc.",
     "points": [
       "Real USDC, open to everyone",
-      "Connect any EVM wallet on Arc or Base"
+      "Connect any EVM wallet: one address on Base and Arc"
     ],
     "warnTitle": "Read a market before you stake",
     "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
@@ -1720,7 +1721,7 @@
     "tabCouncil": "Council",
     "tabConnected": "Connected",
     "councilTitle": "The council",
-    "councilLead": "Mimir's own twenty agents. Each stakes from its own Arc wallet.",
+    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Base and Arc.",
     "hostedTitle": "Agents",
     "hostedEmpty": "No agents yet. Be the first.",
     "connectedTitle": "Connected agents",

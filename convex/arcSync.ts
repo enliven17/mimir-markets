@@ -1,62 +1,33 @@
-// Arc indexer: pulls MimirV3 / MimirPool logs since the cursor, re-reads every market they touch from the chain
-// (so contract logic is never re-implemented here) and hands the snapshots to arc.apply in one transaction.
-// Arc has BFT finality (no reorgs), so a block once read is final. Runs from convex/crons.ts.
+// The market indexer, one run per chain (convex/crons.ts: "arc" and "base"): pulls MimirV3 / MimirPool logs since
+// that chain's cursor, re-reads every market they touch from the chain (so contract logic is never re-implemented
+// here) and hands the snapshots to arc.apply in one transaction. The Base contracts (MimirV3Erc20, MimirPoolErc20)
+// keep the Arc contracts' views and events, so one decoder serves both; Base's 6-dp amounts are scaled to the 18-dp
+// index unit on the way in (readVs / readPool below, eventRow in lib/chains/indexer.ts).
+// Finality: Arc is BFT (a block once read is final). Base is an OP-stack rollup whose sequencer blocks reorg only in
+// rare incidents: the indexer stays BASE_CONFIRMATIONS blocks behind its head (default 6, ~12 s).
+// A chain without both market contracts in the Convex env is disabled: its run returns at once.
 import { internalSecret } from "../lib/internal-secrets";
-import { createPublicClient, parseAbi, parseEventLogs, type Log } from "viem";
+import { createPublicClient, parseEventLogs } from "viem";
+import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, type ActionCtx } from "./_generated/server";
-import { arcTransport } from "../lib/arc/chain";
-import { arcConfig } from "../lib/arc/config";
+import { chainTransport } from "../lib/chains/client";
+import { serverMarketChains, type MarketChain, type MarketChainId } from "../lib/chains/registry";
+import { indexToUsd, toIndexUnits } from "../lib/chains/amounts";
+import { eventRow, lower, POOL_ABI, V3_ABI, ZERO_ADDRESS, type DecodedLog, type Kind } from "../lib/chains/indexer";
 import { jevEnabled } from "../lib/jev";
 import { triageMarket } from "../lib/jev-triage";
-
-const V3_ABI = parseAbi([
-  "event ClaimCreated(uint256 indexed id, address indexed creator, string category)",
-  "event ClaimChallenged(uint256 indexed id, address indexed challenger, uint256 stake)",
-  "event ClaimResolved(uint256 indexed id, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash)",
-  "event ClaimCancelled(uint256 indexed id, uint256 refunded)",
-  "event ResolutionProposed(uint256 indexed id, uint8 winnerSide, uint8 confidence, bytes32 evidenceHash, uint256 disputableUntil)",
-  "event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond)",
-  "event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight)",
-  "event MarketSettled(uint256 indexed id, uint256 totalPaid, uint256 totalFees)",
-  "event ClaimExpiredRefund(uint256 indexed id, address indexed caller)",
-  "event ReferrerSet(uint256 indexed id, address indexed participant, address indexed referrer)",
-  "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
-  "event LockSet(uint256 indexed id, uint256 lockAt)",
-  "function lockAt(uint256) view returns (uint256)",
-  "function getClaim(uint256) view returns (address creator, string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 creatorStake, uint256 totalChallengerStake, uint256 reservedCreatorLiability, uint256 deadline, uint8 state, uint8 winnerSide, string resolutionSummary, uint8 confidence, string category, uint256 parentId, uint256 challengerCount, uint256 createdAt, bytes32 evidenceHash)",
-  "function getClaimMarketConfig(uint256) view returns (string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, uint256 reservedCreatorLiability)",
-  "function getChallengerList(uint256) view returns (address[] addrs, uint256[] stakes)",
-  "function disputeWindow() view returns (uint256)",
-  "function proposals(uint256) view returns (uint8 winnerSide, uint8 confidence, uint64 proposedAt, uint64 disputedAt, address disputer, uint256 bond, bytes32 evidenceHash, string summary)",
-]);
-const POOL_ABI = parseAbi([
-  "event MarketCreated(uint256 indexed id, address indexed creator, uint256 deadline, string category)",
-  "event Staked(uint256 indexed id, address indexed user, uint8 side, uint256 amount)",
-  "event ResolutionProposed(uint256 indexed id, uint8 outcome, bytes32 evidenceHash, uint256 disputableUntil)",
-  "event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond)",
-  "event DisputeResolved(uint256 indexed id, uint8 outcome, bool disputerRight)",
-  "event MarketResolved(uint256 indexed id, uint8 outcome, string summary, bytes32 evidenceHash)",
-  "event MarketExpiredRefund(uint256 indexed id, address indexed caller)",
-  "event Claimed(uint256 indexed id, address indexed user, uint256 paid, uint256 fee)",
-  "event ReferrerSet(uint256 indexed id, address indexed user, address indexed referrer)",
-  "event FeeAccrued(uint256 indexed id, address indexed recipient, uint256 amount)",
-  "event LockSet(uint256 indexed id, uint256 lockAt)",
-  "function lockAt(uint256) view returns (uint256)",
-  "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB)",
-  "function getMarketText(uint256) view returns (string question, string labelA, string labelB, string resolutionUrl, string category, string summary)",
-  "function stakeOf(uint256, address) view returns (uint256 onA, uint256 onB)",
-  "function disputeWindow() view returns (uint256)",
-  "function getProposal(uint256) view returns (uint8 proposed, uint256 proposedAt, uint256 disputedAt, address disputer, uint256 bond, bytes32 evidenceHash)",
-]);
+import { vChain } from "./schema";
 
 const V3_STATUS = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
 const POOL_STATUS = ["open", "proposed", "disputed", "resolved"] as const;
 // The public Arc RPC refuses eth_getLogs ranges of a few hundred blocks ("requested range too large"); ~0.5 s blocks,
-// so 30 s of cron is ~60 blocks. ponytail: fixed chunk and per-run cap; a private RPC can take bigger ranges.
-const CHUNK = 250n;
+// so 30 s of cron is ~60 blocks. Base: 2 s blocks, public RPCs take a few thousand blocks a call.
+// ponytail: fixed chunk and per-run cap; a private RPC can take bigger ranges.
+const CHUNK: Record<MarketChainId, bigint> = { arc: 250n, base: 2000n };
 const MAX_CHUNKS = 40;
-const usd = (wei: bigint) => Number(wei) / 1e18;
+/** Blocks the Base indexer stays behind its head (reorg margin). */
+const confirmations = (chain: MarketChainId) => (chain === "base" ? BigInt(Number(process.env.BASE_CONFIRMATIONS ?? 6) || 0) : 0n);
 /** Both contracts: refundExpired opens this long after the deadline (or the dispute). */
 const RESOLUTION_GRACE_SECONDS = 7 * 86_400;
 /** Proposal timing: when the dispute window closes (0 = no proposal) and when the refund escape hatch opens. */
@@ -66,44 +37,31 @@ function timing(deadline: bigint, proposedAt: bigint, disputedAt: bigint, window
     refundAt: Number((disputedAt > deadline ? disputedAt : deadline) + BigInt(RESOLUTION_GRACE_SECONDS)),
   };
 }
-const lower = (a: string) => a.toLowerCase();
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 /** The owner's veto is a dispute with no disputer (vetoProposal). */
 const vetoed = (status: string, disputer: string) => status === "disputed" && lower(disputer) === ZERO_ADDRESS;
 
-type Kind = "vs" | "pool";
-type DecodedLog = Log<bigint, number, false> & { eventName: string; args: Record<string, unknown> };
-
-function config() {
-  const e = process.env;
-  return arcConfig({
-    network: e.ARC_NETWORK,
-    rpcUrl: e.ARC_RPC,
-    mimirV3: e.MIMIR_V3_ADDRESS,
-    mimirPool: e.MIMIR_POOL_ADDRESS,
-    fromBlock: e.MIMIR_ARC_FROM_BLOCK,
-  });
-}
-
 export const sync = internalAction({
-  args: {},
-  handler: async (ctx) => {
+  args: { chain: v.optional(vChain) },
+  handler: async (ctx, args) => {
     if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
-    await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-sync" });
-    const cfg = config();
-    const { mimirV3, mimirPool, fromBlock } = cfg.contracts;
-    if (!mimirV3 || !mimirPool) throw new Error("MIMIR_V3_ADDRESS and MIMIR_POOL_ADDRESS must be set in the Convex env");
-    const client = createPublicClient({ transport: arcTransport(cfg) });
+    const chainId: MarketChainId = args.chain ?? "arc";
+    const cfg = serverMarketChains().chains[chainId];
+    if (!cfg.enabled) return; // not configured (or not in MARKET_CHAINS) on this deployment
+    await ctx.runMutation(internal.arcAdmin.beat, { name: `${chainId}-sync` });
+    // Rows from before Base carry no chain: tag them "arc" first (cheap once done).
+    if (chainId === "arc") await ctx.runMutation(internal.chainMigrate.run, {});
+    const { mimirV3, mimirPool, fromBlock } = cfg.contracts as { mimirV3: `0x${string}`; mimirPool: `0x${string}`; fromBlock: bigint };
+    const client = createPublicClient({ transport: chainTransport(cfg) });
 
-    const cursor = await ctx.runQuery(internal.arc.cursor, {});
+    const cursor = await ctx.runQuery(internal.arc.cursor, { name: chainId });
     let from = cursor === null ? fromBlock : BigInt(cursor) + 1n;
-    const head = await client.getBlockNumber();
+    const head = (await client.getBlockNumber()) - confirmations(chainId);
     const [v3Window, poolWindow] = await Promise.all([
       client.readContract({ address: mimirV3, abi: V3_ABI, functionName: "disputeWindow" }),
       client.readContract({ address: mimirPool, abi: POOL_ABI, functionName: "disputeWindow" }),
     ]);
     for (let i = 0; i < MAX_CHUNKS && from <= head; i++) {
-      const to = from + CHUNK - 1n < head ? from + CHUNK - 1n : head;
+      const to = from + CHUNK[chainId] - 1n < head ? from + CHUNK[chainId] - 1n : head;
       // No topic filter: the RPC's range limit is far lower with one, so take every log and keep the known events.
       const [v3Raw, poolRaw] = await Promise.all([
         client.getLogs({ address: mimirV3, fromBlock: from, toBlock: to }),
@@ -129,8 +87,8 @@ export const sync = internalAction({
       const positions = [];
       for (const t of touched.values()) {
         const snap = t.kind === "vs"
-          ? await readVs(client, mimirV3, t.id, Number(to), v3Window)
-          : await readPool(client, mimirPool, t.id, [...t.users], Number(to), poolWindow);
+          ? await readVs(cfg, client, mimirV3, t.id, Number(to), v3Window)
+          : await readPool(cfg, client, mimirPool, t.id, [...t.users], Number(to), poolWindow);
         markets.push(snap.market);
         positions.push(...snap.positions);
       }
@@ -142,11 +100,11 @@ export const sync = internalAction({
       }
 
       const changes = await ctx.runMutation(internal.arc.apply, {
-        name: "arc",
+        name: chainId,
         block: Number(to),
         markets,
         positions,
-        events: logs.map(({ kind, log }) => ({ ...eventRow(kind, log), at: times.get(log.blockNumber) })),
+        events: logs.map(({ kind, log }) => ({ ...eventRow(cfg, kind, log), at: times.get(log.blockNumber) })),
       });
       await notifyTelegram(ctx, changes);
       await triageNew(ctx, changes);
@@ -157,7 +115,10 @@ export const sync = internalAction({
 
 type Client = ReturnType<typeof createPublicClient>;
 
-async function readVs(client: Client, address: `0x${string}`, id: bigint, block: number, window: bigint) {
+/** The chain's raw on-chain amount (wei on Arc, 6-dp units on Base) in index units. */
+const idx = (cfg: Pick<MarketChain, "usdc">, raw: bigint) => toIndexUnits(cfg, raw);
+
+async function readVs(chain: Pick<MarketChain, "id" | "usdc">, client: Client, address: `0x${string}`, id: bigint, block: number, window: bigint) {
   const [c, cfg, list, proposal, lock] = await Promise.all([
     client.readContract({ address, abi: V3_ABI, functionName: "getClaim", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "getClaimMarketConfig", args: [id] }),
@@ -165,15 +126,18 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
     client.readContract({ address, abi: V3_ABI, functionName: "proposals", args: [id] }),
     client.readContract({ address, abi: V3_ABI, functionName: "lockAt", args: [id] }).catch(() => 0n), // contracts before the cutover have no lockAt
   ]);
-  const [creator, question, creatorPosition, counterPosition, resolutionUrl, creatorStake, totalChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
+  const [creator, question, creatorPosition, counterPosition, resolutionUrl, rawCreatorStake, rawChallengerStake, , deadline, state, winnerSide, summary, , category, , , createdAt] = c;
+  const creatorStake = idx(chain, rawCreatorStake);
+  const totalChallengerStake = idx(chain, rawChallengerStake);
   const byUser = new Map<string, bigint>();
-  list[0].forEach((a, i) => byUser.set(lower(a), (byUser.get(lower(a)) ?? 0n) + list[1][i]));
+  list[0].forEach((a, i) => byUser.set(lower(a), (byUser.get(lower(a)) ?? 0n) + idx(chain, list[1][i])));
   const positions = [
-    { kind: "vs" as const, marketId: Number(id), user: lower(creator), side: 1, amount: creatorStake.toString(), amountUsd: usd(creatorStake) },
-    ...[...byUser].map(([user, amount]) => ({ kind: "vs" as const, marketId: Number(id), user, side: 2, amount: amount.toString(), amountUsd: usd(amount) })),
+    { chain: chain.id, kind: "vs" as const, marketId: Number(id), user: lower(creator), side: 1, amount: creatorStake.toString(), amountUsd: indexToUsd(creatorStake) },
+    ...[...byUser].map(([user, amount]) => ({ chain: chain.id, kind: "vs" as const, marketId: Number(id), user, side: 2, amount: amount.toString(), amountUsd: indexToUsd(amount) })),
   ];
   return {
     market: {
+      chain: chain.id,
       kind: "vs" as const,
       marketId: Number(id),
       creator: lower(creator),
@@ -191,7 +155,7 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
       summary,
       stakeA: creatorStake.toString(),
       stakeB: totalChallengerStake.toString(),
-      volumeUsd: usd(creatorStake + totalChallengerStake),
+      volumeUsd: indexToUsd(creatorStake + totalChallengerStake),
       participants: 1 + byUser.size,
       isPrivate: cfg[6],
       ...timing(deadline, BigInt(proposal[2]), BigInt(proposal[3]), window),
@@ -201,24 +165,28 @@ async function readVs(client: Client, address: `0x${string}`, id: bigint, block:
   };
 }
 
-async function readPool(client: Client, address: `0x${string}`, id: bigint, users: string[], block: number, window: bigint) {
+async function readPool(cfg: Pick<MarketChain, "id" | "usdc">, client: Client, address: `0x${string}`, id: bigint, users: string[], block: number, window: bigint) {
   const [m, text, proposal, lock] = await Promise.all([
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarket", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "getProposal", args: [id] }),
     client.readContract({ address, abi: POOL_ABI, functionName: "lockAt", args: [id] }).catch(() => 0n), // contracts before the cutover have no lockAt
   ]);
-  const [creator, deadline, createdAt, state, outcome, totalA, totalB] = m;
+  const [creator, deadline, createdAt, state, outcome, rawA, rawB] = m;
+  const totalA = idx(cfg, rawA);
+  const totalB = idx(cfg, rawB);
   const [question, labelA, labelB, resolutionUrl, category, summary] = text;
   const positions = [];
   for (const u of users) {
     const [onA, onB] = await client.readContract({ address, abi: POOL_ABI, functionName: "stakeOf", args: [id, u as `0x${string}`] });
-    for (const [side, amount] of [[1, onA], [2, onB]] as const) {
-      if (amount > 0n) positions.push({ kind: "pool" as const, marketId: Number(id), user: lower(u), side, amount: amount.toString(), amountUsd: usd(amount) });
+    for (const [side, raw] of [[1, onA], [2, onB]] as const) {
+      const amount = idx(cfg, raw);
+      if (amount > 0n) positions.push({ chain: cfg.id, kind: "pool" as const, marketId: Number(id), user: lower(u), side, amount: amount.toString(), amountUsd: indexToUsd(amount) });
     }
   }
   return {
     market: {
+      chain: cfg.id,
       kind: "pool" as const,
       marketId: Number(id),
       creator: lower(creator),
@@ -237,7 +205,7 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
       summary,
       stakeA: totalA.toString(),
       stakeB: totalB.toString(),
-      volumeUsd: usd(totalA + totalB),
+      volumeUsd: indexToUsd(totalA + totalB),
       // ponytail: participants is filled from the positions table in arc.apply (no on-chain count for pools).
       participants: 0,
       isPrivate: false,
@@ -248,36 +216,17 @@ async function readPool(client: Client, address: `0x${string}`, id: bigint, user
   };
 }
 
-function eventRow(kind: Kind, log: DecodedLog) {
-  const a = log.args;
-  const user = (a.challenger ?? a.creator ?? a.user ?? a.participant ?? a.recipient ?? a.disputer ?? a.caller) as string | undefined;
-  const amount = (a.stake ?? a.amount ?? a.paid ?? a.bond ?? a.totalPaid ?? a.refunded) as bigint | undefined;
-  const side = (a.side ?? a.winnerSide ?? a.outcome) as number | undefined;
-  const veto = log.eventName === "ResolutionDisputed" && lower(String(a.disputer)) === ZERO_ADDRESS;
-  return {
-    kind,
-    marketId: Number(a.id as bigint),
-    name: veto ? "ResolutionVetoed" : log.eventName,
-    user: user && lower(user) !== ZERO_ADDRESS ? lower(user) : undefined,
-    amount: amount?.toString(),
-    side: side === undefined ? undefined : Number(side),
-    txHash: log.transactionHash,
-    logIndex: log.logIndex,
-    block: Number(log.blockNumber),
-  };
-}
-
-type Change = { type: "new" | "proposed" | "resolved" | "cancelled"; kind: Kind; marketId: number };
+type Change = { type: "new" | "proposed" | "resolved" | "cancelled"; chain: MarketChainId; kind: Kind; marketId: number };
 
 /** Jev's triage of each new market (lib/jev-triage.ts). Off without TYPESAFE_API_KEY: no call, no row. */
 async function triageNew(ctx: ActionCtx, changes: Change[]): Promise<void> {
   if (!jevEnabled()) return;
   for (const c of changes) {
     if (c.type !== "new") continue;
-    const m = await ctx.runQuery(internal.arc.marketWithPositions, { kind: c.kind, marketId: c.marketId });
+    const m = await ctx.runQuery(internal.arc.marketWithPositions, { chain: c.chain, kind: c.kind, marketId: c.marketId });
     if (!m) continue;
     const t = await triageMarket(m);
-    if (t) await ctx.runMutation(internal.arcTriage.save, { kind: c.kind, marketId: c.marketId, ...t });
+    if (t) await ctx.runMutation(internal.arcTriage.save, { chain: c.chain, kind: c.kind, marketId: c.marketId, ...t });
   }
 }
 
@@ -295,11 +244,12 @@ async function notifyTelegram(ctx: ActionCtx, allChanges: Change[]): Promise<voi
   const recent = Math.floor(Date.now() / 1000) - 3600;
   const events = [];
   for (const c of changes) {
-    const m = await ctx.runQuery(internal.arc.marketWithPositions, { kind: c.kind, marketId: c.marketId });
+    const m = await ctx.runQuery(internal.arc.marketWithPositions, { chain: c.chain, kind: c.kind, marketId: c.marketId });
     if (!m || m.isPrivate || (c.type === "new" && m.createdAt < recent)) continue;
     const holders = c.type === "cancelled" ? [{ user: m.creator, side: 1 }] : m.positions.map((p) => ({ user: p.user, side: p.side }));
     events.push({
       type: c.type,
+      chain: c.chain,
       kind: m.kind,
       marketId: m.marketId,
       question: m.question,

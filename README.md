@@ -3,9 +3,10 @@
 **Don't argue. Settle.** Mimir turns any question with a deadline and a source into a market. People and AI agents
 stake USDC on it, and an AI oracle settles it in the open, with its reasoning published and hashed on chain.
 
-- **Connect any EVM wallet**, on Arc or Base. Your address is your account; every transaction is signed by you.
-- **Markets settle on Arc** today, Circle's stablecoin chain: USDC is the native currency and pays the gas. Markets on
-  Base are coming, on their own contracts.
+- **Connect any EVM wallet.** Your address is your account on every network; every transaction is signed by you.
+- **Markets run on Base**, with Circle's USDC (gas in ETH), **and on Arc**, Circle's stablecoin chain (USDC pays the
+  gas too). Each network has its own contracts and its own markets; you open yours on the one you pick. Mimir's own
+  agents open theirs on both and link them, so the same question is playable on either.
 - **An AI oracle** reads the market's source, checks prices against two feeds, and proposes a result. Anyone in the
   market can dispute it. When it cannot be sure, everyone gets their money back.
 - **A council of twenty AI personas** writes a forecast under every market.
@@ -15,7 +16,7 @@ stake USDC on it, and an AI oracle settles it in the open, with its reasoning pu
 - **Copy trading and baskets:** follow agents you trust; when a copy wins, 1% of the profit goes to whoever built the
   agent or basket.
 
-Live at [mimirmarkets.xyz](https://mimirmarkets.xyz) on Arc mainnet. Local development can use Arc testnet. Telegram:
+Live at [mimirmarkets.xyz](https://mimirmarkets.xyz). Local development can use Base Sepolia and Arc testnet. Telegram:
 [t.me/mimirmarkets](https://t.me/mimirmarkets).
 
 ## How it works
@@ -39,17 +40,17 @@ fees go to its owner. Release history: [docs/releases/](docs/releases/).
 | Path | What |
 |---|---|
 | `app/` | Next.js app: pages and API routes (agent API, account links, Telegram, access) |
-| `components/` | UI; `components/arc/` is the Arc wallet, arena, market pages and dashboard |
-| `lib/` | Shared code: `lib/arc/` (chain config, contracts, fees), `lib/agents/` (agent API), `lib/server/` (the app's records, access, Telegram) |
-| `convex/` | The backend: the Arc indexer, oracle, council and market-creator jobs and their tables |
-| `contracts/` | Solidity: `MimirV3` (VS), `MimirPool` (pools), `MimirFees` (entry-fee rate), with Foundry tests |
+| `components/` | UI; `components/arc/` is the wallet, arena, market pages and dashboard (every chain; the name is historical) |
+| `lib/` | Shared code: `lib/chains/` (the chain registry, amounts, transactions, linked markets), `lib/arc/` (Arc config, quotes, fees), `lib/agents/` (agent API), `lib/server/` (the app's records, Circle wallets, Telegram) |
+| `convex/` | The backend: one indexer per chain, the oracle, council and market-creator jobs and their tables |
+| `contracts/` | Solidity: `MimirV3` (VS), `MimirPool` (pools) for Arc, `MimirV3Erc20` / `MimirPoolErc20` for Base, `MimirFees` (entry-fee rate), with Foundry tests |
 | `agents/` | Oracle decision logic, council personas and prompts, market-creator drafting |
 | `cli/` | `mimir-terminal` (npm): the Mimir CLI, live Arc markets and agents on your own AI; install steps at `/terminal` |
 | `examples/arc-agent/` | A runnable bring-your-own-agent example |
 | `schemas/` | The agent API's envelope JSON schema |
 | `brand/` | Logo, colour, type and the brand kit |
-| `scripts/arc/` | Deploy the contracts, create and fund council wallets |
-| `scripts/base/` | Deploy the Base contracts (MimirAgentPay, the ERC-20 markets) |
+| `scripts/arc/` | Deploy the Arc contracts, create and fund council wallets (`--chain base` for Base ones) |
+| `scripts/base/` | Deploy the Base contracts (the ERC-20 markets, MimirAgentPay) |
 | `tests/node/` | Unit tests (`npm run test:smoke`) |
 
 ## Local development
@@ -77,38 +78,43 @@ MIMIR_URL=http://localhost:3000 node examples/arc-agent/agent.mjs   # an agent r
 
 ## Configuration
 
-Every variable is in [`.env.example`](.env.example), grouped and commented. The ones that matter for the Arc build:
+Every variable is in [`.env.example`](.env.example), grouped and commented. A chain is on when both its market
+contracts are set; nothing breaks without them. The ones that matter:
 
 | Group | Variables |
 |---|---|
-| Network | `NEXT_PUBLIC_ARC_NETWORK` (`testnet`/`mainnet`), `NEXT_PUBLIC_ARC_RPC`, `NEXT_PUBLIC_ARC_EXPLORER` |
-| Contracts | `NEXT_PUBLIC_MIMIR_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_MIN_STAKE` |
+| Chains | `NEXT_PUBLIC_MARKET_CHAINS` (default `base,arc`), `NEXT_PUBLIC_DEFAULT_MARKET_CHAIN` (default `base`); backend `MARKET_CHAINS` |
+| Base | `NEXT_PUBLIC_BASE_NETWORK` (`testnet` = Sepolia / `mainnet`), `NEXT_PUBLIC_BASE_RPC`, `NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE`; backend `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `BASE_ORACLE_KEY`, `BASE_CREATOR_WALLET`, `BASE_COUNCIL_WALLETS` |
+| Arc | `NEXT_PUBLIC_ARC_NETWORK` (`testnet`/`mainnet`), `NEXT_PUBLIC_ARC_RPC`, `NEXT_PUBLIC_ARC_EXPLORER`, `NEXT_PUBLIC_MIMIR_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_MIN_STAKE` |
 | Wallets | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` (phone wallets in ConnectKit; optional) |
-| Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ARC_ORACLE_KEY`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
+| Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ARC_ORACLE_KEY`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
-| Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([ARC.md](docs/ARC.md#jev-optional)) |
+| Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([CHAINS.md](docs/CHAINS.md#jev-optional)) |
 | Council | `COUNCIL_BETS` (`0` on mainnet), `COUNCIL_TAKES_PER_CREATOR_DAY`, see [docs/COUNCIL.md](docs/COUNCIL.md) |
 | App records | `NEXT_PUBLIC_CONVEX_URL` + `MIMIR_INTERNAL_SECRET` (the same on the site and the backend): agents, baskets, copy permissions, account links and Telegram chats live in the backend (`convex/appStore.ts`) |
 | Launch | `LAUNCH_ARC`, `LAUNCH_BYOK_SECRET`, `PINATA_JWT` (token images), `BASE_RPC_URL` (Clanker launches and claims) |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `MIMIR_INTERNAL_SECRET`, `TELEGRAM_ADMIN_IDS` |
 | Analytics | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_REGION` |
 
-### Arc testnet
+### Contracts
 
-| Contract | Address |
-|---|---|
-| MimirV3 (VS) | `0x5c55500acefebb1559009a2735d00f25fe3e808a` |
-| MimirPool | `0x4a846757db42d258ea30b29a53dac025207846fd` |
-| MimirFees | `0x3ce9b9731e5b9432ceeb04bb0e27c220293a976d` |
+| Contract | Base Sepolia (primary) | Base mainnet | Arc testnet |
+|---|---|---|---|
+| MimirV3 (VS) | not deployed yet | not deployed yet | `0x5c55500acefebb1559009a2735d00f25fe3e808a` |
+| MimirPool | not deployed yet | not deployed yet | `0x4a846757db42d258ea30b29a53dac025207846fd` |
+| MimirFees | not deployed yet | not deployed yet | `0x3ce9b9731e5b9432ceeb04bb0e27c220293a976d` |
+| USDC | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 dp) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 dp) | native (18 dp) |
 
-Chain id 5042002, RPC `https://rpc.testnet.arc.network`, explorer [testnet.arcscan.app](https://testnet.arcscan.app),
-from block 65993456, minimum stake 0.1 USDC, dispute window 1 hour. Redeploy with `scripts/arc/deploy.mjs`.
+Base: `MimirV3Erc20` and `MimirPoolErc20`, deployed with `scripts/base/deploy-markets.mts` (it prints the env lines);
+chain id 84532 (Sepolia) / 8453, gas in ETH. Arc testnet: chain id 5042002, RPC `https://rpc.testnet.arc.network`,
+explorer [testnet.arcscan.app](https://testnet.arcscan.app), from block 65993456, minimum stake 0.1 USDC, dispute
+window 1 hour; redeploy with `scripts/arc/deploy.mjs`.
 
 ## Docs
 
 - [docs/how-mimir-works.md](docs/how-mimir-works.md): the plain-language overview
 - [docs/AGENTS.md](docs/AGENTS.md): bring your own agent; [docs/openapi-agent-v1.yaml](docs/openapi-agent-v1.yaml)
-- [docs/ARC.md](docs/ARC.md): architecture, contracts, fees, the backend, security reviews
+- [docs/CHAINS.md](docs/CHAINS.md): architecture on Base and Arc, contracts, fees, the backend, security reviews
 - [docs/COUNCIL.md](docs/COUNCIL.md): the AI personas
 - [docs/DESIGN.md](docs/DESIGN.md) and [brand/README.md](brand/README.md): design system and brand
 - [docs/archive/](docs/archive/): earlier docs, including the previous README

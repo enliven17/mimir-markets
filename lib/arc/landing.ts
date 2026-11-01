@@ -5,8 +5,11 @@
  * the same numbering as MimirV3 (0 open … 5 disputed).
  */
 import type { LandingClaim, LandingFeed } from "../landing";
+import { marketPath } from "../chains/links";
 
 export interface ArcIndexMarket {
+  /** Absent on rows indexed before Base: Arc. */
+  chain?: "arc" | "base";
   kind: "vs" | "pool";
   marketId: number;
   question: string;
@@ -28,9 +31,9 @@ const units = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString();
 export function arcLandingClaim(m: ArcIndexMarket): LandingClaim {
   return {
     // Unique across both contracts for React keys; the link uses `href`.
-    id: m.kind === "vs" ? m.marketId : 1_000_000 + m.marketId,
-    href: `/arena/arc/${m.kind}/${m.marketId}`,
-    label: `${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}`,
+    id: (m.chain === "base" ? 2_000_000 : 0) + (m.kind === "vs" ? m.marketId : 1_000_000 + m.marketId),
+    href: marketPath(m.chain, m.kind, m.marketId),
+    label: `${m.chain === "base" ? "Base " : ""}${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}`,
     question: m.question,
     category: m.category,
     creatorPosition: m.labelA,

@@ -1,23 +1,27 @@
 "use client";
 
 /**
- * /dashboard on Arc: the connected wallet's USDC on Arc, any payout a contract parked for it (a refused push, pulled
- * with withdraw()), its record, and every position it holds, live from Convex.
+ * /dashboard: the connected wallet's USDC on every enabled market chain (Base first; ETH for gas on Base), any payout a
+ * contract parked for it (a refused push, pulled with withdraw()), its record, and every position it holds on any
+ * chain, each with its network, live from Convex.
  * Payouts are pushed to the account at settlement (VS) or by the oracle
  * (pools), so there is nothing to claim here except a parked one.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { useLocale } from "next-intl";
-import { encodeFunctionData, parseAbi, type Address } from "viem";
+import { parseAbi, type Address } from "viem";
 
 import { api } from "@/convex/_generated/api";
 import { SURFACE } from "@/components/arena/surface";
 import { useNowSec } from "@/components/arena/settlement/useSettleAction";
 import Skeleton from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
-import { arcPublicClient } from "@/lib/arc/chain";
-import { ARC, arcExplorerUrl } from "@/lib/arc/config";
+import { toIndexUnits } from "@/lib/chains/amounts";
+import { chainPublicClient } from "@/lib/chains/client";
+import { marketPath } from "@/lib/chains/links";
+import { explorerUrl, MARKET_CHAINS, marketChain, type MarketChainId } from "@/lib/chains/registry";
+import { ChainBadge } from "../NetworkLogos";
 import AccountGate from "../arena/AccountGate";
 import { arcPhase, BTN_PRIMARY, BTN_SECONDARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, usd, type ArcMarket } from "../arena/shared";
 import { useArcAccount } from "../arena/useArcAccount";
@@ -41,13 +45,13 @@ const RESULT_LABEL: Record<Result, string> = { open: "Open", settling: "Settling
 const RESULT_TONE: Record<Result, string> = { open: "text-cream", settling: "text-pending", won: "text-win", lost: "text-danger", refunded: "text-muted" };
 
 export default function ArcDashboard() {
-  const account = useArcAccount();
+  const account = useArcAccount(MARKET_CHAINS.defaultChain);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <header className="flex items-baseline justify-between gap-4">
         <h1 className="m-0 font-display text-app-h1 text-cream">Portfolio</h1>
         {account.address ? (
-          <a href={arcExplorerUrl("address", account.address)} target="_blank" rel="noreferrer" className="truncate font-mono text-[13px] text-muted hover:text-coral">
+          <a href={explorerUrl(account.chainConfig, "address", account.address)} target="_blank" rel="noreferrer" className="truncate font-mono text-[13px] text-muted hover:text-coral">
             {account.address.slice(0, 6)}…{account.address.slice(-4)} <ExternalMark />
           </a>
         ) : null}
@@ -57,12 +61,9 @@ export default function ArcDashboard() {
   );
 }
 
-function Body({ account, address }: { account: ReturnType<typeof useArcAccount>; address: Address }) {
+function Body({ address }: { account: ReturnType<typeof useArcAccount>; address: Address }) {
   const now = useNowSec(30_000);
   const positions = useQuery(api.arc.positionsOf, { user: address });
-  const { balance, reload } = account;
-  const parked = useParked(address);
-  const { send, busy, error } = useArcSend(account.session);
 
   const rows = useMemo(
     () =>
@@ -76,50 +77,12 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
   const lost = rows.filter((r) => r.result === "lost").length;
   const atRisk = rows.filter((r) => r.result === "open" || r.result === "settling").reduce((s, r) => s + BigInt(r.amount), 0n);
 
-  const withdraw = async (contract: Address) => {
-    if (await send([{ to: contract, data: encodeFunctionData({ abi: PARKED_ABI, functionName: "withdraw" }) }])) {
-      void parked.reload();
-      void reload();
-    }
-  };
-
   return (
     <>
-      <section aria-label="Balances" className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
-        <div className="min-w-0">
-          <p className="m-0 text-[13px] text-muted">Arc balance · {ARC.network}</p>
-          <p className="m-0 mt-2 flex h-[clamp(2.6rem,11vw,3.6rem)] items-center font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
-            {balance === null ? (
-              <Skeleton className="h-[70%] w-40" />
-            ) : (
-              <>
-                <span className="mr-1 text-[0.6em] text-muted">$</span>
-                {usd(balance).replace(/^\$/, "")}
-              </>
-            )}
-          </p>
-          <p className="m-0 mt-2 text-[13px] text-muted">In your wallet. Stakes and gas are paid from it in USDC.</p>
-        </div>
-        <Link href="/wallet" className={`${BTN_PRIMARY} text-center sm:flex-none`}>
-          Add USDC
-        </Link>
-      </section>
-
-      {parked.items.length > 0 ? (
-        <section aria-label="Parked payouts" className={`${SURFACE} grid gap-3 p-5`}>
-          <h2 className="m-0 text-[15px] text-cream">Payouts waiting for you</h2>
-          <p className="m-0 text-[13px] text-muted">A payout your wallet did not accept automatically. Pull it in one transaction.</p>
-          {parked.items.map((p) => (
-            <div key={p.contract} className="flex flex-wrap items-center justify-between gap-3">
-              <span className="font-mono text-[15px] text-cream">{usd(p.amount)}</span>
-              <button type="button" disabled={busy} onClick={() => void withdraw(p.contract)} className={BTN_SECONDARY}>
-                {busy ? "Confirm in your wallet…" : "Withdraw"}
-              </button>
-            </div>
-          ))}
-          {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
-        </section>
-      ) : null}
+      {/* Same address on every chain: one balance card per enabled chain (Base first), each with its own parked payouts. */}
+      {CHAINS.map((c) => (
+        <ChainBalance key={c} chain={c} address={address} />
+      ))}
 
       <section aria-labelledby="positions" className="grid gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -147,9 +110,10 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
               const phase = arcPhase(r.market, now);
               return (
                 <li key={r._id} className="flex items-center gap-2 border-b border-line last:border-0">
-                  <Link href={`/arena/arc/${r.kind}/${r.marketId}`} className="grid min-w-0 flex-1 gap-1 rounded-xl px-3 py-3 hover:bg-panel sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+                  <Link href={marketPath(r.chain, r.kind, r.marketId)} className="grid min-w-0 flex-1 gap-1 rounded-xl px-3 py-3 hover:bg-panel sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-[12px] text-muted">
+                        <ChainBadge chain={r.chain} />
                         <span className="font-mono uppercase tracking-[0.12em] text-coral">{KIND_LABEL[r.kind]}</span>
                         <span className="font-mono text-dim">#{r.marketId}</span>
                         <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${PHASE_DOT[phase]}`} />
@@ -163,7 +127,7 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
                       <span className={`text-[13px] ${RESULT_TONE[r.result]}`}>{RESULT_LABEL[r.result]}</span>
                     </span>
                   </Link>
-                  {r.result === "won" ? <ShareWin kind={r.kind} marketId={r.marketId} side={r.side} question={r.market.question} label={r.side === 1 ? r.market.labelA : r.market.labelB} /> : null}
+                  {r.result === "won" ? <ShareWin chain={r.chain} kind={r.kind} marketId={r.marketId} side={r.side} question={r.market.question} label={r.side === 1 ? r.market.labelA : r.market.labelB} /> : null}
                 </li>
               );
             })}
@@ -178,8 +142,8 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
  * Share a win: the market link with ?won=<side>, which previews as the winner card (app/api/telegram/card/winner).
  * The phone's share sheet where there is one, else a post on X.
  */
-function ShareWin({ kind, marketId, side, question, label }: { kind: string; marketId: number; side: number; question: string; label: string }) {
-  const url = `${SITE_URL}/${useLocale()}/arena/arc/${kind}/${marketId}?won=${side}`;
+function ShareWin({ chain, kind, marketId, side, question, label }: { chain: MarketChainId; kind: "vs" | "pool"; marketId: number; side: number; question: string; label: string }) {
+  const url = `${SITE_URL}/${useLocale()}${marketPath(chain, kind, marketId)}?won=${side}`;
   const text = `Called it on Mimir: ${question.length > 150 ? `${question.slice(0, 147)}…` : question} "${label}" won 🏆`;
   const share = () => {
     if (typeof navigator.share === "function") return void navigator.share({ text, url }).catch(() => undefined);
@@ -192,22 +156,84 @@ function ShareWin({ kind, marketId, side, question, label }: { kind: string; mar
   );
 }
 
-/** Payouts a contract parked for this account (pendingWithdrawals), on both market contracts. */
-function useParked(address: Address) {
-  const [items, setItems] = useState<{ contract: Address; amount: bigint }[]>([]);
+/** The enabled chains, fixed for the build: one hook set each, always in this order. */
+const CHAINS = MARKET_CHAINS.enabled;
+
+/** One chain's balance card: USDC (and ETH for gas on Base), plus payouts a contract parked there. */
+function ChainBalance({ chain, address }: { chain: MarketChainId; address: Address }) {
+  const account = useArcAccount(chain);
+  const cfg = account.chainConfig;
+  const parked = useParked(chain, address);
+  const { send, busy, error } = useArcSend(account);
+  const withdraw = async (kind: "vs" | "pool") => {
+    if (await send({ type: "withdraw", kind })) {
+      void parked.reload();
+      void account.reload();
+    }
+  };
+  return (
+    <>
+      <section aria-label={`Balance on ${cfg.label}`} className={`${SURFACE} grid gap-5 p-5 sm:flex sm:items-end sm:justify-between sm:p-7`}>
+        <div className="min-w-0">
+          <p className="m-0 flex items-center gap-2 text-[13px] text-muted">
+            <ChainBadge chain={chain} /> {cfg.name}
+          </p>
+          <p className="m-0 mt-2 flex h-[clamp(2.6rem,11vw,3.6rem)] items-center font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
+            {account.balance === null ? (
+              <Skeleton className="h-[70%] w-40" />
+            ) : (
+              <>
+                <span className="mr-1 text-[0.6em] text-muted">$</span>
+                {usd(account.balance).replace(/^\$/, "")}
+              </>
+            )}
+          </p>
+          <p className="m-0 mt-2 text-[13px] text-muted">
+            {cfg.gas.symbol === "ETH"
+              ? `USDC in your wallet on ${cfg.label}. Gas is paid in ETH: ${account.gas === null ? "-" : `${(Number(account.gas) / 1e18).toFixed(5)} ETH`}${account.gas === 0n ? " (add a little ETH to stake here)" : ""}.`
+              : `USDC in your wallet on ${cfg.label}. Stakes and gas are paid from it in USDC.`}
+          </p>
+        </div>
+        <Link href="/wallet" className={`${BTN_PRIMARY} text-center sm:flex-none`}>
+          Add USDC
+        </Link>
+      </section>
+      {parked.items.length > 0 ? (
+        <section aria-label={`Parked payouts on ${cfg.label}`} className={`${SURFACE} grid gap-3 p-5`}>
+          <h2 className="m-0 text-[15px] text-cream">Payouts waiting for you on {cfg.label}</h2>
+          <p className="m-0 text-[13px] text-muted">A payout your wallet did not accept automatically. Pull it in one transaction.</p>
+          {parked.items.map((p) => (
+            <div key={p.contract} className="flex flex-wrap items-center justify-between gap-3">
+              <span className="font-mono text-[15px] text-cream">{usd(p.amount)}</span>
+              <button type="button" disabled={busy} onClick={() => void withdraw(p.kind)} className={BTN_SECONDARY}>
+                {busy ? "Confirm in your wallet…" : "Withdraw"}
+              </button>
+            </div>
+          ))}
+          {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+/** Payouts a contract parked for this account (pendingWithdrawals) on one chain, both market contracts, index units. */
+function useParked(chain: MarketChainId, address: Address) {
+  const [items, setItems] = useState<{ contract: Address; kind: "vs" | "pool"; amount: bigint }[]>([]);
   const reload = useCallback(async () => {
-    const contracts = [ARC.contracts.mimirV3, ARC.contracts.mimirPool].filter((c): c is Address => Boolean(c));
-    const client = arcPublicClient();
+    const cfg = marketChain(chain);
+    const contracts = ([["vs", cfg.contracts.mimirV3], ["pool", cfg.contracts.mimirPool]] as const).filter((c): c is readonly ["vs" | "pool", Address] => Boolean(c[1]));
+    const client = chainPublicClient(cfg);
     const read = await Promise.all(
-      contracts.map((c) =>
+      contracts.map(([kind, c]) =>
         client
           .readContract({ address: c, abi: PARKED_ABI, functionName: "pendingWithdrawals", args: [address] })
-          .then((amount) => ({ contract: c, amount }))
-          .catch(() => ({ contract: c, amount: 0n })),
+          .then((amount) => ({ contract: c, kind, amount: toIndexUnits(cfg, amount) }))
+          .catch(() => ({ contract: c, kind, amount: 0n })),
       ),
     );
     setItems(read.filter((r) => r.amount > 0n));
-  }, [address]);
+  }, [address, chain]);
   useEffect(() => {
     void reload();
     const t = setInterval(() => void reload(), 30_000);

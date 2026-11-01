@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * Baskets and copy trading on Arc: the pure functions of lib/baskets.ts and
- * lib/copy-signals.ts, fed from the Convex index. Members resolve to the addresses that stake on Arc: a
+ * Baskets and copy trading on the market chains (Arc, and Base where members stake there): the pure functions of
+ * lib/baskets.ts and lib/copy-signals.ts, fed from the Convex index. Each claim keeps its chain; a copy follows it. Members resolve to the addresses that stake on Arc: a
  * persona's Circle wallet, an agent's Arc operator. Addresses are lowercase.
  */
 import type { IndexedClaim } from "@/lib/baskets";
@@ -33,6 +33,7 @@ export async function arcClaimsChallengedBy(wallets: string[], states: number[],
   const markets = await arcChallengedBy(wallets, states.map((s) => STATUS_OF[s]).filter(Boolean), limit);
   return markets.map((m) => ({
     id: m.marketId,
+    chain: m.chain,
     creator: m.creator,
     state: STATE_OF[m.status] ?? 0,
     winner_side: m.winner,
@@ -59,7 +60,7 @@ export async function arcClaimsChallengedBy(wallets: string[], states: number[],
 export async function arcClaimStates(ids: number[]): Promise<Map<number, { state: number; winnerSide: number }>> {
   if (!ids.length) return new Map();
   const wanted = new Set(ids);
-  const markets = await arcMarketList("vs");
+  const markets = await arcMarketList("vs", "arc");
   return new Map(
     markets.filter((m) => wanted.has(m.marketId)).map((m) => [m.marketId, { state: STATE_OF[m.status] ?? 0, winnerSide: m.winner }] as const),
   );

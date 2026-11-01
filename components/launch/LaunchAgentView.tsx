@@ -5,6 +5,7 @@
  * controls, copying its stakes, and its record and reasoning log (/api/launch/:id/detail).
  */
 import { useEffect, useState } from "react";
+import { marketPath } from "@/lib/chains/links";
 import { useQuery } from "convex/react";
 import { useTranslations } from "next-intl";
 
@@ -23,7 +24,7 @@ import FollowButton from "@/components/discovery/FollowButton";
 import PublicMarketRecord from "./PublicMarketRecord";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
-type Bet = { kind: string; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
+type Bet = { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
 type Detail = {
   agent: null | { events: { at: number; kind: string; text: string; chain: string | null; tx: string | null }[] };
   arc: Bet[];
@@ -62,7 +63,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       <PublicMarketRecord address={a.arc} />
       <WalletsBlock ticker={a.ticker} token={a.token} arc={a.arc} base={a.base} />
       <TokenBlock slug={slug} ticker={a.ticker} owner={card?.owner ?? null} status={card?.status ?? "live"} token={a.token} />
-      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} arc={card.arc} /> : null}
+      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} arc={card.arc} base={card.base} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <RecordSection slug={slug} />
     </div>
@@ -117,8 +118,8 @@ function RecordSection({ slug }: { slug: string }) {
           {bets.length ? (
             <ul className="m-0 grid list-none gap-1.5 p-0 text-[13px]">
               {bets.slice(0, 15).map((b) => (
-                <li key={`${b.kind}-${b.marketId}-${b.label}`} className="flex items-baseline justify-between gap-3">
-                  <Link href={`/arena/arc/${b.kind}/${b.marketId}`} className="min-w-0 truncate text-muted hover:text-coral">
+                <li key={`${b.chain ?? "arc"}-${b.kind}-${b.marketId}-${b.label}`} className="flex items-baseline justify-between gap-3">
+                  <Link href={marketPath(b.chain, b.kind, b.marketId)} className="min-w-0 truncate text-muted hover:text-coral">
                     <span className="text-cream">{b.label}</span> · {b.question}
                   </Link>
                   <span className={`shrink-0 font-mono tabular-nums ${b.outcome === "won" ? "text-emerald-300" : b.outcome === "lost" ? "text-coral" : "text-muted"}`}>

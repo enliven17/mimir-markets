@@ -2,8 +2,8 @@
 
 /**
  * Header wallet chip (`.wallet-chip` / `.wallet-menu`). Disconnected: a glass "Connect" pill that opens the
- * connect sheet. Connected: the EVM wallet's short address in mono with a chevron; the menu holds its USDC on Arc,
- * copy address, explorer, the wallet page and disconnect.
+ * connect sheet. Connected: the EVM wallet's short address in mono with a chevron; the menu holds its USDC on every
+ * enabled market chain (Base first, with its ETH for gas), copy address, explorer, the wallet page and disconnect.
  *
  * Keyboard: the menu opens on Enter/Space/ArrowDown and focuses its first
  * item, arrows move between items, Esc closes and returns focus to the chip,
@@ -15,8 +15,8 @@ import { Check, Copy, ExternalLink, LogOut, Wallet } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
-import { arcUsdcUnits } from "@/lib/arc/chain";
-import { arcExplorerUrl } from "@/lib/arc/config";
+import { gasBalanceWei, usdcBalanceWei } from "@/lib/chains/client";
+import { explorerUrl, MARKET_CHAINS, type MarketChainId } from "@/lib/chains/registry";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { useWalletSheet } from "./WalletSheetProvider";
 
@@ -34,7 +34,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   const { open: openSheet, warm: warmSheet } = useWalletSheet();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [usdcUnits, setUsdcUnits] = useState<bigint | null>(null);
+  /** Per enabled chain: USDC in 6-dp units and, on Base, ETH in wei; null = not read yet. */
+  const [balances, setBalances] = useState<Partial<Record<MarketChainId, { usdc: bigint | null; gas: bigint | null }>>>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,11 +54,18 @@ export default function WalletChip({ className = "" }: { className?: string }) {
   useEffect(() => {
     if (!menuOpen || !address) return;
     let cancelled = false;
-    arcUsdcUnits(address)
-      .catch(() => null)
-      .then((units) => {
-        if (!cancelled) setUsdcUnits(units);
-      });
+    void Promise.all(
+      MARKET_CHAINS.enabled.map(async (c) => {
+        const cfg = MARKET_CHAINS.chains[c];
+        const [usdc, gas] = await Promise.all([
+          usdcBalanceWei(cfg, address).then((w) => w / 1_000_000_000_000n).catch(() => null),
+          cfg.gas.symbol === "ETH" ? gasBalanceWei(cfg, address).catch(() => null) : Promise.resolve(null),
+        ]);
+        return [c, { usdc, gas }] as const;
+      }),
+    ).then((rows) => {
+      if (!cancelled) setBalances(Object.fromEntries(rows));
+    });
     return () => {
       cancelled = true;
     };
@@ -141,7 +149,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
     );
   }
 
-  const explorer = arcExplorerUrl("address", address);
+  const explorer = explorerUrl(MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain], "address", address);
 
   return (
     <div
@@ -178,12 +186,20 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             </p>
             <p className="mt-1 break-all font-mono text-[12px] leading-snug text-cream/80">{address}</p>
             <dl className="mt-2.5 grid gap-2 rounded-[14px] bg-cream/[0.035] p-2.5">
-              <div>
-                <dt className="text-[11px] text-muted">{t("usdcOnArc")}</dt>
-                <dd className="font-mono text-[14px] tabular-nums text-cream">
-                  {usdcUnits === null ? "…" : formatUsdcUnitsBare(usdcUnits)}
-                </dd>
-              </div>
+              {MARKET_CHAINS.enabled.map((c) => {
+                const b = balances[c];
+                return (
+                  <div key={c}>
+                    <dt className="text-[11px] text-muted">{t("usdcOn", { network: MARKET_CHAINS.chains[c].label })}</dt>
+                    <dd className="font-mono text-[14px] tabular-nums text-cream">
+                      {b?.usdc == null ? "…" : formatUsdcUnitsBare(b.usdc)}
+                      {MARKET_CHAINS.chains[c].gas.symbol === "ETH" && b?.gas != null ? (
+                        <span className="ml-2 text-[11px] text-muted">{(Number(b.gas) / 1e18).toFixed(5)} ETH</span>
+                      ) : null}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           </div>
           <div id={menuId} role="menu" aria-label={t("menuLabel")} className="grid gap-[3px]">

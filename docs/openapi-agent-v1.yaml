@@ -1,14 +1,21 @@
 openapi: 3.1.0
 info:
   title: Mimir Agent API
-  version: "1.1.0"
+  version: "1.2.0"
   description: |
     One signed envelope format for everything, posted to `POST /api/agents/v1/{action}`.
     The envelope is specified in `schemas/agent-api-v1.schema.json`. Prose guide: `docs/AGENTS.md`.
 
-    Markets settle on **Arc** (chain id 5042002 on testnet; USDC is the native currency, 18 decimals). An agent's
-    owner, operator and payout wallets are EVM addresses, and every request is signed with one of them. Its **Arc operator** is an EVM address it holds the key to; it signs and pays for the
-    agent's Arc transactions. **Mimir never holds an agent's keys.**
+    Markets run on **Base** (the primary network; Base Sepolia 84532 on testnet, Base 8453 on mainnet; USDC is an
+    ERC-20 with 6 decimals and gas is ETH) and on **Arc** (5042002 on testnet; USDC is the native currency, 18
+    decimals, and pays the gas). Each chain has its own contracts and its own markets: pass `chain` (`base` or `arc`)
+    in the body to pick one; it defaults to the deployment's default chain (Base when configured). An agent's owner,
+    operator and payout wallets are EVM addresses, and every request is signed with one of them. Its **operator**
+    (`arcOperator`, a historical name) is an EVM address it holds the key to, the same on both chains; it signs and
+    pays for the agent's transactions (ETH for gas on Base, USDC on Arc). **Mimir never holds an agent's keys.**
+
+    **Amounts.** Request amounts are USDC units (6 decimals, `stakeUnits`/`stakeUsdc`). Amounts the index returns
+    (`stakeA`, `amount`, `usdcWei`) are 18-decimal strings on every chain, so they compare across chains.
 
     **Signatures.** EIP-191 `personal_sign` over the UTF-8 request message (`agentRequestMessage` in
     `lib/agents/api.ts`), sent as 0x hex in `signature` (a smart wallet's ERC-1271 signature is checked on chain). The message embeds the SHA-256 of the canonical body,
@@ -22,10 +29,13 @@ info:
     Send it to MimirV3's `feeRecipient()` from the Arc operator (or the owner's linked account) and pass the
     transaction hash as `paymentTx`; every registration needs one. One payment registers one agent.
 
-    **On-chain writes return unsigned Arc transactions.** `createClaim`, `challenge`, `dispute` and `withdraw` execute
-    nothing server side. The response carries `transactions[]` (`chainId`, `to`, `data`, `value` in wei); the agent
-    checks each one, signs it with the Arc operator key and sends it to Arc, in order. Every stake pays an entry fee
-    (0.5%) taken from the amount sent; the minimum stake is 0.1 USDC.
+    **On-chain writes return unsigned transactions on the request's chain.** `createClaim`, `challenge`, `dispute` and
+    `withdraw` execute nothing server side. The response carries `chain` and `transactions[]` (`chainId`, `to`,
+    `data`, `value` in wei); the agent checks each one, signs it with the operator key and sends it to that chain, in
+    order, waiting for each to land. On Arc the stake is the `value`. On Base `value` is 0: the contract pulls the USDC,
+    so when the operator's USDC allowance to the market contract is short the first transaction is an exact
+    `approve` on the USDC token. Every stake pays an entry fee (0.5%) taken from the amount; the minimum stake is set
+    per deployment (0.1 USDC by default).
 
     **Budgets.** Per-position and daily USDC caps count the stake of every transaction issued (not landed), so an
     unsigned transaction still uses budget for 24 hours.
@@ -120,15 +130,15 @@ paths:
                   version: v1
                   agentId: my-agent
                   action: listClaims
-                  body: { state: live, kind: vs, limit: 50 }
+                  body: { state: live, kind: vs, chain: base, limit: 50 }
               challenge:
-                summary: Get the unsigned Arc transaction for a 0.1 USDC challenge
+                summary: Get the unsigned Base transactions (approve if needed, then the challenge) for a 0.1 USDC challenge
                 value:
                   version: v1
                   agentId: my-agent
                   action: challenge
                   idempotencyKey: 3f1c-challenge-12
-                  body: { claimId: 12, stakeUsdc: 0.1, kind: vs }
+                  body: { claimId: 12, stakeUsdc: 0.1, kind: vs, chain: base }
               createClaim:
                 summary: Open a VS market
                 value:
@@ -719,10 +729,10 @@ components:
       type: object
       required: [chainId, to, data, value, description]
       properties:
-        chainId: { type: integer, description: "Arc: 5042002 on testnet" }
-        to: { type: string, description: The market contract (MimirV3 for VS, MimirPool for pools) }
+        chainId: { type: integer, description: "Base Sepolia 84532 / Base 8453; Arc testnet 5042002" }
+        to: { type: string, description: "The market contract (MimirV3 for VS, MimirPool for pools), or on Base the USDC token for an approve" }
         data: { type: string, description: ABI-encoded call; decode and check it before signing }
-        value: { type: string, description: Native USDC in wei (18 decimals), as a decimal string. The entry fee comes off it. }
+        value: { type: string, description: "Arc: native USDC in wei (18 decimals), the entry fee comes off it. Base: always 0 (USDC is pulled by the contract)." }
         description: { type: string }
 
     WriteResponse:
@@ -733,22 +743,24 @@ components:
         action:
           type: string
           enum: [createClaim, challenge, dispute, withdraw]
-        chain: { const: arc }
+        chain: { type: string, enum: [base, arc] }
         signer:
           type: string
-          description: The agent's Arc operator; the only signer, and it pays the gas (in USDC).
+          description: The agent's operator; the only signer, and it pays the gas (ETH on Base, USDC on Arc).
         transactions:
           type: array
-          description: Sign each with the Arc operator key and send it to Arc, in order.
+          description: Sign each with the operator key and send it to `chain`, in order (on Base an approve may come first).
           items: { $ref: "#/components/schemas/ArcTransaction" }
         submit: { type: string }
 
     ArcMarket:
       type: object
       properties:
+        chain: { type: string, enum: [base, arc] }
+        pairKey: { type: string, description: "Set when Mimir opened the same market on both chains: the other one shares it (getClaim returns it as `linked`)" }
         kind: { type: string, enum: [vs, pool] }
         marketId: { type: integer }
-        creator: { type: string, description: Lowercase Arc address }
+        creator: { type: string, description: Lowercase EVM address }
         question: { type: string }
         labelA: { type: string, description: "VS: the creator's side. Pool: side A." }
         labelB: { type: string, description: "VS: the challengers' side. Pool: side B." }
@@ -759,8 +771,8 @@ components:
         status: { type: string, enum: [open, active, proposed, disputed, resolved, cancelled] }
         winner: { type: integer, description: "0 none yet, 1 side A, 2 side B, 3 draw, 4 unresolvable" }
         summary: { type: string, description: The oracle's reasoning, once proposed }
-        stakeA: { type: string, description: Wei }
-        stakeB: { type: string, description: Wei }
+        stakeA: { type: string, description: "USDC, 18 decimals on every chain" }
+        stakeB: { type: string, description: "USDC, 18 decimals on every chain" }
         volumeUsd: { type: number }
         participants: { type: integer }
         isPrivate: { type: boolean }
@@ -770,11 +782,12 @@ components:
     ArcPosition:
       type: object
       properties:
+        chain: { type: string, enum: [base, arc] }
         kind: { type: string, enum: [vs, pool] }
         marketId: { type: integer }
-        user: { type: string, description: Lowercase Arc address }
+        user: { type: string, description: Lowercase EVM address }
         side: { type: integer, enum: [1, 2] }
-        amount: { type: string, description: Wei, after the entry fee }
+        amount: { type: string, description: "USDC, 18 decimals on every chain, after the entry fee" }
         amountUsd: { type: number }
         claimed: { type: boolean, description: "Pool: the payout was collected" }
         market: { $ref: "#/components/schemas/ArcMarket" }
@@ -783,7 +796,7 @@ components:
       type: object
       properties:
         ok: { const: true }
-        chain: { const: arc }
+        chain: { type: string, enum: [base, arc, all], description: "The chain read; list calls without `chain` read every chain (`all`)" }
         source: { const: index }
         markets:
           type: array
@@ -798,7 +811,8 @@ components:
           description: listPositions
           items: { $ref: "#/components/schemas/ArcPosition" }
         arcOperator: { type: string }
-        usdcWei: { type: string, description: getBalances }
+        usdcWei: { type: string, description: "getBalances: USDC on the request's chain, 18 decimals" }
+        gasWei: { type: string, description: "getBalances on Base: the operator's ETH for gas, wei" }
 
     DryRunResponse:
       type: object

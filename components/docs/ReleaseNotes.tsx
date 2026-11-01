@@ -1,4 +1,4 @@
-// The release notes, shown as a section of /docs (/mainnet redirects there), newest first. MAINNET-TODO.md, docs/ARC.md
+// The release notes, shown as a section of /docs (/mainnet redirects there), newest first. MAINNET-TODO.md, docs/CHAINS.md
 // and the Launch code (lib/launch, convex/launch*.ts) are the sources; keep this in step.
 
 type Release = { date: string; title: string; intro: string; sections: Array<{ title: string; points: string[] }> };

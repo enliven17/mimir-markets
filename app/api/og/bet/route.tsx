@@ -30,10 +30,11 @@ const clamp = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, s.las
 
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
-  const q = parseBetRef(`${sp.get("kind")}-${sp.get("id")}`, sp.get("side"));
+  const chain = sp.get("chain") === "base" ? "base-" : "";
+  const q = parseBetRef(`${chain}${sp.get("kind")}-${sp.get("id")}`, sp.get("side"));
   if (!q) return new Response("bad request", { status: 400 });
   if (!(await allowRequest("og-bet", clientIp(req), 120, 60_000))) return new Response("slow down", { status: 429 });
-  const m = (await arcMarketDetail(q.kind, q.id).catch(() => null)) as {
+  const m = (await arcMarketDetail(q.kind, q.id, q.chain).catch(() => null)) as {
     question: string; labelA: string; labelB: string; stakeA: string; stakeB: string; participants: number; category: string;
   } | null;
   if (!m) return new Response("not found", { status: 404 });
@@ -64,7 +65,7 @@ export async function GET(req: Request) {
         <img src={horn} width={210} height={230} style={{ position: "absolute", right: 76, top: 92, opacity: 0.9 }} />
         <div style={{ display: "flex", flexDirection: "column", width: 820, height: "100%" }}>
           <div style={{ display: "flex", fontFamily: "Mono", fontSize: 20, letterSpacing: 4, color: MUTED }}>
-            {`${q.kind.toUpperCase()} #${q.id} · ${m.category.toUpperCase()}`}
+            {`${q.chain === "base" ? "BASE · " : ""}${q.kind.toUpperCase()} #${q.id} · ${m.category.toUpperCase()}`}
           </div>
           <div style={{ display: "flex", marginTop: 20, fontFamily: "Display", fontSize: 84, lineHeight: 0.92 }}>
             I took <span style={{ color: RED, marginLeft: 22 }}>{clamp(mine, 18)}</span>

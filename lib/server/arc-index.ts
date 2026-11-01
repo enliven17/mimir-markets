@@ -1,10 +1,11 @@
 /**
- * Server-side reads of the Arc index in Convex (convex/arc.ts), for routes and
+ * Server-side reads of the market index in Convex (convex/arc.ts: every chain), for routes and
  * the Telegram bot. Plain HTTP queries; null client when Convex is not configured.
  */
 import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "@/convex/_generated/api";
+import type { MarketChainId } from "@/lib/chains/registry";
 
 let client: ConvexHttpClient | null | undefined;
 
@@ -44,14 +45,16 @@ export async function arcVolumeByUser(): Promise<Array<{ user: string; usdc: num
   return c.query(api.arcViews.volumeByUser, {});
 }
 
-export async function arcMarketList(kind?: "vs" | "pool") {
+/** Public markets, newest first, on one chain or all. */
+export async function arcMarketList(kind?: "vs" | "pool", chain?: MarketChainId) {
   const c = convex();
   if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  return c.query(api.arc.markets, { kind, limit: 500 });
+  return c.query(api.arc.markets, { kind, chain, limit: 500 });
 }
 
-export async function arcMarketDetail(kind: "vs" | "pool", marketId: number) {
+/** One market with its positions, events, verdict and linked markets; chain defaults to Arc (older links). */
+export async function arcMarketDetail(kind: "vs" | "pool", marketId: number, chain: MarketChainId = "arc") {
   const c = convex();
   if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  return c.query(api.arc.market, { kind, marketId });
+  return c.query(api.arc.market, { chain, kind, marketId });
 }

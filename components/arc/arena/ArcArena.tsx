@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * /arena on Arc: every public market from both contracts, live from Convex
- * (convex/arc.ts, kept current by the indexer). Three views (Open, Settling,
- * Settled) and a VS / Pool filter. Cards link to /arena/arc/<kind>/<id>.
+ * /arena: every public market on every enabled chain (Base, Arc), live from
+ * Convex (convex/arc.ts, kept current by the indexers). Three views (Open,
+ * Settling, Settled), a network filter and a VS / Pool filter. Each card shows
+ * its network and links to /arena/<chain>/<kind>/<id>.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -14,7 +15,9 @@ import { useNowSec } from "@/components/arena/settlement/useSettleAction";
 import { FeedCard } from "@/components/ui/Card";
 import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
-import { ARC } from "@/lib/arc/config";
+import { marketPath } from "@/lib/chains/links";
+import { MARKET_CHAINS, type MarketChainId } from "@/lib/chains/registry";
+import { ChainBadge } from "../NetworkLogos";
 import ArcOnboarding from "../ArcOnboarding";
 import MarketSeries from "./MarketSeries";
 import { BetChip, jolt } from "./BetFx";
@@ -22,6 +25,7 @@ import { arcPhase, BTN_PRIMARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, Split, type 
 
 type View = "open" | "settling" | "settled";
 type KindFilter = "all" | "vs" | "pool";
+type ChainFilter = "all" | MarketChainId;
 const VIEW_OF: Record<ArcPhase, View> = {
   open: "open",
   awaiting: "settling",
@@ -41,14 +45,19 @@ export default function ArcArena() {
   const now = useNowSec(30_000);
   const [view, setView] = useState<View>("open");
   const [kind, setKind] = useState<KindFilter>("all");
+  const [chain, setChain] = useState<ChainFilter>("all");
+  const enabled = MARKET_CHAINS.enabled;
 
   const byView = useMemo(() => {
-    const out: Record<View, ArcMarket[]> = { open: [], settling: [], settled: [] };
-    for (const m of markets ?? []) if (kind === "all" || m.kind === kind) out[VIEW_OF[arcPhase(m, now)]].push(m);
+    const out: Record<View, Array<ArcMarket & { chain: MarketChainId }>> = { open: [], settling: [], settled: [] };
+    for (const m of markets ?? []) {
+      if (!enabled.includes(m.chain)) continue; // a chain switched off by config drops out of the feed
+      if ((kind === "all" || m.kind === kind) && (chain === "all" || m.chain === chain)) out[VIEW_OF[arcPhase(m, now)]].push(m);
+    }
     // Open: closing soonest first. The rest: newest first (the query's order).
     out.open.sort((a, b) => a.deadline - b.deadline);
     return out;
-  }, [markets, kind, now]);
+  }, [markets, kind, chain, now, enabled]);
   const open = byView.open;
   const inPlay = open.reduce((sum, m) => sum + m.volumeUsd, 0);
   const shown = byView[view];
@@ -64,7 +73,11 @@ export default function ArcArena() {
             <span aria-hidden>·</span>
             <span className="text-cream">{markets ? `$${inPlay.toFixed(2)}` : "-"}</span> in play
             <span aria-hidden>·</span>
-            <span className="font-mono text-[12px] uppercase tracking-[0.14em] text-coral">Arc {ARC.network}</span>
+            <span className="flex items-center gap-1.5">
+              {enabled.map((c) => (
+                <ChainBadge key={c} chain={c} />
+              ))}
+            </span>
           </p>
         </div>
         <Link href="/arena/create" className={BTN_PRIMARY}>
@@ -91,6 +104,20 @@ export default function ArcArena() {
             </button>
           ))}
         </div>
+        {enabled.length > 1 ? (
+          <div aria-label="Network" className="flex justify-center gap-1 text-[13px] sm:justify-start">
+            {(["all", ...enabled] as const).map((c) => (
+              <button
+                key={c}
+                aria-pressed={chain === c}
+                onClick={() => setChain(c)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${chain === c ? "bg-panel-raised text-cream" : "text-muted"}`}
+              >
+                {c === "all" ? "All networks" : c === "base" ? "Base" : "Arc"}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div aria-label="Market type" className="flex justify-center gap-1 text-[13px] sm:justify-start">
           {(["all", "vs", "pool"] as const).map((k) => (
             <button
@@ -136,7 +163,7 @@ export default function ArcArena() {
   );
 }
 
-function ArcMarketCard({ m, now, index }: { m: ArcMarket; now: number; index: number }) {
+function ArcMarketCard({ m, now, index }: { m: ArcMarket & { chain: MarketChainId }; now: number; index: number }) {
   const phase = arcPhase(m, now);
   // A live bet: the card jolts and the new money pops up over the pool (BetFx.tsx).
   const cardRef = useRef<HTMLDivElement>(null);
@@ -157,11 +184,12 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket; now: number; index: nu
     <FeedCard ref={cardRef} index={Math.min(index, 8)} className="group relative h-full focus-within:shadow-bubble-hover">
       {bump ? <BetChip key={bump.id} bet={{ id: String(bump.id), side: bump.side, amount: String(BigInt(Math.round(bump.added * 1e6)) * 1_000_000_000_000n) }} tone={bump.side === 1 ? "cream" : "coral"} /> : null}
       <Link
-        href={`/arena/arc/${m.kind}/${m.marketId}`}
+        href={marketPath(m.chain, m.kind, m.marketId)}
         className="flex h-full min-h-[212px] flex-col gap-4 rounded-2xl p-5 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-coral sm:p-6"
       >
         <div className="flex min-h-[22px] items-center justify-between gap-3 text-[12px]">
           <span className="flex items-center gap-2">
+            <ChainBadge chain={m.chain} />
             <span className="rounded-full bg-panel-raised px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-coral">
               {KIND_LABEL[m.kind]}
             </span>

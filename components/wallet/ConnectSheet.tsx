@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Connect sheet in the glass look: pick the network (Arc or Base), then ConnectKit opens with every EVM wallet
+ * Connect sheet in the glass look: pick the network (Base first, the main network; then Arc), then ConnectKit opens with every EVM wallet
  * (browser extensions over EIP-6963, MetaMask, Coinbase Wallet, WalletConnect for phones). Both networks share one
  * connection: the same address is the user's account on each; the pick only labels it, and each transaction switches
  * the wallet to its chain right before sending.
@@ -34,8 +34,8 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   };
 
   const rows = [
-    ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint")],
     ["base", "/networks/base-icon.svg", t("pickBase"), t("pickBaseHint")],
+    ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint")],
   ] as const;
 
   return (

@@ -3,6 +3,9 @@
  * wallet on Arc, signed by the follower. Copied stakes stay put and settle on their own.
  */
 import { z } from "zod";
+import { indexToDecimal6 } from "@/lib/chains/amounts";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
+import { circleSendUsdc, walletUsdcWei } from "@/lib/server/chain-circle";
 
 import { api } from "@/convex/_generated/api";
 import { arcPublicClient } from "@/lib/arc/chain";
@@ -17,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120; // Circle confirmations wait up to 90 s
 
 const ARC_GAS_RESERVE_WEI = 50_000_000_000_000_000n; // 0.05 USDC
-const Body = z.object({ amount: z.number().positive().max(1_000_000) });
+const Body = z.object({ amount: z.number().positive().max(1_000_000), chain: z.enum(["arc", "base"]).default("arc") });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -30,8 +33,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!c) return fail(503, "Launch is not configured on this server.");
   const s = await c.client.query(api.launchCopy.forFollower, { secret: c.secret, agent: copyKeyFor(id), follower: g.owner });
   if (!s) return fail(404, "You are not copying this agent.");
-  const { amount } = parsed.data;
+  const { amount, chain } = parsed.data;
   try {
+    if (chain === "base") {
+      // Base: all its USDC is free (gas is ETH); the ETH stays for its copies' gas.
+      if (!s.base) return fail(409, "You have no Base copy wallet for this agent.");
+      const to = normalizeOwner(g.owner);
+      if (!to) return fail(409, "Withdrawals go to your EVM wallet: connect one.");
+      const cfg = MARKET_CHAINS.chains.base;
+      const wei = BigInt(Math.floor(amount * 1e6)) * 1_000_000_000_000n;
+      const free = await walletUsdcWei(cfg, s.base.address);
+      if (wei > free) return fail(400, `Only ${indexToDecimal6(free)} USDC is free to withdraw on Base.`);
+      return Response.json({ tx: await circleSendUsdc(cfg, s.base.walletId, to as `0x${string}`, wei), chain });
+    }
     if (!s.arc) return fail(409, "You have no copy wallet for this agent.");
     // The owner's EVM wallet is their account on Arc: withdrawals go straight to it.
     const to = normalizeOwner(g.owner);

@@ -1,7 +1,8 @@
 /**
- * Circle developer-controlled wallets (W3S) for the house agents on Arc: the
- * council personas sign through Circle's API, so no agent key lives on our
- * servers. Ported from the old mimir repo (lib/circle-w3s.ts).
+ * Circle developer-controlled wallets (W3S) for Mimir's agents on Arc and Base:
+ * the council personas, the house creator, launch agents and copy wallets sign
+ * through Circle's API, so no agent key lives on our servers. Market calls per
+ * chain (approve on Base, msg.value on Arc) are lib/server/chain-circle.ts.
  *
  *   CIRCLE_API_KEY        bearer
  *   CIRCLE_ENTITY_SECRET  hex; encrypted per request with Circle's RSA key
@@ -104,9 +105,10 @@ export async function submitContract(c: ContractCall, idempotencyKey: string = r
   return r.data.id;
 }
 
-type Transfer = { walletId: string; to: `0x${string}`; amount: string; blockchain: string };
+/** `amount` is decimal (e.g. "2.5"). `tokenAddress` empty/absent = the chain's native token (USDC on Arc, ETH on Base). */
+type Transfer = { walletId: string; to: `0x${string}`; amount: string; blockchain: string; tokenAddress?: string };
 
-/** Native USDC from a Circle wallet to any address (funding personas). */
+/** A transfer from a Circle wallet to any address (funding personas, withdrawals): native by default, else `tokenAddress`. */
 export async function transferNative(args: Transfer): Promise<Hex> {
   return waitForTxHash(await submitTransfer(args));
 }
@@ -119,7 +121,7 @@ export async function submitTransfer(args: Transfer, idempotencyKey: string = ra
     walletId: args.walletId,
     destinationAddress: args.to,
     amounts: [args.amount],
-    tokenAddress: "",
+    tokenAddress: args.tokenAddress ?? "",
     blockchain: args.blockchain,
     feeLevel: "MEDIUM",
   });
@@ -151,12 +153,12 @@ export async function createWallets(names: string[], blockchain: string, prefix 
   return r.data.wallets.map((w) => ({ id: w.id, address: w.address as `0x${string}`, refId: w.refId ?? "" }));
 }
 
-/** Persona slug → its Arc wallet, from ARC_COUNCIL_WALLETS (JSON). */
+/** Persona slug → its wallet on a chain, from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (JSON; lib/chains/house.ts). */
 export type CouncilWallets = Record<string, { id: string; address: `0x${string}` }>;
 
-export function councilWalletsFromEnv(): CouncilWallets {
+export function councilWalletsFromEnv(chain: "arc" | "base" = "arc"): CouncilWallets {
   try {
-    return JSON.parse(process.env.ARC_COUNCIL_WALLETS ?? "{}") as CouncilWallets;
+    return JSON.parse(process.env[chain === "arc" ? "ARC_COUNCIL_WALLETS" : "BASE_COUNCIL_WALLETS"] ?? "{}") as CouncilWallets;
   } catch {
     return {};
   }

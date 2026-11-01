@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { secretMatches } from "../lib/internal-secrets";
 import { keepStoredWallet } from "../lib/launch/copy-stake";
+import { vChain } from "./schema";
 
 function allowed(secret: string) {
   if (!secretMatches("launch", secret)) throw new Error("not allowed");
@@ -27,7 +28,7 @@ export const forFollower = query({
     allowed(secret);
     const s = await sub(ctx, agent, follower);
     if (!s) return null;
-    return { arc: s.arc ?? null, active: s.active, pausedReason: s.pausedReason ?? null };
+    return { arc: s.arc ?? null, base: s.base ?? null, active: s.active, pausedReason: s.pausedReason ?? null };
   },
 });
 
@@ -37,40 +38,43 @@ export const forFollower = query({
  * Returns the stored copy wallet address.
  */
 export const upsert = mutation({
-  args: { secret: v.string(), agent: v.string(), follower: v.string(), arc: v.optional(vArc), active: v.boolean() },
-  handler: async (ctx, { secret, agent, follower, arc, active }): Promise<{ arc: string | null }> => {
+  args: { secret: v.string(), agent: v.string(), follower: v.string(), arc: v.optional(vArc), base: v.optional(vArc), active: v.boolean() },
+  handler: async (ctx, { secret, agent, follower, arc, base, active }): Promise<{ arc: string | null; base: string | null }> => {
     allowed(secret);
     const s = await sub(ctx, agent, follower);
     const a = keepStoredWallet(s?.arc, arc);
-    const patch = { ...(a ? { arc: a } : {}), active, pausedReason: undefined };
+    const b = keepStoredWallet(s?.base, base);
+    const patch = { ...(a ? { arc: a } : {}), ...(b ? { base: b } : {}), active, pausedReason: undefined };
     if (s) await ctx.db.patch(s._id, patch);
     else await ctx.db.insert("launchCopies", { agent, follower, ...patch, createdAt: Date.now() });
-    return { arc: a?.address ?? null };
+    return { arc: a?.address ?? null, base: b?.address ?? null };
   },
 });
 
 // ---------------- fan-out (the agent ticks) ----------------
 
-/** Arc copy subscriptions behind a copy key (launch agent or council persona): active, with copying on. */
+/** Copy subscriptions behind a copy key (launch agent or council persona) on one chain: active, with that chain's copying on. */
 export const arcSubs = internalQuery({
-  args: { agent: v.string() },
-  handler: async (ctx, { agent }) =>
-    (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && s.arc?.on).map((s) => ({ id: s._id as string })),
+  args: { agent: v.string(), chain: v.optional(vChain) },
+  handler: async (ctx, { agent, chain = "arc" }) =>
+    (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && s[chain]?.on).map((s) => ({ id: s._id as string })),
 });
 
 // ---------------- one follower's job ----------------
 
+/** One subscription's copy wallet on a chain (its Arc or Base copy wallet), or null when it has none there. */
 export const arcSub = internalQuery({
-  args: { sub: v.id("launchCopies") },
-  handler: async (ctx, { sub: id }) => {
+  args: { sub: v.id("launchCopies"), chain: v.optional(vChain) },
+  handler: async (ctx, { sub: id, chain = "arc" }) => {
     const s = await ctx.db.get(id);
-    return s?.arc ? { id: s._id as string, follower: s.follower, walletId: s.arc.walletId, wallet: s.arc.address, maxPerStakeUsdc: s.arc.maxPerStakeUsdc, active: s.active, on: s.arc.on } : null;
+    const w = s?.[chain];
+    return s && w ? { id: s._id as string, follower: s.follower, walletId: w.walletId, wallet: w.address, maxPerStakeUsdc: w.maxPerStakeUsdc, active: s.active, on: w.on } : null;
   },
 });
 
 /** Takes a job's key once. */
 export const claim = internalMutation({
-  args: { key: v.string(), sub: v.id("launchCopies") },
+  args: { key: v.string(), sub: v.id("launchCopies"), chain: v.optional(vChain) },
   handler: async (ctx, a): Promise<boolean> => {
     if (await job(ctx, a.key)) return false;
     await ctx.db.insert("launchCopyJobs", { ...a, status: "running", at: Date.now() });

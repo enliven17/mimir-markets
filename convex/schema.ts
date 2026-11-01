@@ -1,9 +1,16 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// The Arc markets as indexed from MimirV3 (kind "vs") and MimirPool (kind "pool") by convex/arcSync.ts.
-// Amounts are wei strings (18 dp native USDC overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
+// The markets of every market chain (lib/chains/registry.ts: Base, Arc) as indexed from MimirV3 (kind "vs") and
+// MimirPool (kind "pool") by convex/arcSync.ts. The arc* table names are historical: every market row carries its
+// `chain`, and (chain, kind, marketId) is the key. Rows written before Base have no `chain`: they are Arc's
+// (convex/chainMigrate.ts backfills them; reads treat a missing chain as "arc").
+// Amounts are 18-dp index-unit strings on every chain (lib/chains/amounts.ts: Base's 6-dp USDC is scaled by 1e12 on
+// the way in; 18 dp overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
+export const vChain = v.union(v.literal("arc"), v.literal("base"));
+/** Optional only so pre-Base rows validate until the backfill; every new row sets it. */
+const chain = v.optional(vChain);
 /**
  * An agent's own token, launched and paid for by its owner from their own wallet: Argus on Arc (with the splitter its
  * creator fees accrue in) or Clanker v4 on Base. Recorded once the launch tx's receipt is checked (lib/launch/token.ts).
@@ -26,6 +33,7 @@ export const status = v.union(
 
 export default defineSchema({
   arcMarkets: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     creator: v.string(),
@@ -54,15 +62,19 @@ export default defineSchema({
     lockAt: v.optional(v.number()),
     /** Disputed by the owner's veto (ResolutionDisputed with a zero disputer), not a participant's bond. */
     vetoed: v.optional(v.boolean()),
+    /** Linked markets (lib/chains/linked.ts): the same question opened by Mimir's agents on several chains share this. */
+    pairKey: v.optional(v.string()),
     updatedBlock: v.number(),
   })
-    .index("by_market", ["kind", "marketId"])
+    .index("by_market", ["chain", "kind", "marketId"])
+    .index("by_pair", ["pairKey"])
     .index("by_deadline", ["deadline"])
     .index("by_creator", ["creator"])
     // The oracle and the views read by state, oldest deadline first, instead of scanning every market.
     .index("by_status_deadline", ["status", "deadline"]),
 
   arcPositions: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     /** Lowercase Arc address (the user's wallet). */
@@ -73,11 +85,12 @@ export default defineSchema({
     /** Pool: the payout was collected (a Claimed event). VS pays at settlement, so it stays unset. */
     claimed: v.optional(v.boolean()),
   })
-    .index("by_market", ["kind", "marketId"])
+    .index("by_market", ["chain", "kind", "marketId"])
     .index("by_user", ["user"])
-    .index("by_position", ["kind", "marketId", "user", "side"]),
+    .index("by_position", ["chain", "kind", "marketId", "user", "side"]),
 
   arcEvents: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     name: v.string(),
@@ -92,34 +105,52 @@ export default defineSchema({
     side: v.optional(v.number()),
   })
     .index("by_log", ["txHash", "logIndex"])
-    .index("by_market", ["kind", "marketId"])
+    .index("by_market", ["chain", "kind", "marketId"])
     .index("by_user", ["user"])
     .index("by_name", ["name"]),
 
   /** The oracle's verdicts: the audit bundle whose sha256 went on chain as evidenceHash. */
   arcVerdicts: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     side: v.number(),
+    /** The decided outcome before a per-market override (late stakes); absent on an uncontested refund. */
+    decided: v.optional(v.number()),
+    /** The decision's own summary when `summary` is an override's. */
+    decidedSummary: v.optional(v.string()),
+    /** The market's link (lib/chains/linked.ts): linked markets reuse the first decision. */
+    pairKey: v.optional(v.string()),
     confidence: v.number(),
     summary: v.string(),
     evidenceHash: v.string(),
     bundle: v.string(),
     txHash: v.string(),
-  }).index("by_market", ["kind", "marketId"]),
+  }).index("by_market", ["chain", "kind", "marketId"]).index("by_pair", ["pairKey"]),
+
+  /** A market Mimir's agents opened on several chains: one row per chain's market, the shared pairKey links them. */
+  marketLinks: defineTable({
+    pairKey: v.string(),
+    chain: vChain,
+    kind,
+    marketId: v.number(),
+    at: v.number(),
+  }).index("by_market", ["chain", "kind", "marketId"]).index("by_pair", ["pairKey"]),
 
   /** Oracle backoff: a market whose decision was deferred (or failed) is not retried before `notBefore` (ms). */
   arcOracleTries: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     notBefore: v.number(),
     attempts: v.number(),
     lastError: v.optional(v.string()),
-  }).index("by_market", ["kind", "marketId"]),
+  }).index("by_market", ["chain", "kind", "marketId"]),
 
   /** Council persona decisions on Arc markets (convex/arcCouncil.ts); `until` (ms) is when the persona may look again. */
   arcCouncilDecisions: defineTable({
     slug: v.string(),
+    chain,
     kind,
     marketId: v.number(),
     outcome: v.union(v.literal("staked"), v.literal("abstained"), v.literal("retry"), v.literal("failed")),
@@ -131,12 +162,13 @@ export default defineSchema({
     until: v.number(),
     at: v.number(),
   })
-    .index("by_persona_market", ["slug", "kind", "marketId"])
-    .index("by_market", ["kind", "marketId"])
+    .index("by_persona_market", ["slug", "chain", "kind", "marketId"])
+    .index("by_market", ["chain", "kind", "marketId"])
     .index("by_until", ["until"]),
 
   /** One council take per market: the best-suited persona's read, no stake (convex/arcCouncil.ts, comment mode). */
   arcMarketTakes: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     slug: v.string(),
@@ -147,20 +179,21 @@ export default defineSchema({
     at: v.number(),
     /** Who opened the market (lowercase), for the per-creator daily cap on takes. */
     creator: v.optional(v.string()),
-  }).index("by_market", ["kind", "marketId"]),
+  }).index("by_market", ["chain", "kind", "marketId"]),
 
-  /** One row per indexer: the last Arc block fully applied. */
+  /** One row per indexer (name = the chain id, "arc" or "base"): the last block fully applied. */
   arcCursor: defineTable({ name: v.string(), block: v.number() }).index("by_name", ["name"]),
 
   discoveryFollows: defineTable({ owner: v.string(), target: v.string(), at: v.number() }).index("by_owner", ["owner"]).index("by_owner_target", ["owner", "target"]),
-  discoverySignals: defineTable({ marketKind: kind, marketId: v.number(), category: v.string(), slug: v.optional(v.string()),
+  discoverySignals: defineTable({ marketChain: chain, marketKind: kind, marketId: v.number(), category: v.string(), slug: v.optional(v.string()),
     type: v.string(), text: v.string(), at: v.number() }).index("by_at", ["at"]),
-  councilOpinions: defineTable({ kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), evidenceHash: v.string(), at: v.number() })
-    .index("by_market", ["kind", "marketId"]).index("by_persona_market", ["slug", "kind", "marketId"]),
+  councilOpinions: defineTable({ chain, kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), evidenceHash: v.string(), at: v.number() })
+    .index("by_market", ["chain", "kind", "marketId"]).index("by_persona_market", ["slug", "chain", "kind", "marketId"]),
   councilForecastBudgets: defineTable({ creator: v.string(), day: v.string(), calls: v.number() }).index("by_creator", ["creator"]),
 
   /** Jev's triage of a new market (lib/jev-triage.ts, convex/arcTriage.ts); empty while TYPESAFE_API_KEY is unset. */
   arcTriage: defineTable({
+    chain,
     kind,
     marketId: v.number(),
     resolvable: v.number(),
@@ -168,7 +201,7 @@ export default defineSchema({
     category: v.string(),
     categoryConfidence: v.number(),
     at: v.number(),
-  }).index("by_market", ["kind", "marketId"]),
+  }).index("by_market", ["chain", "kind", "marketId"]),
 
   /** Admin panel (convex/arcAdmin.ts): when each scheduled job last started, one row per job. */
   arcHeartbeats: defineTable({ name: v.string(), at: v.number() }).index("by_name", ["name"]),
@@ -223,7 +256,10 @@ export default defineSchema({
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
     arc: v.object({ walletId: v.string(), address: v.string() }),
-    /** Base wallet (Circle), for staking on Base markets once they open. Not made yet. */
+    /**
+     * Its Base wallet (Circle, blockchain BASE / BASE-SEPOLIA): stakes on Base markets. Pays gas in ETH, which the owner
+     * or Mimir sends it (no gas station); made at creation when Base is enabled, else on first use (lib/launch/flow.ts).
+     */
     base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its token, once its owner launched one (Argus on Arc or Clanker on Base). */
     token: v.optional(vAgentToken),
@@ -265,6 +301,10 @@ export default defineSchema({
   /** Markets an agent opened on Mimir from its Arc wallet (its seed stake backs `side`). */
   launchMarkets: defineTable({
     agent: v.id("launchAgents"),
+    /** The chain it opened on (absent = Arc, before Base). */
+    chain,
+    /** Set when the same draft was opened on several chains (lib/chains/linked.ts). */
+    pairKey: v.optional(v.string()),
     at: v.number(),
     question: v.string(),
     category: v.string(),
@@ -279,6 +319,7 @@ export default defineSchema({
   /** Stakes on Mimir markets from the agent's Arc wallet. */
   launchStakes: defineTable({
     agent: v.id("launchAgents"),
+    chain,
     kind: v.union(v.literal("vs"), v.literal("pool")),
     marketId: v.number(),
     side: v.number(),
@@ -290,7 +331,7 @@ export default defineSchema({
     at: v.number(),
   })
     .index("by_agent", ["agent", "at"])
-    .index("by_market", ["kind", "marketId"]),
+    .index("by_market", ["chain", "kind", "marketId"]),
 
   /**
    * Copy staking (lib/launch/copy-stake.ts): one per (agent, follower). `agent` is a launch agent's or a council persona's
@@ -301,6 +342,8 @@ export default defineSchema({
     agent: v.string(),
     follower: v.string(),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
+    /** The follower's Base copy wallet: copies of the leader's Base stakes go from here (ETH for gas, USDC). */
+    base: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
     active: v.boolean(),
     pausedReason: v.optional(v.string()),
     createdAt: v.number(),
@@ -309,9 +352,10 @@ export default defineSchema({
     .index("by_agent_follower", ["agent", "follower"])
     .index("by_follower", ["follower"]),
 
-  /** One follower's copy of one agent stake, keyed "<sub>:arc:<agent tx>": it runs once. */
+  /** One follower's copy of one agent stake, keyed "<sub>:<chain>:<agent tx>": it runs once, on the leader's chain. */
   launchCopyJobs: defineTable({
     key: v.string(),
+    chain,
     sub: v.id("launchCopies"),
     status: v.union(v.literal("running"), v.literal("done"), v.literal("failed"), v.literal("unknown"), v.literal("skipped")),
     note: v.optional(v.string()),

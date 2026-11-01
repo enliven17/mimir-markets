@@ -5,6 +5,8 @@ export function opinionSplit(decisions: readonly { slug: string; lean?: number; 
   const a = sides.filter((d) => d.lean === 1).length, b = sides.filter((d) => d.lean === 2).length;
   return { a, b, unknown: sides.length - a - b, disagreement: a + b ? 2 * Math.min(a, b) / (a + b) : 0 };
 }
-export function signalMatches(target: string, signal: { marketKind: string; marketId: number; category: string; slug?: string }, series?: string | null) {
-  return target === `market:${signal.marketKind}:${signal.marketId}` || target === `topic:${signal.category}` || (!!signal.slug && target === `agent:${signal.slug}`) || (!!series && target === `series:${series}`);
+/** A followed market is "market:<chain>:<kind>:<id>"; the older "market:<kind>:<id>" means the Arc market. */
+export function signalMatches(target: string, signal: { marketChain?: string; marketKind: string; marketId: number; category: string; slug?: string }, series?: string | null) {
+  const chain = signal.marketChain ?? "arc";
+  return target === `market:${chain}:${signal.marketKind}:${signal.marketId}` || (chain === "arc" && target === `market:${signal.marketKind}:${signal.marketId}`) || target === `topic:${signal.category}` || (!!signal.slug && target === `agent:${signal.slug}`) || (!!series && target === `series:${series}`);
 }

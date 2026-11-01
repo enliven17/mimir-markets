@@ -6,6 +6,7 @@
  * The server answers 404 to anyone else. Refreshes every 30 s.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { marketPath } from "@/lib/chains/links";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { SURFACE } from "@/components/arena/surface";
@@ -189,7 +190,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
           <Table
             head={["Market", "Question", "State", "Deadline", "Dispute ends", "Stakes A / B", "People", "Creator", "Take"]}
             rows={b.markets.live.map((m) => [
-              <Link key="l" href={`/arena/arc/${m.kind}/${m.marketId}`} className="whitespace-nowrap text-coral hover:underline">{m.kind.toUpperCase()} #{m.marketId}</Link>,
+              <Link key="l" href={marketPath(m.chain, m.kind, m.marketId)} className="whitespace-nowrap text-coral hover:underline">{m.chain === "base" ? "Base " : ""}{m.kind.toUpperCase()} #{m.marketId}</Link>,
               <span key="q" className="line-clamp-2">{m.question}</span>,
               m.status,
               <span key="d" className={`whitespace-nowrap ${m.deadline < now ? "text-pending" : ""}`}>{until(m.deadline, now)}</span>,
@@ -208,7 +209,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
           <Table
             head={["Market", "Question", "Attempts", "Next try", "Last error"]}
             rows={b.oracle.deferred.map((t) => [
-              <Link key="l" href={`/arena/arc/${t.kind}/${t.marketId}`} className="whitespace-nowrap text-coral hover:underline">{t.kind.toUpperCase()} #{t.marketId}</Link>,
+              <Link key="l" href={marketPath(t.chain, t.kind, t.marketId)} className="whitespace-nowrap text-coral hover:underline">{t.chain === "base" ? "Base " : ""}{t.kind.toUpperCase()} #{t.marketId}</Link>,
               <span key="q" className="line-clamp-2">{t.question}</span>,
               <span key="a" className={t.attempts >= 5 ? "text-pending" : ""}>{t.attempts}</span>,
               <span key="n" className="whitespace-nowrap">{until(Math.floor(t.notBefore / 1000), now)}</span>,
@@ -224,7 +225,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
           <Table
             head={["Market", "Question", "Result", "Confidence", "Summary", "Tx"]}
             rows={b.markets.settled.map((m) => [
-              <Link key="l" href={`/arena/arc/${m.kind}/${m.marketId}`} className="whitespace-nowrap text-coral hover:underline">{m.kind.toUpperCase()} #{m.marketId}</Link>,
+              <Link key="l" href={marketPath(m.chain, m.kind, m.marketId)} className="whitespace-nowrap text-coral hover:underline">{m.chain === "base" ? "Base " : ""}{m.kind.toUpperCase()} #{m.marketId}</Link>,
               <span key="q" className="line-clamp-2">{m.question}</span>,
               m.status === "cancelled" ? "cancelled" : m.winner === 1 ? "A" : m.winner === 2 ? "B" : m.winner === 3 ? "draw" : "refund",
               m.confidence == null ? "–" : `${m.confidence}%`,

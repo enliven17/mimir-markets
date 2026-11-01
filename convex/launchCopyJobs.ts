@@ -7,38 +7,41 @@ import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
-import { arcPublicClient } from "../lib/arc/chain";
-import { arcConfig } from "../lib/arc/config";
+import { indexToUsd, usdToIndex } from "../lib/chains/amounts";
+import { serverMarketChains } from "../lib/chains/registry";
 import { runArcCopy } from "../lib/launch/copy-stake";
 import { createConsoleLogger } from "../lib/launch/log";
-import { executeContract } from "../lib/server/circle-w3s";
+import { circleStake, walletGasWei, walletUsdcWei } from "../lib/server/chain-circle";
+import { vChain } from "./schema";
 
 const log = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "launch-copy" } });
-const ZERO = "0x0000000000000000000000000000000000000000";
 const gated = () => process.env.MIMIR_BACKEND_OFF === "1";
-const arc = () => arcConfig({ network: process.env.ARC_NETWORK, rpcUrl: process.env.ARC_RPC, mimirV3: process.env.MIMIR_V3_ADDRESS, mimirPool: process.env.MIMIR_POOL_ADDRESS, minStake: process.env.MIMIR_MIN_STAKE });
 
+/** One follower's copy of a leader's pool stake, on the leader's chain, from the follower's copy wallet there. */
 export const arcOne = internalAction({
-  args: { key: v.string(), sub: v.id("launchCopies"), marketId: v.number(), side: v.number() },
+  args: { key: v.string(), sub: v.id("launchCopies"), chain: v.optional(vChain), marketId: v.number(), side: v.number() },
   handler: async (ctx, a): Promise<string> => {
     if (gated()) return "gated";
-    const cfg = arc();
-    const pool = cfg.contracts.mimirPool;
-    if (!pool) return "no pool";
-    const client = arcPublicClient(cfg);
+    const chain = a.chain ?? "arc";
+    const cfg = serverMarketChains().chains[chain];
+    if (!cfg.enabled) return "chain off";
     try {
       return await runArcCopy(
         {
           store: {
-            claim: (key, sub) => ctx.runMutation(internal.launchCopy.claim, { key, sub: sub as typeof a.sub }),
+            claim: (key, sub) => ctx.runMutation(internal.launchCopy.claim, { key, sub: sub as typeof a.sub, chain }),
             finish: async (key, status, note) => void (await ctx.runMutation(internal.launchCopy.finish, { key, status, ...(note ? { note } : {}) })),
-            arcSub: (id) => ctx.runQuery(internal.launchCopy.arcSub, { sub: id as typeof a.sub }),
+            arcSub: (id) => ctx.runQuery(internal.launchCopy.arcSub, { sub: id as typeof a.sub, chain }),
           },
-          balanceUsdc: async (wallet) => Number(await client.getBalance({ address: wallet as `0x${string}` })) / 1e18,
+          // On Base a copy wallet without ETH cannot pay gas: it counts as empty (skipped, "copy wallet short").
+          balanceUsdc: async (wallet) =>
+            cfg.gas.symbol === "ETH" && (await walletGasWei(cfg, wallet)) === 0n ? 0 : indexToUsd(await walletUsdcWei(cfg, wallet)),
           stake: ({ walletId, marketId, side, amountUsdc }) =>
-            executeContract({ walletId, contractAddress: pool, abiFunctionSignature: "stake(uint256,uint8,address)", abiParameters: [BigInt(marketId), side, ZERO], amount: amountUsdc.toFixed(2) }),
+            ctx.runQuery(internal.launchCopy.arcSub, { sub: a.sub, chain }).then((s) =>
+              circleStake(cfg, { walletId, address: s?.wallet ?? "" }, { kind: "pool", marketId, side, wei: usdToIndex(amountUsdc) }),
+            ),
           log,
-          minStakeUsdc: Number(cfg.contracts.minStakeWei) / 1e18,
+          minStakeUsdc: indexToUsd(cfg.contracts.minStakeWei),
         },
         a,
       );
