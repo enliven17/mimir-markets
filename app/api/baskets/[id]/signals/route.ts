@@ -14,7 +14,7 @@
 import { getSubscription } from "@/lib/baskets-store";
 import { findBasket } from "@/lib/house-baskets";
 import { loadMirrorSignals } from "@/lib/baskets-performance";
-import { normalizeAddress } from "@/lib/agents/signature";
+import { normalizeOwner } from "@/lib/owner";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { basketFail, basketJson } from "@/lib/server/basket-http";
 
@@ -29,8 +29,8 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   const { id } = await ctx.params;
 
   const raw = new URL(req.url).searchParams.get("follower");
-  const follower = raw ? normalizeAddress(raw) : null;
-  if (raw && !follower) return basketFail(400, "bad_wallet", "follower must be a Solana public key");
+  const follower = raw ? normalizeOwner(raw) : null;
+  if (raw && !follower) return basketFail(400, "bad_wallet", "follower must be an EVM address");
 
   const basket = await findBasket(id);
   if (!basket) return basketFail(404, "not_found", "no such basket");

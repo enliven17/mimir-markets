@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import AgentFace from "@/components/launch/AgentFace";
 import { SURFACE } from "@/components/arena/surface";
 import { demoGet, demoPost } from "@/lib/demo/client";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import PreviewAgentDetails from "./PreviewAgentDetails";
 import DemoUpsell from "./DemoUpsell";
 import StrategyLab from "./StrategyLab";
@@ -22,8 +22,8 @@ const when = (n: number) => new Date(n).toLocaleString();
 const inputClass = "input min-w-0";
 
 export default function DemoDashboard({ agentId }: { agentId?: string }) {
-  const { publicKey } = useWallet();
-  const owner = publicKey?.toBase58() ?? "";
+  const { address } = useMimirWallet();
+  const owner = address ?? "";
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(true);

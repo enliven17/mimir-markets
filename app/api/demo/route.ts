@@ -6,7 +6,7 @@ import { DemoCreateBody, DemoBasketBody } from "@/lib/demo/input";
 import { DEMO } from "@/lib/demo/types";
 import { demoCookie, walletDemoToken, matchesDemoWallet, readDemoToken, sameDemoOrigin, sessionHash, expiredDemoError } from "@/lib/demo/session";
 import { PREVIEW_OWNER_HEADER, verifiedPreviewOwner } from "@/lib/demo/auth";
-import { normalizeAddress } from "@/lib/agents/signature";
+import { normalizeOwner } from "@/lib/owner";
 import { LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS } from "@/lib/launch/auth";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 import { readLimitedJson } from "@/lib/server/body-limit";
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     catch { return json({ error: "Preview examples are temporarily unavailable." }, 503); }
   }
   const token = readDemoToken(request);
-  const owner = normalizeAddress(request.headers.get(PREVIEW_OWNER_HEADER));
+  const owner = normalizeOwner(request.headers.get(PREVIEW_OWNER_HEADER));
   if (!token || !owner || !matchesDemoWallet(token, owner, c.secret)) return json({ enabled: true, walletRequired: true, error: "Connect and verify your wallet to use Mimir Preview." }, 401);
   try {
     const detail = new URL(request.url).searchParams.get("agent") ?? undefined;
@@ -66,12 +66,12 @@ export async function POST(request: Request) {
   const parsed = Action.safeParse(body.value);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message ?? "Invalid preview request." }, 400);
   const b = parsed.data;
-  const owner = normalizeAddress(request.headers.get(PREVIEW_OWNER_HEADER));
+  const owner = normalizeOwner(request.headers.get(PREVIEW_OWNER_HEADER));
   if (!owner) return json({ error: "Connect your wallet to use Mimir Preview." }, 401);
   let token = readDemoToken(request);
   try {
     if (b.action === "session") {
-      if (verifiedPreviewOwner(request) !== owner) return json({ error: "Verify your wallet with a message signature." }, 401);
+      if ((await verifiedPreviewOwner(request)) !== owner) return json({ error: "Verify your wallet with a message signature." }, 401);
       const signature = request.headers.get(LAUNCH_HEADERS.signature)!;
       if (!await allowRequest("demo-wallet-signature", signature, 1, 2 * LAUNCH_SIG_TTL_MS)) return json({ error: "That signature was already used. Sign again." }, 409);
       token = walletDemoToken(owner, c.secret);

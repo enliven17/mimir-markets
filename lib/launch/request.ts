@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
 
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { internalSecret } from "@/lib/internal-secrets";
 import { readLimitedText } from "@/lib/server/body-limit";
 import { allowRequest } from "@/lib/server/rate-limit";
@@ -14,7 +14,7 @@ export const fail = (status: number, error: string) => Response.json({ error }, 
 export type Signed = { ok: true; owner: string; body: unknown } | { ok: false; res: Response };
 
 export async function readSigned(req: Request, action: LaunchAction, agent: string, maxBytes = 16 * 1024): Promise<Signed> {
-  const owner = normalizeAddress(req.headers.get(LAUNCH_HEADERS.owner));
+  const owner = normalizeOwner(req.headers.get(LAUNCH_HEADERS.owner));
   const signedAt = Number(req.headers.get(LAUNCH_HEADERS.signedAt));
   const signature = req.headers.get(LAUNCH_HEADERS.signature) ?? "";
   if (!owner) return { ok: false, res: fail(401, "Connect your wallet first.") };
@@ -22,7 +22,7 @@ export async function readSigned(req: Request, action: LaunchAction, agent: stri
   const raw = await readLimitedText(req, maxBytes);
   if (!raw.ok) return { ok: false, res: fail(raw.status, raw.status === 413 ? "Too large." : "Missing body.") };
   const bodySha256 = createHash("sha256").update(raw.value).digest("hex");
-  if (!verifyAgentSignature({ address: owner, message: launchMessage({ action, owner, agent, bodySha256, signedAt }), signature })) {
+  if (!(await verifyOwnerSignature({ address: owner, message: launchMessage({ action, owner, agent, bodySha256, signedAt }), signature }))) {
     return { ok: false, res: fail(401, "The wallet signature does not match.") };
   }
   // Once per signature: a captured request cannot be replayed inside its freshness window.

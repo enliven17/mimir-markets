@@ -1,23 +1,14 @@
 "use client";
 
 /**
- * The connected wallet's stored wallet proof (lib/wallet-proof.ts). The proof
- * is a per-browser convenience in localStorage: it lets routes that act for a
- * wallet (access, invite codes, follows) know it is this one, and expires in 24h.
+ * The connected wallet's stored wallet proof (lib/wallet-proof.ts). The proof is a per-browser convenience in
+ * localStorage: it lets routes that act for a wallet (follows, access, invite codes) know it is this one, and expires
+ * in 24h.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import bs58 from "bs58";
 
-import { useRobinhoodWallet } from "@/components/robinhood/useRobinhoodWallet";
-
-import {
-  WALLET_PROOF_HEADER,
-  WALLET_HEADER,
-  formatProofHeader,
-  walletProofMessage,
-  parseProofHeader,
-} from "@/lib/wallet-proof";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
+import { WALLET_PROOF_HEADER, WALLET_HEADER, formatProofHeader, walletProofMessage, parseProofHeader } from "@/lib/wallet-proof";
 
 const proofKey = (wallet: string) => `mimir.wallet-proof.${wallet}`;
 
@@ -30,7 +21,7 @@ function readProof(wallet: string): string | null {
   }
 }
 
-/** Headers carrying the connected wallet's proof, or {} when there is none. */
+/** Headers carrying the wallet's proof, or {} when there is none. */
 export function walletProofHeaders(wallet: string | null | undefined): Record<string, string> {
   if (!wallet) return {};
   const proof = readProof(wallet);
@@ -38,12 +29,7 @@ export function walletProofHeaders(wallet: string | null | undefined): Record<st
 }
 
 export function useWalletProof() {
-  const { publicKey, signMessage } = useWallet();
-  const robinhood = useRobinhoodWallet();
-  // The Solana wallet when there is one, else a Robinhood Chain wallet (lib/owner.ts).
-  const solana = publicKey?.toBase58() ?? null;
-  const wallet = solana ?? robinhood.address;
-  const signRobinhood = solana ? null : robinhood.sign;
+  const { address: wallet, signMessage } = useMimirWallet();
   const [proven, setProven] = useState(false);
 
   useEffect(() => {
@@ -54,10 +40,9 @@ export function useWalletProof() {
   }, [wallet]);
 
   const prove = useCallback(async () => {
-    if (!wallet || !(signRobinhood ?? signMessage)) throw new Error("this wallet cannot sign messages");
+    if (!wallet || !signMessage) throw new Error("Connect your wallet first.");
     const signedAt = Date.now();
-    const message = walletProofMessage(wallet, signedAt);
-    const sig = signRobinhood ? await signRobinhood(message) : bs58.encode(await signMessage!(new TextEncoder().encode(message)));
+    const sig = await signMessage(walletProofMessage(wallet, signedAt));
     try {
       localStorage.setItem(proofKey(wallet), formatProofHeader(signedAt, sig));
     } catch {
@@ -65,7 +50,7 @@ export function useWalletProof() {
     }
     setProven(true);
     window.dispatchEvent(new Event("mimir-wallet-proof"));
-  }, [wallet, signMessage, signRobinhood]);
+  }, [wallet, signMessage]);
 
-  return { wallet, proven, canSign: !!(signRobinhood ?? signMessage), prove };
+  return { wallet, proven, canSign: Boolean(signMessage), prove };
 }

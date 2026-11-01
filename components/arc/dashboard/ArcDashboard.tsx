@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * /dashboard on Arc: the passkey account's balances (Arc and the linked
- * Solana wallet), any payout a contract parked for it (a refused push, pulled
+ * /dashboard on Arc: the connected wallet's USDC on Arc, any payout a contract parked for it (a refused push, pulled
  * with withdraw()), its record, and every position it holds, live from Convex.
  * Payouts are pushed to the account at settlement (VS) or by the oracle
  * (pools), so there is nothing to claim here except a parked one.
@@ -19,13 +18,10 @@ import Skeleton from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC, arcExplorerUrl } from "@/lib/arc/config";
-import { formatUsdcUnits } from "@/lib/arc/encoding";
 import AccountGate from "../arena/AccountGate";
-import { ArcWalletView } from "../ArcWalletClient";
 import { arcPhase, BTN_PRIMARY, BTN_SECONDARY, KIND_LABEL, PHASE_DOT, PHASE_LABEL, usd, type ArcMarket } from "../arena/shared";
 import { useArcAccount } from "../arena/useArcAccount";
 import { useArcSend } from "../arena/useArcSend";
-import { useArcBalances } from "../useArcBalances";
 import { ExternalMark } from "@/components/ExternalMark";
 import { SITE_URL } from "@/lib/site";
 
@@ -46,8 +42,6 @@ const RESULT_TONE: Record<Result, string> = { open: "text-cream", settling: "tex
 
 export default function ArcDashboard() {
   const account = useArcAccount();
-  // A Solana wallet is connected, its binding is known, and it is not this device's passkey account.
-  const unlinked = Boolean(account.wallet.solana) && account.wallet.binding.status === "loaded" && !account.wallet.linked;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
       <header className="flex items-baseline justify-between gap-4">
@@ -58,12 +52,7 @@ export default function ArcDashboard() {
           </a>
         ) : null}
       </header>
-      {/* No account yet, or this device's account belongs to another Solana wallet: the setup steps right here. */}
-      {account.wallet.configured && !account.wallet.restoring && (!account.address || unlinked) ? (
-        <ArcWalletView w={account.wallet} bare />
-      ) : (
-        <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>
-      )}
+      <AccountGate account={account}>{account.address ? <Body account={account} address={account.address} /> : null}</AccountGate>
     </div>
   );
 }
@@ -71,7 +60,7 @@ export default function ArcDashboard() {
 function Body({ account, address }: { account: ReturnType<typeof useArcAccount>; address: Address }) {
   const now = useNowSec(30_000);
   const positions = useQuery(api.arc.positionsOf, { user: address });
-  const { arcUnits, solanaUnits, reload } = useArcBalances(address, account.wallet.ownerKind === "solana" ? account.wallet.solana : null);
+  const { balance, reload } = account;
   const parked = useParked(address);
   const { send, busy, error } = useArcSend(account.session);
 
@@ -100,37 +89,31 @@ function Body({ account, address }: { account: ReturnType<typeof useArcAccount>;
         <div className="min-w-0">
           <p className="m-0 text-[13px] text-muted">Arc balance · {ARC.network}</p>
           <p className="m-0 mt-2 flex h-[clamp(2.6rem,11vw,3.6rem)] items-center font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
-            {arcUnits === null ? (
+            {balance === null ? (
               <Skeleton className="h-[70%] w-40" />
             ) : (
               <>
                 <span className="mr-1 text-[0.6em] text-muted">$</span>
-                {formatUsdcUnits(arcUnits)}
+                {usd(balance).replace(/^\$/, "")}
               </>
             )}
           </p>
-          <p className="m-0 mt-2 text-[13px] text-muted">
-            {account.wallet.ownerKind === "robinhood"
-              ? "Send USDC on Arc to your account to add funds"
-              : account.wallet.solana
-                ? `${solanaUnits === null ? "…" : formatUsdcUnits(solanaUnits)} USDC in your Solana wallet`
-                : "Connect your Solana wallet to move USDC in or out"}
-          </p>
+          <p className="m-0 mt-2 text-[13px] text-muted">In your wallet. Stakes and gas are paid from it in USDC.</p>
         </div>
         <Link href="/wallet" className={`${BTN_PRIMARY} text-center sm:flex-none`}>
-          Deposit or withdraw
+          Add USDC
         </Link>
       </section>
 
       {parked.items.length > 0 ? (
         <section aria-label="Parked payouts" className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Payouts waiting for you</h2>
-          <p className="m-0 text-[13px] text-muted">A payout your account did not accept automatically. Pull it in one step, no gas.</p>
+          <p className="m-0 text-[13px] text-muted">A payout your wallet did not accept automatically. Pull it in one transaction.</p>
           {parked.items.map((p) => (
             <div key={p.contract} className="flex flex-wrap items-center justify-between gap-3">
               <span className="font-mono text-[15px] text-cream">{usd(p.amount)}</span>
               <button type="button" disabled={busy} onClick={() => void withdraw(p.contract)} className={BTN_SECONDARY}>
-                {busy ? "Confirm with your passkey…" : "Withdraw"}
+                {busy ? "Confirm in your wallet…" : "Withdraw"}
               </button>
             </div>
           ))}

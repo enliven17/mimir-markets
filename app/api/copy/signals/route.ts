@@ -22,7 +22,8 @@
 import { zeroAddress } from "viem";
 import { ARC } from "@/lib/arc/config";
 import { stakeCall } from "@/lib/arc/markets";
-import { getArcBinding } from "@/lib/server/arc-accounts";
+import { normalizeOwner } from "@/lib/owner";
+import { isSolanaKey } from "@/lib/agents/signature";
 import { arcPositions } from "@/lib/server/arc-index";
 import { getAgent } from "@/lib/agents/store";
 import { PublicKey } from "@solana/web3.js";
@@ -60,7 +61,7 @@ const BASE58_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 
 /** Only MONETISE agents are credited on chain for the agent fee, as in the agent API. */
 function agentOwnerFor(agent: AgentRecord): PublicKey | null {
-  return agent.status === "active" && agent.capabilities.includes("fee_earner")
+  return agent.status === "active" && agent.capabilities.includes("fee_earner") && isSolanaKey(agent.payoutWallet)
     ? new PublicKey(agent.payoutWallet)
     : null;
 }
@@ -333,6 +334,6 @@ function executorAddress(agent: AgentRecord): string {
 async function copyReferrer(signalAgentId: string): Promise<`0x${string}`> {
   const signal = await getAgent(signalAgentId).catch(() => null);
   if (!signal) return zeroAddress;
-  const owner = (await getArcBinding(signal.ownerWallet).catch(() => null))?.arc;
+  const owner = normalizeOwner(signal.ownerWallet);
   return (owner ?? signal.arcOperator ?? zeroAddress) as `0x${string}`;
 }

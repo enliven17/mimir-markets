@@ -5,7 +5,7 @@
  * copy wallets, stop, withdraw. Every change is signed by the wallet.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { signedPost } from "@/lib/launch/client";
 import { solscan } from "@/lib/launch/council-view";
@@ -32,8 +32,8 @@ type Status = {
 };
 
 export default function CopyPanel({ slug, ticker }: { slug: string; ticker: string }) {
-  const { publicKey, signMessage } = useWallet();
-  const owner = publicKey?.toBase58() ?? null;
+  const { address, signMessage } = useMimirWallet();
+  const owner = address ?? null;
   const [st, setSt] = useState<Status | null>(null);
   const [arcOn, setArcOn] = useState(true);
   const [solOn, setSolOn] = useState(false);

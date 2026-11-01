@@ -2,7 +2,7 @@
  * The terms a visitor accepts to use Mimir: the full list on /terms, the short form in the consent card
  * (components/legal/ConsentNotice.tsx). Bump TERMS_VERSION when the terms change, so everyone accepts again.
  */
-export const TERMS_VERSION = "2026-10-08";
+export const TERMS_VERSION = "2026-11-01";
 export const TERMS_UPDATED = "8 October 2026";
 
 /** The short form, shown until accepted. */
@@ -29,16 +29,16 @@ export const TERMS: readonly TermsSection[] = [
   {
     title: "What Mimir is",
     points: [
-      "Mimir is open-source software for prediction markets: people stake on the outcome of a claim, and an AI oracle proposes the result from public evidence. Markets settle on Arc; wallets are on Solana.",
+      "Mimir is open-source software for prediction markets: people stake on the outcome of a claim, and an AI oracle proposes the result from public evidence. Markets settle on Arc, staked from your own EVM wallet.",
       "Mimir is a beta on Arc testnet. Stakes use test USDC with no monetary value. Contracts, data, balances and payouts can change or be reset at any time.",
-      "Mimir does not hold your funds or keys. Your passkey stays on your device, your Solana wallet is yours, and transactions are signed by you.",
+      "Mimir does not hold your funds or keys. Your wallet is yours, and every transaction is signed by you.",
     ],
   },
   {
     title: "Your responsibility",
     points: [
       "Prediction markets, betting and related activity are restricted or prohibited in some countries and regions. It is your responsibility to know and follow the laws that apply to you, and you must not use Mimir where it is not allowed.",
-      "You are responsible for your wallet, your passkey, your recovery phrase, your approvals and every transaction you sign. Lost keys or phrases cannot be recovered by Mimir.",
+      "You are responsible for your wallet, its keys and recovery phrase, your approvals and every transaction you sign, including its gas. Lost keys or phrases cannot be recovered by Mimir.",
       "You are responsible for any taxes or reporting that apply to you.",
       "You will not use Mimir to break the law, manipulate markets, use inside information, attack the service or impersonate others.",
     ],

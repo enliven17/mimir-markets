@@ -11,7 +11,7 @@ import { ARC } from "@/lib/arc/config";
 import { copyKeyFor } from "@/lib/launch/copy-key";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { getSolana } from "@/lib/launch/solana/env";
-import { getArcBinding } from "@/lib/server/arc-accounts";
+import { normalizeOwner } from "@/lib/owner";
 import { transferNative } from "@/lib/server/circle-w3s";
 import { allowRequest } from "@/lib/server/rate-limit";
 
@@ -43,8 +43,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return Response.json({ tx: await solana.executor.transferSol({ walletId: s.solana.walletId, wallet: s.solana.address, to: g.owner, lamports }) });
     }
     if (!s.arc) return fail(409, "You have no Arc copy wallet for this agent.");
-    const to = (await getArcBinding(g.owner))?.arc;
-    if (!to) return fail(409, "Link an Arc account to your wallet first; withdrawals go there.");
+    // The owner's EVM wallet is their account on Arc: withdrawals go straight to it.
+    const to = normalizeOwner(g.owner);
+    if (!to) return fail(409, "Withdrawals on Arc go to your EVM wallet: sign in with one.");
     const wei = BigInt(Math.floor(amount * 1e6)) * 1_000_000_000_000n;
     const balance = await arcPublicClient(ARC).getBalance({ address: s.arc.address as `0x${string}` });
     const free = balance > ARC_GAS_RESERVE_WEI ? balance - ARC_GAS_RESERVE_WEI : 0n;

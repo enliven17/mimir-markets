@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { Bell } from "@/components/icons";
 
 import { Link } from "@/i18n/navigation";
@@ -36,8 +36,7 @@ function readSeen(address: string): number {
 
 export default function NotificationBell() {
   const t = useTranslations("notifications");
-  const { publicKey, connected } = useWallet();
-  const address = publicKey?.toBase58() ?? null;
+  const { address, connected } = useMimirWallet();
   const [items, setItems] = useState<Item[]>([]);
   const [seen, setSeen] = useState(0);
   const [open, setOpen] = useState(false);

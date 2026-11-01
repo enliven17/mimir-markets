@@ -1,5 +1,5 @@
 /**
- * Mimir Launch: every owner request is signed by the owner's Solana wallet (wallet-adapter `signMessage`).
+ * Mimir Launch: every owner request is signed by the owner's EVM wallet (EIP-191 personal_sign, lib/owner.ts).
  * The message names the action, the agent and the SHA-256 of the exact body sent, so a signature cannot be
  * moved to another body, agent or action. Fresh for 5 minutes. Isomorphic: the browser builds the same text.
  */

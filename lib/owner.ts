@@ -1,31 +1,34 @@
 /**
- * Who owns a Mimir account: a Solana wallet (base58, ed25519) or a Robinhood Chain wallet (0x, EIP-191 personal_sign).
- * Both sign the same readable messages; this picks the check by the address's shape. The EVM check is offline too
- * (signature recovery, no RPC).
+ * Who owns a Mimir account: an EVM wallet (0x address). The connected wallet is the user's identity on every chain
+ * Mimir runs on (Arc, Base): it signs readable messages with EIP-191 personal_sign.
+ *
+ * A plain wallet's (EOA) signature is recovered offline. A smart wallet's (ERC-1271, or ERC-6492 before it is deployed)
+ * is checked on chain, on Arc and then on Base, only when the signature is not a plain 65-byte one.
  */
-import { getAddress, isAddress, verifyMessage } from "viem";
+import { createPublicClient, getAddress, http, isAddress, verifyMessage, type Address, type Hex } from "viem";
 
-import { normalizeAddress, verifyAgentSignature } from "./agents/signature";
+import { arcPublicClient } from "./arc/chain";
+import { baseRpcUrl } from "./base/chain";
 
-export const isEvmOwner = (owner: string) => owner.startsWith("0x");
-
-/** A base58 Solana key, a checksummed 0x address, or null. */
-export function normalizeOwner(value: unknown): string | null {
-  if (typeof value === "string" && isAddress(value.trim(), { strict: false })) return getAddress(value.trim());
-  return normalizeAddress(value);
+/** A checksummed 0x address, or null. */
+export function normalizeOwner(value: unknown): Address | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  return isAddress(v, { strict: false }) ? getAddress(v) : null;
 }
 
-// ponytail: EOA signatures only (65 bytes). A contract wallet (ERC-1271) would need a Robinhood Chain RPC read here.
 const EOA_SIGNATURE = /^0x[0-9a-fA-F]{130}$/;
+const HEX_SIGNATURE = /^0x[0-9a-fA-F]{130,20000}$/;
 
 export async function verifyOwnerSignature(args: { address: string; message: string; signature: string }): Promise<boolean> {
   const owner = normalizeOwner(args.address);
-  if (!owner) return false;
-  if (!isEvmOwner(owner)) return verifyAgentSignature({ ...args, address: owner });
-  if (typeof args.signature !== "string" || !EOA_SIGNATURE.test(args.signature)) return false;
-  try {
-    return await verifyMessage({ address: owner as `0x${string}`, message: args.message, signature: args.signature as `0x${string}` });
-  } catch {
-    return false;
+  if (!owner || typeof args.signature !== "string" || !HEX_SIGNATURE.test(args.signature)) return false;
+  const signature = args.signature as Hex;
+  if (EOA_SIGNATURE.test(signature)) return verifyMessage({ address: owner, message: args.message, signature }).catch(() => false);
+  // A smart wallet: its contract decides (one eth_call per chain).
+  for (const client of [() => arcPublicClient(), () => createPublicClient({ transport: http(baseRpcUrl(), { timeout: 10_000 }) })]) {
+    if (await client().verifyMessage({ address: owner, message: args.message, signature }).catch(() => false)) return true;
   }
+  return false;
 }
+

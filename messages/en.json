@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
-    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc; your wallet stays on Solana."
+    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets settle on Arc, straight from your own wallet."
   },
   "common": {
     "back": "Back",
@@ -169,7 +169,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Arc; wallets on Solana.",
+    "lead": "Read live from the Mimir contracts on Arc.",
     "tabsLabel": "Stats views",
     "tabOverview": "Overview",
     "tabCalibration": "Calibration",
@@ -203,62 +203,6 @@
       "unresolvable": "Unresolvable, refunded",
       "unknown": "Unknown"
     }
-  },
-  "claimSettle": {
-    "working": "Working…",
-    "you": "you",
-    "connectToAct": "Connect a wallet to act on this claim.",
-    "proposedTitle": "Proposed verdict",
-    "windowCloses": "Dispute window",
-    "closed": "closed",
-    "bond": "Dispute bond",
-    "whoCanDispute": "Who can dispute",
-    "participantsOnly": "Creator or any challenger",
-    "proposedOpenHint": "Disputable until {at}. Nothing is paid out before then; if nobody disputes, anyone can finalize.",
-    "proposedClosedHint": "The dispute window has closed. Anyone can finalize the verdict, then the payouts can be cranked.",
-    "disputeButton": "Dispute (bond {bond})",
-    "bondHint": "The bond comes from your USDC token account. It is returned if the arbiter changes the verdict and goes to the platform if the verdict stands.",
-    "disputedToast": "Dispute filed. The arbiter will review it.",
-    "finalizeButton": "Finalize verdict",
-    "finalizedToast": "Finalized. Payouts can now be cranked.",
-    "disputedTitle": "Disputed",
-    "disputedBody": "{who} disputed the proposed verdict ({side}) on {at}. The admin (arbiter) rules on it.",
-    "disputedRefundIn": "If the arbiter never rules, anyone can refund every stake and the bond in {in}.",
-    "disputedRefundable": "The arbiter did not rule within the grace period. Anyone can refund every stake and the bond.",
-    "awaitingTitle": "Waiting for the oracle",
-    "awaitingBody": "If the oracle proposes nothing, anyone can refund every stake in {in}.",
-    "awaitingRefundable": "The oracle did not settle this claim within its grace period. Anyone can refund every stake.",
-    "refundButton": "Refund everyone",
-    "refundedToast": "Refunded. Stakes return through the payout cranks.",
-    "payoutsTitle": "Payouts",
-    "payoutsHint": "Pull payments: each position is paid to its owner's USDC account by a permissionless crank. The oracle cranks them too, but you can do it now.",
-    "creatorLeg": "Creator",
-    "challengerLeg": "Challenger #{n}",
-    "legAmounts": "gross {gross} · net ≈ {net}",
-    "paid": "paid",
-    "unpaid": "unpaid",
-    "payOut": "Pay out",
-    "claimMine": "Claim payout",
-    "paidToast": "Paid to the owner's USDC account.",
-    "bondLeg": "Returned dispute bond",
-    "returnBond": "Return bond",
-    "bondToast": "Bond returned.",
-    "feesTitle": "Terms",
-    "feesHint": "Fees are charged on profit only: refunds, draws and break-even payouts pay nothing, and being right never costs principal. Frozen when the claim was created.",
-    "platformFee": "Platform fee",
-    "agentFee": "Agent-owner fee",
-    "ofProfit": "of profit",
-    "disputeWindow": "Dispute window",
-    "refundGrace": "Refund grace",
-    "feesExample": "Stake {stake} and win: gross {gross}, fees {fee}, you receive {net}.",
-    "feesCharged": "Fees charged on this claim: {fees}",
-    "balanceTitle": "Escrow balance",
-    "balanceHint": "Your USDC on Arc, in your passkey account. Payouts land here; move it back to Solana any time.",
-    "withdrawButton": "Withdraw to wallet",
-    "withdrawnToast": "Withdrew {amount} to your wallet.",
-    "nothingToWithdraw": "Nothing to withdraw.",
-    "payoutsHow": "How payouts work",
-    "disputeHow": "How disputes work"
   },
   "header": {
     "challenge": "+ Challenge",
@@ -297,7 +241,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, your wallet lives on Solana.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Arc, straight from your wallet.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -313,7 +257,7 @@
     "rollupValue": "Circle CCTP",
     "slot": "Block",
     "finePrint": "Mimir is in beta on Arc mainnet. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Arc mainnet · Solana",
+    "beta": "Beta · Arc mainnet",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -324,13 +268,13 @@
     "info": {
       "how": {
         "title": "How it works",
-        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on Arc, where USDC is the gas and your passkey account pays none of it.",
+        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on Arc, where USDC is also the gas you pay from your wallet.",
         "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The result is final on Arc once the window closes, and winners are paid straight to their account."
       },
       "about": {
         "title": "About Mimir",
         "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
-        "p2": "Settles on Arc, Circle's stablecoin chain; your wallet stays on Solana."
+        "p2": "Settles on Arc, Circle's stablecoin chain, where gas is paid in USDC too."
       },
       "disclaimer": {
         "title": "Disclaimer",
@@ -343,7 +287,7 @@
     "hero": {
       "titleLead": "Don't argue.",
       "titleAccent": "Settle.",
-      "sub": "Stake USDC on a claim. The AI oracle settles it on Arc, funded straight from your Solana wallet.",
+      "sub": "Stake USDC on a claim from your own wallet. The AI oracle settles it on Arc.",
       "networks": "Runs on",
       "enter": "Enter the arena",
       "create": "Create a claim"
@@ -355,8 +299,8 @@
       "liveOnEr": "Live now",
       "usdc": "USDC",
       "network": "Network",
-      "networkValue": "Arc mainnet · Solana",
-      "networkArc": "Live on Arc · Solana",
+      "networkValue": "Arc mainnet",
+      "networkArc": "Live on Arc",
       "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
@@ -372,7 +316,7 @@
         },
         "challenge": {
           "title": "Challenge",
-          "body": "Anyone takes the other side, with a passkey and no gas."
+          "body": "Anyone takes the other side, from their own wallet, gas paid in USDC."
         },
         "resolve": {
           "title": "Resolve",
@@ -928,76 +872,6 @@
       "unresolvable": "Marked unresolvable"
     }
   },
-  "dashboard": {
-    "title": "Portfolio",
-    "connectTitle": "Connect to see your portfolio",
-    "connectDesc": "Positions, balance and payouts for your Arc account. Nothing here is custodial.",
-    "connectExploreLink": "Browse the arena",
-    "virtual": {
-      "none": "Mimir balance",
-      "base": "Mimir balance · base layer",
-      "er": "USDC on Arc"
-    },
-    "walletLine": "{usdc} in wallet · {sol} SOL",
-    "deposit": "Deposit",
-    "withdraw": "Withdraw",
-    "fundsSheet": "Balance",
-    "fundsLoading": "Loading balance",
-    "working": "Working…",
-    "claimableTitle": "Ready to claim",
-    "claimableHint": "Settled claims owe you these. Claim now, or the oracle pays them later.",
-    "legAmounts": "{gross} gross · {net} after fees",
-    "pull": "Claim",
-    "paidToast": "Paid {amount} to your wallet",
-    "recordAria": "Record",
-    "record": "{won} won · {lost} lost · {rate}% win rate · {atRisk} at risk",
-    "positionsTitle": "Positions",
-    "total": "{count, plural, one {# position} other {# positions}}",
-    "indexed": "indexed {age}",
-    "totalWon": "{amount} won",
-    "loadFailed": "Positions could not refresh. Showing the last list.",
-    "retry": "Try again",
-    "tabsAria": "Positions by phase",
-    "tabs": {
-      "all": "All",
-      "active": "Live",
-      "settling": "Settling",
-      "done": "Done"
-    },
-    "searchLabel": "Search your positions",
-    "searchPlaceholder": "Search or #id",
-    "clearSearch": "Clear search",
-    "filters": "Filters",
-    "filtersActive": "Filters, {count} active",
-    "categoryLabel": "Category",
-    "allCategories": "All",
-    "minStakeLabel": "Minimum own stake",
-    "anyStake": "Any",
-    "minStake": "{n}+",
-    "reset": "Reset",
-    "done": "Show {count, plural, =0 {no positions} one {# position} other {# positions}}",
-    "refresh": "Refresh",
-    "loadingPositions": "Loading positions",
-    "emptyTitle": "No positions yet. Challenge a claim or publish one.",
-    "browseArena": "Browse the arena",
-    "publishClaim": "Publish a claim",
-    "noMatchTitle": "No positions match these filters.",
-    "resetFilters": "Reset filters",
-    "loadMore": "Load more",
-    "role": {
-      "creator": "Creator",
-      "challenger": "Challenger"
-    },
-    "outcome": {
-      "open": "Open",
-      "pending": "Verdict pending",
-      "won": "Won",
-      "lost": "Lost",
-      "refund": "Refunded",
-      "cancelled": "Cancelled"
-    },
-    "claimableShort": "{amount} to claim"
-  },
   "vsDetail": {
     "eyebrow": "Live Arena",
     "heroLead": "CHALLENGE LIFECYCLE",
@@ -1145,61 +1019,27 @@
     "connect": "Connect",
     "connectWallet": "Connect wallet",
     "connecting": "Connecting…",
-    "deeplinkHint": "Opens {wallet} to approve, then brings you straight back.",
-    "mwaName": "A wallet on this phone",
-    "mwaHint": "Phantom, Solflare or any Solana wallet app. You come straight back here.",
-    "sheetTitle": "Connect a Solana wallet",
-    "sheetLead": "Your Solana wallet funds your Mimir account on Arc. Connecting shares your public address, nothing else.",
-    "pickTitle": "Which network is your wallet on?",
-    "pickLead": "Pick the network that holds your USDC. Connecting shares your public address, nothing else.",
-    "pickSolana": "Solana",
-    "pickSolanaHint": "Phantom, Solflare, Backpack. Your USDC moves to Arc for you.",
+    "pickTitle": "Connect your wallet",
+    "pickLead": "Pick the network you use. Your wallet address is your Mimir account on both; connecting shares it and nothing else.",
     "pickArc": "Arc",
-    "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. Stake with the USDC already in it.",
-    "pickBack": "Other network",
-    "pickRobinhood": "Robinhood Chain",
-    "pickRobinhoodHint": "Robinhood Wallet. Sign in, link a passkey account, and launch agents that trade on Pons.",
-    "arcFailed": "The Arc wallet could not connect.",
+    "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. Stake with the USDC in it; gas is paid in USDC.",
     "pickBase": "Base",
-    "pickBaseHint": "MetaMask, Coinbase Wallet, Rabby or a phone wallet. Launch agents on Clanker and pay agents in USDC.",
+    "pickBaseHint": "The same wallet on Base. Markets on Base are coming; stake on Arc in the meantime.",
+    "arcConnected": "Wallet connected.",
+    "arcFailed": "The wallet could not connect.",
     "baseConnected": "Base wallet connected.",
     "baseFailed": "The Base wallet could not connect.",
-    "robinhoodFailed": "The Robinhood wallet could not connect.",
-    "robinhoodConnected": "Robinhood wallet connected. Link it to a passkey account to stake.",
-    "robinhoodSetup": "Set up",
     "close": "Close",
-    "detectedTitle": "Your wallets",
-    "detected": "Detected",
-    "ready": "Ready to connect",
-    "approve": "Approve in {wallet}",
-    "rejected": "You declined in {wallet}. Try again?",
-    "notReady": "{wallet} is not ready. Unlock it and retry.",
-    "failed": "{wallet} could not connect.",
-    "retry": "Retry",
-    "noneDetected": "No wallet found in this browser.",
-    "noWalletToggle": "I don’t have a wallet",
-    "notInstalledTitle": "Get a wallet",
-    "notInstalled": "Not installed",
-    "install": "Install",
-    "installAria": "Install {wallet} (opens in a new tab)",
-    "openInTitle": "On your phone",
-    "openInLead": "Open Mimir inside your wallet’s browser.",
-    "openIn": "Open in {wallet}",
     "footnote": "Mainnet: real USDC. Connecting moves no funds.",
-    "toastError": "{wallet} could not connect.",
-    "genericWallet": "Your wallet",
     "chipAria": "{wallet} wallet {address}, open menu",
     "menuLabel": "Wallet",
-    "devnet": "Arc mainnet",
     "evmWallet": "EVM wallet",
     "networkWallet": "{network} wallet",
-    "connectSolana": "Connect a Solana wallet",
-    "usdc": "USDC",
-    "sol": "SOL",
+    "usdcOnArc": "USDC on Arc",
     "copy": "Copy address",
     "copied": "Copied",
     "explorer": "View on explorer",
-    "manage": "Arc account & passkey",
+    "manage": "Wallet page",
     "disconnect": "Disconnect"
   },
   "categories": {
@@ -1357,7 +1197,7 @@
       },
       "3": {
         "name": "Stake",
-        "blurb": "Fund over CCTP, stake with a passkey and dispute verdicts."
+        "blurb": "Stake from its own wallet on Arc and dispute verdicts."
       },
       "4": {
         "name": "Monetise",
@@ -1380,10 +1220,10 @@
     "limitPosition": "USDC / position",
     "wallets": "Owner, operator and payout: {address}",
     "walletsHint": "One wallet plays every role here. In production keep the owner cold and give the operator its own key.",
-    "connectFirst": "Connect a Solana wallet to sign.",
+    "connectFirst": "Connect your wallet to sign.",
     "signing": "Waiting for signatures…",
     "submit": "Sign and register",
-    "noSignMessage": "This wallet cannot sign messages. Try Phantom, Solflare or Backpack.",
+    "noSignMessage": "Connect your wallet first.",
     "failed": "Registration failed",
     "registered": "{agentId} is registered.",
     "pending": "{agentId} is registered and pending: Monetise needs activation before it can act.",
@@ -1446,7 +1286,7 @@
     "failed": "Something went wrong. Try again.",
     "following": "Following at {cap} USDC per market",
     "signals": "Open signals",
-    "signalsHint": "Live positions of this basket's agents that you have not copied yet. Each copy is a stake you confirm with your passkey; copying is free, and the basket creator gets 1% of a winning copy's profit.",
+    "signalsHint": "Live positions of this basket's agents that you have not copied yet. Each copy is a stake you confirm in your wallet; copying is free, and the basket creator gets 1% of a winning copy's profit.",
     "noSignals": "No open positions to copy right now.",
     "signalsFollowFirst": "Follow the basket to size copies to your cap.",
     "claim": "Claim #{id}",
@@ -1494,7 +1334,7 @@
     "disabledLink": "Browse baskets",
     "connectTitle": "Connect a wallet",
     "connectDesc": "Your wallet signs every grant, list and revoke (a message, never a transaction), so only you can read or change your copy limits.",
-    "noSignMessage": "This wallet cannot sign messages. Try Phantom, Solflare or Backpack.",
+    "noSignMessage": "Connect your wallet first.",
     "signatureFailed": "The signature was not completed.",
     "requestFailed": "The server refused: {message}",
     "leaders": {
@@ -1621,64 +1461,6 @@
     "claimable": "{amount} ready to pull from “{q}”",
     "cancelled": "Cancelled: “{q}”"
   },
-  "onboarding": {
-    "title": "Your first stake on Mimir",
-    "complete": "You are set up: every step done",
-    "progress": "{done}/{total}",
-    "progressAria": "{done} of {total} steps done",
-    "show": "Show",
-    "hide": "Hide",
-    "dismiss": "Dismiss",
-    "dismissAria": "Dismiss the onboarding checklist",
-    "stepDone": "done",
-    "stepPending": "pending",
-    "loading": "Reading balance…",
-    "steps": {
-      "connect": {
-        "title": "Connect a Solana wallet",
-        "desc": "Phantom or Solflare, switched to Devnet in the wallet settings.",
-        "action": "Connect wallet",
-        "connecting": "Connecting…"
-      },
-      "sol": {
-        "title": "Get devnet SOL",
-        "desc": "A little SOL pays transaction fees and account rent. 0.01 SOL is enough to start.",
-        "action": "Solana faucet",
-        "aria": "Open the Solana devnet faucet in a new tab",
-        "balance": "Wallet: {amount} SOL"
-      },
-      "usdc": {
-        "title": "Get devnet USDC",
-        "desc": "Pick Solana Devnet on the Circle faucet and paste your address. The minimum stake is 2 USDC.",
-        "action": "Circle faucet",
-        "aria": "Open the Circle USDC faucet in a new tab",
-        "balance": "Wallet: {amount}"
-      },
-      "deposit": {
-        "title": "Deposit and delegate to the Ephemeral Rollup",
-        "desc": "Move USDC into your Mimir balance, then delegate it to MagicBlock so challenges land in milliseconds with zero fees. You can withdraw it any time.",
-        "action": "Deposit & delegate",
-        "amountLabel": "Amount in USDC",
-        "done": "Deposited {amount} and delegated to the rollup",
-        "busy": {
-          "undelegate": "Bringing your balance back…",
-          "deposit": "Depositing…",
-          "delegate": "Delegating…"
-        },
-        "balance": {
-          "none": "Mimir balance: none yet",
-          "base": "Mimir balance: {amount} on the base layer (not delegated)",
-          "er": "Mimir balance: {amount} in the rollup"
-        }
-      },
-      "stake": {
-        "title": "Take your first position",
-        "desc": "Challenge a live claim in the arena, or publish your own and stake on it.",
-        "explore": "Browse the arena",
-        "create": "Publish a claim"
-      }
-    }
-  },
   "nav": {
     "main": "Main",
     "tabs": "App tabs",
@@ -1744,7 +1526,7 @@
       },
       "wallet": {
         "label": "Wallet",
-        "hint": "Passkey account, deposits and withdrawals"
+        "hint": "Your wallet and its USDC on Arc"
       },
       "stats": {
         "label": "Stats",
@@ -1880,106 +1662,6 @@
       "unpriced": "No counter-stake yet",
       "open": "Open claim {id}"
     },
-    "detail": {
-      "back": "Arena",
-      "loading": "Loading claim",
-      "notFound": "This claim does not exist.",
-      "notFoundCta": "Back to the arena",
-      "creator": "Creator",
-      "challengers": "Challengers",
-      "challengersJoined": "{count, plural, one {# challenger} other {# challengers}}",
-      "waiting": "Waiting for a challenger",
-      "pool": "Pool",
-      "closesIn": "Closes in",
-      "closedAt": "Closed",
-      "er": "Live now",
-      "flash": "Flash Trade oracle",
-      "progressLabel": "Claim lifecycle",
-      "progress": [
-        "Created",
-        "Accepted",
-        "Verifying",
-        "Settled"
-      ],
-      "verdict": "Verdict",
-      "confidence": "{pct}% confidence",
-      "poolSettled": "Pool settled",
-      "verify": "Verify this verdict",
-      "tabsLabel": "Claim details",
-      "dockLabel": "Your move",
-      "tabs": {
-        "evidence": "Evidence",
-        "council": "Council",
-        "people": "People",
-        "terms": "Terms"
-      },
-      "evidence": {
-        "source": "Resolution source",
-        "openSource": "Open source",
-        "settledBy": "Settled by",
-        "flash": "Flash Trade price oracle",
-        "ai": "Mimir AI oracle",
-        "summary": "Oracle note",
-        "noSummary": "No summary recorded."
-      },
-      "people": {
-        "none": "No challengers yet. Be the first to stake.",
-        "you": "you",
-        "unpaid": "unpaid",
-        "paid": "paid",
-        "filled": "{count} of {max} seats filled"
-      },
-      "terms": {
-        "market": "Market terms",
-        "category": "Category",
-        "format": "Format",
-        "headToHead": "Head to head",
-        "openFormat": "Up to {max} challengers",
-        "seats": "Seats",
-        "seatsValue": "{count} of {max}",
-        "settlement": "Settlement",
-        "deadline": "Deadline",
-        "strength": "Claim strength",
-        "strengthFlash": "Backed by the Flash Trade price oracle: deterministic settlement.",
-        "strengthAi": "The Mimir oracle cites this source when it issues its verdict.",
-        "onchain": "On-chain",
-        "claimAccount": "Claim account",
-        "creatorAccount": "Creator",
-        "record": "Verification record",
-        "lastTx": "Your last challenge"
-      },
-      "dock": {
-        "challengeTitle": "Take the other side",
-        "challengeSide": "You stake on: {side}",
-        "stakeLabel": "Stake in USDC",
-        "min": "min {amount}",
-        "challenge": "Challenge",
-        "working": "Working…",
-        "balance": "Rollup balance",
-        "manageBalance": "Manage balance",
-        "connect": "Connect wallet",
-        "connectHint": "Connect a wallet to challenge.",
-        "payout": "If you win: about {amount}",
-        "busyDeposit": "Depositing USDC into the vault…",
-        "busyDelegate": "Delegating your balance to the rollup…",
-        "busyChallenge": "Challenging inside the rollup…",
-        "logDeposited": "Deposited {amount} into escrow",
-        "logDelegated": "Balance delegated to the rollup",
-        "logLanded": "Challenge landed in {ms}ms, zero fee",
-        "tx": "Challenge tx",
-        "explorer": "Explorer",
-        "cancelled": "Cancelled. Every stake was refunded.",
-        "deadlinePassed": "Deadline passed",
-        "deadlinePassedBody": "The oracle commits the rollup and proposes a verdict shortly. Nothing pays out before its dispute window closes.",
-        "full": "Every seat is taken."
-      },
-      "balanceSheet": {
-        "title": "Your balance",
-        "depositTitle": "Deposit and delegate",
-        "depositHint": "Top up from your wallet's USDC; it goes straight to the rollup.",
-        "wallet": "Wallet USDC"
-      }
-    },
     "council": {
       "label": "Council verdict",
       "reading": "Reading on-chain stakes…",
@@ -2037,7 +1719,7 @@
       "publish": "Publish and fund {amount} USDC",
       "connectToPublish": "Connect a wallet to publish.",
       "faucet": "Need USDC?",
-      "faucetLink": "Get USDC on Solana",
+      "faucetLink": "Get USDC on Arc",
       "proof": "On-chain proof",
       "proofCreate": "Create and fund",
       "proofDelegate": "Delegate to the rollup",
@@ -2048,7 +1730,7 @@
   "arcLaunch": {
     "eyebrow": "Live · Arc mainnet",
     "title": "Mimir is live on mainnet",
-    "body": "Markets settle on Arc with real USDC, funded from your Solana wallet over Circle CCTP. Sign in with a passkey: no seed phrase, gas paid for you.",
+    "body": "Markets settle on Arc with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas on Arc is paid in USDC.",
     "points": [
       "Real USDC, open to everyone",
       "USDC in from Solana in about 15 seconds"

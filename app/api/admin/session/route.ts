@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 
-import { normalizeAddress } from "@/lib/agents/signature";
+import { normalizeOwner } from "@/lib/owner";
 import { startAdminSession } from "@/lib/server/admin";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
 
@@ -15,7 +15,7 @@ const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 }
 export async function POST(req: Request) {
   if (!(await allowRequest("admin-session", clientIp(req), 10, 60_000))) return notFound();
   const body = (await req.json().catch(() => null)) as { wallet?: unknown; nonce?: unknown; signature?: unknown } | null;
-  const wallet = normalizeAddress(body?.wallet);
+  const wallet = normalizeOwner(body?.wallet);
   if (!wallet || typeof body?.nonce !== "string" || typeof body?.signature !== "string") return notFound();
   const session = await startAdminSession({ wallet, nonce: body.nonce, signature: body.signature, origin: req.headers.get("origin") }).catch(() => null);
   if (!session) return notFound();

@@ -17,7 +17,7 @@ import {
   type AgentEnvelope,
 } from "./api";
 import { hashApiKey, parseApiKeyHeader } from "./api-keys";
-import { verifyAgentSignature } from "./signature";
+import { verifyWalletSignature } from "./signature";
 import { agentIdForKeyHash, getAgent } from "./store";
 import type { AgentRecord } from "./registry";
 
@@ -97,7 +97,7 @@ export async function verifySignedEnvelope(env: AgentEnvelope, expectedSigner: s
   if (env.signedAt === undefined) {
     throw new AgentEnvelopeError("a signed request needs signedAt", 400, "missing_signed_at");
   }
-  const ok = verifyAgentSignature({
+  const ok = await verifyWalletSignature({
     address: expectedSigner,
     message: agentRequestMessage(env),
     signature: env.signature ?? "",

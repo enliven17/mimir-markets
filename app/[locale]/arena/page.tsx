@@ -16,7 +16,6 @@ import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import ClaimCard, { type SolanaClaim } from "@/components/arena/ClaimCard";
 import ArenaControls from "@/components/arena/feed/ArenaControls";
 import ChallengeOpportunities from "@/components/arena/ChallengeOpportunities";
-import { OnboardingBanner } from "@/components/onboarding/OnboardingChecklist";
 import ExploreArenaEmptyState from "@/components/explorer/ExploreArenaEmptyState";
 import ExploreFilteredEmptyState from "@/components/explorer/ExploreFilteredEmptyState";
 import { useNowSec } from "@/components/arena/settlement/useSettleAction";
@@ -192,7 +191,6 @@ function SolanaArenaPage() {
         </p>
       </header>
 
-      <OnboardingBanner />
 
       <section aria-label={t("viewsLabel")} className="grid gap-5">
         <ArenaControls

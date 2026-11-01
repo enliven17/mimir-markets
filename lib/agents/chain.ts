@@ -9,7 +9,7 @@ import "server-only";
  * the agent's operator wallet, fresh blockhash from the layer the transaction
  * must land on. The agent signs and submits them itself, in order. Challenges
  * go to the MagicBlock Ephemeral Rollup (zero fee) when the claim is
- * delegated there, exactly like the browser flow in lib/solana/browser-client.
+ * delegated there, exactly like the old Solana browser flow did.
  *
  * Everything IDL-shaped lives in this file, so a program upgrade is one place
  * to update.

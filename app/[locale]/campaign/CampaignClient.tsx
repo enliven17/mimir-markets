@@ -7,7 +7,7 @@
 import { xIntentUrl } from "@/lib/invite-share";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 
 import { SURFACE } from "@/components/arena/surface";
 import { useSignText } from "@/components/copy/useSignText";
@@ -24,7 +24,7 @@ import {
   INVITED_MULTIPLIER,
   type CampaignMetrics,
 } from "@/lib/campaign";
-import { explorerUrl } from "@/lib/solana/config";
+import { arcExplorerUrl } from "@/lib/arc/config";
 
 interface Row extends CampaignMetrics {
   wallet: string;
@@ -44,8 +44,8 @@ const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 
 const usdc = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CampaignClient() {
-  const { publicKey } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const { address } = useMimirWallet();
+  const wallet = address ?? null;
   const [board, setBoard] = useState<Board | null>(null);
 
   const load = useCallback(() => {
@@ -287,7 +287,7 @@ function Leaderboard({ board, wallet }: { board: Board | null; wallet: string | 
                 <tr key={r.wallet} className={`border-t border-line ${r.wallet === wallet ? "bg-coral/[0.08]" : ""}`}>
                   <td className={`px-4 py-3 font-mono ${i < 3 ? "text-coral" : "text-muted"}`}>{i + 1}</td>
                   <td className="px-4 py-3">
-                    <a href={explorerUrl("address", r.wallet)} target="_blank" rel="noreferrer" className="font-mono text-cream hover:text-coral">
+                    <a href={r.wallet.startsWith("0x") ? arcExplorerUrl("address", r.wallet) : undefined} target="_blank" rel="noreferrer" className="font-mono text-cream hover:text-coral">
                       {short(r.wallet)}
                     </a>
                     {r.early ? <EarlyBadge className="ml-2" /> : null}

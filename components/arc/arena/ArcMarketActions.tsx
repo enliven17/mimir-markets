@@ -57,7 +57,7 @@ export default function ArcMarketActions({
         <>
           <p className="m-0 text-[13px] leading-relaxed text-muted">Nobody has challenged yet. You can cancel and take your stake back.</p>
           <button type="button" disabled={busy} onClick={() => void cancel()} className={BTN_SECONDARY}>
-            {busy ? "Confirm with your passkey…" : "Cancel and get your stake back"}
+            {busy ? "Confirm in your wallet…" : "Cancel and get your stake back"}
           </button>
         </>
       ) : null}
@@ -70,7 +70,7 @@ export default function ArcMarketActions({
           {confirming ? (
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy || short} onClick={() => void dispute()} className="rounded-full bg-danger px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60">
-                {busy ? "Confirm with your passkey…" : `Dispute (${usd(BOND)} bond)`}
+                {busy ? "Confirm in your wallet…" : `Dispute (${usd(BOND)} bond)`}
               </button>
               <button type="button" disabled={busy} onClick={() => setConfirming(false)} className={BTN_SECONDARY}>
                 Keep the result

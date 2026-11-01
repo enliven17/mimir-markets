@@ -1,11 +1,9 @@
 "use client";
 
 /**
- * First steps on Arc, shown on the Arena until done or dismissed: connect a
- * wallet, create the passkey account (linked to the wallet in the same flow),
- * add USDC, place a first stake. Every step reads real state; nothing is ticked by hand.
- * Funding counts as done once anyone has staked (a spent balance is not a step
- * undone), and once all five are done the card is gone for good.
+ * First steps on Arc, shown on the Arena until done or dismissed: connect an EVM wallet, add USDC on Arc, place a
+ * first stake. Every step reads real state; nothing is ticked by hand. Funding counts as done once the wallet has
+ * staked (a spent balance is not a step undone), and once all three are done the card is gone for good.
  */
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -19,7 +17,6 @@ const KEY = "mimir:arc-onboarding-hidden";
 
 export default function ArcOnboarding() {
   const account = useArcAccount();
-  const { wallet } = account;
   const positions = useQuery(api.arc.positionsOf, account.address ? { user: account.address } : "skip");
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
@@ -31,9 +28,8 @@ export default function ArcOnboarding() {
   }, []);
 
   const steps: Array<{ title: string; done: boolean; href: string }> = [
-    { title: "Connect your wallet", done: Boolean(wallet.solana), href: "/wallet" },
-    { title: "Create your Arc account with a passkey", done: Boolean(wallet.session) && wallet.linked, href: "/wallet" },
-    { title: "Add USDC", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
+    { title: "Connect your wallet", done: Boolean(account.address), href: "/wallet" },
+    { title: "Add USDC on Arc", done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
     { title: "Place your first stake", done: (positions?.length ?? 0) > 0, href: "/arena" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -44,7 +40,7 @@ export default function ArcOnboarding() {
       localStorage.setItem(KEY, "1");
     } catch {}
   }, [finished]);
-  if (hidden || wallet.restoring || doneCount === steps.length) return null;
+  if (hidden || doneCount === steps.length) return null;
   const next = steps.find((s) => !s.done);
 
   return (
@@ -66,7 +62,7 @@ export default function ArcOnboarding() {
           Hide
         </button>
       </div>
-      <ol className="m-0 grid list-none gap-2 p-0 sm:grid-cols-4">
+      <ol className="m-0 grid list-none gap-2 p-0 sm:grid-cols-3">
         {steps.map((s, i) => (
           <li key={s.title} className={`rounded-xl p-3 text-[13px] ${s.done ? "bg-panel text-muted" : s === next ? "bg-panel-raised text-cream shadow-[inset_0_0_0_1px_rgb(255_81_72/.5)]" : "bg-panel text-dim"}`}>
             <span className={`mr-1.5 font-mono ${s.done ? "text-win" : "text-coral"}`}>{s.done ? "✓" : i + 1}</span>

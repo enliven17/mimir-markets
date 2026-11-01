@@ -10,9 +10,8 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
-import bs58 from "bs58";
 import { Check, Plus, Scale, TriangleAlert, X } from "@/components/icons";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -48,7 +47,7 @@ function seedOf(c: Candidate | undefined, agentId: string): string {
 export default function BasketComposerClient() {
   const t = useTranslations("baskets");
   const router = useRouter();
-  const { publicKey, connected, signMessage } = useWallet();
+  const { address, connected, signMessage } = useMimirWallet();
 
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [id, setId] = useState("");
@@ -110,16 +109,16 @@ export default function BasketComposerClient() {
   }
 
   async function publish() {
-    if (!publicKey) return;
+    if (!address) return;
     setError(null);
     setBusy(true);
     try {
       if (!signMessage) throw new Error(t("noSignMessage"));
-      const creatorWallet = publicKey.toBase58();
+      const creatorWallet = address;
       const signedAt = Date.now();
       const clean = { id, name: name.trim(), thesis: thesis.trim() };
       const message = composeMessage({ ...clean, creator: creatorWallet, members, signedAt });
-      const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+      const signature = await signMessage(message);
       const res = await fetch("/api/baskets", {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -66,7 +66,7 @@ export default function ArcLaunchModal() {
     >
       <div className="grid gap-3">
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">{t("eyebrow")}</p>
-        <NetworkLogos className="h-6 max-sm:hidden" />
+        <NetworkLogos className="h-6 max-sm:hidden" base />
         <p className="m-0 text-[14px] leading-relaxed text-muted">{t("body")}</p>
         <ul className="m-0 grid list-none gap-1.5 p-0">
           {(t.raw("points") as string[]).map((p) => (

@@ -87,7 +87,7 @@ Every variable is in [`.env.example`](.env.example), grouped and commented. The 
 |---|---|
 | Network | `NEXT_PUBLIC_ARC_NETWORK` (`testnet`/`mainnet`), `NEXT_PUBLIC_SOLANA_CLUSTER`, `NEXT_PUBLIC_ARC_RPC`, `NEXT_PUBLIC_ARC_EXPLORER` |
 | Contracts | `NEXT_PUBLIC_MIMIR_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_MIN_STAKE` |
-| Wallets | `NEXT_PUBLIC_CIRCLE_CLIENT_KEY` (public browser key) |
+| Wallets | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` (phone wallets in ConnectKit; optional) |
 | Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ARC_ORACLE_KEY`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
 | Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([ARC.md](docs/ARC.md#jev-optional)) |

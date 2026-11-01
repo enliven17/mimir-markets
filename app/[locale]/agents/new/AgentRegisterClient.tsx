@@ -8,16 +8,15 @@
  * authorizes the record, and the API key is shown exactly once. Every value
  * that goes into a signature is on screen before the wallet prompt opens
  * (the last step recaps them), so a signer is never asked to approve text
- * they have not read. Signatures are wallet-adapter `signMessage` (ed25519),
- * sent base58.
+ * they have not read. Signatures are EIP-191 personal_sign from the connected
+ * EVM wallet (lib/owner.ts).
  *
  * The connected wallet plays every role here for convenience. A production
  * agent should keep them apart: the owner cold, the operator hot.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useWallet } from "@solana/wallet-adapter-react";
-import bs58 from "bs58";
+import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { Check, Copy } from "@/components/icons";
 
 import { SURFACE_DEEP } from "@/components/arena/surface";
@@ -27,10 +26,10 @@ import Progress from "@/components/ui/Progress";
 import ConnectWalletButton from "@/components/wallet/ConnectWalletButton";
 import { useArcAccount } from "@/components/arc/arena/useArcAccount";
 import { arcPublicClient } from "@/lib/arc/chain";
-import { ARC, ARC_USDC } from "@/lib/arc/config";
+import { ARC } from "@/lib/arc/config";
 import { AGENT_DEPLOY_USD } from "@/lib/arc/fees";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
-import { encodeFunctionData, isAddress, parseAbi } from "viem";
+import { isAddress, parseAbi } from "viem";
 import { Link } from "@/i18n/navigation";
 import {
   agentRequestMessage,
@@ -79,7 +78,7 @@ const optionClass = (active: boolean, locked = false) =>
 
 export default function AgentRegisterClient() {
   const t = useTranslations("agentConnect");
-  const { publicKey, connected, signMessage } = useWallet();
+  const { address, connected, signMessage } = useMimirWallet();
 
   const [agentId, setAgentId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -91,7 +90,7 @@ export default function AgentRegisterClient() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Registered | null>(null);
   const [copied, setCopied] = useState(false);
-  // On Arc: the EVM address the agent signs with, and the deploy fee paid from the passkey account.
+  // On Arc: the EVM address the agent signs with, and the deploy fee paid from the connected wallet.
   const arc = useArcAccount();
   const onArc = arcArenaEnabled;
   const [arcOperator, setArcOperator] = useState("");
@@ -133,7 +132,7 @@ export default function AgentRegisterClient() {
 
   async function sign(message: string): Promise<string> {
     if (!signMessage) throw new Error(t("noSignMessage"));
-    return bs58.encode(await signMessage(new TextEncoder().encode(message)));
+    return await signMessage(message);
   }
 
   async function post(envelope: AgentEnvelope): Promise<Record<string, unknown>> {
@@ -160,26 +159,24 @@ export default function AgentRegisterClient() {
   }
 
   async function register() {
-    if (!publicKey || !idValid) return;
+    if (!address || !idValid) return;
     setError(null);
     setSigning(true);
     try {
-      const wallet = publicKey.toBase58();
+      const wallet = address;
 
       // 1. Operator proof: this wallet controls itself.
       const operatorSignature = await sign(operatorProofMessage(agentId, wallet));
 
-      // On Arc: pay the deploy fee first (a USDC transfer from the passkey account to the fee recipient), once;
+      // On Arc: pay the deploy fee first (a native USDC transfer from the wallet to the fee recipient), once;
       // a retry after a failed registration reuses the same payment.
       let paid = paymentTx;
       if (onArc && deployUsd > 0 && !paid) {
-        if (!arc.session) throw new Error("Set up your Arc account on /wallet first: the deploy fee is paid from it.");
+        if (!arc.session) throw new Error("Connect your wallet first: the deploy fee is paid from it.");
         const v3 = ARC.contracts.mimirV3!;
         const treasury = await arcPublicClient().readContract({ address: v3, abi: parseAbi(["function feeRecipient() view returns (address)"]), functionName: "feeRecipient" });
-        const amount = BigInt(Math.round(deployUsd * 1e6));
-        const receipt = await arc.session.sendCalls([
-          { to: ARC_USDC, data: encodeFunctionData({ abi: parseAbi(["function transfer(address to, uint256 value) returns (bool)"]), functionName: "transfer", args: [treasury, amount] }) },
-        ]);
+        const wei = BigInt(Math.round(deployUsd * 1e6)) * 1_000_000_000_000n;
+        const receipt = await arc.session.sendCalls([{ to: treasury, data: "0x", value: wei }]);
         paid = receipt.txHash;
         setPaymentTx(paid);
       }
@@ -381,12 +378,12 @@ export default function AgentRegisterClient() {
               Deploy fee: ${deployUsd.toFixed(2)} USDC
               {paymentTx ? <span className="ml-2 text-win">paid ✓</span> : null}
             </p>
-            <p className="m-0 text-[12px] text-dim">Paid from your Arc account with your passkey when you register.</p>
+            <p className="m-0 text-[12px] text-dim">Paid in USDC from your wallet on Arc when you register.</p>
           </div>
         ) : null}
-        {connected && publicKey ? (
+        {connected && address ? (
           <div className="grid gap-1 rounded-xl bg-cream/[0.035] px-4 py-3">
-            <p className="m-0 font-mono text-[13px] text-cream">{t("wallets", { address: shortKey(publicKey.toBase58()) })}</p>
+            <p className="m-0 font-mono text-[13px] text-cream">{t("wallets", { address: shortKey(address) })}</p>
             <p className="m-0 text-[13px] text-muted">{t("walletsHint")}</p>
           </div>
         ) : (

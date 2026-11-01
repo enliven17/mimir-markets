@@ -12,7 +12,7 @@ import { breadcrumbs, faqPage, pageMeta } from "@/lib/seo";
 const docsMetadata = pageMeta({
   path: "/docs",
   title: "How Mimir works · Docs · Mimir Markets",
-  description: "How Mimir markets work: passkey accounts on Arc, USDC from Solana over CCTP, the AI oracle and dispute window, fees, agents and the FAQ.",
+  description: "How Mimir markets work: your EVM wallet on Arc, USDC as stake and gas, the AI oracle and dispute window, fees, agents and the FAQ.",
 });
 
 const releaseShare = {
@@ -89,7 +89,7 @@ function Address({ label, address }: { label: string; address: string | null }) 
 /** The FAQ, rendered below and published as FAQPage structured data. */
 function docsFaq(testnet: boolean) {
   return [
-    { q: "Do I need a crypto wallet?", a: "A Solana wallet or an Arc (EVM) wallet to sign in and fund your account. Staking itself only needs your passkey." },
+    { q: "Do I need a crypto wallet?", a: "Yes: any EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet), connected on Arc or Base. Its address is your account; on Arc you stake and pay gas in USDC." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -98,7 +98,7 @@ function docsFaq(testnet: boolean) {
     {
       q: "Is this real money?",
       a: testnet
-        ? "Not yet: this is Arc testnet with test USDC from Circle's faucet. Mainnet launches on Arc and Solana together."
+        ? "Not yet: this is Arc testnet with test USDC from Circle's faucet."
         : "Yes: USDC on Arc mainnet.",
     },
   ];
@@ -114,9 +114,8 @@ export default function DocsPage() {
         <p className="m-0 font-mono text-[12px] uppercase tracking-[0.2em] text-coral">Docs · Arc {testnet ? "testnet" : "mainnet"}</p>
         <h1 className="m-0 font-display text-app-h1 text-cream">How Mimir works</h1>
         <p className="m-0 max-w-[64ch] text-[15px] leading-relaxed text-muted">
-          Prediction markets settled by an AI oracle. You stake USDC on Arc from a passkey account, funded from your Solana
-          wallet; the oracle reads the evidence at the deadline, proposes a verdict anyone can dispute, and the contract pays
-          the winners.
+          Prediction markets settled by an AI oracle. You stake USDC on Arc straight from your own wallet; the oracle reads the
+          evidence at the deadline, proposes a verdict anyone can dispute, and the contract pays the winners.
         </p>
       </header>
 
@@ -140,7 +139,7 @@ export default function DocsPage() {
         <DocsAccordion first="overview">
           <Section id="overview" eyebrow="01" title="Overview">
             <p className="m-0">
-              Three pieces: <strong className="text-cream">your Solana wallet</strong> holds your money,{" "}
+              Three pieces: <strong className="text-cream">your wallet</strong> holds your money,{" "}
               <strong className="text-cream">Arc</strong> (Circle&apos;s stablecoin chain, where USDC is the gas) holds every
               market and every stake, and <strong className="text-cream">Mimir&apos;s backend</strong> runs the index, the oracle and the
               council beside the contracts.
@@ -155,28 +154,21 @@ export default function DocsPage() {
 
           <Section id="account" eyebrow="03" title="Your account">
             <p className="m-0">
-              Your Mimir account is a smart account on Arc (Circle Modular Wallets) owned by a <strong className="text-cream">passkey</strong> on
-              your device. Mimir never holds a key: every operation is signed by your Face ID, fingerprint or PIN.
+              Your Mimir account is your own <strong className="text-cream">EVM wallet</strong>: connect it on Arc or Base and its address is
+              your identity everywhere on Mimir. Mimir never holds a key: every stake, dispute and claim is a transaction you confirm in your
+              wallet.
             </p>
             <Facts
               rows={[
-                ["Sign-in", "A passkey. No seed phrase, no browser extension."],
-                ["Gas", "Sponsored by Circle Gas Station: you never hold gas money."],
-                ["Recovery", "A 12-word recovery phrase you save at sign-up adds a second owner. Lose the device, restore with the phrase."],
-                ["Link to Solana", "One signature from each side binds the account to your Solana wallet: points and identity follow your Solana address."],
-                ["Deposit", "USDC from Solana to Arc over Circle CCTP, about 15 seconds."],
-                ["Withdraw", "Back to your Solana wallet over CCTP, about 30 seconds."],
+                ["Sign-in", "Connect MetaMask, Rabby, Coinbase Wallet or a phone wallet over WalletConnect, on Arc or Base."],
+                ["Gas", "On Arc, gas is paid in USDC from the same wallet. A stake costs a fraction of a cent on top."],
+                ["Funds", "Your USDC stays in your wallet until you stake. Payouts go straight back to it."],
+                ["Approvals", "None on Arc: USDC is the native currency, so a stake is one transaction."],
+                ["Base", "Connect on Base too, with the same address. Markets on Base are coming."],
               ]}
             />
-            <p className="m-0">
-              <strong className="text-cream">Two ways in.</strong> Sign in with a Solana wallet and fund the account over CCTP, as above. Or sign
-              in with an Arc wallet (MetaMask, Rabby, Coinbase Wallet, or a phone wallet over WalletConnect): link it to the passkey account with one signature each, then approve a
-              spending cap once. Your USDC stays in your wallet; each stake draws just what it needs, in the same passkey prompt. Lower or revoke
-              the cap any time, or deposit once instead, and send USDC back to your wallet whenever you like. Either way you can link a
-              Solana wallet later.
-            </p>
             <p className="m-0 text-[14px] text-muted">
-              Set it up on the <Link href="/wallet" className={LINK}>wallet page</Link>.
+              Connect and check your USDC on the <Link href="/wallet" className={LINK}>wallet page</Link>.
             </p>
           </Section>
 
@@ -285,7 +277,7 @@ export default function DocsPage() {
               <Card title="Two wallets">
                 The Solana wallet (Privy, policy-locked) can only trade on DEXes and pump.fun and send SOL back to you. A Base
                 agent&apos;s wallet can only launch on Clanker, claim its fees and send ETH back to the wallet that funded it. The Arc
-                wallet (Circle) stakes from its own USDC. Each pays its own gas; people never pay gas, agents can&apos;t hold a passkey.
+                wallet (Circle) stakes from its own USDC. Each pays its own gas; people pay their own gas in USDC from their wallets.
               </Card>
               <Card title="Its brain">
                 Mimir AI is included, or bring your own key (OpenAI, Anthropic, Gemini, Groq, OpenRouter). The key is checked with

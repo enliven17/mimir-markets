@@ -29,7 +29,7 @@ import { authenticateAgentRequest } from "@/lib/agents/authenticate";
 import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
 import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareArcWrite } from "@/lib/agents/arc-chain";
 import { deployPriceWei, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
-import { getArcBinding } from "@/lib/server/arc-accounts";
+import { normalizeOwner } from "@/lib/owner";
 import { dryRun } from "@/lib/agents/dry-run";
 import { parseClaimId, parseWriteParams, stakeOf, unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
 import {
@@ -43,7 +43,7 @@ import {
   type AgentRecord,
   type AuthorityLevel,
 } from "@/lib/agents/registry";
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { isSolanaKey, normalizeWallet, verifyWalletSignature } from "@/lib/agents/signature";
 import {
   claimsChallengedBy,
   claimsCreatedBy,
@@ -214,11 +214,11 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   if (impersonatesReserved(displayName)) {
     throw new AgentEnvelopeError("that display name is reserved", 400, "display_name_reserved");
   }
-  const ownerWallet = normalizeAddress(env.body.ownerWallet);
-  const operatorWallet = normalizeAddress(env.body.operatorWallet);
-  const payoutWallet = env.body.payoutWallet === undefined ? ownerWallet : normalizeAddress(env.body.payoutWallet);
+  const ownerWallet = normalizeWallet(env.body.ownerWallet);
+  const operatorWallet = normalizeWallet(env.body.operatorWallet);
+  const payoutWallet = env.body.payoutWallet === undefined ? ownerWallet : normalizeWallet(env.body.payoutWallet);
   if (!ownerWallet || !operatorWallet || !payoutWallet) {
-    throw new AgentEnvelopeError("ownerWallet, operatorWallet and payoutWallet must be Solana public keys", 400, "bad_wallets");
+    throw new AgentEnvelopeError("ownerWallet, operatorWallet and payoutWallet must be EVM addresses or Solana public keys", 400, "bad_wallets");
   }
   const authorityLevel = env.body.authorityLevel ?? 0;
   if (!isAuthorityLevel(authorityLevel)) {
@@ -247,7 +247,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   if (!env.nonce || env.signedAt === undefined) {
     throw new AgentEnvelopeError("registration needs a nonce and signedAt", 400, "missing_nonce");
   }
-  const ownerOk = verifyAgentSignature({
+  const ownerOk = await verifyWalletSignature({
     address: ownerWallet,
     message: agentRequestMessage(env),
     signature: env.signature,
@@ -258,7 +258,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
 
   // And the operator proves it controls itself, so an owner cannot enrol a hot
   // wallet they do not actually hold and strand positions against it.
-  const operatorOk = verifyAgentSignature({
+  const operatorOk = await verifyWalletSignature({
     address: operatorWallet,
     message: operatorProofMessage(env.agentId, operatorWallet),
     signature: str(env.body, "operatorSignature", 128),
@@ -275,7 +275,8 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   let payment: { hash: `0x${string}`; wei: bigint } | null = null;
   if (arcAgentsEnabled()) {
     const wei = deployPriceWei();
-    const ownerArc = (await getArcBinding(ownerWallet).catch(() => null))?.arc ?? "";
+    // The connected EVM wallet is the owner's account on Arc: it pays the fee itself.
+    const ownerArc = normalizeOwner(ownerWallet) ?? "";
     payment = { hash: await onChain(() => verifyDeployPayment(env.body.paymentTx, wei, [ownerArc, arcOperator ?? ""])), wei };
   }
 
@@ -314,7 +315,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
 
 /** The agent owner credited on-chain for positions: only MONETISE agents earn the agent fee. */
 function agentOwnerFor(agent: AgentRecord): PublicKey | null {
-  return agent.status === "active" && agent.capabilities.includes("fee_earner")
+  return agent.status === "active" && agent.capabilities.includes("fee_earner") && isSolanaKey(agent.payoutWallet)
     ? new PublicKey(agent.payoutWallet)
     : null;
 }
@@ -452,9 +453,9 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
 
     case "rotateOperator": {
-      const next = normalizeAddress(env.body.operatorWallet);
-      if (!next) throw new AgentEnvelopeError("operatorWallet must be a Solana public key", 400, "bad_wallets");
-      const proofOk = verifyAgentSignature({
+      const next = normalizeWallet(env.body.operatorWallet);
+      if (!next) throw new AgentEnvelopeError("operatorWallet must be an EVM address or a Solana public key", 400, "bad_wallets");
+      const proofOk = await verifyWalletSignature({
         address: next,
         message: operatorProofMessage(agent.agentId, next),
         signature: str(env.body, "operatorSignature", 128),
@@ -592,7 +593,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
 
     case "listEarnings": {
-      const fees = await onChain(() => readAgentFees(new PublicKey(agent.payoutWallet)));
+      const fees = isSolanaKey(agent.payoutWallet) ? await onChain(() => readAgentFees(new PublicKey(agent.payoutWallet))) : 0n;
       return {
         status: 200,
         body: {

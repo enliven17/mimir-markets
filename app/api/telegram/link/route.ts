@@ -3,13 +3,13 @@
  *   body: { code, wallet, signature }
  *
  * `code` comes from the bot's /link button (one-time, 15 min). The wallet
- * signs telegramLinkMessage(wallet, code) (ed25519, base58 signature), so
+ * signs telegramLinkMessage(wallet, code) (EIP-191 personal_sign, lib/owner.ts), so
  * nobody can follow a wallet they do not hold. The chat then gets a
  * confirmation from the bot.
  */
 import { NextResponse } from "next/server";
 
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -26,11 +26,11 @@ export async function POST(req: Request) {
   }
   const body = read.value as Record<string, unknown>;
   const code = typeof body.code === "string" ? body.code : "";
-  const wallet = normalizeAddress(body.wallet);
+  const wallet = normalizeOwner(body.wallet);
   if (!LINK_CODE_PATTERN.test(code) || !wallet) {
     return NextResponse.json({ error: "code and wallet are required" }, { status: 400 });
   }
-  if (!verifyAgentSignature({ address: wallet, message: telegramLinkMessage(wallet, code), signature: String(body.signature ?? "") })) {
+  if (!(await verifyOwnerSignature({ address: wallet, message: telegramLinkMessage(wallet, code), signature: String(body.signature ?? "") }))) {
     return NextResponse.json({ error: "signature does not match" }, { status: 401 });
   }
   if (!storeEnabled()) return NextResponse.json({ error: "telegram linking is not configured" }, { status: 503 });

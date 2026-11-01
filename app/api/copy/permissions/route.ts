@@ -37,7 +37,7 @@ import {
 } from "@/lib/copy-trading-store";
 import { resolveAgentWallets } from "@/lib/baskets-performance";
 import { getAgent } from "@/lib/agents/store";
-import { normalizeAddress, verifyAgentSignature } from "@/lib/agents/signature";
+import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { isFeatureEnabled } from "@/lib/ops/flags";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
@@ -54,17 +54,17 @@ function unavailable(): Response {
 }
 
 /** The follower signed this action within the skew window. Null when fine. */
-function followerProofError(
+async function followerProofError(
   url: URL,
   action: "list" | "revoke",
   follower: string,
   id = "",
-): { error: Response } | { at: number } {
+): Promise<{ error: Response } | { at: number }> {
   const at = Number(url.searchParams.get("at"));
   if (!isFreshCopySignature(at)) {
     return { error: fail(401, "stale_signature", "at must be a ms timestamp within 5 minutes of now") };
   }
-  const ok = verifyAgentSignature({
+  const ok = await verifyOwnerSignature({
     address: follower,
     message: followerProofMessage(action, follower, at, id),
     signature: url.searchParams.get("signature") ?? "",
@@ -87,9 +87,9 @@ export async function GET(req: Request): Promise<Response> {
   if (!isFeatureEnabled("copy_trading")) return disabled();
   if (!(await allowRequest("copy-list", clientIp(req), 30, 60_000))) return tooManyRequests(60);
 
-  const follower = normalizeAddress(url.searchParams.get("follower"));
-  if (!follower) return fail(400, "bad_wallet", "follower must be a Solana public key");
-  const proof = followerProofError(url, "list", follower);
+  const follower = normalizeOwner(url.searchParams.get("follower"));
+  if (!follower) return fail(400, "bad_wallet", "follower must be an EVM address");
+  const proof = await followerProofError(url, "list", follower);
   if ("error" in proof) return proof.error;
   if (!storeEnabled()) return json({ ok: true, permissions: [] });
 
@@ -111,8 +111,8 @@ export async function POST(req: Request): Promise<Response> {
   const body = await readJsonBody(req);
   if (!body) return fail(400, "malformed_json", "body is not a JSON object");
 
-  const follower = normalizeAddress(body.follower);
-  if (!follower) return fail(400, "bad_wallet", "follower must be a Solana public key");
+  const follower = normalizeOwner(body.follower);
+  if (!follower) return fail(400, "bad_wallet", "follower must be an EVM address");
 
   const draft = copyDraftFromBody(body, follower);
   if (!isFreshCopySignature(draft.signedAt)) {
@@ -137,7 +137,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // Signed over the human-readable terms, so what was approved is exactly what
   // the wallet prompt showed. Checked before any lookup that reveals state.
-  const signedOk = verifyAgentSignature({
+  const signedOk = await verifyOwnerSignature({
     address: follower,
     message: copyPermissionMessage(draft),
     signature: permission.signature,
@@ -194,11 +194,11 @@ export async function DELETE(req: Request): Promise<Response> {
 
   const url = new URL(req.url);
   const id = String(url.searchParams.get("id") ?? "").trim();
-  const follower = normalizeAddress(url.searchParams.get("follower"));
+  const follower = normalizeOwner(url.searchParams.get("follower"));
   if (!id || !follower) return fail(400, "bad_request", "id and follower are required");
 
   // A signature but no gas and no nonce: stopping stays one wallet prompt away.
-  const proof = followerProofError(url, "revoke", follower, id);
+  const proof = await followerProofError(url, "revoke", follower, id);
   if ("error" in proof) return proof.error;
 
   const revoked = await revokePermission(id, follower, proof.at).catch(() => null);
