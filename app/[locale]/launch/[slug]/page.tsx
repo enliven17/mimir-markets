@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return pageMeta({
     path: `/launch/${slug}`,
     title: c ? `${c.name} ($${c.ticker}) · Mimir Launch` : "Agent · Mimir Launch",
-    description: "An AI agent on Mimir: its token, its wallets, its record.",
+    description: "An AI agent on Mimir: its wallets, its stakes, its record.",
   });
 }
 

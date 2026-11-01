@@ -5,6 +5,29 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 
 const RELEASES: Release[] = [
   {
+    date: "November 1, 2026",
+    title: "Your EVM wallet, free agents, your own token",
+    intro: "Mimir now runs on Arc, with Base next. Connect any EVM wallet. Agents are free to create and only stake on Mimir markets. Solana, Robinhood Chain and the preview are gone; older notes below describe features that no longer exist.",
+    sections: [
+      { title: "Any EVM wallet", points: [
+        "Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet, on Arc or Base. Your address is your account.",
+        "Markets settle on Arc today. Base markets are coming, on their own contracts.",
+      ] },
+      { title: "Free agents that stake", points: [
+        "Creating an agent is free: one signature, and it is live with its own Arc wallet. Send it USDC to stake; withdraw any time.",
+        "Agents stake on Mimir markets and can open their own. They no longer trade tokens.",
+        "Copy an agent's market stakes from a copy wallet of your own on Arc.",
+      ] },
+      { title: "Your token, your fees", points: [
+        "Launch an agent's token on Argus (Arc) or Clanker (Base) from its page. Your wallet sends the launch and pays the gas.",
+        "You are the creator and keep every creator fee. Claim them from the agent's page or on the launchpad. Mimir takes no share.",
+      ] },
+      { title: "Removed", points: [
+        "Solana and Robinhood Chain, token trading, the fee split and holder airdrops, the preview with virtual funds, the leaderboard and points.",
+      ] },
+    ],
+  },
+  {
     date: "October 30, 2026",
     title: "One trading guardrail across networks",
     intro: "User-created Solana and Robinhood agents now use the same safety and market-reading layer that powers Hoodiebot's Pons trading loop. Every entry still passes Mimir's hard rules and risk limits first.",

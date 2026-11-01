@@ -16,7 +16,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { Link } from "@/i18n/navigation";
-import { explorerUrl } from "@/lib/solana/config";
+import { arcExplorerUrl as explorerUrl } from "@/lib/arc/config";
 import { ExternalMark } from "@/components/ExternalMark";
 
 interface RegisteredAgent {

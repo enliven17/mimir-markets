@@ -15,7 +15,7 @@ import { loadUsage } from "@/lib/copy-trading-store";
 import { onArc } from "@/lib/baskets-performance";
 import { arcClaimStates } from "@/lib/server/arc-baskets";
 import { isPaused } from "@/lib/ops/flags";
-import { ST_ACTIVE, ST_OPEN } from "@/lib/solana/config";
+import { ST_ACTIVE, ST_OPEN } from "@/lib/market-codes";
 
 /**
  * Everything `executorWallet` (the execution agent's operator) is currently

@@ -366,26 +366,6 @@ export async function stakedLastDayUnits(agentId: string, now = Date.now()): Pro
   return budget ? sumUnits(budget.entries.filter((e) => e.at > now - DAY)) : 0n;
 }
 
-// ── Positions on the retired Solana program ─────────────────────────────────
-
-export interface IndexedPosition {
-  id: number;
-  state: number;
-  deadline: number;
-  creator: string;
-  stake: string;
-}
-
-/** Solana-era read index, retired with Postgres: Arc positions come from the backend index (lib/agents/arc-chain.ts). */
-export async function claimsCreatedBy(_wallet: string, _limit = 100): Promise<IndexedPosition[]> {
-  return [];
-}
-
-/** Solana-era read index, retired with Postgres. */
-export async function claimsChallengedBy(_wallet: string, _limit = 100): Promise<IndexedPosition[]> {
-  return [];
-}
-
 /** Set (or change) the EVM address an agent sends its Arc transactions from. */
 export async function setArcOperator(agentId: string, arcOperator: string, now = Date.now()): Promise<void> {
   await patchAgent(agentId, { arc_operator: arcOperator, updated_at: now });

@@ -20,7 +20,6 @@ import type { ArcMarketKind } from "@/lib/arc/markets";
 import RollingNumber from "@/components/motion/RollingNumber";
 import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
-import DemoMarketActivity from "@/components/demo/DemoMarketActivity";
 import ArcCouncilTakes from "./ArcCouncilTakes";
 import ArcMarketActions from "./ArcMarketActions";
 import { BetChip, useJoltOn, useNewBets, type Bet } from "./BetFx";
@@ -162,7 +161,6 @@ export default function ArcMarketView({ kind, marketId }: { kind: ArcMarketKind;
           ) : null}
         </section>
 
-        <DemoMarketActivity kind={kind} marketId={marketId} />
         <FollowButton target={`market:${kind}:${marketId}`} label="Follow market updates" />
         <SettlementTimeline market={m} events={m.events} now={now} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>

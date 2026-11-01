@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Keypair } from "@solana/web3.js";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import {
   validateBasket,
@@ -24,7 +24,7 @@ import {
   type IndexedClaim,
   type MemberSettlement,
 } from "../../lib/baskets";
-import { signAgentMessage, verifyAgentSignature } from "../../lib/agents/signature";
+import { verifyWalletSignature } from "../../lib/agents/signature";
 
 const members: BasketMember[] = [
   { agentId: "alpha", weightBps: 5_000 },
@@ -199,8 +199,8 @@ test("the NAV cannot go negative", () => {
   assert.ok(perf.finalNavAtomic >= 0n);
 });
 
-test("the follow message names the basket, the follower and the cap, in exact base58 case", () => {
-  const follower = Keypair.generate().publicKey.toBase58();
+test("the follow message names the basket, the follower and the cap, exactly as given", () => {
+  const follower = privateKeyToAccount(generatePrivateKey()).address;
   const message = followMessage({
     basketId: "contrarian-mix",
     follower,
@@ -209,31 +209,31 @@ test("the follow message names the basket, the follower and the cap, in exact ba
   });
   assert.match(message, /signedAt: 1800000000000/);
   assert.match(message, /basket: contrarian-mix/);
-  assert.ok(message.includes(`follower: ${follower}`), "base58 is case-sensitive and never lowercased");
+  assert.ok(message.includes(`follower: ${follower}`), "the address goes in exactly as given");
   assert.match(message, /perMarketCapUsdc: 5/);
   assert.match(message, /Nothing is deposited/);
 });
 
-test("a follow signature is ed25519 over the message and binds the cap", () => {
-  const kp = Keypair.generate();
-  const follower = kp.publicKey.toBase58();
+test("a follow signature is EIP-191 over the message and binds the cap", async () => {
+  const acct = privateKeyToAccount(generatePrivateKey());
+  const follower = acct.address;
   const args = { basketId: "contrarian-mix", follower, perMarketCapUsdc: 5, signedAt: 1_800_000_000_000 };
-  const signature = signAgentMessage(followMessage(args), kp.secretKey);
-  assert.ok(verifyAgentSignature({ address: follower, message: followMessage(args), signature }));
+  const signature = await acct.signMessage({ message: followMessage(args) });
+  assert.ok(await verifyWalletSignature({ address: follower, message: followMessage(args), signature }));
   assert.equal(
-    verifyAgentSignature({ address: follower, message: followMessage({ ...args, perMarketCapUsdc: 50 }), signature }),
+    await verifyWalletSignature({ address: follower, message: followMessage({ ...args, perMarketCapUsdc: 50 }), signature }),
     false,
     "the same signature cannot approve a different cap",
   );
   assert.equal(
-    verifyAgentSignature({ address: follower, message: followMessage({ ...args, signedAt: args.signedAt + 1 }), signature }),
+    await verifyWalletSignature({ address: follower, message: followMessage({ ...args, signedAt: args.signedAt + 1 }), signature }),
     false,
     "nor a different timestamp",
   );
 });
 
 test("the compose message binds the creator, thesis and weights", () => {
-  const creator = Keypair.generate().publicKey.toBase58();
+  const creator = privateKeyToAccount(generatePrivateKey()).address;
   const base = { id: "contrarian-mix", name: "Contrarian", thesis: "Fade it.", creator, members, signedAt: 1 };
   const message = composeMessage(base);
   assert.ok(message.includes(`creator: ${creator}`));
@@ -277,10 +277,10 @@ test("member ids must look like agent ids or persona slugs", () => {
 
 // ── Read-index claims → settlements and signals ────────────────────────────
 
-const ALPHA = Keypair.generate().publicKey.toBase58();
-const BETA = Keypair.generate().publicKey.toBase58();
-const CREATOR = Keypair.generate().publicKey.toBase58();
-const FOLLOWER = Keypair.generate().publicKey.toBase58();
+const ALPHA = privateKeyToAccount(generatePrivateKey()).address;
+const BETA = privateKeyToAccount(generatePrivateKey()).address;
+const CREATOR = privateKeyToAccount(generatePrivateKey()).address;
+const FOLLOWER = privateKeyToAccount(generatePrivateKey()).address;
 const byWallet = new Map([[ALPHA, "alpha"], [BETA, "beta"]]);
 
 function claim(over: Partial<IndexedClaim> = {}): IndexedClaim {

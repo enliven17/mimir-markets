@@ -99,7 +99,7 @@ export function suggestCopyId(signalAgentId: string, executionAgentId: string, s
 export function buildCopyDraft(values: CopyFormValues, follower: string, signedAt: number): CopyDraft {
   return {
     id: values.id.trim(),
-    // Base58 is case-sensitive: the key goes in exactly as the wallet reports it.
+    // The address goes in exactly as the wallet reports it.
     follower,
     signalAgentId: values.signalAgentId.trim(),
     executionAgentId: values.executionAgentId.trim(),

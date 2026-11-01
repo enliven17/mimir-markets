@@ -240,14 +240,10 @@ timelines.
   `textContent`, no React renders); page clocks are coarse (15 to 30s);
   lists, panels and big sheets use the fills in `components/arena/surface.ts`
   (the same near-opaque values as the glass primitives).
-- **Script on demand**: Anchor, the IDL and SPL Token load through
-  `lib/solana/browser-client-lazy.ts` (`useBrowserMimir` once a wallet is
-  connected, action wrappers on first use); WalletConnect loads just after the
-  connect sheet opens (or at startup when it is the wallet autoConnect
-  restores), never on hover; the connect sheet mounts on first open and its
-  chunk is prefetched on hover or focus of a connect button.
-  Polled pages (`/stats`, `/agents`) use `lib/usePolledJson.ts`: paused in
-  hidden tabs, and an unchanged body never re-renders.
+- **Script on demand**: ConnectKit and wagmi load only once something needs
+  the wallet (a stored connection or a connect click: `EvmConnectHost`);
+  the connect sheet mounts on first open and its chunk is prefetched on hover
+  or focus of a connect button.
 
 ## Other pages
 

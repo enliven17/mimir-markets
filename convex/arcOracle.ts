@@ -1,6 +1,6 @@
 "use node";
 
-// The Arc oracle as a Convex cron step (replaces the Railway loop in agents/oracle/solana.ts for Arc markets).
+// The Arc oracle as a Convex cron step.
 // Each tick, from the index (arc.oracleWork):
 //   decide   past-deadline markets: agents/oracle/decide.ts (resolver spec, deadline prices, evidence + LLM, tiers),
 //            then propose on chain with evidenceHash = sha256(audit bundle); the bundle is kept in arcVerdicts
@@ -12,7 +12,6 @@
 // A deferred or failed decision is retried with exponential backoff (lib/oracle-queue.ts). Disputes go to the owner (the arbiter), not here.
 // Env: ARC_ORACLE_KEY (the contracts' oracle EOA), the LLM keys lib/llm.ts reads, ARC_* / MIMIR_* as arcSync.ts.
 import { applyPayoutPolicy } from "../lib/oracle-payout-policy";
-import type { PublicKey } from "@solana/web3.js";
 import { createPublicClient, createWalletClient, parseAbi, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -24,7 +23,7 @@ import { outcomeKnownAt } from "../agents/oracle/evaluate";
 import { espnResult } from "../lib/espn";
 import { lateStakes, lateStakeSummary } from "../lib/late-stakes";
 import { sealBundle, type VerdictBundle } from "../lib/verdict-bundle";
-import type { OnchainClaim } from "../lib/solana/client";
+import type { OnchainClaim } from "../lib/market-claim";
 import { arcChain, arcTransport } from "../lib/arc/chain";
 import { arcConfig } from "../lib/arc/config";
 
@@ -52,17 +51,15 @@ const ZERO_HASH: Hex = `0x${"0".repeat(64)}`;
 type Market = Doc<"arcMarkets">;
 type Position = Doc<"arcPositions">;
 
-/**
- * decide() was written for Solana claims and only reads addresses through
- * toBase58() / equals(); an Arc address behind that same face keeps it unchanged.
- */
-const addr = (a: string) => ({ toBase58: () => a, equals: (o: { toBase58(): string }) => o.toBase58() === a }) as unknown as PublicKey;
+/** Addresses as the oracle and council compare them: lowercase. */
+const addr = (a: string) => a.toLowerCase();
 
 /** The Arc market as the claim shape decide() reads. Pools: side A is the "creator" side, B the "challengers". */
 function asClaim(m: Market, positions: Position[]): OnchainClaim {
   const units = (wei: string) => BigInt(wei) / 1_000_000_000_000n; // 18 dp → the 6-dp units decide() prints
   return {
     id: BigInt(m.marketId),
+    contract: (m.kind === "vs" ? process.env.MIMIR_V3_ADDRESS : process.env.MIMIR_POOL_ADDRESS)?.trim().toLowerCase() ?? "",
     creator: addr(m.creator),
     question: m.question,
     creatorPosition: m.labelA,

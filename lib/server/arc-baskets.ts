@@ -1,16 +1,15 @@
 import "server-only";
 
 /**
- * Baskets and copy trading on Arc: the same pure functions as on Solana
- * (lib/baskets.ts, lib/copy-signals.ts) fed from the Convex index instead of
- * `solana_claims`. Members resolve to the addresses that stake on Arc: a
+ * Baskets and copy trading on Arc: the pure functions of lib/baskets.ts and
+ * lib/copy-signals.ts, fed from the Convex index. Members resolve to the addresses that stake on Arc: a
  * persona's Circle wallet, an agent's Arc operator. Addresses are lowercase.
  */
 import type { IndexedClaim } from "@/lib/baskets";
 import { store } from "./store";
 import { arcChallengedBy, arcCouncilWallets, arcMarketList } from "./arc-index";
 
-// Same numbering as MimirV3 and the Solana program: 0 open, 1 active, 2 resolved, 3 cancelled, 4 proposed, 5 disputed.
+// MimirV3 numbering: 0 open, 1 active, 2 resolved, 3 cancelled, 4 proposed, 5 disputed.
 const STATUS_OF: Record<number, string> = { 0: "open", 1: "active", 2: "resolved", 3: "cancelled", 4: "proposed", 5: "disputed" };
 const STATE_OF: Record<string, number> = { open: 0, active: 1, resolved: 2, cancelled: 3, proposed: 4, disputed: 5 };
 const units = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString();

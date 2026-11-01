@@ -16,7 +16,7 @@ export function kellyFraction(confidencePct: number, cap: number, netOdds = 1.0)
 }
 
 /**
- * A challenger's net odds on a Mimir claim (lib/solana/fees.ts
+ * A challenger's net odds on a Mimir claim (lib/market-fees.ts
  * challengerGross): a winning challenger gets back its stake plus a
  * proportional share of the creator's stake, so with `stake` added to the pool
  *   b = creatorStake / (totalChallengerStake + stake).

@@ -7,7 +7,7 @@
 import { claimPhase, holdsStakes, isLiveState, type ClaimPhase } from "./claim-status";
 import { confidenceTier } from "./settlement-preview";
 import { unitsToUsdc } from "./money";
-import { ST_RESOLVED } from "./solana/config";
+import { ST_RESOLVED } from "./market-codes";
 
 export interface LandingChallenger {
   addr: string;

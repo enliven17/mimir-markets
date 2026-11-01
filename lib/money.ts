@@ -2,8 +2,8 @@
  * Canonical USDC display formatting. All UI money rendering goes through here
  * so amounts read the same on every page.
  *
- * On Solana, USDC is an SPL token with 6 decimals and APIs carry base units as
- * strings (or bigint), so the `*Units` helpers take those directly.
+ * USDC amounts are 6-decimal base units, carried as strings (or bigint) by the
+ * APIs, so the `*Units` helpers take those directly.
  */
 
 const USDC_DECIMALS = 6;

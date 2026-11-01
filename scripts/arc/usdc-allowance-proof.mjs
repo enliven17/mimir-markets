@@ -1,6 +1,6 @@
 // Proof on Arc TESTNET that the USDC ERC-20 interface (0x3600…, 6 dp) moves the NATIVE balance (18 dp):
 // owner approves a spender, the spender pulls with transferFrom, both native balances change.
-// Keys: the testnet-rehearsal file (never funded on mainnet). Usage: node scripts/arc-poc/_allowance-proof.mjs <keys file>
+// Keys: the testnet-rehearsal file (never funded on mainnet). Usage: node scripts/arc/usdc-allowance-proof.mjs <keys file>
 import { readFileSync } from "node:fs";
 import { createPublicClient, createWalletClient, erc20Abi, formatEther, http, defineChain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";

@@ -23,27 +23,17 @@ import type * as arcTriage from "../arcTriage.js";
 import type * as arcViews from "../arcViews.js";
 import type * as arcWatch from "../arcWatch.js";
 import type * as arcWatchDb from "../arcWatchDb.js";
-import type * as copyRisk from "../copyRisk.js";
 import type * as councilOpinions from "../councilOpinions.js";
 import type * as crons from "../crons.js";
-import type * as demo from "../demo.js";
-import type * as demoSchema from "../demoSchema.js";
-import type * as demoWorker from "../demoWorker.js";
 import type * as discovery from "../discovery.js";
 import type * as launch from "../launch.js";
+import type * as launchAgentsDb from "../launchAgentsDb.js";
 import type * as launchArc from "../launchArc.js";
-import type * as launchArgus from "../launchArgus.js";
-import type * as launchArgusDb from "../launchArgusDb.js";
-import type * as launchBase from "../launchBase.js";
 import type * as launchCopy from "../launchCopy.js";
 import type * as launchCopyJobs from "../launchCopyJobs.js";
-import type * as launchFeeDb from "../launchFeeDb.js";
-import type * as launchFees from "../launchFees.js";
 import type * as launchMarkets from "../launchMarkets.js";
 import type * as launchMarketsDb from "../launchMarketsDb.js";
-import type * as launchRh from "../launchRh.js";
-import type * as launchSol from "../launchSol.js";
-import type * as launchSolDb from "../launchSolDb.js";
+import type * as launchMigrate from "../launchMigrate.js";
 
 import type {
   ApiFromModules,
@@ -67,27 +57,17 @@ declare const fullApi: ApiFromModules<{
   arcViews: typeof arcViews;
   arcWatch: typeof arcWatch;
   arcWatchDb: typeof arcWatchDb;
-  copyRisk: typeof copyRisk;
   councilOpinions: typeof councilOpinions;
   crons: typeof crons;
-  demo: typeof demo;
-  demoSchema: typeof demoSchema;
-  demoWorker: typeof demoWorker;
   discovery: typeof discovery;
   launch: typeof launch;
+  launchAgentsDb: typeof launchAgentsDb;
   launchArc: typeof launchArc;
-  launchArgus: typeof launchArgus;
-  launchArgusDb: typeof launchArgusDb;
-  launchBase: typeof launchBase;
   launchCopy: typeof launchCopy;
   launchCopyJobs: typeof launchCopyJobs;
-  launchFeeDb: typeof launchFeeDb;
-  launchFees: typeof launchFees;
   launchMarkets: typeof launchMarkets;
   launchMarketsDb: typeof launchMarketsDb;
-  launchRh: typeof launchRh;
-  launchSol: typeof launchSol;
-  launchSolDb: typeof launchSolDb;
+  launchMigrate: typeof launchMigrate;
 }>;
 
 /**

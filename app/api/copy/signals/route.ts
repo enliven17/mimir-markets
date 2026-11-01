@@ -9,24 +9,21 @@
  *
  *   {}                                   gated instructions: copy[] and skipped[]
  *   { prepare: { permissionId, claimId } }  re-gates that one copy and returns
- *                                          the unsigned challenge transaction
- *                                          (lib/agents/chain.ts; ER when delegated)
+ *                                          the unsigned Arc challenge transaction
  *   { report: { permissionId, claimId, executed, signature?, skipReason? } }
  *                                          records the outcome in the ledger
  *
  * Nothing is staked here and no key is held: the agent signs and submits with
- * its operator key. An executed report is checked against the claim account
- * on chain and recorded at the operator's actual stake, so the ledger the caps
+ * its Arc operator key. An executed report is checked against the Arc index
+ * and recorded at the operator's actual stake, so the ledger the caps
  * are derived from cannot be talked down.
  */
 import { zeroAddress } from "viem";
 import { ARC } from "@/lib/arc/config";
 import { stakeCall } from "@/lib/arc/markets";
 import { normalizeOwner } from "@/lib/owner";
-import { isSolanaKey } from "@/lib/agents/signature";
 import { arcPositions } from "@/lib/server/arc-index";
 import { getAgent } from "@/lib/agents/store";
-import { PublicKey } from "@solana/web3.js";
 
 import {
   AgentEnvelopeError,
@@ -34,13 +31,11 @@ import {
   type AgentEnvelope,
 } from "@/lib/agents/api";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
-import { prepareWrite, readClaim } from "@/lib/agents/chain";
 import { unitsToUsdc, usdcLimitUnits } from "@/lib/agents/params";
 import { authorizeAction, type AgentRecord } from "@/lib/agents/registry";
 import {
   consumeNonce,
   recordRequest,
-  releaseStake,
   requestsLastHour,
   reserveDailyStake,
   stakedLastDayUnits,
@@ -56,15 +51,6 @@ import { basketFail as fail, basketJson as json } from "@/lib/server/basket-http
 import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
 
 export const dynamic = "force-dynamic";
-
-const BASE58_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
-
-/** Only MONETISE agents are credited on chain for the agent fee, as in the agent API. */
-function agentOwnerFor(agent: AgentRecord): PublicKey | null {
-  return agent.status === "active" && agent.capabilities.includes("fee_earner") && isSolanaKey(agent.payoutWallet)
-    ? new PublicKey(agent.payoutWallet)
-    : null;
-}
 
 function target(raw: unknown): { permissionId: string; claimId: number } | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -136,7 +122,7 @@ export async function POST(req: Request): Promise<Response> {
   return json({
     ok: true,
     executionAgentId: agent.agentId,
-    signer: onArc() ? agent.arcOperator : agent.operatorWallet,
+    signer: agent.arcOperator,
     permissions: permissions.length,
     copy: instructions
       .filter((i) => i.decision.allowed)
@@ -164,7 +150,8 @@ async function handlePrepare(agent: AgentRecord, permissions: CopyPermission[], 
   }
 
   // Re-gated at prepare time: the list a moment ago is advice, this is the decision.
-  if (onArc() && !agent.arcOperator) return fail(409, "no_arc_operator", "set an Arc operator first (setArcOperator): copies are sent from it");
+  if (!onArc()) return fail(503, "chain_unavailable", "Arc markets are not configured on this deployment");
+  if (!agent.arcOperator) return fail(409, "no_arc_operator", "set an Arc operator first (setArcOperator): copies are sent from it");
   const instructions = await buildCopyInstructions([permission], executorAddress(agent));
   const instruction = instructions.find((i) => i.claimId === t.claimId);
   if (!instruction) {
@@ -220,46 +207,19 @@ async function handlePrepare(agent: AgentRecord, permissions: CopyPermission[], 
     return fail(403, "daily_cap", `over ${agent.limits.maxDailyUsdc} USDC at risk today`);
   }
 
-  if (onArc()) {
-    const referrer = await copyReferrer(permission.signalAgentId).catch(() => zeroAddress);
-    const call = stakeCall(ARC.contracts.mimirV3!, "vs", t.claimId, stakeUnits * 1_000_000_000_000n, 2, referrer);
-    return json({
-      ok: true,
-      chain: "arc",
-      permissionId: permission.id,
-      claimId: t.claimId,
-      stakeUsdc: instruction.decision.stakeUsdc,
-      stakeUnits: stakeUnits.toString(),
-      signer: agent.arcOperator,
-      referrer,
-      transactions: [{ chainId: ARC.chain.id, to: call.to, data: call.data, value: String(call.value ?? 0n), description: `copy: challenge VS #${t.claimId}` }],
-      submit: "Sign the transaction with the Arc operator key (value is native USDC in wei), send it to Arc, then report the tx hash.",
-    });
-  }
-
-  let prepared;
-  try {
-    prepared = await prepareWrite(
-      { action: "challenge", params: { claimId: BigInt(t.claimId), stakeUnits } },
-      { operator: new PublicKey(agent.operatorWallet), agentOwner: agentOwnerFor(agent) },
-    );
-  } catch (err) {
-    await Promise.all([
-      releaseStake(reservation, "prepare_failed").catch(() => undefined),
-      releaseCopy(permission.id, t.claimId).catch(() => undefined),
-    ]);
-    throw err;
-  }
+  const referrer = await copyReferrer(permission.signalAgentId).catch(() => zeroAddress);
+  const call = stakeCall(ARC.contracts.mimirV3!, "vs", t.claimId, stakeUnits * 1_000_000_000_000n, 2, referrer);
   return json({
     ok: true,
+    chain: "arc",
     permissionId: permission.id,
     claimId: t.claimId,
     stakeUsdc: instruction.decision.stakeUsdc,
     stakeUnits: stakeUnits.toString(),
-    signer: agent.operatorWallet,
-    transactions: prepared.transactions,
-    submit:
-      "Sign each transaction with the operator key and send it to its layer, in order, then report the last signature.",
+    signer: agent.arcOperator,
+    referrer,
+    transactions: [{ chainId: ARC.chain.id, to: call.to, data: call.data, value: String(call.value ?? 0n), description: `copy: challenge VS #${t.claimId}` }],
+    submit: "Sign the transaction with the Arc operator key (value is native USDC in wei), send it to Arc, then report the tx hash.",
   });
 }
 
@@ -283,36 +243,14 @@ async function handleReport(agent: AgentRecord, permissions: CopyPermission[], r
   }
 
   const signature = typeof r.signature === "string" ? r.signature.trim() : "";
-  if (onArc()) {
-    if (signature && !/^0x[0-9a-fA-F]{64}$/.test(signature)) return fail(400, "bad_report", "signature must be the Arc tx hash");
-    // The index is the source of truth for whether the copy landed and for how much.
-    const legs = agent.arcOperator ? await arcPositions(agent.arcOperator).catch(() => []) : [];
-    const leg = legs.find((p) => p.kind === "vs" && p.marketId === t.claimId && p.side === 2);
-    if (!leg) return fail(409, "not_on_chain", "the Arc operator holds no challenge on that market yet (the index updates within seconds)");
-    const stakeUsdc = unitsToUsdc(BigInt(leg.amount) / 1_000_000_000_000n);
-    const recorded = await recordExecution({ permissionId: t.permissionId, claimId: t.claimId, executed: true, stakeUsdc, txSignature: signature || null });
-    await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
-    return json({ ok: true, recorded: { ...t, executed: true, stakeUsdc }, duplicate: !recorded });
-  }
-  if (signature && !BASE58_SIGNATURE.test(signature)) {
-    return fail(400, "bad_report", "signature must be a base58 Solana transaction signature");
-  }
-  // The claim account is the source of truth for whether the copy landed and
-  // for how much: a report cannot claim a smaller stake than was placed.
-  const found = await readClaim(BigInt(t.claimId));
-  const position = found?.claim.challengers.find((ch) => ch.addr.toBase58() === agent.operatorWallet);
-  if (!position) {
-    return fail(409, "not_on_chain", "the operator wallet holds no position on that claim yet");
-  }
-  const stakeUsdc = unitsToUsdc(position.stake);
-  const recorded = await recordExecution({
-    permissionId: t.permissionId,
-    claimId: t.claimId,
-    executed: true,
-    stakeUsdc,
-    txSignature: signature || null,
-  });
-  // The executed row now carries the spend; the provisional one goes.
+  if (!onArc()) return fail(503, "chain_unavailable", "Arc markets are not configured on this deployment");
+  if (signature && !/^0x[0-9a-fA-F]{64}$/.test(signature)) return fail(400, "bad_report", "signature must be the Arc tx hash");
+  // The index is the source of truth for whether the copy landed and for how much.
+  const legs = agent.arcOperator ? await arcPositions(agent.arcOperator).catch(() => []) : [];
+  const leg = legs.find((p) => p.kind === "vs" && p.marketId === t.claimId && p.side === 2);
+  if (!leg) return fail(409, "not_on_chain", "the Arc operator holds no challenge on that market yet (the index updates within seconds)");
+  const stakeUsdc = unitsToUsdc(BigInt(leg.amount) / 1_000_000_000_000n);
+  const recorded = await recordExecution({ permissionId: t.permissionId, claimId: t.claimId, executed: true, stakeUsdc, txSignature: signature || null });
   await releaseCopy(t.permissionId, t.claimId).catch(() => undefined);
   return json({ ok: true, recorded: { ...t, executed: true, stakeUsdc }, duplicate: !recorded });
 }
@@ -322,9 +260,9 @@ function onArc(): boolean {
   return Boolean(ARC.contracts.mimirV3 && process.env.NEXT_PUBLIC_CONVEX_URL);
 }
 
-/** Where the executing agent stakes from: its Arc operator on Arc, its Solana operator wallet otherwise. */
+/** Where the executing agent stakes from: its Arc operator. */
 function executorAddress(agent: AgentRecord): string {
-  return onArc() ? (agent.arcOperator ?? "").toLowerCase() : agent.operatorWallet;
+  return (agent.arcOperator ?? "").toLowerCase();
 }
 
 /**

@@ -1,13 +1,19 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { demoTables } from "./demoSchema";
-export const vCopyRisk = v.object({ maxTokenLamports: v.string(), maxTotalLamports: v.string(), dailyLossLamports: v.string(), maxDrawdownLamports: v.string(), maxPriceDriftBps: v.number(), maxLiquidityBps: v.number() });
 
 // The Arc markets as indexed from MimirV3 (kind "vs") and MimirPool (kind "pool") by convex/arcSync.ts.
 // Amounts are wei strings (18 dp native USDC overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
-/** Mimir Launch: the owner's split of an agent's creator fees (lib/launch/fees.ts), whole percents summing to 100. */
-export const vAllocation = v.object({ bankroll: v.number(), buyback: v.number(), creatorPayout: v.number(), holders: v.number() });
+/**
+ * An agent's own token, launched and paid for by its owner from their own wallet: Argus on Arc (with the splitter its
+ * creator fees accrue in) or Clanker v4 on Base. Recorded once the launch tx's receipt is checked (lib/launch/token.ts).
+ */
+export const vAgentToken = v.object({
+  chain: v.union(v.literal("arc"), v.literal("base")),
+  address: v.string(),
+  splitter: v.optional(v.string()),
+  launchTx: v.string(),
+});
 
 export const status = v.union(
   v.literal("open"),
@@ -19,7 +25,6 @@ export const status = v.union(
 );
 
 export default defineSchema({
-  ...demoTables,
   arcMarkets: defineTable({
     kind,
     marketId: v.number(),
@@ -192,111 +197,49 @@ export default defineSchema({
     .index("by_at", ["t", "at"]),
 
   /**
-   * Mimir Launch (lib/launch): hosted agents. Each holds a Solana wallet (Privy, policy-locked: trades and its own
-   * pump.fun token) and an Arc wallet (Circle developer-controlled: stakes on Mimir markets); each pays its own gas.
-   * Strategy, risk and market rules are validated in lib/launch before they are stored, so they are kept as plain
-   * objects here. A sealed own-key brain never leaves the server (lib/launch/byok.ts).
+   * Mimir Launch (lib/launch): hosted agents. Free to create and live at once. Each stakes on Mimir markets from its Arc
+   * wallet (Circle developer-controlled, funded by its owner in USDC; it pays its own gas) and may open its own markets.
+   * It never trades tokens. Its optional token is launched by the owner's own wallet, so its fees go to the owner.
+   * Market rules are validated in lib/launch before they are stored. A sealed own-key brain never leaves the server
+   * (lib/launch/byok.ts).
    */
   launchAgents: defineTable({
     slug: v.string(),
-    /** The owner's Solana wallet (base58): who launched it, who withdrawals go to. */
+    /** The owner's EVM address (checksummed): who created it, who withdrawals go to, who launches its token. */
     owner: v.string(),
     name: v.string(),
     ticker: v.string(),
     avatarSeed: v.string(),
     thesis: v.string(),
-    status: v.union(v.literal("pending"), v.literal("live"), v.literal("paused"), v.literal("killed")),
+    status: v.union(v.literal("live"), v.literal("paused"), v.literal("killed")),
     brain: v.union(
       v.object({ kind: v.literal("mimir") }),
       v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
     ),
-    /** Solana trading: off unless the owner turns it on with a strategy (lib/launch/types StrategyConfig + RiskParams). */
-    trading: v.object({ enabled: v.boolean(), config: v.any(), risk: v.any() }),
     /** Arc markets (lib/launch/markets MarketRules) and the most it may have staked at once, USDC. */
     markets: v.object({
       enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(),
       /** Opening its own markets (lib/launch/agent-markets.ts): off unless the owner turns it on; gas from its Arc wallet. */
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
-    /**
-     * "robinhood": a Pons token, trading on Robinhood Chain (lib/launch/robinhood) from the wallet below. Absent: the
-     * Solana wallet trades (pump.fun agents; Argus agents keep it too, see launch.chain). "base": a Clanker v4 token on
-     * Base (lib/launch/base) launched from the `base` wallet; it claims its creator fees and stakes on Arc (no trading yet).
-     */
-    venue: v.optional(v.union(v.literal("robinhood"), v.literal("base"))),
-    solana: v.optional(v.object({ walletId: v.string(), address: v.string() })),
-    /**
-     * Robinhood Chain wallet (Privy, chain_type ethereum, policy-locked: lib/launch/robinhood/policy.ts) and the
-     * owner's own Robinhood address it pays back to: the launch must be funded from it, a shutdown sweeps ETH to it.
-     */
-    robinhood: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
-    /** Base wallet (Privy, chain_type ethereum, policy-locked: lib/launch/base/policy.ts) and the owner's EVM payout address. */
-    base: v.optional(v.object({ walletId: v.string(), address: v.string(), payout: v.string() })),
-    arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
-    /** Its token once launched: the pump.fun mint, or the Pons (Robinhood Chain) or Clanker (Base) token address, checksummed. */
-    mint: v.optional(v.string()),
-    /** Its Argus token on Arc (lib/launch/argus.ts), once launched; such an agent has no `mint`. */
-    token: v.optional(v.object({
-      chain: v.literal("arc"), address: v.string(), poolId: v.string(), splitter: v.string(), hook: v.string(), locker: v.string(),
-      creatorBps: v.number(), tx: v.optional(v.string()),
-    })),
-    /**
-     * Its Argus fee ledger in USDC6 (decimal strings): claimed from the splitter, Mimir's 20% owed and paid to the treasury,
-     * and the one Circle tx in flight, recorded before it is waited on so an unconfirmed send is settled, never repeated.
-     */
-    argusFees: v.optional(v.object({
-      claimed6: v.string(), owedTreasury6: v.string(), paidTreasury6: v.string(), lastRoundAt: v.number(),
-      pending: v.optional(v.object({ step: v.union(v.literal("claim"), v.literal("treasury")), circleId: v.string(), amount6: v.string(), at: v.number() })),
-    })),
+    arc: v.object({ walletId: v.string(), address: v.string() }),
+    /** Base wallet (Circle), for staking on Base markets once they open. Not made yet. */
+    base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
+    /** Its token, once its owner launched one (Argus on Arc or Clanker on Base). */
+    token: v.optional(vAgentToken),
     /** Random id bound into the sealed BYOK key (lib/launch/byok AAD), fixed for the agent's life. */
     uid: v.string(),
     /** A council persona (agents/council): Mimir's own agent, its Arc wallet is the council's Circle wallet. */
     house: v.optional(v.string()),
-    /** The launch: SOL the owner must send (lamports, decimal string), the token text, and the claim that lets one request mint. */
-    launch: v.optional(v.object({
-      /** What the owner must send before launch, in the venue's native base unit (lamports; wei on Robinhood and Base). */
-      fundLamports: v.string(),
-      description: v.string(),
-      /** Where its token launches: pump.fun on Solana (the default) or Argus on Arc, with the Argus taxes. */
-      chain: v.optional(v.union(v.literal("solana"), v.literal("arc"))),
-      /** Solana only: "meteora" launches on Meteora DBC with Mimir's config (lib/launch/solana/meteora.ts); absent = pump.fun. */
-      pad: v.optional(v.literal("meteora")),
-      argus: v.optional(v.object({ buyTaxBps: v.number(), sellTaxBps: v.number() })),
-      /** An uploaded token image (data URL, capped well under the doc limit); without one the face is drawn at launch. */
-      image: v.optional(v.string()),
-      claimedAt: v.optional(v.number()),
-      metadataUri: v.optional(v.string()),
-      sig: v.optional(v.string()),
-    })),
-    /** The verified funding tx, bound to this agent so it cannot fund another launch. */
-    fundingSig: v.optional(v.string()),
     createdAt: v.number(),
-    /** One worker at a time per agent (snipad's lease); and a sleeping agent is skipped until then. */
+    /** One spender per agent wallet (convex/launchAgentsDb.ts); when its market tick last ran. */
     leaseUntil: v.optional(v.number()),
-    sleepUntil: v.optional(v.number()),
     lastTickAt: v.optional(v.number()),
-    /** Solana tick: idle/sleep bookkeeping (lib/launch/worker/idle.ts) and when a shut-down agent's SOL went back. */
-    idle: v.optional(v.object({ ticks: v.number(), sleepingSince: v.optional(v.number()), checkedAt: v.optional(v.number()), wakeRequestedAt: v.optional(v.number()) })),
-    sweptAt: v.optional(v.number()),
-    /**
-     * Creator fees (lib/launch/fees.ts): the owner's split of its 80% (whole percents summing to 100), a pending
-     * change that applies 24 h after it was asked for, and the two pools owed out of the wallet (never traded).
-     */
-    allocation: v.optional(vAllocation),
-    pendingAllocation: v.optional(v.object({ allocation: vAllocation, effectiveAt: v.number(), requestedAt: v.number() })),
-    creatorPool: v.optional(v.int64()),
-    holdersPool: v.optional(v.int64()),
-    feesClaimedAt: v.optional(v.number()),
-    /** A fee claim signed but not booked yet (its sig stored before broadcast): settled and booked on the next round. */
-    pendingClaim: v.optional(v.object({ sig: v.string(), lastValidBlockHeight: v.number() })),
-    holdersAirdropAt: v.optional(v.number()),
-    /** True while the wallet policy may be widened for a holder airdrop round (restored after). */
-    airdropPolicyOpen: v.optional(v.boolean()),
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["owner"])
     .index("by_status", ["status"])
-    .index("by_fundingSig", ["fundingSig"]),
+    .index("by_token", ["token.address"]),
 
   /** What the agent did and why, newest last: the live reasoning log on its page. */
   launchEvents: defineTable({
@@ -304,7 +247,7 @@ export default defineSchema({
     at: v.number(),
     kind: v.string(),
     text: v.string(),
-    chain: v.optional(v.union(v.literal("solana"), v.literal("arc"), v.literal("robinhood"), v.literal("base"))),
+    chain: v.optional(v.union(v.literal("arc"), v.literal("base"))),
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 
@@ -318,35 +261,6 @@ export default defineSchema({
     /** Set once the agent answered; a claim without it is released when the call fails. */
     done: v.optional(v.boolean()),
   }).index("by_key", ["key"]).index("by_agent", ["agent", "at"]),
-
-  /** Open Solana token positions (one per mint). */
-  launchPositions: defineTable({
-    agent: v.id("launchAgents"),
-    mint: v.string(),
-    symbol: v.string(),
-    tokens: v.string(),
-    costLamports: v.string(),
-    entryPriceSol: v.number(),
-    peakPriceSol: v.number(),
-    openedAt: v.number(),
-    decimals: v.optional(v.number()),
-  }).index("by_agent", ["agent"]),
-
-  /** Every Solana buy and sell, with its signature (unconfirmed ones are settled by a reconciler). */
-  launchTrades: defineTable({
-    agent: v.id("launchAgents"),
-    mint: v.string(),
-    side: v.union(v.literal("buy"), v.literal("sell")),
-    lamports: v.string(),
-    tokens: v.string(),
-    sig: v.string(),
-    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("failed")),
-    pnlLamports: v.optional(v.string()),
-    reason: v.string(),
-    at: v.number(),
-  })
-    .index("by_agent", ["agent", "at"])
-    .index("by_sig", ["sig"]),
 
   /** Markets an agent opened on Mimir from its Arc wallet (its seed stake backs `side`). */
   launchMarkets: defineTable({
@@ -379,14 +293,13 @@ export default defineSchema({
     .index("by_market", ["kind", "marketId"]),
 
   /**
-   * Copy trading (lib/launch/worker/copy.ts): one per (agent, follower). `agent` is a launch agent's slug or a council
-   * persona's slug. Each side the follower picked has its own copy wallet; a stopped or gated subscription takes no
-   * new entries, but what it holds still exits with the agent.
+   * Copy staking (lib/launch/copy-stake.ts): one per (agent, follower). `agent` is a launch agent's or a council persona's
+   * copy key (lib/launch/copy-key.ts). The follower's Circle copy wallet on Arc stakes the same side as the agent; a
+   * stopped subscription takes no new stakes.
    */
   launchCopies: defineTable({
     agent: v.string(),
     follower: v.string(),
-    solana: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerTradeLamports: v.string(), on: v.boolean() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
     active: v.boolean(),
     pausedReason: v.optional(v.string()),
@@ -396,124 +309,15 @@ export default defineSchema({
     .index("by_agent_follower", ["agent", "follower"])
     .index("by_follower", ["follower"]),
 
-  copyRiskPolicies: defineTable({ follower: v.string(), policy: vCopyRisk }).index("by_follower", ["follower"]),
-  copyRiskLedgers: defineTable({ follower: v.string(), day: v.string(), dailyPnl: v.string(), pnl: v.string(), peak: v.string() }).index("by_follower", ["follower"]),
-  copyExecutionReceipts: defineTable({ sig: v.string(), sub: v.id("launchCopies"), pnl: v.string(), proceeds: v.string(), at: v.number() }).index("by_sig", ["sig"]).index("by_sub", ["sub", "at"]),
-
-  /** Tokens a Solana copy wallet holds because it mirrored a buy (so its sells follow the agent's). */
-  launchCopyPositions: defineTable({
-    sub: v.id("launchCopies"),
-    mint: v.string(),
-    tokens: v.string(),
-    costLamports: v.string(),
-  })
-    .index("by_sub", ["sub"])
-    .index("by_sub_mint", ["sub", "mint"]),
-
-  /**
-   * One follower's copy of one agent fill (lib/launch/worker/copy.ts), keyed "<sub>:<buy|sell|arc>:<agent sig>": it
-   * runs once. A Solana buy stores its own sig before broadcast; "unknown" ones are settled by signature.
-   */
+  /** One follower's copy of one agent stake, keyed "<sub>:arc:<agent tx>": it runs once. */
   launchCopyJobs: defineTable({
     key: v.string(),
     sub: v.id("launchCopies"),
-    kind: v.union(v.literal("buy"), v.literal("sell"), v.literal("arc")),
     status: v.union(v.literal("running"), v.literal("done"), v.literal("failed"), v.literal("unknown"), v.literal("skipped")),
-    mint: v.optional(v.string()),
-    sig: v.optional(v.string()),
-    lastValidBlockHeight: v.optional(v.number()),
     note: v.optional(v.string()),
-    riskLamports: v.optional(v.string()),
-    signal: v.optional(v.string()),
     at: v.number(),
   })
     .index("by_key", ["key"])
     .index("by_status", ["status"])
-    .index("by_sub", ["sub"])
-    .index("by_sub_status", ["sub", "status"])
-    .index("by_signal", ["signal"]),
-  // ---------------- Mimir Launch creator fees (lib/launch/fees.ts, airdrop.ts; convex/launchFeeDb.ts) ----------------
-
-  /** Every creator-fee claim, once per signature, with the split it was booked with. */
-  launchFeeClaims: defineTable({
-    agent: v.id("launchAgents"),
-    lamports: v.int64(),
-    split: v.object({ platform: v.int64(), llm: v.int64(), bankroll: v.int64(), buyback: v.int64(), creatorPayout: v.int64(), holders: v.int64() }),
-    allocation: vAllocation,
-    sig: v.string(),
-    at: v.number(),
-  })
-    .index("by_sig", ["sig"])
-    .index("by_agent", ["agent", "at"]),
-
-  /** The platform + AI share of a claim, owed to the treasury and paid from this record (its sig stored before broadcast). */
-  launchTreasuryTransfers: defineTable({
-    agent: v.id("launchAgents"),
-    claimSig: v.string(),
-    lamports: v.int64(),
-    status: v.union(v.literal("pending"), v.literal("sending"), v.literal("sent"), v.literal("unknown")),
-    sig: v.optional(v.string()),
-    lastValidBlockHeight: v.optional(v.number()),
-    at: v.number(),
-    doneAt: v.optional(v.number()),
-  })
-    .index("by_agent_status", ["agent", "status"])
-    .index("by_status", ["status"]),
-
-  /** Owner payouts from the creator pool: reserved first, sig stored before broadcast, so one is never paid twice. */
-  launchPayouts: defineTable({
-    agent: v.id("launchAgents"),
-    lamports: v.int64(),
-    status: v.union(v.literal("sending"), v.literal("sent"), v.literal("failed"), v.literal("unknown")),
-    sig: v.optional(v.string()),
-    lastValidBlockHeight: v.optional(v.number()),
-    at: v.number(),
-    doneAt: v.optional(v.number()),
-  })
-    .index("by_agent", ["agent", "at"])
-    .index("by_agent_status", ["agent", "status"])
-    .index("by_status", ["status"]),
-
-  /** Buybacks of the agent's own token, burned. */
-  launchBurns: defineTable({
-    agent: v.id("launchAgents"),
-    mint: v.string(),
-    lamports: v.int64(),
-    tokens: v.int64(),
-    buySig: v.string(),
-    burnSig: v.string(),
-    at: v.number(),
-  })
-    .index("by_burnSig", ["burnSig"])
-    .index("by_agent", ["agent", "at"]),
-
-  /** A holder airdrop round: its total reserved from the holders pool in the write that plans it. */
-  launchHolderRounds: defineTable({
-    agent: v.id("launchAgents"),
-    total: v.int64(),
-    recipients: v.number(),
-    status: v.union(v.literal("paying"), v.literal("done")),
-    at: v.number(),
-    doneAt: v.optional(v.number()),
-  })
-    .index("by_agent", ["agent", "at"])
-    .index("by_status", ["status"]),
-
-  launchHolderBatches: defineTable({
-    round: v.id("launchHolderRounds"),
-    agent: v.id("launchAgents"),
-    idx: v.number(),
-    transfers: v.array(v.object({ to: v.string(), lamports: v.int64() })),
-    status: v.union(v.literal("planned"), v.literal("sending"), v.literal("sent"), v.literal("failed")),
-    sig: v.optional(v.string()),
-    lastValidBlockHeight: v.optional(v.number()),
-    attempts: v.optional(v.number()),
-  }).index("by_round", ["round"]),
-
-  /** Periodic holder balances: a round pays the smaller of now and a random earlier snapshot (anti-sniping). */
-  launchHolderSnapshots: defineTable({
-    agent: v.id("launchAgents"),
-    at: v.number(),
-    balances: v.array(v.object({ owner: v.string(), amount: v.int64() })),
-  }).index("by_agent_at", ["agent", "at"]),
+    .index("by_sub", ["sub"]),
 });

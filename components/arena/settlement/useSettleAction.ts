@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { txErrorMessage } from "@/lib/tx-errors";
-import { explorerUrl } from "@/lib/solana/config";
+import { arcExplorerUrl as explorerUrl } from "@/lib/arc/config";
 
 /** Unix seconds, re-read every `intervalMs` so countdowns tick. */
 export function useNowSec(intervalMs = 1000): number {

@@ -30,7 +30,7 @@ export const createOne = internalAction({
     const cfg = arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE });
     const pool = cfg.contracts.mimirPool;
     if (!pool) return;
-    const lease = await ctx.runMutation(internal.launchSolDb.acquire, { id });
+    const lease = await ctx.runMutation(internal.launchAgentsDb.acquire, { id });
     if (lease === null) return;
     const say = (kind: string, text: string, pause?: boolean) => ctx.runMutation(internal.launch.note, { agent: id, kind, text, pause });
     try {
@@ -90,7 +90,7 @@ export const createOne = internalAction({
       console.warn(`[launch-markets] ${id}: ${msg}`);
       await say("error", `opening a market failed: ${msg}`).catch(() => undefined);
     } finally {
-      await ctx.runMutation(internal.launchSolDb.release, { id, token: lease });
+      await ctx.runMutation(internal.launchAgentsDb.release, { id, token: lease });
     }
   },
 });

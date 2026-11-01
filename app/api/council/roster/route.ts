@@ -1,6 +1,6 @@
 /**
- * GET /api/council/roster: both council tracks with each persona's derived
- * Solana address (base58; "" when this deploy has no admin key to derive from).
+ * GET /api/council/roster: both council tracks with each persona's Arc wallet
+ * ("" when it has none yet, lib/launch/council.json).
  * Static per deploy: no chain read, so no rate limit, and CDN-cacheable.
  */
 import { NextResponse } from "next/server";

@@ -13,7 +13,7 @@
  * everyone rather than picking a winner by coin flip.
  */
 
-export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "flashtrade" | "dexscreener" | "jupiter" | "pyth";
+export type PriceSourceId = "coingecko" | "coinmarketcap" | "chainlink" | "dexscreener" | "pyth";
 
 export interface PriceReading {
   source: PriceSourceId;
@@ -223,8 +223,6 @@ const SYMBOL_PATTERNS: Array<{ symbol: string; pattern: RegExp }> = [
   { symbol: "LINK", pattern: /\b(link|chainlink)\b/i },
   { symbol: "MATIC", pattern: /\b(matic|polygon)\b/i },
   { symbol: "DOT", pattern: /\b(dot|polkadot)\b/i },
-  // DEX-priced (lib/server/dex-prices.ts): cross-checked, never settled by the structured resolver.
-  { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i },
 ];
 
 /**

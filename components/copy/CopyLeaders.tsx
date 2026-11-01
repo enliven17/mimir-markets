@@ -17,7 +17,7 @@ import { SURFACE } from "@/components/arena/surface";
 import Button from "@/components/ui/Button";
 import PeepAvatar from "@/components/ui/PeepAvatar";
 import { shortenAddress } from "@/lib/constants";
-import { explorerUrl } from "@/lib/solana/config";
+import { arcExplorerUrl as explorerUrl } from "@/lib/arc/config";
 
 export interface CopyLeader {
   slug: string;

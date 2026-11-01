@@ -1,12 +1,12 @@
 /**
  * Copy permissions: grant, list, revoke.
  *
- *   GET    /api/copy/permissions?follower=<base58>&at=<ms>&signature=<base58>
+ *   GET    /api/copy/permissions?follower=<0x…>&at=<ms>&signature=<0x…>
  *   POST   /api/copy/permissions                       grant (follower-signed)
  *   DELETE /api/copy/permissions?id=…&follower=…&at=…&signature=…   revoke, immediately
  *
- * Every call is signed by the follower (ed25519 over the UTF-8 message,
- * base58): the grant over `copyPermissionMessage` (with `signedAt`), list and
+ * Every call is signed by the follower (EIP-191 over the UTF-8 message):
+ * the grant over `copyPermissionMessage` (with `signedAt`), list and
  * revoke over `followerProofMessage`. Timestamps must be within 5 minutes of
  * server time, so a stranger can neither list a wallet's limits nor cancel its
  * copies, and an old signature cannot be replayed later.

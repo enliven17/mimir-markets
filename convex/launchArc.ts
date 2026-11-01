@@ -15,7 +15,7 @@ import { judgeMarkets, marketCandidates, pickStake, type MarketRules, type Marke
 import { executeContract } from "../lib/server/circle-w3s";
 import { copyArcStake } from "../lib/launch/arc-copy";
 import { launchCopyKey } from "../lib/launch/copy-key";
-import { createConsoleLogger } from "../lib/launch/worker/log";
+import { createConsoleLogger } from "../lib/launch/log";
 
 const copyLog = createConsoleLogger({ level: process.env.LOG_LEVEL, base: { svc: "launch-copy" } });
 

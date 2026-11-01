@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Keypair } from "@solana/web3.js";
 
 import {
   COUNCIL_PERSONAS,
@@ -12,7 +11,7 @@ import {
   trackOf,
 } from "../../agents/council/personas";
 import { PHILOSOPHER_PERSONAS } from "../../agents/council/philosophers";
-import { derivePersonaKeypair } from "../../lib/solana/keypair";
+import { COUNCIL_AGENTS } from "../../lib/launch/council-view";
 
 test("the roster is both juries, classic first", () => {
   assert.equal(CLASSIC_PERSONAS.length, 10);
@@ -26,15 +25,6 @@ test("slugs are unique across both tracks", () => {
   const slugs = COUNCIL_PERSONAS.map((p) => p.slug);
   assert.equal(new Set(slugs).size, slugs.length);
   for (const s of slugs) assert.match(s, /^[a-z0-9]+(-[a-z0-9]+)*$/);
-});
-
-test("every persona derives its own wallet, deterministically", () => {
-  const admin = Keypair.fromSeed(new Uint8Array(32).fill(7));
-  const addrs = COUNCIL_PERSONAS.map((p) => derivePersonaKeypair(admin, p.slug).publicKey.toBase58());
-  assert.equal(new Set(addrs).size, addrs.length, "two personas must not share a wallet");
-  assert.equal(derivePersonaKeypair(admin, "socrates").publicKey.toBase58(), addrs[10]);
-  // Classic wallets are unchanged by adding a track: same seed, same address.
-  assert.equal(derivePersonaKeypair(admin, "optimist").publicKey.toBase58(), addrs[0]);
 });
 
 test("track filtering splits the roster exactly", () => {
@@ -83,47 +73,19 @@ test("no persona invents evidence", () => {
   }
 });
 
-import { buildRoster, parseCouncilAddresses } from "../../lib/server/council-roster";
+import { buildRoster } from "../../lib/server/council-roster";
 
-test("web roster: mainnet never loads the admin secret", () => {
-  let loaded = false;
-  const { roster, cacheable } = buildRoster({
-    addresses: null,
-    mainnet: true,
-    loadAdmin: () => {
-      loaded = true;
-      return Keypair.generate();
-    },
-  });
-  assert.equal(loaded, false);
-  assert.equal(cacheable, false);
+test("web roster: each persona with its Arc wallet, lowercase; none means an empty address", () => {
+  const roster = buildRoster((slug) => (slug === "optimist" ? "0xAbCdEf0000000000000000000000000000000001" : null));
   assert.equal(roster.length, COUNCIL_PERSONAS.length);
-  for (const e of roster) assert.equal(e.address, "");
-});
-
-test("web roster: COUNCIL_ADDRESSES wins and never loads the secret", () => {
-  const addresses = parseCouncilAddresses('{"optimist":"Addr1111","socrates":"Addr2222"}');
-  const { roster } = buildRoster({
-    addresses,
-    mainnet: true,
-    loadAdmin: () => {
-      throw new Error("must not be called");
-    },
-  });
-  assert.equal(roster.find((e) => e.slug === "optimist")?.address, "Addr1111");
-  assert.equal(roster.find((e) => e.slug === "socrates")?.address, "Addr2222");
+  assert.equal(roster.find((e) => e.slug === "optimist")?.address, "0xabcdef0000000000000000000000000000000001");
   assert.equal(roster.find((e) => e.slug === "pessimist")?.address, "");
 });
 
-test("web roster: off mainnet derives from the admin key as before", () => {
-  const admin = Keypair.fromSeed(new Uint8Array(32).fill(7));
-  const { roster, cacheable } = buildRoster({ addresses: null, mainnet: false, loadAdmin: () => admin });
-  assert.equal(cacheable, true);
-  assert.equal(roster[0].address, derivePersonaKeypair(admin, roster[0].slug).publicKey.toBase58());
-});
-
-test("COUNCIL_ADDRESSES parsing rejects junk", () => {
-  assert.equal(parseCouncilAddresses(undefined), null);
-  assert.equal(parseCouncilAddresses("not json"), null);
-  assert.equal(parseCouncilAddresses("[1,2]"), null);
+test("council agents have an Arc wallet and no other chain but an optional Base wallet", () => {
+  for (const [slug, a] of Object.entries(COUNCIL_AGENTS)) {
+    assert.ok(a.arc === null || /^0x[0-9a-f]{40}$/i.test(a.arc), slug);
+    assert.ok(a.base === null || /^0x[0-9a-f]{40}$/i.test(a.base.address), slug);
+    assert.deepEqual(Object.keys(a).sort(), ["arc", "base", "name", "slug", "ticker", "token"], slug);
+  }
 });

@@ -53,7 +53,7 @@ export async function GET(req: Request) {
         <img src={horn} width={130} height={142} style={{ position: "absolute", right: 60, top: 34, opacity: 0.9 }} />
         <div style={{ display: "flex", alignItems: "center", fontFamily: "Mono", fontSize: 20, letterSpacing: 4, color: MUTED }}>
           <div style={{ width: 12, height: 12, backgroundColor: RED, marginRight: 14 }} />
-          {`${total} OPEN · ARC · SOLANA`}
+          {`${total} OPEN · ARC`}
         </div>
         <div style={{ display: "flex", marginTop: 14, fontFamily: "Display", fontSize: 68, lineHeight: 1, color: RED }}>Open markets</div>
         <div style={{ display: "flex", flexDirection: "column", marginTop: 24, gap: 12 }}>

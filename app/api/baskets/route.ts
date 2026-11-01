@@ -3,7 +3,7 @@
  * POST /api/baskets: compose a basket.
  *
  * Creating a basket costs nothing and moves nothing, but it is still signed
- * (ed25519 over `composeMessage`, base58): a basket carries its composer's
+ * (EIP-191 over `composeMessage`): a basket carries its composer's
  * key, and an unsigned one would let anyone publish a thesis under someone
  * else's wallet. The signature carries `signedAt` and expires in 5 minutes.
  */

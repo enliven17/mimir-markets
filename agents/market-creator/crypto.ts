@@ -1,5 +1,5 @@
 /**
- * Crypto price claims around the live Flash Trade spot (BTC/ETH/SOL), ±0.3%.
+ * Crypto price claims around the live CoinGecko spot (BTC/ETH), ±0.3%.
  *
  * The threshold is derived from the live price, never drafted by a model, so
  * the source's stale-moonshot guard (CRYPTO_MIN/MAX_THRESHOLD_RATIO) is met by
@@ -8,11 +8,26 @@
  * settle these from deadline prices across independent feeds, no model
  * involved.
  */
-import { FLASH_CLAIM_SYMBOLS, flashResolutionUrl, getFlashPrice } from "../../lib/solana/flashtrade";
 import { priceSpecFromQuestion, withResolverFragment } from "../../lib/resolver-spec";
 import { toDeadline, type DraftClaim } from "./draft";
 
-const SYMBOL_NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana" };
+const SYMBOL_NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum" };
+/** CoinGecko ids of the symbols drafted here. */
+const COINGECKO_IDS: Record<string, string> = { BTC: "bitcoin", ETH: "ethereum" };
+export const CRYPTO_CLAIM_SYMBOLS = Object.keys(COINGECKO_IDS);
+
+/** The public CoinGecko page a claim resolves from (the oracle reads its API, lib/server/evidence-fetcher.ts). */
+export const coingeckoResolutionUrl = (symbol: string) => `https://www.coingecko.com/en/coins/${COINGECKO_IDS[symbol] ?? symbol.toLowerCase()}`;
+
+/** The live USD spot from CoinGecko (keyless). */
+async function spotUsd(symbol: string): Promise<number> {
+  const id = COINGECKO_IDS[symbol];
+  if (!id) throw new Error(`no CoinGecko id for ${symbol}`);
+  const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, { signal: AbortSignal.timeout(8_000) });
+  const price = Number(((await res.json()) as Record<string, { usd?: number }>)[id]?.usd);
+  if (!res.ok || !Number.isFinite(price) || price <= 0) throw new Error(`no ${symbol} price`);
+  return price;
+}
 const SKEW = 0.003;
 
 export const CRYPTO_MIN_THRESHOLD_RATIO = Number(process.env.CRYPTO_MIN_THRESHOLD_RATIO ?? "0.65");
@@ -39,9 +54,9 @@ export function skewedThreshold(spot: number, direction: "above" | "below"): num
 
 export function cryptoDraft(symbol: string, threshold: number, direction: "above" | "below", deadlineMs: number): DraftClaim {
   const name = SYMBOL_NAMES[symbol] ?? symbol;
-  const question = `Will ${name} (${symbol}) trade ${direction} $${fmt(threshold)} at the deadline, per the Flash Trade oracle price?`;
+  const question = `Will ${name} (${symbol}) trade ${direction} $${fmt(threshold)} at the deadline, per CoinGecko?`;
   const spec = priceSpecFromQuestion(question, symbol, threshold);
-  const base = flashResolutionUrl(symbol);
+  const base = coingeckoResolutionUrl(symbol);
   return {
     question,
     creatorPosition: `Yes: ${symbol} will be ${direction} $${fmt(threshold)}`,
@@ -49,23 +64,23 @@ export function cryptoDraft(symbol: string, threshold: number, direction: "above
     category: "crypto",
     resolutionUrl: spec ? withResolverFragment(base, spec) : base,
     settlementRule:
-      `Resolve from the ${symbol} price on the linked Flash Trade oracle feed at the deadline ` +
+      `Resolve from the ${symbol} USD price on CoinGecko at the deadline ` +
       `(${new Date(deadlineMs).toISOString()} UTC), cross-checked against independent price sources.`,
     deadline: toDeadline(deadlineMs),
-    source: "flash",
+    source: "coingecko",
     label: `${symbol} ${direction} $${fmt(threshold)}`,
   };
 }
 
 export async function draftCryptoClaims(count: number, horizonMin: number, now = Date.now()): Promise<DraftClaim[]> {
   const out: DraftClaim[] = [];
-  for (const symbol of FLASH_CLAIM_SYMBOLS) {
+  for (const symbol of CRYPTO_CLAIM_SYMBOLS) {
     if (out.length >= count) break;
     try {
-      const px = await getFlashPrice(symbol);
+      const spot = await spotUsd(symbol);
       const direction = Math.random() < 0.5 ? "above" : "below";
-      const threshold = skewedThreshold(px.priceUi, direction);
-      const problem = thresholdProblem(threshold, px.priceUi);
+      const threshold = skewedThreshold(spot, direction);
+      const problem = thresholdProblem(threshold, spot);
       if (problem) {
         console.warn(`[draft] ${symbol} dropped: ${problem}`);
         continue;

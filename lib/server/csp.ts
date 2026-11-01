@@ -7,7 +7,7 @@
  * script-src: the nonce plus 'strict-dynamic', so only scripts we started run, and what they load (wallet adapters,
  * PostHog) inherits the trust; 'self' and https: are fallbacks for browsers without CSP3. Styles stay
  * 'unsafe-inline' (inline style attributes everywhere; a style can't run code). connect-src stays open to https and
- * wss (Arc and Solana RPCs, Circle, the backend, wallet relays are configurable endpoints). frame-ancestors keeps
+ * wss (Arc and Base RPCs, Circle, the backend, wallet relays are configurable endpoints). frame-ancestors keeps
  * Telegram's web client, which embeds the site as a mini app.
  *
  * Edge-safe: no Node APIs (proxy.ts imports it).

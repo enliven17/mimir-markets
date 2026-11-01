@@ -4,9 +4,6 @@ import { internal } from "./_generated/api";
 // MIMIR_BACKEND_OFF=1 in a deployment's env turns every job below into a no-op (the old testnet backend).
 // Node actions (oracle, council, watchdog, creator) are what the Convex compute quota pays for: keep them sparse.
 const crons = cronJobs();
-// Public paper trading: shared five-minute snapshots, ten due agents per minute, hard AI quotas.
-crons.interval("demo agents", { minutes: 1 }, internal.demoWorker.tick, {});
-crons.interval("demo cleanup", { hours: 1 }, internal.demo.sweep, {});
 crons.interval("discovery cleanup", { hours: 1 }, internal.discovery.sweep, {});
 // ~86k runs a month, well inside the free 1M calls.
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, {});
@@ -22,17 +19,6 @@ crons.interval("app store sweep", { minutes: 10 }, internal.appStore.sweep, {});
 crons.interval("arc watchdog", { minutes: 10 }, internal.arcWatch.tick, {});
 // Mimir Launch agents staking on markets (convex/launchArc.ts); a no-op until LAUNCH_ARC=1.
 crons.interval("launch arc", { minutes: 5 }, internal.launchArc.tick, {});
-// Mimir Launch agents trading on Solana: a cheap mutation fans out one action per due agent (convex/launchSolDb.ts); a no-op until LAUNCH_SOLANA=1.
-crons.interval("launch solana", { seconds: 30 }, internal.launchSolDb.tickAll, {});
-// Mimir Launch creator fees (convex/launchFeeDb.ts fans out convex/launchFees.ts): hourly claims and payouts, holder
-// snapshots every 2 h, airdrop checks every 30 min. All no-ops until LAUNCH_FEES=1.
-crons.interval("launch fees", { hours: 1 }, internal.launchFeeDb.feeAll, {});
-crons.interval("launch holder snapshots", { hours: 2 }, internal.launchFeeDb.snapshotAll, {});
-crons.interval("launch holder airdrops", { minutes: 30 }, internal.launchFeeDb.airdropAll, {});
-// Argus (Arc) token fees: claim from the splitter, book the split, send Mimir's share (convex/launchArgus.ts); no-op until LAUNCH_FEES=1.
-crons.interval("launch argus fees", { hours: 1 }, internal.launchArgus.round, {});
-// Payouts, treasury transfers and copy buys whose outcome was never recorded, settled by signature (launchFeeDb.reconcileAll).
-crons.interval("launch reconcile", { minutes: 10 }, internal.launchFeeDb.reconcileAll, {});
 // Agents opening their own markets when their owner allows it (convex/launchMarketsDb.ts); a no-op until LAUNCH_ARC=1.
 crons.interval("launch agent markets", { hours: 1 }, internal.launchMarketsDb.createAll, {});
 export default crons;

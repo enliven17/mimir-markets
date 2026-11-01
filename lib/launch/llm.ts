@@ -1,10 +1,10 @@
 /**
- * Mimir Launch: the agent's brain on Mimir's own LLM keys (lib/llm.ts). The engine's ranker (engine/rank.ts) and the
- * market judge (markets.ts) take a JsonRouter; this is the platform one. An owner's own key is a second router
+ * Mimir Launch: the agent's brain on Mimir's own LLM keys (lib/llm.ts). The market judge (markets.ts) and the market
+ * drafter (agent-markets.ts) take a JsonRouter (router.ts); this is the platform one. An owner's own key is a second router
  * (byok.ts) with the same shape. Agents spend the "web" role, so they never touch the oracle's settlement keys.
  */
 import { callLLMWithMeta, extractJson } from "../llm";
-import type { JsonRouter } from "./engine/rank";
+import type { JsonRouter } from "./router";
 
 /** Agents' own Gemini key when one is set (LAUNCH_GEMINI_API_KEY), else the shared pool. */
 export const LAUNCH_KEY_ENV = "LAUNCH_GEMINI_API_KEY";

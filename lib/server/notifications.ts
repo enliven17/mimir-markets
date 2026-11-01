@@ -9,7 +9,6 @@ import { createHmac, randomBytes } from "node:crypto";
 import { request as httpsRequest } from "node:https";
 
 import { isDbEnabled, query } from "./db";
-import { MIMIR_PROGRAM_ID } from "../solana/config";
 import {
   isRetryableStatus,
   WEBHOOK_RETRY_DELAYS_MS,
@@ -21,7 +20,8 @@ import { createDeliveryQueue } from "./webhook-queue";
 import { deliverTelegram } from "./telegram";
 import { telegramToken } from "../telegram";
 
-const PROGRAM = () => MIMIR_PROGRAM_ID.toBase58();
+/** Rows are keyed by the market contract they belong to. */
+const PROGRAM = () => (process.env.NEXT_PUBLIC_MIMIR_V3_ADDRESS ?? "").trim().toLowerCase();
 const DELIVERY_TIMEOUT_MS = 5_000;
 
 /** Deliveries run in the background: max 4 in flight, per-URL breaker (webhook-queue.ts). */
@@ -33,41 +33,6 @@ export interface StoredNotification {
   kind: string;
   payload: Record<string, unknown>;
   createdAt: number;
-}
-
-/**
- * The previous snapshot of every indexed claim, read once per indexer cycle so
- * each re-read claim can be diffed against what the index held before.
- */
-export async function loadClaimSnapshots(): Promise<Map<number, ClaimSnapshot>> {
-  const out = new Map<number, ClaimSnapshot>();
-  if (!isDbEnabled()) return out;
-  const rows = await query<Record<string, unknown>>(
-    `SELECT id, creator, question, state, winner_side, proposed_side, disputable_until, disputer,
-            resolution_summary, confidence, creator_stake, total_challenger_stake, creator_paid, challengers
-       FROM solana_claims WHERE program = $1`,
-    [PROGRAM()],
-  );
-  for (const r of rows) {
-    const challengers = typeof r.challengers === "string" ? JSON.parse(r.challengers) : r.challengers;
-    out.set(Number(r.id), {
-      id: Number(r.id),
-      creator: String(r.creator),
-      question: String(r.question ?? ""),
-      state: Number(r.state),
-      winner_side: Number(r.winner_side),
-      proposed_side: Number(r.proposed_side ?? 0),
-      disputable_until: Number(r.disputable_until ?? 0),
-      disputer: String(r.disputer ?? ""),
-      resolution_summary: String(r.resolution_summary ?? ""),
-      confidence: Number(r.confidence ?? 0),
-      creator_stake: String(r.creator_stake ?? "0"),
-      total_challenger_stake: String(r.total_challenger_stake ?? "0"),
-      creator_paid: Boolean(r.creator_paid),
-      challengers: Array.isArray(challengers) ? challengers : [],
-    });
-  }
-  return out;
 }
 
 /**

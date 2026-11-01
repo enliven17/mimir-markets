@@ -17,9 +17,9 @@ import {
 function agent(over: Partial<AgentRecord> = {}): AgentRecord {
   return {
     agentId: "my-agent",
-    ownerWallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
-    operatorWallet: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-    payoutWallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+    ownerWallet: "0x00000000000000000000000000000000000000f1",
+    operatorWallet: "0x00000000000000000000000000000000000000f2",
+    payoutWallet: "0x00000000000000000000000000000000000000f1",
     displayName: "My Agent",
     authorityLevel: AUTHORITY_LEVELS.STAKE,
     capabilities: ["council_juror", "researcher"],
@@ -138,10 +138,10 @@ test("capability and authority guards reject junk", () => {
 
 test("withdrawing is never gated by authority, staking and creating are", () => {
   const readOnly = agent({ authorityLevel: AUTHORITY_LEVELS.READ_ONLY, capabilities: [] });
-  for (const action of ["withdraw", "undelegateBalance", "getBalances", "listClaims", "getClaim"]) {
+  for (const action of ["withdraw", "getBalances", "listClaims", "getClaim"]) {
     assert.equal(authorizeAction({ agent: readOnly, action }).allowed, true, action);
   }
-  for (const action of ["deposit", "delegateBalance", "challenge", "dispute", "createClaim"]) {
+  for (const action of ["challenge", "dispute", "createClaim"]) {
     assert.equal(authorizeAction({ agent: readOnly, action }).reason, "authority", action);
   }
 });

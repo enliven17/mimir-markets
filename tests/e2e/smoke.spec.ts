@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { FIXTURE_CLAIM_ID, mockFixtureClaim } from "./fixtures";
 
 /**
  * Collect uncaught page errors, console errors and failed same-origin
@@ -41,14 +40,13 @@ async function horizontalOverflow(page: Page): Promise<number> {
 const PAGES: { path: string; name: string }[] = [
   { path: "/en", name: "home" },
   { path: "/en/arena", name: "arena feed" },
-  { path: `/en/arena/${FIXTURE_CLAIM_ID}`, name: "claim detail (fixture)" },
   { path: "/en/arena/create", name: "create claim" },
   { path: "/en/stats", name: "stats" },
   { path: "/en/agents", name: "agents" },
   { path: "/en/agents/new", name: "register agent" },
   { path: "/en/council", name: "council" },
-  { path: "/en/calibration", name: "calibration" },
-  { path: "/en/verify/1", name: "verify" },
+  { path: "/en/launch", name: "launch" },
+  { path: "/en/launch/new", name: "create agent" },
   { path: "/en/baskets", name: "baskets" },
   { path: "/en/baskets/new", name: "compose basket" },
   { path: "/en/copy", name: "copy trading" },
@@ -61,7 +59,6 @@ const PAGES: { path: string; name: string }[] = [
 for (const { path, name } of PAGES) {
   test(`${name} renders cleanly (${path})`, async ({ page, baseURL }) => {
     const errors = trackErrors(page, baseURL);
-    await mockFixtureClaim(page);
     const res = await page.goto(path, { waitUntil: "load" });
     expect(res?.status(), `HTTP status for ${path}`).toBeLessThan(400);
     await expect(page.locator("h1").first()).toBeVisible();
@@ -71,12 +68,6 @@ for (const { path, name } of PAGES) {
     expect(errors, `errors on ${path}`).toEqual([]);
   });
 }
-
-test("claim detail shows the fixture claim", async ({ page }) => {
-  await mockFixtureClaim(page);
-  await page.goto(`/en/arena/${FIXTURE_CLAIM_ID}`);
-  await expect(page.getByText(/SOL trade above \$250/).first()).toBeVisible();
-});
 
 test("dashboard shows the wallet gate when disconnected", async ({ page }) => {
   await page.goto("/en/dashboard");
@@ -108,40 +99,6 @@ test("create page accepts an opportunity-card prefill link", async ({ page }) =>
   // The prefill lands on step 1, filled.
   await expect(page.getByText("Step 1 of 4")).toBeVisible();
   await expect(page.getByLabel("Question")).toHaveValue(/BTC trade above \$150,000/);
-});
-
-test("arena feed has one control row and a filters popover", async ({ page }) => {
-  await page.goto("/en/arena");
-  const views = page.getByRole("tablist", { name: "Claims" });
-  await expect(views.getByRole("tab", { name: /^Open/ })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("searchbox", { name: "Search claims" })).toBeVisible();
-  // The old quick-filter dropdown only offered "All"; it is gone.
-  await expect(page.getByRole("button", { name: "Filter view" })).toHaveCount(0);
-  const filters = page.getByRole("button", { name: /^Filters/ });
-  await filters.click();
-  const popover = page.getByRole("dialog", { name: "Filters" });
-  await expect(popover.getByText("Category")).toBeVisible();
-  await expect(popover.getByText("Minimum stake")).toBeVisible();
-  await expect(popover.getByRole("group", { name: "Sort" })).toBeVisible();
-  await popover.getByRole("button", { name: "25+" }).click();
-  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(popover).toBeHidden();
-  await views.getByRole("tab", { name: /^Settled/ }).click();
-  await expect(views.getByRole("tab", { name: /^Settled/ })).toHaveAttribute("aria-selected", "true");
-});
-
-test("claim detail keeps the action in view on a phone", async ({ page }) => {
-  await mockFixtureClaim(page);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/en/arena/${FIXTURE_CLAIM_ID}`);
-  const dock = page.getByTestId("action-dock");
-  await expect(dock.getByText("Take the other side")).toBeVisible();
-  await expect(dock).toBeInViewport();
-  // Everything else is one tab away.
-  const tabs = page.getByRole("tablist", { name: "Claim details" });
-  await tabs.getByRole("tab", { name: "Terms" }).click();
-  await expect(page.getByText("Market terms")).toBeVisible();
 });
 
 test("create flow validates each step and keeps the draft", async ({ page }) => {
@@ -179,7 +136,7 @@ test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobi
   await expect(more).toHaveAttribute("aria-expanded", "true");
   await expect(sheet.getByRole("link", { name: /^Agents/ })).toBeFocused();
   // Every page that left the pill is one click away.
-  for (const name of ["Connect an agent", "Baskets", "New basket", "Copy", "Token", "Stats", "Calibration", "Docs"]) {
+  for (const name of ["Connect an agent", "Strategies", "Stats", "Docs"]) {
     await expect(sheet.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
   await page.keyboard.press("Escape");
@@ -203,7 +160,7 @@ test("mobile menu panel traps focus and closes on Escape", async ({ page, isMobi
   const panel = page.locator("#mobile-nav");
   // Terminal leads the nav, so it takes the first focus.
   await expect(panel.getByRole("link", { name: /^Terminal/ })).toBeFocused();
-  await expect(panel.getByRole("link", { name: "Calibration" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: /^Stats/ })).toBeVisible();
   await expect(panel.getByRole("link", { name: "Create a claim" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
@@ -253,9 +210,6 @@ test("a Wallet Standard wallet connects from the sheet and disconnects from the 
 
 test("portfolio opens the balance sheet from the hero when connected", async ({ page }) => {
   await page.addInitScript(registerTestWallet);
-  await page.route("**/api/arena/user/**", (route) =>
-    route.fulfill({ json: { success: true, data: { claims: [], indexedAt: 0 } } }),
-  );
   await page.goto("/en/dashboard?tab=done");
   await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
   await page.getByRole("dialog", { name: "Connect a wallet" }).getByRole("button", { name: /Mimir Test Wallet/ }).click();
@@ -296,17 +250,6 @@ test("agent registration steps through four validated steps", async ({ page }) =
   await expect(page.getByLabel("Agent id")).toHaveValue("e2e-agent");
 });
 
-test("stats and calibration share one header with a segmented switch", async ({ page }) => {
-  await page.goto("/en/stats");
-  const views = page.getByRole("navigation", { name: "Stats views" });
-  await expect(views.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-  await views.getByRole("link", { name: "Calibration" }).click();
-  await expect(page).toHaveURL(/\/en\/calibration$/);
-  await expect(
-    page.getByRole("navigation", { name: "Stats views" }).getByRole("link", { name: "Calibration" }),
-  ).toHaveAttribute("aria-current", "page");
-});
-
 test("copy trading opens the grant form in a sheet under the strategies switch", async ({ page }) => {
   await page.addInitScript(registerTestWallet);
   await page.route("**/api/copy/permissions?probe=1", (route) => route.fulfill({ json: { enabled: true } }));
@@ -342,64 +285,31 @@ test("an unknown path renders the not-found page inside the shell", async ({ pag
 });
 
 /**
- * Minimal Wallet Standard wallet, registered before the app boots (it answers
- * the app's `wallet-standard:app-ready` event). Connect resolves with one
- * devnet account; nothing is ever signed for real.
+ * Minimal injected EVM wallet, announced over EIP-6963 before the app boots. Connect resolves with one account;
+ * nothing is ever signed for real.
  */
 function registerTestWallet() {
+  const account = "0x00000000000000000000000000000000000a11ce";
   const listeners: Record<string, ((arg: unknown) => void)[]> = {};
-  const emit = (event: string, arg: unknown) => (listeners[event] ?? []).forEach((fn) => fn(arg));
-  const publicKey = new Uint8Array(32).fill(7);
-  const account = {
-    address: "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
-    publicKey,
-    chains: ["solana:devnet"],
-    features: ["solana:signTransaction", "solana:signMessage"],
+  const provider = {
+    request: async ({ method }: { method: string }) => {
+      if (method === "eth_requestAccounts" || method === "eth_accounts") return [account];
+      if (method === "eth_chainId") return "0x4cef52"; // Arc testnet
+      if (method === "net_version") return "5042002";
+      if (method === "personal_sign") return `0x${"11".repeat(65)}`;
+      if (method === "wallet_switchEthereumChain" || method === "wallet_addEthereumChain") return null;
+      throw new Error(`unsupported ${method}`);
+    },
+    on: (event: string, fn: (arg: unknown) => void) => void (listeners[event] ??= []).push(fn),
+    removeListener: (event: string, fn: (arg: unknown) => void) => void (listeners[event] = (listeners[event] ?? []).filter((f) => f !== fn)),
   };
-  const wallet: Record<string, unknown> & { accounts: unknown[] } = {
-    version: "1.0.0",
+  const info = {
+    uuid: "6f1d7a52-0000-4000-8000-000000000001",
     name: "Mimir Test Wallet",
     icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxIDEiLz4=",
-    chains: ["solana:devnet"],
-    accounts: [],
-    features: {
-      "standard:connect": {
-        version: "1.0.0",
-        connect: async () => {
-          wallet.accounts = [account];
-          emit("change", { accounts: wallet.accounts });
-          return { accounts: wallet.accounts };
-        },
-      },
-      "standard:disconnect": {
-        version: "1.0.0",
-        disconnect: async () => {
-          wallet.accounts = [];
-          emit("change", { accounts: [] });
-        },
-      },
-      "standard:events": {
-        version: "1.0.0",
-        on: (event: string, fn: (arg: unknown) => void) => {
-          (listeners[event] ??= []).push(fn);
-          return () => {
-            listeners[event] = (listeners[event] ?? []).filter((f) => f !== fn);
-          };
-        },
-      },
-      "solana:signTransaction": {
-        version: "1.0.0",
-        supportedTransactionVersions: ["legacy", 0],
-        signTransaction: async (...inputs: { transaction: Uint8Array }[]) =>
-          inputs.map((input) => ({ signedTransaction: input.transaction })),
-      },
-      "solana:signMessage": {
-        version: "1.0.0",
-        signMessage: async (...inputs: { message: Uint8Array }[]) =>
-          inputs.map((input) => ({ signedMessage: input.message, signature: new Uint8Array(64) })),
-      },
-    },
+    rdns: "xyz.mimirmarkets.test",
   };
-  const register = (api: { register: (w: unknown) => void }) => api.register(wallet);
-  window.addEventListener("wallet-standard:app-ready", (event) => register((event as CustomEvent).detail));
+  const announce = () => window.dispatchEvent(new CustomEvent("eip6963:announceProvider", { detail: Object.freeze({ info, provider }) }));
+  window.addEventListener("eip6963:requestProvider", announce);
+  announce();
 }

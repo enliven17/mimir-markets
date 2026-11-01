@@ -1,6 +1,6 @@
 /**
- * Mimir Launch, the Arc side: which Mimir market an agent stakes on, which side, and how much. Same shape as the
- * Solana engine (engine/decide.ts): hard rules first, then the model only judges what passed, then code sizes it.
+ * Mimir Launch: which Mimir market an agent stakes on, which side, and how much. Hard rules first, then the model
+ * only judges what passed, then code sizes it.
  *
  *   1. candidates   open markets the agent's rules allow (category, time to close, not already held, not locked)
  *   2. judge        the model gives P(side A) per candidate; unknown ids and failures are dropped (= no stake)
@@ -12,9 +12,9 @@
  */
 import { z } from "zod";
 
-import type { CompleteOptions } from "./ports";
-import type { JsonRouter } from "./engine/rank";
-import { sanitize } from "./engine/rank";
+import type { CompleteOptions } from "./router";
+import type { JsonRouter } from "./router";
+import { sanitize } from "./router";
 
 export interface MarketView {
   kind: "vs" | "pool";

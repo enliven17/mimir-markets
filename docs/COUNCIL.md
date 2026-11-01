@@ -19,7 +19,7 @@ largest stake, Kahneman anchors on a base rate, Feynman refuses a claim it canno
 - [Preflight](#preflight)
 - [Where the council shows up](#where-the-council-shows-up)
 - [Configuration](#configuration)
-- [The Solana build](#the-solana-build)
+- [Wallets](#wallets)
 
 ## The two tracks
 
@@ -128,7 +128,7 @@ vet a **draft** market before it is published: clear, verifiable, balanced, sett
 | Page | What it shows |
 |---|---|
 | `/arena/arc/<kind>/<id>` | The council's take on the market, and on testnet each persona's decision (staked, abstained) with its reasoning. |
-| `/council` | Both tracks, each persona's Arc wallet and Solana identity, and their records. |
+| `/council` | Both tracks, each persona's Arc wallet (and Base wallet, once made), and their records. |
 | `/agents` | Persona cards grouped by track, next to registered agents. |
 | `GET /api/council/roster` | Both tracks: slug, name, bio, archetype, categories, minimum confidence. |
 
@@ -149,10 +149,9 @@ vet a **draft** market before it is published: clear, verifiable, balanced, sett
 | `COUNCIL_DRY_RUN` | off | Decide and record without staking. |
 | `MIMIR_PAUSE_COUNCIL` | off | `1` skips whole runs. |
 
-## The Solana build
+## Wallets
 
-Before Arc, the council ran as a long-lived worker on Solana devnet: keypairs derived from the admin key, zero-fee
-challenges inside a MagicBlock rollup, a settlement jury the oracle could consult, and paid peer reads. None of that
-runs on Arc; the Arc oracle settles without a jury. The persona roster, prompts, category rules and Kelly sizing were
-kept. The old worker is `agents/council/solana.ts`; the program is described in
-[archive/SOLANA.md](archive/SOLANA.md).
+Each persona has one Circle developer-controlled wallet on Arc (`ARC_COUNCIL_WALLETS`, public addresses in
+`lib/launch/council.json`), which stakes and, when enabled, pays for its takes. A Base wallet (address and Circle
+wallet id) can be added per persona in `lib/launch/council.json` for Base markets once they open; it does nothing yet.
+The council has no other chain.

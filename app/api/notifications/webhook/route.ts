@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   const address = normalizeWallet(body.address);
   const url = typeof body.url === "string" ? body.url.trim() : "";
   const signedAt = Number(body.signedAt);
-  if (!address) return NextResponse.json({ error: "address must be an EVM address or a Solana key" }, { status: 400 });
+  if (!address) return NextResponse.json({ error: "address must be an EVM address" }, { status: 400 });
   if (url && (!url.startsWith("https://") || url.length > 2048 || checkUrl(url))) {
     return NextResponse.json({ error: "url must be a public https URL" }, { status: 400 });
   }

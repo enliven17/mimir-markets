@@ -15,7 +15,6 @@ import type { AdminOverview, Health } from "@/lib/server/admin-overview";
 import { Card, Table } from "./ui";
 
 const REFRESH_MS = 30_000;
-const ARC_SOLANA_CLUSTER = process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() || "devnet";
 const SESSION_KEY = "mimir-admin-session";
 const BTN = "rounded-full bg-coral px-5 py-2.5 text-[14px] font-medium text-[#160909] disabled:opacity-60";
 const TONE: Record<Health, string> = { ok: "text-win", warn: "text-pending", down: "text-danger" };
@@ -237,7 +236,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="People on Solana" note="app records">
+        <Card title="People" note="app records">
           {db ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="Wallets linked to Arc" value={db.arcAccounts} />
@@ -248,8 +247,6 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
               <Stat label="Baskets" value={db.baskets} />
               <Stat label="Basket followers" value={db.subscribers} />
               <Stat label="Copy followers" value={db.copyFollowers} />
-              <Stat label="Campaign sign-ups" value={db.campaign} />
-              <Stat label="Solana-era markets" value={db.legacyClaims} />
             </div>
           ) : (
             <p className="m-0 text-[13px] text-danger">{d.database.error}</p>
@@ -314,8 +311,7 @@ function Dashboard({ d, error, token }: { d: AdminOverview; error: string | null
               ["Backend", d.backend.ok ? "up" : "down", d.backend.ok ? `${d.backend.ms} ms` : d.backend.error],
               ["App records", d.database.ok ? "up" : "down", d.database.ok ? `${d.database.ms} ms` : d.database.error],
               ["Arc RPC", d.chain.head.ok ? "up" : "down", d.chain.head.ok ? `block ${d.chain.head.data} · ${d.chain.head.ms} ms` : d.chain.head.error],
-              [`Solana RPC (site, ${ARC_SOLANA_CLUSTER})`, d.solana.devnet.ok ? "up" : "down", d.solana.devnet.ok ? `slot ${d.solana.devnet.data}` : d.solana.devnet.error],
-              ["Solana RPC (mainnet)", d.solana.mainnet.ok ? "up" : "down", d.solana.mainnet.ok ? `slot ${d.solana.mainnet.data}` : d.solana.mainnet.error],
+              ["Base RPC", d.base.head.ok ? "up" : "down", d.base.head.ok ? `block ${d.base.head.data}` : d.base.head.error],
               ["Telegram", d.telegram.ok ? d.telegram.data?.bot : "down", d.telegram.ok ? `${d.telegram.data?.webhook ? "webhook" : "polling"} · ${d.telegram.data?.pending} pending${d.telegram.data?.lastError ? ` · ${d.telegram.data.lastError}` : ""}` : d.telegram.error],
             ]}
           />

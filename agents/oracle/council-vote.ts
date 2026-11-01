@@ -3,8 +3,7 @@
  *
  * During settlement the oracle asks each eligible council persona for a
  * verdict on the claim's evidence and tallies the votes into the proposal.
- * On Solana the jury runs in-process (the source port bought votes over x402;
- * here there is no paywall), with each persona's own bias prompt.
+ * The jury runs in-process, with each persona's own bias prompt.
  *
  * Eligibility: evidence-reasoning personas (a promptBias) from both tracks
  * (COUNCIL_TRACK narrows it to one), specialists only in their exact category
@@ -24,15 +23,8 @@
  * against the oracle's independent, evidence-only reference report, which
  * never sees their reports. Positive scorers split a USDC bonus pool.
  */
-import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  createTransferInstruction,
-  getAssociatedTokenAddressSync,
-} from "@solana/spl-token";
 import { COUNCIL_PERSONAS, activePersonas, type PersonaSpec } from "../council/personas";
 import type { Verdict } from "../../lib/verdict";
-import { USDC_MINT } from "../../lib/solana/config";
 import { evaluateClaimAsPersona } from "../council/shared/persona-llm";
 import { categoryMatches } from "../council/shared/persona-rules";
 import { throttledLLM, type PromptClaim } from "./evaluate";
@@ -44,7 +36,7 @@ export interface CouncilVote {
   displayName: string;
   verdict: Verdict;
   confidence: number;
-  /** Persona wallet (base58), the bonus transfer target. */
+  /** Persona wallet address. */
   walletAddress?: string;
   /** q_t = P(CHALLENGERS_WIN) implied by this report (self-resolving mode). */
   probability?: number;
@@ -184,7 +176,7 @@ async function jurorVote(
 export async function gatherCouncilVerdict(args: {
   claim: PromptClaim;
   evidence: string;
-  /** slug → persona wallet (base58), for bonus transfers. */
+  /** slug → persona wallet address. */
   wallets: ReadonlyMap<string, string>;
   /** Slugs holding a position in this claim. */
   staked: ReadonlySet<string>;
@@ -228,49 +220,4 @@ export async function gatherCouncilVerdict(args: {
   const result = tallyVotes(votes, quorum);
   if (!result) return null;
   return { ...result, votes, excluded, ...(sr ? { qHistory } : {}) };
-}
-
-export interface BonusReceipt {
-  slug: string;
-  bonusUsdc: number;
-  sig: string | null;
-}
-
-/**
- * Pay the cross-entropy bonuses as USDC transfers from the oracle's token
- * account. Each transfer is best-effort and never affects the settlement.
- */
-export async function payCouncilBonuses(
-  connection: Connection,
-  payer: Keypair,
-  votes: CouncilVote[],
-  poolUsdc: number,
-): Promise<BonusReceipt[]> {
-  const bonuses = allocateBonus(votes.map((v) => v.score ?? 0), poolUsdc);
-  const from = getAssociatedTokenAddressSync(USDC_MINT, payer.publicKey, true);
-  const receipts: BonusReceipt[] = [];
-  for (let i = 0; i < votes.length; i++) {
-    const bonus = bonuses[i];
-    const vote = votes[i];
-    if (bonus <= 0) continue;
-    vote.bonusUsdc = bonus;
-    if (!vote.walletAddress) {
-      receipts.push({ slug: vote.slug, bonusUsdc: bonus, sig: null });
-      continue;
-    }
-    try {
-      const owner = new PublicKey(vote.walletAddress);
-      const to = getAssociatedTokenAddressSync(USDC_MINT, owner, true);
-      const tx = new Transaction().add(
-        createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, to, owner, USDC_MINT),
-        createTransferInstruction(from, to, payer.publicKey, BigInt(Math.round(bonus * 1e6))),
-      );
-      const sig = await sendAndConfirmTransaction(connection, tx, [payer]);
-      receipts.push({ slug: vote.slug, bonusUsdc: bonus, sig });
-    } catch (err) {
-      console.warn(`[council-jury] bonus to ${vote.slug} failed:`, err instanceof Error ? err.message : err);
-      receipts.push({ slug: vote.slug, bonusUsdc: bonus, sig: null });
-    }
-  }
-  return receipts;
 }

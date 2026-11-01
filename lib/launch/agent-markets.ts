@@ -10,8 +10,8 @@ import { z } from "zod";
 import { draftProblem, scoreDraft, type DraftClaim } from "../../agents/market-creator/draft";
 import { filterDuplicates, type ClaimSignature } from "../../agents/market-creator/dedupe";
 import { espnSummaryUrl } from "../espn";
-import type { CompleteOptions } from "./ports";
-import { sanitize } from "./engine/rank";
+import type { CompleteOptions } from "./router";
+import { sanitize } from "./router";
 
 export { AGENT_MARKETS_PER_DAY_MAX } from "./agent-markets-limit";
 /** Long enough for people and agents to take the other side; short enough to settle soon. */
@@ -107,7 +107,7 @@ const asDraftClaim = (d: AgentMarketDraft): DraftClaim => ({
   resolutionUrl: d.resolutionUrl,
   settlementRule: `Settled from the linked source as of the deadline, ${new Date(d.deadline * 1000).toISOString()} UTC.`,
   deadline: d.deadline,
-  source: "flash",
+  source: "coingecko",
   label: d.question.slice(0, 60),
 });
 

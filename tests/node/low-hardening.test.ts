@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import { stripLinks } from "../../lib/verdict";
 import { impersonatesReserved, isReservedAgentId } from "../../lib/agents/reserved";
-import { publicRpcFor } from "../../lib/agents/public-rpc";
 
 test("stripLinks removes links but not code words or resolver paths", () => {
   assert.equal(stripLinks("claim at evil.xyz/claim now"), "claim at [link removed] now");
@@ -17,12 +16,6 @@ test("look-alike and leet spellings of house names are reserved", () => {
   assert.equal(impersonatesReserved("The Oracle"), true);
   assert.equal(impersonatesReserved("Mimir Official Bot"), true);
   assert.equal(impersonatesReserved("Alice's momentum bot"), false);
-});
-
-test("agents get the app RPC only when it is a known public host", () => {
-  assert.equal(publicRpcFor("base", { NEXT_PUBLIC_SOLANA_RPC: "https://x.solana-mainnet.quiknode.pro/SECRET/" }, true), "https://api.mainnet-beta.solana.com");
-  assert.equal(publicRpcFor("base", { NEXT_PUBLIC_SOLANA_RPC: "https://api.mainnet-beta.solana.com" }, true), "https://api.mainnet-beta.solana.com");
-  assert.equal(publicRpcFor("base", { AGENT_PUBLIC_RPC: "https://rpc.example.org" }, true), "https://rpc.example.org");
 });
 
 test("a flood of client keys cannot evict a deploy-wide cap in memory mode", async () => {

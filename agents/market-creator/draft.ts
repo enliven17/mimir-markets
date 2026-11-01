@@ -10,7 +10,7 @@
 import { mentionsPastDay } from "../../lib/past-date";
 import { computeClaimQuality, type ClaimQualityResult } from "../../lib/claimQuality";
 
-export type DraftSource = "flash" | "espn" | "stocks" | "polymarket" | "ansem";
+export type DraftSource = "coingecko" | "espn" | "stocks" | "polymarket";
 
 export interface DraftClaim {
   question: string;

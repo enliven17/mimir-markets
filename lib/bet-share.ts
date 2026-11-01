@@ -1,9 +1,9 @@
 /**
- * Sharing a bet on X, the same way as an invite (lib/invite-share.ts): X's composer takes text and one link, and
- * the link /b/<kind>-<id>?side=N carries the X card (/api/og/bet) showing the market and the side taken.
+ * Sharing a bet on X: X's composer takes text and one link, and the link /b/<kind>-<id>?side=N carries the X card
+ * (/api/og/bet) showing the market and the side taken.
  * Nothing personal goes into the link or the card; the amount is only in the caption the user can edit.
  */
-import { SITE_URL } from "./invite-share";
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimirmarkets.xyz").replace(/\/$/, "");
 
 export type BetKind = "vs" | "pool";
 /** Bump when the card design changes, so X fetches the new image. */

@@ -16,7 +16,7 @@ import { callLLM, extractJson, pickGeminiModel, type CallLLMOptions } from "../.
 import { INJECTION_GUARD, fenceUntrusted } from "../../../lib/prompt-safety";
 import { isVerdict, type Verdict } from "../../../lib/verdict";
 import { stripResolverFragment } from "../../../lib/resolver-spec";
-import { fromUsdcUnits } from "../../../lib/solana/config";
+import { fromUsdcUnits } from "../../../lib/market-codes";
 import type { PersonaSpec } from "../personas";
 import type { CouncilClaim } from "./types";
 
@@ -115,7 +115,7 @@ export function buildPersonaPrompt(
       ? "The deadline has passed. Decide which side the evidence shows actually won."
       : "The deadline is still ahead. Decide which side is likely to win when the claim is resolved.";
 
-  return `You are ${persona.displayName}, a persona on the Mimir Council, an AI jury for USDC prediction markets on Solana.
+  return `You are ${persona.displayName}, a persona on the Mimir Council, an AI jury for USDC prediction markets on Arc.
 ${bias}
 ${INJECTION_GUARD}
 

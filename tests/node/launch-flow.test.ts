@@ -1,32 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getFunctionName } from "convex/server";
-import nacl from "tweetnacl";
-import bs58 from "bs58";
+import { encodeAbiParameters, encodeEventTopics, getAddress, keccak256, type Hex } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-import { create, launch, CreateBody, BASE_LAUNCH_FEE_WEI, LAUNCH_FEE_LAMPORTS, METEORA_LAUNCH_FEE_LAMPORTS } from "../../lib/launch/flow";
+import { create, CreateBody } from "../../lib/launch/flow";
 import { openKey } from "../../lib/launch/byok";
 import { isFreshLaunchSig, launchMessage } from "../../lib/launch/auth";
-import { verifyAgentSignature } from "../../lib/agents/signature";
+import { verifyWalletSignature } from "../../lib/agents/signature";
+import { ARGUS, ARGUS_ABI } from "../../lib/launch/argus";
+import { CLANKER_EVENTS_ABI, CLANKER_FACTORY } from "../../lib/launch/base/clanker";
+import { prepareTokenLaunch, recordTokenLaunch, TokenPrepareBody, verifyTokenLaunch, type ReceiptReader } from "../../lib/launch/token";
 
 process.env.LAUNCH_BYOK_SECRET = "x".repeat(40);
-const OWNER = "4aZvr5rReMZVp3NkAa31SaoXRRHGgVChbpaF5MyWTiy7";
-const SIG = "5".repeat(88);
+const OWNER = "0x00000000000000000000000000000000000a11ce";
+const STRANGER = "0x00000000000000000000000000000000000bad00";
 
 /** A Convex client that answers the launch functions from one in-memory agent. */
 function fakeCx() {
   const calls: Array<[string, Record<string, unknown>]> = [];
   let agent: Record<string, any> | null = null;
   const handlers: Record<string, (a: any) => unknown> = {
-    "launch:createPending": (a) => {
-      agent = { ...a, status: "pending", launch: { fundLamports: a.fundLamports, description: a.description, image: a.image, ...(a.pad ? { pad: a.pad } : {}) } };
+    "launch:create": (a) => {
+      const { secret: _s, ...rest } = a;
+      agent = { ...rest, status: "live" };
       return { ok: true, slug: a.slug };
     },
-    "launch:forLaunch": () => agent && { owner: agent.owner, venue: agent.venue ?? "solana", name: agent.name, ticker: agent.ticker, avatarSeed: agent.avatarSeed, status: agent.status, mint: agent.mint ?? null, solana: agent.solana ?? null, robinhood: agent.robinhood ?? null, base: agent.base ?? null, launch: agent.launch },
-    "launch:claimLaunch": () => (agent!.launch.claimedAt ? false : ((agent!.launch.claimedAt = 1), true)),
-    "launch:releaseLaunch": () => void (agent!.launch.claimedAt = undefined),
-    "launch:recordLaunch": (a) => void Object.assign(agent!, { mint: a.mint, status: "live" }),
-    "launch:logEvent": () => null,
+    "launch:forOwner": () => agent && { owner: agent.owner, name: agent.name, ticker: agent.ticker, avatarSeed: agent.avatarSeed, status: agent.status, uid: agent.uid, arc: agent.arc, token: agent.token ?? null },
+    "launch:recordToken": (a) => {
+      if (agent!.token) return agent!.token.address === a.token.address ? "ok" : "has-token";
+      agent!.token = a.token;
+      return "ok";
+    },
   };
   const run = async (f: any, a: any) => {
     const name = getFunctionName(f);
@@ -37,24 +42,27 @@ function fakeCx() {
 }
 
 const body = (over: Record<string, unknown> = {}) => CreateBody.parse({
-  name: "Njord", ticker: "NJORD", thesis: "Back the favourite.", seedSol: 0.5,
-  brain: { kind: "mimir" }, trading: { enabled: false }, markets: { enabled: true }, ...over,
+  name: "Njord", ticker: "NJORD", thesis: "Back the favourite.",
+  brain: { kind: "mimir" }, markets: { enabled: true }, ...over,
 });
-const wallets = { solana: async () => ({ id: "w1", address: "SoLwallet111" }), arc: async () => ({ id: "c1", address: "0xabc" }) };
+const wallets = { arc: async () => ({ id: "c1", address: "0x00000000000000000000000000000000000000ab" }) };
 
-test("create: stores a pending agent with both wallets and asks for seed + launch fee", async () => {
+test("create: free and live at once, with its Arc wallet; no funding step", async () => {
   const f = fakeCx();
   const r = await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
   assert.ok(r.ok);
-  assert.equal(r.fundLamports, 500_000_000n + LAUNCH_FEE_LAMPORTS);
+  assert.deepEqual(r, { ok: true, id: "njord", arc: "0x00000000000000000000000000000000000000ab" });
   const a = f.agent()!;
-  assert.deepEqual([a.solana.address, a.arc.address, a.brain.kind, a.markets.enabled, a.trading.enabled], ["SoLwallet111", "0xabc", "mimir", true, false]);
+  assert.equal(a.status, "live");
+  assert.deepEqual([a.arc.address, a.brain.kind, a.markets.enabled], ["0x00000000000000000000000000000000000000ab", "mimir", true]);
   assert.equal(a.markets.rules.minEdge, 0.08);
+  assert.deepEqual(f.calls.map(([n]) => n), ["launch:create"], "one write, nothing to fund or verify");
+  for (const k of ["fundLamports", "trading", "solana", "launch", "allocation", "venue"]) assert.ok(!(k in a), k);
 });
 
-test("create: a BYOK key is checked, then sealed to the agent's uid; a dead key makes no wallets", async () => {
+test("create: a BYOK key is checked, then sealed to the agent's uid; a dead key makes no wallet", async () => {
   let made = 0;
-  const w = { solana: async () => (made++, { id: "w", address: "a" }), arc: wallets.arc };
+  const w = { arc: async () => (made++, { id: "w", address: "0xa" }) };
   const byok = { brain: { kind: "byok", provider: "openai", apiKey: "sk-test-1234567890abcdef" } };
   const bad = await create(fakeCx().cx, { wallets: w, checkKey: async () => "bad-key" as const }, OWNER, body(byok));
   assert.equal(bad.ok, false);
@@ -67,145 +75,122 @@ test("create: a BYOK key is checked, then sealed to the agent's uid; a dead key 
   assert.equal(openKey(a.uid, a.brain), "sk-test-1234567890abcdef");
 });
 
-test("body: nothing turned on is refused", () => {
+test("body: nothing turned on is refused; old token and funding fields are ignored", () => {
   assert.equal(CreateBody.safeParse({ ...body(), markets: { enabled: false } }).success, false);
+  const parsed = CreateBody.parse({ ...body(), seedSol: 1, chain: "solana", trading: { enabled: true } });
+  assert.ok(!("seedSol" in parsed) && !("chain" in parsed) && !("trading" in parsed));
 });
 
-test("launch: verifies funding, mints once, idempotent after", async () => {
-  const f = fakeCx();
-  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
-  let mints = 0;
-  const deps = {
-    verify: async (_c: unknown, a: { minLamports: bigint }) => (assert.equal(a.minLamports, 510_000_000n), { ok: true as const, lamports: a.minLamports }),
-    conn: {} as any,
-    launchToken: async () => (mints++, { mint: "MiNt", sig: "sig", metadataUri: "ipfs://x" }),
-    image: async () => "data:image/png;base64,AA==",
-  };
-  assert.equal((await launch(f.cx, deps, "someoneElse", "njord", SIG)).ok, false);
-  const r = await launch(f.cx, deps, OWNER, "njord", SIG);
-  assert.deepEqual([r.ok, r.ok && r.mint], [true, "MiNt"]);
-  assert.ok((await launch(f.cx, deps, OWNER, "njord", SIG)).ok);
-  assert.equal(mints, 1);
+test("create: a council persona's ticker is refused before anything is made", async () => {
+  let made = 0;
+  const r = await create(fakeCx().cx, { wallets: { arc: async () => (made++, { id: "w", address: "0xa" }) }, checkKey: async () => "ok" as const }, OWNER, body({ ticker: "SOCRATES" }));
+  assert.equal(r.ok, false);
+  assert.equal(made, 0);
 });
 
-test("launch: a failure that did not send releases the claim so the owner can retry", async () => {
-  const f = fakeCx();
-  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
-  const deps = { verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "x", launchToken: async () => { throw new Error("rpc down"); } };
-  assert.equal((await launch(f.cx, deps, OWNER, "njord", SIG)).ok, false);
-  assert.equal(f.agent()!.launch.claimedAt, undefined);
-  const amb = { ...deps, launchToken: async () => { throw Object.assign(new Error("?"), { name: "AmbiguousSendError" }); } };
-  assert.equal((await launch(f.cx, amb, OWNER, "njord", SIG)).ok, false);
-  assert.equal(f.agent()!.launch.claimedAt, 1);
-});
-
-test("auth: the signed message binds action, agent and body; stale signatures are refused", () => {
-  const kp = nacl.sign.keyPair();
-  const owner = bs58.encode(kp.publicKey);
-  const m = { action: "launch" as const, owner, agent: "njord", bodySha256: "ab", signedAt: Date.now() };
-  const signature = bs58.encode(nacl.sign.detached(new TextEncoder().encode(launchMessage(m)), kp.secretKey));
-  assert.ok(verifyAgentSignature({ address: owner, message: launchMessage(m), signature }));
-  assert.ok(!verifyAgentSignature({ address: owner, message: launchMessage({ ...m, agent: "odin" }), signature }));
-  assert.ok(!verifyAgentSignature({ address: owner, message: launchMessage({ ...m, action: "status" }), signature }));
+test("auth: the signed message binds action, agent and body; stale signatures are refused", async () => {
+  const acct = privateKeyToAccount(generatePrivateKey());
+  const m = { action: "token" as const, owner: acct.address, agent: "njord", bodySha256: "ab", signedAt: Date.now() };
+  const signature = await acct.signMessage({ message: launchMessage(m) });
+  assert.ok(await verifyWalletSignature({ address: acct.address, message: launchMessage(m), signature }));
+  assert.ok(!(await verifyWalletSignature({ address: acct.address, message: launchMessage({ ...m, agent: "odin" }), signature })));
+  assert.ok(!(await verifyWalletSignature({ address: acct.address, message: launchMessage({ ...m, action: "status" }), signature })));
   assert.ok(!isFreshLaunchSig(Date.now() - 6 * 60_000));
 });
 
-const PAYOUT = "0x00000000000000000000000000000000000beef1";
-const rhWallets = { ...wallets, robinhood: async () => ({ id: "rh1", address: "0x00000000000000000000000000000000000a9e17" }) };
+// ───────────────────────────── the owner's token launch
 
-test("robinhood: needs the owner's Robinhood address, makes an EVM wallet and asks for seed + fee in wei", async () => {
-  assert.equal(CreateBody.safeParse({ ...body(), chain: "robinhood" }).success, false);
+const TOKEN = "0x9BBde5ef54604e06524605b42b20120Ab366E8DD";
+const SPLITTER = "0xAb7AC90eC5f1fcE657265E03469671fb0A71309A";
+const TX = keccak256("0x01");
+
+function argusLogs(creator: string, symbol = "NJORD") {
+  const poolId: Hex = keccak256("0x02");
+  return [
+    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "TokenCreated", args: { token: TOKEN, creator: creator as Hex } }) as [Hex, ...Hex[]],
+      data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "bytes32" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "string" }], ["Njord", symbol, poolId, "ipfs://x", "", "", ""]) },
+    { address: ARGUS.portal, topics: encodeEventTopics({ abi: ARGUS_ABI, eventName: "PartsDeployed", args: { token: TOKEN } }) as [Hex, ...Hex[]],
+      data: encodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "address" }], ["0x1111111111111111111111111111111111111111", "0x2Eab7E25EdACd4c3ba8C378c0Bb20eAA6E046044", SPLITTER]) },
+  ];
+}
+
+function clankerLogs(admin: string, sender: string, symbol = "NJORD") {
+  return [{
+    address: CLANKER_FACTORY,
+    topics: encodeEventTopics({ abi: CLANKER_EVENTS_ABI, eventName: "TokenCreated", args: { tokenAddress: TOKEN, tokenAdmin: admin as Hex } }) as [Hex, ...Hex[]],
+    data: encodeAbiParameters(
+      [{ type: "address" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "int24" }, { type: "address" }, { type: "bytes32" }, { type: "address" }, { type: "address" }, { type: "address" }, { type: "uint256" }, { type: "address[]" }],
+      [sender as Hex, "ipfs://x", "Njord", symbol, "{}", '{"interface":"Mimir","id":"njord"}', 0, TOKEN, keccak256("0x03"), "0x4200000000000000000000000000000000000006", TOKEN, TOKEN, 0n, []],
+    ),
+  }];
+}
+
+const reader = (from: string, logs: ReturnType<typeof argusLogs> | ReturnType<typeof clankerLogs>, status: "success" | "reverted" = "success"): ReceiptReader => ({
+  getTransaction: async () => ({ from: from as Hex }),
+  getTransactionReceipt: async () => ({ status, logs }),
+});
+
+test("verify: an Argus launch from the owner, naming the owner as creator, is the agent's token (with its splitter)", async () => {
+  const ok = await verifyTokenLaunch(reader(OWNER, argusLogs(OWNER)), { chain: "arc", tx: TX, owner: OWNER, ticker: "NJORD" });
+  assert.deepEqual(ok, { ok: true, token: { chain: "arc", address: getAddress(TOKEN), splitter: getAddress(SPLITTER), launchTx: TX } });
+});
+
+test("verify: refused when someone else sent it, someone else is creator, the symbol differs, or it reverted", async () => {
+  const v = (r: ReceiptReader) => verifyTokenLaunch(r, { chain: "arc", tx: TX, owner: OWNER, ticker: "NJORD" });
+  assert.equal((await v(reader(STRANGER, argusLogs(OWNER)))).ok, false, "sender");
+  assert.equal((await v(reader(OWNER, argusLogs(STRANGER)))).ok, false, "creator");
+  assert.equal((await v(reader(OWNER, argusLogs(OWNER, "ODIN")))).ok, false, "symbol");
+  assert.equal((await v(reader(OWNER, argusLogs(OWNER), "reverted"))).ok, false, "reverted");
+  assert.equal((await v(reader(OWNER, clankerLogs(OWNER, OWNER)))).ok, false, "a Clanker log is not an Argus launch");
+  const missing = await v({ getTransaction: async () => { throw new Error("not found"); }, getTransactionReceipt: async () => { throw new Error("not found"); } });
+  assert.equal(missing.ok, false);
+});
+
+test("verify: a Clanker launch needs the owner as sender and token admin", async () => {
+  const v = (from: string, logs: ReturnType<typeof clankerLogs>) => verifyTokenLaunch(reader(from, logs), { chain: "base", tx: TX, owner: OWNER, ticker: "NJORD" });
+  assert.deepEqual(await v(OWNER, clankerLogs(OWNER, OWNER)), { ok: true, token: { chain: "base", address: getAddress(TOKEN), launchTx: TX } });
+  assert.equal((await v(OWNER, clankerLogs(STRANGER, OWNER))).ok, false, "admin");
+  assert.equal((await v(STRANGER, clankerLogs(OWNER, STRANGER))).ok, false, "sender");
+  assert.equal((await v(OWNER, clankerLogs(OWNER, OWNER).map((l) => ({ ...l, address: STRANGER as Hex })))).ok, false, "not the factory");
+});
+
+test("record: only the owner, verified on chain, once; the same token again is fine", async () => {
   const f = fakeCx();
-  const r = await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "robinhood", payout: PAYOUT }));
+  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
+  const readers = { arc: reader(OWNER, argusLogs(OWNER)), base: reader(OWNER, clankerLogs(OWNER, OWNER)) };
+  assert.equal((await recordTokenLaunch(f.cx, readers, STRANGER, "njord", { chain: "arc", tx: TX })).ok, false);
+  const r = await recordTokenLaunch(f.cx, readers, OWNER, "njord", { chain: "arc", tx: TX });
   assert.ok(r.ok);
-  assert.equal(r.fundLamports, 500_000_000_000_000_000n + 1_000_000_000_000_000n);
-  const a = f.agent()!;
-  assert.equal(a.solana, undefined);
-  assert.deepEqual(a.robinhood, { walletId: "rh1", address: "0x00000000000000000000000000000000000a9e17", payout: "0x00000000000000000000000000000000000bEEf1" });
+  assert.deepEqual(f.agent()!.token, { chain: "arc", address: getAddress(TOKEN), splitter: getAddress(SPLITTER), launchTx: TX });
+  assert.ok((await recordTokenLaunch(f.cx, readers, OWNER, "njord", { chain: "arc", tx: TX })).ok);
 });
 
-test("robinhood: launch verifies ETH from the payout address and launches on Pons, not pump.fun", async () => {
+test("prepare: Argus needs a tax; the launch tx is built for the owner's wallet as creator, never the agent's", async () => {
+  assert.equal(TokenPrepareBody.safeParse({ chain: "arc" }).success, false);
+  assert.equal(TokenPrepareBody.safeParse({ chain: "arc", argus: { buyTaxBps: 0, sellTaxBps: 0 } }).success, false);
   const f = fakeCx();
-  await create(f.cx, { wallets: rhWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "robinhood", payout: PAYOUT }));
-  let pumped = 0;
-  let seen: { from: string; to: string } | null = null;
+  await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());
+  let creator = "";
+  let owner = "";
   const deps = {
-    verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "data:image/png;base64,AA==",
-    launchToken: async () => (pumped++, { mint: "x", sig: "x", metadataUri: "x" }),
-    robinhood: () => ({
-      verify: async (_c: unknown, a: { from: string; to: string }) => ((seen = a), { ok: true as const, wei: 1n }),
-      client: {} as any,
-      launchToken: async () => ({ mint: "0x0000000000000000000000000000000000000Bee", sig: "0xhash", metadataUri: "ipfs://logo" }),
-    }),
+    image: async () => "data:image/png;base64,AA==",
+    pin: async () => "ipfs://img",
+    argus: async (c: string, _uid: string, params: { p: { creatorBps: number } }) => {
+      creator = c;
+      assert.equal(params.p.creatorBps, 10000);
+      return { data: "0xabcd" as Hex, token: TOKEN as Hex };
+    },
+    arcChainId: 5042,
+    clanker: async (a: { owner: string }) => ((owner = a.owner), { to: CLANKER_FACTORY, data: "0x1234" as Hex, value: 0n, expectedAddress: TOKEN as Hex }),
+    site: "https://mimir.test",
   };
-  const r = await launch(f.cx, deps, OWNER, "njord", `0x${"a".repeat(64)}`);
-  assert.deepEqual([r.ok, r.ok && r.mint, pumped], [true, "0x0000000000000000000000000000000000000Bee", 0]);
-  assert.deepEqual(seen, { hash: `0x${"a".repeat(64)}`, from: "0x00000000000000000000000000000000000bEEf1", to: "0x00000000000000000000000000000000000a9e17", minWei: 501_000_000_000_000_000n, wallet: "Robinhood wallet" });
-});
-
-test("meteora: needs the server's config, asks for the DBC rent, and launches on Meteora", async () => {
-  const prev = process.env.LAUNCH_METEORA_CONFIG;
-  delete process.env.LAUNCH_METEORA_CONFIG;
-  let made = 0;
-  const w = { solana: async () => (made++, { id: "w1", address: "SoLwallet111" }), arc: wallets.arc };
-  const off = await create(fakeCx().cx, { wallets: w, checkKey: async () => "ok" as const }, OWNER, body({ pad: "meteora" }));
-  assert.equal(off.ok, false);
-  assert.equal(made, 0, "no wallets before the config check");
-  process.env.LAUNCH_METEORA_CONFIG = "9Sv2PBJWjUaCRkz7erUTGTyFmVG4EwiuVpB3Roc17hQq";
-  try {
-    const f = fakeCx();
-    const r = await create(f.cx, { wallets: w, checkKey: async () => "ok" as const }, OWNER, body({ pad: "meteora" }));
-    assert.ok(r.ok);
-    assert.equal(r.fundLamports, 500_000_000n + METEORA_LAUNCH_FEE_LAMPORTS);
-    let pad: unknown;
-    const deps = { verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "x", launchToken: async (a: { pad?: string }) => ((pad = a.pad), { mint: "Mint1", sig: SIG, metadataUri: "https://u" }) };
-    const l = await launch(f.cx, deps, OWNER, r.id, SIG);
-    assert.ok(l.ok);
-    assert.equal(pad, "meteora");
-  } finally {
-    if (prev === undefined) delete process.env.LAUNCH_METEORA_CONFIG;
-    else process.env.LAUNCH_METEORA_CONFIG = prev;
-  }
-});
-
-const baseWallets = { ...wallets, base: async () => ({ id: "b1", address: "0x00000000000000000000000000000000000ba5e1" }) };
-
-test("base: needs the owner's EVM address, no Base trading, makes a Base wallet only and asks for seed + gas in wei", async () => {
-  assert.equal(CreateBody.safeParse({ ...body(), chain: "base" }).success, false, "payout required");
-  const trading = { enabled: true, strategy: { preset: "trending", sources: ["dexscreener"], entry: [{ metric: "liquidityUsd", op: ">", value: 1 }], whales: [] }, risk: { slippageBps: 300, positionPct: 5, stopLossPct: 15, takeProfitPct: 40, maxDailyLossPct: 20 } };
-  assert.equal(CreateBody.safeParse({ ...body(), chain: "base", payout: PAYOUT, trading }).success, false, "no trading on Base yet");
-  const off = await create(fakeCx().cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "base", payout: PAYOUT }));
-  assert.deepEqual([off.ok, !off.ok && off.status], [false, 503]);
-  const f = fakeCx();
-  const r = await create(f.cx, { wallets: baseWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "base", payout: PAYOUT }));
-  assert.ok(r.ok);
-  assert.equal(r.fundLamports, 500_000_000_000_000_000n + BASE_LAUNCH_FEE_WEI);
-  assert.equal(r.base, "0x00000000000000000000000000000000000ba5e1");
-  const a = f.agent()!;
-  assert.equal(a.venue, "base");
-  assert.equal(a.solana, undefined);
-  assert.equal(a.robinhood, undefined);
-  assert.deepEqual(a.base, { walletId: "b1", address: "0x00000000000000000000000000000000000ba5e1", payout: "0x00000000000000000000000000000000000bEEf1" });
-});
-
-test("base: launch verifies ETH on Base from the payout address and deploys on Clanker, not Pons or pump.fun", async () => {
-  const f = fakeCx();
-  await create(f.cx, { wallets: baseWallets, checkKey: async () => "ok" as const }, OWNER, body({ chain: "base", payout: PAYOUT }));
-  let other = 0;
-  let seen: Record<string, unknown> | null = null;
-  let launched: { wallet: string } | null = null;
-  const deps = {
-    verify: async () => ({ ok: true as const, lamports: 1n }), conn: {} as any, image: async () => "data:image/png;base64,AA==",
-    launchToken: async () => (other++, { mint: "x", sig: "x", metadataUri: "x" }),
-    robinhood: () => ((other++), { verify: async () => ({ ok: true as const, wei: 1n }), client: {} as any, launchToken: async () => ({ mint: "x", sig: "x", metadataUri: "x" }) }),
-    base: () => ({
-      verify: async (_c: unknown, a: Record<string, unknown>) => ((seen = a), { ok: true as const, wei: 1n }),
-      client: {} as any,
-      launchToken: async (a: { wallet: string }) => ((launched = a), { mint: "0x000000000000000000000000000000000000C1a7", sig: "0xhash", metadataUri: "ipfs://logo" }),
-    }),
-  };
-  const r = await launch(f.cx, deps, OWNER, "njord", `0x${"b".repeat(64)}`);
-  assert.deepEqual([r.ok, r.ok && r.mint, other], [true, "0x000000000000000000000000000000000000C1a7", 0]);
-  assert.deepEqual(seen, { hash: `0x${"b".repeat(64)}`, from: "0x00000000000000000000000000000000000bEEf1", to: "0x00000000000000000000000000000000000ba5e1", minWei: 500_000_000_000_000_000n + BASE_LAUNCH_FEE_WEI, wallet: "connected wallet on Base" });
-  assert.equal(launched!.wallet, "0x00000000000000000000000000000000000ba5e1");
+  const arc = await prepareTokenLaunch(f.cx, deps, OWNER, "njord", TokenPrepareBody.parse({ chain: "arc", argus: { buyTaxBps: 200, sellTaxBps: 200 } }));
+  assert.ok(arc.ok);
+  assert.equal(creator, getAddress(OWNER));
+  assert.deepEqual(arc.ok && [arc.chainId, arc.to, arc.data, arc.value], [5042, ARGUS.portal, "0xabcd", "0x0"]);
+  const base = await prepareTokenLaunch(f.cx, deps, OWNER, "njord", TokenPrepareBody.parse({ chain: "base" }));
+  assert.ok(base.ok);
+  assert.equal(owner, getAddress(OWNER));
+  assert.deepEqual(base.ok && [base.chainId, base.to], [8453, CLANKER_FACTORY]);
+  assert.equal((await prepareTokenLaunch(f.cx, deps, STRANGER, "njord", TokenPrepareBody.parse({ chain: "base" }))).ok, false);
 });

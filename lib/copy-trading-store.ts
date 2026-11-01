@@ -8,7 +8,7 @@
  *
  * Refused copies are recorded alongside executed ones: a log that only shows
  * what happened cannot answer the question a follower actually asks, which is
- * why their agent did not copy something. Wallets are base58 and stored
+ * why their agent did not copy something. Wallets are EVM addresses, stored
  * exactly as given.
  *
  * No "server-only" guard, matching lib/baskets-store.ts. Without the backend
@@ -17,7 +17,7 @@
 import { randomBytes } from "node:crypto";
 
 import { insert, remove, store, StoreConflict, update } from "@/lib/server/store";
-import { SIDE_CREATOR, ST_CANCELLED, ST_RESOLVED } from "@/lib/solana/config";
+import { SIDE_CREATOR, ST_CANCELLED, ST_RESOLVED } from "@/lib/market-codes";
 import type { CopyPermission, CopySkipReason, CopyUsage } from "@/lib/copy-trading";
 
 type PolicyFields = Pick<

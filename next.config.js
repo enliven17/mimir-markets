@@ -11,18 +11,6 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const hasBrandAsset = (file) => fs.existsSync(path.join(__dirname, "public", "brand", file));
 
 /**
- * The browser bundle only sees NEXT_PUBLIC_ values, inlined at build time. A
- * mainnet build without them would ship a bundle that throws on load
- * (lib/solana/config.ts refuses devnet fallbacks on mainnet): fail the build.
- */
-if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim() === "mainnet-beta") {
-  const missing = ["NEXT_PUBLIC_SOLANA_RPC"].filter(
-    (name) => !process.env[name]?.trim(),
-  );
-  if (missing.length) throw new Error(`Mainnet build is missing ${missing.join(", ")}`);
-}
-
-/**
  * Baseline security headers. The full Content-Security-Policy (nonce +
  * 'strict-dynamic' script-src, object-src 'none', ...) is enforced per request
  * by proxy.ts (lib/server/csp.ts); this static frame-ancestors copy covers

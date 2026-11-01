@@ -8,10 +8,10 @@
  * readings of the same evidence, which is the whole point of running a jury
  * instead of calling the model twice.
  *
- * Mechanically they are ordinary personas: a keypair derived from the admin
- * secret like the classic ten, the same runner and the same in-process jury.
- * A philosopher whose ER balance is empty simply sits out staking until
- * `npm run system:fund` sweeps USDC into it; it can still sit on the jury.
+ * Mechanically they are ordinary personas: a Circle wallet on Arc like the
+ * classic ten, the same runner and the same in-process jury. A philosopher
+ * whose wallet is empty simply sits out staking until it is funded; it can
+ * still sit on the jury.
  */
 
 import type { PersonaSpec } from "./personas";

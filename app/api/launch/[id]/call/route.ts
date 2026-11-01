@@ -2,14 +2,14 @@
  * Mimir API (lib/launch/paid-call.ts): call a launched agent from any app, paying the agent's own wallet.
  * GET  /api/launch/:id/call                      the price and where to pay, per chain.
  * POST /api/launch/:id/call { prompt }           without a payment: 402 with the same quote.
- *      header X-Mimir-Payment: <arc|solana|robinhood|base>:<tx>   with one: the agent's answer. One tx buys one call.
+ *      header X-Mimir-Payment: arc:<tx> or base:<tx>:<secret>   with one: the agent's answer. One tx buys one call.
  */
 import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { builderSuffixFromEnv } from "@/lib/base/builder-code";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
-import { baseAgentPay, callPriceUsd, newBaseCall, PAY_HEADER, parsePayment, quote, usdPrices } from "@/lib/launch/paid-call";
+import { baseAgentPay, callPriceUsd, newBaseCall, PAY_HEADER, parsePayment, quote } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
 import { readLimitedJson } from "@/lib/server/body-limit";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
@@ -32,17 +32,15 @@ async function offer(id: string) {
   if (!c) return { res: json({ error: "Mimir API is not configured on this server." }, 503) };
   const w = (await c.client.query(api.agentApiDb.wallets, { secret: c.secret, slug: id })) ?? (Object.hasOwn(COUNCIL_AGENTS, id) ? COUNCIL_AGENTS[id] : null);
   if (!w) return { res: json({ error: "No such live agent." }, 404) };
-  const prices = await usdPrices().catch(() => null);
-  if (!prices) return { res: json({ error: "Could not read prices. Try again." }, 503) };
   const usd = callPriceUsd();
   const payContract = baseAgentPay();
   return {
     c,
     quote: {
       agent: id, name: w.name, ticker: w.ticker, priceUsd: usd,
-      // Base: its Base wallet, or its Arc EOA (council personas); paid through MimirAgentPay with a fresh callId.
-      accepts: quote(usd, prices, { ...w, base: ("base" in w ? w.base : null) ?? w.arc }, payContract ? { contract: payContract, ...newBaseCall(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
-      howTo: `Send the amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx> (on Base: base:<tx>:<secret>, with the quote's secret; keep it private until then). One tx buys one call; pay within an hour of calling.`,
+      // Base: its Base wallet, or else its Arc wallet (the same address); paid through MimirAgentPay with a fresh callId.
+      accepts: quote(usd, { arc: w.arc, base: (w.base && typeof w.base === "object" ? w.base.address : w.base) ?? w.arc }, payContract ? { contract: payContract, ...newBaseCall(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
+      howTo: `Send the USDC amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx> (on Base: base:<tx>:<secret>, with the quote's secret; keep it private until then). One tx buys one call; pay within an hour of calling.`,
     },
   };
 }
@@ -64,7 +62,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!pay) {
     const o = await offer(id);
     if (o.res) return o.res;
-    return json({ error: header ? `Bad ${PAY_HEADER} header: use <arc|solana|robinhood>:<tx> or base:<tx>:<secret>.` : "Payment required.", ...o.quote }, 402);
+    return json({ error: header ? `Bad ${PAY_HEADER} header: use arc:<tx> or base:<tx>:<secret>.` : "Payment required.", ...o.quote }, 402);
   }
   const c = launchCx();
   if (!c) return json({ error: "Mimir API is not configured on this server." }, 503);

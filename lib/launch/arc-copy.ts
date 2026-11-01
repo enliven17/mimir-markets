@@ -1,14 +1,14 @@
 /**
- * Mimir Launch copy trading, the Arc fan-out: after an agent (or a council persona) stakes on a pool, schedule one
- * copy job per active Arc follower (convex/launchCopyJobs.ts arcOne), keyed on the agent's stake tx so it runs once.
- * The agent's action only schedules: no follower's Circle call can hold it up. `copyKey` is lib/launch/copy-key.ts
- * (council:<slug> / launch:<slug>). Relative imports: the Convex actions import this.
+ * Mimir Launch copy staking, the Arc fan-out: after an agent (or a council persona) stakes on a pool, schedule one copy
+ * job per active follower (convex/launchCopyJobs.ts arcOne, lib/launch/copy-stake.ts), keyed on (subscription, agent
+ * stake tx) so it runs once. The agent's action only schedules: no follower's Circle call can hold it up. `copyKey` is
+ * lib/launch/copy-key.ts (council:<slug> / launch:<slug>). Relative imports: the Convex actions import this.
  */
 import type { GenericActionCtx, GenericDataModel } from "convex/server";
 
 import { internal } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { Log } from "./worker/log";
+import type { Log } from "./log";
 
 export async function copyArcStake(
   ctx: Pick<GenericActionCtx<GenericDataModel>, "runQuery" | "scheduler">,
@@ -31,3 +31,4 @@ export async function copyArcStake(
     return 0;
   }
 }
+

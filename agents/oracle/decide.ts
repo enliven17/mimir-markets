@@ -21,9 +21,7 @@
  * wait for a later poll.
  */
 import { espnBeatCondition, espnResult, espnResultText, espnSummaryUrl } from "../../lib/espn";
-import type { PublicKey } from "@solana/web3.js";
-import type { OnchainClaim } from "../../lib/solana/client";
-import { MIMIR_PROGRAM_ID } from "../../lib/solana/config";
+import type { OnchainClaim } from "../../lib/market-claim";
 import {
   BROWSER_USER_AGENT,
   fetchEvidence as fetchEvidenceShared,
@@ -41,7 +39,6 @@ import {
   type ResolverOutcome,
   type ResolverSpec,
 } from "../../lib/resolver-spec";
-import { dexMintFor } from "../../lib/dex-tokens";
 import { stripLinks } from "../../lib/verdict";
 import {
   gammaQueryUrl,
@@ -104,7 +101,7 @@ export const CONFIDENCE_MED_MIN = 60; // 60–79: settle, marked [CONTESTED]; < 
 /** Scraped HTML can drift or be partially blocked: no FIRM settlement off it. */
 const MAX_CONFIDENCE_NON_API = 75;
 /** Structured API sources: the only evidence any house wallet stakes or settles FIRM on. */
-export const API_FETCHERS: ReadonlySet<string> = new Set(["coingecko-api", "flashtrade-api", "espn-api"]);
+export const API_FETCHERS: ReadonlySet<string> = new Set(["coingecko-api", "espn-api"]);
 
 /** An ordinary browser's User-Agent for every oracle fetch (defined next to the shared fetcher). */
 export { BROWSER_USER_AGENT };
@@ -112,17 +109,18 @@ export { BROWSER_USER_AGENT };
 export interface JuryConfig {
   quorum: number;
   selfResolving?: SelfResolvingConfig;
-  /** slug → persona wallet (base58). */
+  /** slug → persona wallet (lowercase). */
   wallets: ReadonlyMap<string, string>;
-  /** persona wallet (base58) → slug, to find jurors holding a position. */
+  /** persona wallet (lowercase) → slug, to find jurors holding a position. */
   slugByAddress: ReadonlyMap<string, string>;
 }
 
 export interface DecideContext {
-  oracle: PublicKey;
+  /** The oracle's address, lowercase. */
+  oracle: string;
   /**
    * Every address the operator controls (oracle, market creator, council
-   * personas), base58. A claim any of them holds a position in settles on
+   * personas), lowercase. A claim any of them holds a position in settles on
    * FIRM verdicts only.
    */
   house?: ReadonlySet<string>;
@@ -232,8 +230,7 @@ export function applyPriceConsensus(
       note: `${adj.note} Model verdict ${verdict.verdict} contradicts it.`,
     };
   }
-  // DEX readers quote the same thin pools: their agreement is not independent confirmation.
-  if (adj.confidenceDelta > 0 && dataWinner && verdict.verdict === dataWinner && !dexMintFor(prices.symbol)) {
+  if (adj.confidenceDelta > 0 && dataWinner && verdict.verdict === dataWinner) {
     return { verdict: { ...verdict, confidence: Math.min(100, verdict.confidence + adj.confidenceDelta) }, note: adj.note };
   }
   return { verdict, note: adj.note };
@@ -269,7 +266,7 @@ export function decisionFor(
   verdict = { ...verdict, explanation: stripLinks(verdict.explanation) };
   const bundle: VerdictBundle = {
     version: VERDICT_BUNDLE_VERSION,
-    program: MIMIR_PROGRAM_ID.toBase58(),
+    program: claim.contract ?? "",
     claimId: Number(claim.id),
     decidedAt,
     claim: {
@@ -398,7 +395,7 @@ export function polymarketOutcome(
 function stakedSlugs(claim: OnchainClaim, jury: JuryConfig): Set<string> {
   const out = new Set<string>();
   for (const addr of [claim.creator, ...claim.challengers.map((c) => c.addr)]) {
-    const slug = jury.slugByAddress.get(addr.toBase58());
+    const slug = jury.slugByAddress.get(addr.toLowerCase());
     if (slug) out.add(slug);
   }
   return out;
@@ -410,7 +407,7 @@ export function houseHoldsPosition(
   ctx: Pick<DecideContext, "oracle" | "house">,
 ): boolean {
   return [claim.creator, ...claim.challengers.map((c) => c.addr)].some(
-    (addr) => addr.equals(ctx.oracle) || Boolean(ctx.house?.has(addr.toBase58())),
+    (addr) => addr.toLowerCase() === ctx.oracle.toLowerCase() || Boolean(ctx.house?.has(addr.toLowerCase())),
   );
 }
 

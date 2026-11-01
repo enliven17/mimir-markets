@@ -3,14 +3,14 @@
  *
  *   - Contrarian and Whale-Watcher evaluators (they react to pool state only)
  *   - exact category matching for specialists
- *   - Kelly stake sizing at real pool odds against the persona's ER bankroll
+ *   - Kelly stake sizing at real pool odds against the persona's bankroll
  *   - the rule-persona gate: house markets only, off on mainnet by default
  *
  * Personas can only join the challenger pool, so every rule returns either
  * "stake on the challengers" or an abstention.
  */
 import { challengerKellyStake } from "../../../lib/kelly";
-import { MIN_STAKE_UNITS, fromUsdcUnits, toUsdcUnits } from "../../../lib/solana/config";
+import { MIN_STAKE_UNITS, fromUsdcUnits, toUsdcUnits } from "../../../lib/market-codes";
 import type { PersonaSpec } from "../personas";
 import type { CouncilClaim, PersonaDecision } from "./types";
 
@@ -138,7 +138,7 @@ export function rulePersonaGate(
     skipReason: "rule-persona-gated",
   });
   if (opts.mainnet && !opts.mainnetOverride) return off("rule personas are off on mainnet.");
-  if (!opts.houseCreator || claim.creator.toBase58() !== opts.houseCreator) {
+  if (!opts.houseCreator || claim.creator.toLowerCase() !== opts.houseCreator.toLowerCase()) {
     return off("rule personas only trade markets the house opened.");
   }
   return null;

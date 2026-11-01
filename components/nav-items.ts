@@ -37,7 +37,7 @@ export const NAV_PRIMARY: readonly NavItem[] = [
 
 /**
  * Grouped by what people come to do: explore, build on Mimir, and the rest.
- * One entry per page: tabs of the same page (Baskets/Copy, Stats/Calibration)
+ * One entry per page: tabs of the same page (Baskets/Copy)
  * are listed once via `also`, and "New X" pages are a button on their list page. The desktop sheet hides anything already in the
  * pill (NAV_PRIMARY); the mobile sheet shows it, since the tab bar has no Agents.
  */
@@ -45,11 +45,9 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
   {
     key: "explore",
     items: [
-      { href: "/demo", key: "demo", matchNested: true, badge: "free" },
       { href: "/wallet", key: "wallet" },
       { href: "/baskets", key: "strategies", matchNested: true, also: ["/copy"] },
-      { href: "/campaign", key: "campaign" },
-      { href: "/stats", key: "stats", also: ["/calibration"] },
+      { href: "/stats", key: "stats" },
     ],
   },
   {

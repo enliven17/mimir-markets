@@ -6,14 +6,13 @@
  */
 import { internalSecret } from "@/lib/internal-secrets";
 import { ConvexHttpClient } from "convex/browser";
-import { parseAbi, type Address } from "viem";
+import { createPublicClient, http, parseAbi, type Address } from "viem";
 
 import { api } from "@/convex/_generated/api";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { store, storeEnabled } from "@/lib/server/store";
-import { SOLANA_RPC } from "@/lib/solana/config";
-import { rpcUrls } from "@/lib/server/mainnet";
+import { baseRpcUrl } from "@/lib/base/chain";
 
 export type Health = "ok" | "warn" | "down";
 export interface Probe<T> {
@@ -107,7 +106,7 @@ async function database() {
   type R = Record<string, unknown>;
   const s = store();
   const all = (t: string) => s.list<R>(t, { limit: 5000 });
-  const [accounts, chats, agentRows, payments, basketCount, subs, perms, campaign] = await Promise.all([
+  const [accounts, chats, agentRows, payments, basketCount, subs, perms] = await Promise.all([
     s.count("arc_accounts"),
     all("telegram_chats"),
     all("agent_registry"),
@@ -115,7 +114,6 @@ async function database() {
     s.count("baskets"),
     all("basket_subscriptions"),
     all("copy_permissions"),
-    s.count("campaign_invites"),
   ]);
   const groupBy = (rows: R[], f: string) => {
     const out: Record<string, number> = {};
@@ -133,9 +131,6 @@ async function database() {
     baskets: basketCount,
     subscribers: new Set(subs.map((r) => r.follower)).size,
     copyFollowers: new Set(perms.filter((p) => p.active && p.revoked_at == null).map((p) => p.follower)).size,
-    campaign,
-    // The Solana program's read index went with Postgres.
-    legacyClaims: 0,
   };
 }
 
@@ -157,24 +152,12 @@ async function telegram() {
   };
 }
 
-async function solanaSlot(url: string) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getSlot", params: [] }),
-    cache: "no-store",
-  });
-  const body = (await res.json()) as { result?: number; error?: { message?: string } };
-  if (typeof body.result !== "number") throw new Error(body.error?.message ?? `HTTP ${res.status}`);
-  return body.result;
-}
-
 /** Which of the site's own secrets are set (yes/no), never their values. */
 function siteKeys() {
   const names = [
     "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "ARC_FEE_SIGNER_KEY",
     "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY", "CMC_API_KEY",
-    "SOLANA_MAINNET_RPC", "NEXT_PUBLIC_POSTHOG_KEY",
+    "BASE_RPC_URL", "NEXT_PUBLIC_POSTHOG_KEY",
   ];
   return Object.fromEntries(names.map((n) => [n, Boolean(process.env[n]?.trim())]));
 }
@@ -183,16 +166,14 @@ const minutes = (ms: number) => ms / 60_000;
 
 export async function adminOverview() {
   const nowMs = Date.now();
-  const [be, chainHead, v3, pool, db, tg, solDev, solMain] = await Promise.all([
+  const [be, chainHead, v3, pool, db, tg, baseHead] = await Promise.all([
     probe(backend),
     probe(() => arcPublicClient().getBlockNumber().then(Number)),
     probe(() => contract(ARC.contracts.mimirV3)),
     probe(() => contract(ARC.contracts.mimirPool)),
     probe(database),
     probe(telegram),
-    probe(() => solanaSlot(SOLANA_RPC)),
-    // SOLANA_MAINNET_RPC is a comma list (lib/server/mainnet.ts): probe the first, the one reads try first.
-    probe(() => solanaSlot(rpcUrls()[0])),
+    probe(() => createPublicClient({ transport: http(baseRpcUrl(), { timeout: 8_000 }) }).getBlockNumber().then(Number)),
   ]);
 
   const b = be.data;
@@ -239,7 +220,7 @@ export async function adminOverview() {
     })),
     { name: "Oracle queue", health: oracleStuck > 0 ? "warn" : "ok", note: `${b?.oracle.waiting ?? "?"} waiting · ${oracleStuck} retried 5+ times` },
     { name: "Arc RPC", health: chainHead.ok ? "ok" : "down", note: chainHead.ok ? `block ${chainHead.data}` : chainHead.error ?? "" },
-    { name: "Solana RPC", health: solDev.ok && solMain.ok ? "ok" : solDev.ok || solMain.ok ? "warn" : "down", note: `devnet ${solDev.ok ? "up" : "down"} · mainnet ${solMain.ok ? "up" : "down"}` },
+    { name: "Base RPC", health: baseHead.ok ? "ok" : "warn", note: baseHead.ok ? `block ${baseHead.data}` : baseHead.error ?? "" },
     { name: "Database", health: db.ok ? "ok" : "down", note: db.ok ? `${db.ms} ms` : db.error ?? "" },
     { name: "Telegram", health: tg.ok ? (tg.data?.lastError ? "warn" : "ok") : "down", note: tg.ok ? (tg.data?.webhook ? "webhook" : "polling") : tg.error ?? "" },
     { name: "Wallets", health: !walletBalances.ok ? "warn" : lowWallets ? "warn" : "ok", note: lowWallets ? `${lowWallets} below ${LOW_USDC} USDC` : "funded" },
@@ -260,7 +241,7 @@ export async function adminOverview() {
     chain: { head: chainHead, v3, pool, solvency: { vs: v3Solvent, pool: poolSolvent }, wallets: walletBalances },
     database: db,
     telegram: tg,
-    solana: { devnet: solDev, mainnet: solMain },
+    base: { head: baseHead },
     siteKeys: siteKeys(),
   };
 }

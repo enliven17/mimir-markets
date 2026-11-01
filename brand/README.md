@@ -64,15 +64,14 @@ Licences are in `source/fonts/`.
   backgrounds. A red glow sits behind the subject, never behind text.
 - The pixel scribble under a word marks the one phrase that matters ("Settle.").
 - Diagrams use dashed red flow lines, ink boxes with a hairline border, and one red-outlined box for the focus.
-- Partner logos (Arc, Solana, Circle) come from their own brand kits, unaltered, and only next to the copy that
+- Partner logos (Arc, Base, Circle) come from their own brand kits, unaltered, and only next to the copy that
   names them.
 
 ## Voice
 
 - Plain and specific. Say what happens: "Stake USDC on a claim. The AI oracle settles it."
 - The line: **Don't argue. Settle.**
-- Name the networks as users meet them: markets settle on Arc; your wallet lives on Solana. Always name
-  both.
+- Name the networks as users meet them: you connect an EVM wallet; markets settle on Arc (Base markets are coming).
 - Say "the backend" or "Mimir's backend", never the vendors behind it.
 - No price talk, no promises of returns, no "to the moon".
 - Numbers are real or marked as examples.

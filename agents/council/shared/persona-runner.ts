@@ -13,19 +13,17 @@
  *      API_FETCHERS; scraped pages can serve the bot one thing and settle on
  *      another, audit P0-2), after the oracle's fetcher-trust cap. Rule
  *      personas act only on house markets, off on mainnet by default (P2-4).
- *   4. Size the stake: Kelly at the real pool odds against the persona's ER
+ *   4. Size the stake: Kelly at the real pool odds against the persona's
  *      bankroll (lib/kelly.ts challengerKellyStake, capped), the base stake
  *      for rule personas.
- *   5. Stake with challenge_claim inside the MagicBlock Ephemeral Rollup.
+ *   5. Stake from the persona's Arc wallet (convex/arcCouncil.ts).
  *
- * Every LLM verdict is logged for /calibration, staked on or not: scoring only
+ * Every LLM verdict is logged (lib/server/forecasts.ts), staked on or not: scoring only
  * the stakes would hide the calls a persona got wrong by abstaining.
  */
 import { recordForecast } from "../../../lib/server/forecasts";
-import { probabilityFromVerdict } from "../../../lib/calibration";
-import { IS_MAINNET, fromUsdcUnits } from "../../../lib/solana/config";
+import { ARC } from "../../../lib/arc/config";
 import { API_FETCHERS, applyFetcherTrust } from "../../oracle/decide";
-import type { MimirSolanaClient } from "../../../lib/solana/client";
 import type { PersonaSpec } from "../personas";
 import { getOrFetchEvidence } from "./evidence-cache";
 import { evaluateClaimAsPersona, type PersonaLLM } from "./persona-llm";
@@ -40,6 +38,14 @@ import {
 import type { CouncilClaim, EvidenceCacheEntry, PersonaDecision } from "./types";
 import type { EvidenceFetcherKind } from "../../../lib/server/evidence-fetcher";
 
+/** P(challengers win) from a verdict: 50% ± confidence/2 (the self-resolving council's mapping). */
+function probabilityFromVerdict(verdict: string, confidence: number): number {
+  const c = Math.max(0, Math.min(100, confidence));
+  if (verdict === "CHALLENGERS_WIN") return 0.5 + c / 200;
+  if (verdict === "CREATOR_WINS") return 0.5 - c / 200;
+  return 0.5;
+}
+
 export interface RunnerContext {
   /** One Map per cycle, keyed by claim id. */
   evidenceCache: Map<string, EvidenceCacheEntry>;
@@ -51,9 +57,9 @@ export interface RunnerContext {
   llm?: PersonaLLM;
   /** Log forecasts to the DB (off for UI / preview reads). */
   recordForecasts?: boolean;
-  /** The house market-creator's address (base58); rule personas only act on its markets. null: unknown. */
+  /** The house market-creator's address; rule personas only act on its markets. null: unknown. */
   houseCreator?: string | null;
-  /** Cluster override for tests; defaults to IS_MAINNET. */
+  /** Network override for tests; defaults to Arc mainnet or not. */
   mainnet?: boolean;
 }
 
@@ -91,7 +97,7 @@ export async function evaluatePersonaForClaim(
 
   const gate = rulePersonaGate(persona, claim, {
     houseCreator: ctx.houseCreator ?? null,
-    mainnet: ctx.mainnet ?? IS_MAINNET,
+    mainnet: ctx.mainnet ?? ARC.network === "mainnet",
     mainnetOverride: RULE_PERSONAS_MAINNET,
   });
   if (gate) return gate;
@@ -175,65 +181,3 @@ export async function evaluatePersonaForClaim(
   };
 }
 
-export type RunOutcome =
-  /** Not considered this cycle (own claim, already in, full, low bankroll). */
-  | { kind: "skipped"; reason: string }
-  /** A considered no. Safe to remember until the re-evaluation window passes. */
-  | { kind: "abstained"; decision: PersonaDecision }
-  /** A transient failure (LLM error, no evidence yet): look again next cycle. */
-  | { kind: "retry"; decision: PersonaDecision }
-  | { kind: "staked"; decision: PersonaDecision; stakeUnits: bigint; sig: string | null };
-
-/** Full pipeline: decide, size, and stake in the ER (unless `dryRun`). */
-export async function runPersonaForClaim(
-  persona: PersonaSpec,
-  client: MimirSolanaClient,
-  claim: CouncilClaim,
-  ctx: RunnerContext & { dryRun?: boolean },
-): Promise<RunOutcome> {
-  const me = client.publicKey;
-  if (claim.creator.equals(me)) return { kind: "skipped", reason: "self-created" };
-  if (claim.challengers.some((c) => c.addr.equals(me))) return { kind: "skipped", reason: "already-challenged" };
-  if (claim.challengers.length >= claim.maxChallengers) return { kind: "skipped", reason: "full" };
-
-  const bankroll = await client.getBalance();
-  if (sizeStakeUnits({ baseUsdc: persona.stakeUsdc, bankrollUnits: bankroll }) === null && !ctx.dryRun) {
-    return { kind: "skipped", reason: `insufficient ER balance (${fromUsdcUnits(bankroll)} USDC)` };
-  }
-
-  const decision = await evaluatePersonaForClaim(persona, claim, ctx);
-  if (!decision.shouldStake) {
-    const transient = decision.skipReason === "llm-failed" || decision.skipReason === "no-evidence";
-    // Rule personas react to a pool that keeps moving: never remember their no.
-    const considered = !transient && persona.archetype !== "rule-based";
-    return considered ? { kind: "abstained", decision } : { kind: "retry", decision };
-  }
-
-  const pool = {
-    baseUsdc: persona.stakeUsdc,
-    confidence: decision.confidence,
-    creatorStakeUnits: claim.creatorStake,
-    totalChallengerStakeUnits: claim.totalChallengerStake,
-  };
-  const stakeUnits =
-    sizeStakeUnits({ ...pool, bankrollUnits: bankroll }) ??
-    sizeStakeUnits({ ...pool, bankrollUnits: 10n ** 12n })!; // dry run with no bankroll: a notional 1M USDC
-  if (stakeUnits === 0n) {
-    // The creator's stake is fixed and challengers only add to the pool, so
-    // the odds only get worse: remember this no (COUNCIL_REEVAL_MS) instead
-    // of paying for a fresh LLM evaluation every cycle.
-    return {
-      kind: "abstained",
-      decision: {
-        ...decision,
-        shouldStake: false,
-        stakeUsdc: 0,
-        rationale: `${persona.displayName} sits out: no +EV stake at these pool odds (creator ${fromUsdcUnits(claim.creatorStake)} vs challengers ${fromUsdcUnits(claim.totalChallengerStake)} USDC).`,
-        skipReason: "negative-ev",
-      },
-    };
-  }
-  if (ctx.dryRun) return { kind: "staked", decision, stakeUnits, sig: null };
-  const sig = await client.challengeClaimER(claim.id, stakeUnits);
-  return { kind: "staked", decision, stakeUnits, sig };
-}

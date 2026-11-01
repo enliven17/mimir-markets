@@ -85,7 +85,7 @@
   },
   "resolverToggle": {
     "title": "Settle deterministically from price feeds",
-    "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko, Chainlink and Flash Trade at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
+    "body": "YES if {symbol}/USD {op} ${threshold} on CoinGecko and Chainlink at the deadline. No AI model decides; sources that disagree mean a refund. The rule is appended to the resolution URL on chain, so every challenger can read it."
   },
   "council": {
     "title": "Council",
@@ -153,26 +153,9 @@
       "skip": "skip"
     }
   },
-  "calibration": {
-    "lead": "Brier score per forecaster once its claims settle: 0 is perfect, {coin} is a coin flip.",
-    "empty": "No settled forecasts yet. Scores appear as claims resolve.",
-    "forecaster": "Forecaster",
-    "settled": "Settled",
-    "brier": "Brier",
-    "rightSide": "Right side",
-    "verdict": "Verdict",
-    "band": {
-      "sharp": "sharp",
-      "better": "better than chance",
-      "coin": "no better than a coin"
-    }
-  },
   "stats": {
     "title": "Stats",
     "lead": "Read live from the Mimir contracts on Arc.",
-    "tabsLabel": "Stats views",
-    "tabOverview": "Overview",
-    "tabCalibration": "Calibration",
     "stripLabel": "Totals",
     "openPool": "Open pool",
     "markets": "Markets",
@@ -340,8 +323,7 @@
       "seats": "Challengers",
       "closes": "Closes in",
       "market": "Market",
-      "marketEr": "Arc",
-      "marketBase": "Solana base layer",
+      "marketArc": "Arc",
       "open": "Open claim",
       "loading": "Reading the arena",
       "empty": "No open claims right now.",
@@ -1476,10 +1458,6 @@
       "mimir": "Mimir"
     },
     "items": {
-      "campaign": {
-        "label": "Leaderboard",
-        "hint": "Points and the leaderboard"
-      },
       "terminal": {
         "label": "CLI",
         "hint": "Mimir in your own terminal, on your own AI"
@@ -1530,11 +1508,7 @@
       },
       "stats": {
         "label": "Stats",
-        "hint": "Markets, volume and oracle calibration"
-      },
-      "calibration": {
-        "label": "Calibration",
-        "hint": "How well the oracle is calibrated"
+        "hint": "Markets, volume and how the oracle decided"
       },
       "docs": {
         "label": "Docs",
@@ -1560,10 +1534,6 @@
       "launch": {
         "label": "Launch",
         "hint": "AI agents: launch yours, meet the council"
-      },
-      "demo": {
-        "label": "Mimir Preview",
-        "hint": "Agents, paper trades and baskets with virtual funds"
       }
     }
   },
@@ -1733,7 +1703,7 @@
     "body": "Markets settle on Arc with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas on Arc is paid in USDC.",
     "points": [
       "Real USDC, open to everyone",
-      "USDC in from Solana in about 15 seconds"
+      "Connect any EVM wallet on Arc or Base"
     ],
     "warnTitle": "Read a market before you stake",
     "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
@@ -1742,45 +1712,37 @@
   },
   "launch": {
     "title": "Mimir Launch",
-    "lead": "Launch an AI agent with its own token and wallets — or browse ones already live.",
-    "launchCta": "Launch an agent",
+    "lead": "Create an AI agent for free. It stakes on Mimir markets from its own wallet; launch its token if you like.",
+    "launchCta": "Create an agent",
     "connectCta": "Connect your own agent",
     "directoryLabel": "Browse agents",
-    "tabHosted": "Launched",
+    "tabHosted": "Agents",
     "tabCouncil": "Council",
     "tabConnected": "Connected",
     "councilTitle": "The council",
-    "councilLead": "Mimir's own twenty agents. Each has its token on pump.fun, a Solana agent wallet and an Arc wallet it stakes from.",
-    "hostedTitle": "Launched agents",
-    "hostedEmpty": "No agents launched yet. Be the first.",
+    "councilLead": "Mimir's own twenty agents. Each stakes from its own Arc wallet.",
+    "hostedTitle": "Agents",
+    "hostedEmpty": "No agents yet. Be the first.",
     "connectedTitle": "Connected agents",
     "doesMarkets": "stakes on markets",
-    "doesTrading": "trades on Solana",
     "paused": "paused",
     "notFound": "No agent here.",
     "councilBadge": "Mimir council",
-    "buy": "Buy ${ticker}",
-    "chart": "Token chart",
-    "noToken": "Its token is not live yet.",
-    "buyArgus": "Trade ${ticker} on Argus",
-    "chartArgus": "Arc token chart (Argus)",
-    "token": "Token",
     "recordTitle": "Detailed activity",
     "recordUnavailable": "This agent's record could not be loaded. Try again shortly.",
     "arcStakes": "Stakes",
     "winRate": "Win rate",
     "arcPnl": "Markets PnL",
     "atRisk": "At stake",
-    "solPnl": "Trading PnL",
-    "solRecord": "Trades won/lost",
     "stakesTitle": "Market stakes",
-    "tradesTitle": "Solana trades",
     "noStakes": "No stakes yet.",
-    "noTrades": "No trades yet.",
     "logTitle": "Reasoning log",
     "outcome": {
       "open": "open",
       "refunded": "refunded"
-    }
+    },
+    "doesCreate": "opens markets",
+    "hasArgusToken": "token on Argus",
+    "hasClankerToken": "token on Clanker"
   }
 }

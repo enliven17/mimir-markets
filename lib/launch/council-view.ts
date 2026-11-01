@@ -1,39 +1,49 @@
 /**
- * Mimir Launch: the council personas as launch agents, from lib/launch/council.json (written by
- * scripts/launch/council-tokens.mts): each one's own Solana agent wallet, its pump.fun token once minted, and its Arc
- * council wallet. Public data only. Isomorphic.
+ * Mimir Launch: the council personas as agents, from lib/launch/council.json. Each has an Arc wallet (its Circle
+ * council wallet, ids in ARC_COUNCIL_WALLETS) that stakes on markets, and optionally a Base wallet (address and Circle
+ * wallet id) for staking on Base markets once they open, plus its token if it has one. Public data only. Isomorphic.
  */
 import data from "./council.json";
+
+export type TokenChain = "arc" | "base";
+
+export interface AgentToken {
+  chain: TokenChain;
+  address: string;
+  /** Argus only: the splitter that holds the creator's fees. */
+  splitter?: string | null;
+}
 
 export interface CouncilAgent {
   slug: string;
   name: string;
   ticker: string;
-  solana: string | null;
   arc: string | null;
-  mint: string | null;
-  /** Its Argus token on Arc, once launched (scripts/argus/socrates-launch.mts). */
-  argus: { token: string; poolId: string } | null;
-  /** Its Robinhood Chain wallet (scripts/launch/council-robinhood.mts). */
-  robinhood: string | null;
+  /** Its Base wallet, once made: address and Circle wallet id (not staking yet). */
+  base: { address: string; walletId: string } | null;
+  token: AgentToken | null;
 }
 
-type Raw = { name: string; ticker: string; arc: string | null; solana?: { address: string }; robinhood?: { address: string }; mint?: string; argus?: { token: string; poolId: string } };
+type Raw = {
+  name: string;
+  ticker: string;
+  arc: string | null;
+  base?: { address: string; walletId: string };
+  token?: { chain: TokenChain; address: string; splitter?: string };
+};
 
 export const COUNCIL_AGENTS: Record<string, CouncilAgent> = Object.fromEntries(
-  Object.entries(data as Record<string, Raw>).map(([slug, r]) => [slug, { slug, name: r.name, ticker: r.ticker, solana: r.solana?.address ?? null, arc: r.arc, mint: r.mint ?? null, argus: r.argus ? { token: r.argus.token, poolId: r.argus.poolId } : null, robinhood: r.robinhood?.address ?? null }]),
+  Object.entries(data as Record<string, Raw>).map(([slug, r]) => [
+    slug,
+    {
+      slug, name: r.name, ticker: r.ticker, arc: r.arc, base: r.base ?? null,
+      token: r.token ? { chain: r.token.chain, address: r.token.address, splitter: r.token.splitter ?? null } : null,
+    },
+  ]),
 );
 
-/** Mainnet links: launch agents live on Solana mainnet whatever cluster the rest of the site reads. */
-export const solscan = (kind: "account" | "token" | "tx", id: string) => `https://solscan.io/${kind}/${id}`;
-export const pumpFun = (mint: string) => `https://pump.fun/coin/${mint}`;
-/** A Meteora DBC token: its curve and, once graduated, its DAMM pool both trade through Jupiter. */
-export const meteoraToken = (mint: string) => `https://jup.ag/tokens/${mint}`;
-/** Base (Clanker tokens): Clanker's own token page; Basescan for wallets and txs. */
+/** Token pages: Argus (Arc) and Clanker (Base). */
+export const argusToken = (token: string) => `https://arguspad.io/token/${token}`;
 export const clankerToken = (token: string) => `https://www.clanker.world/clanker/${token}`;
+export const tokenPage = (t: Pick<AgentToken, "chain" | "address">) => (t.chain === "arc" ? argusToken(t.address) : clankerToken(t.address));
 export const basescan = (kind: "address" | "token" | "tx", id: string) => `https://basescan.org/${kind}/${id}`;
-export const dexChart = (mint: string) => `https://dexscreener.com/solana/${mint}?embed=1&theme=dark&trades=0&info=0`;
-/** Robinhood Chain (Pons tokens): Pons's own token page (curve and graduated alike); DexScreener charts graduated ones. */
-export const rhToken = (token: string) => `https://ponsfamily.com/launchpad/${token}`;
-export const rhChart = (token: string) => `https://dexscreener.com/robinhood/${token}?embed=1&theme=dark&trades=0&info=0`;
-export const rhExplorer = (kind: "address" | "token" | "tx", id: string) => `https://robinhoodchain.blockscout.com/${kind}/${id}`;

@@ -13,7 +13,4 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <style name="Theme.Mimir.Invisible" parent="android:Theme.Translucent.NoTitleBar">
-        <item name="android:windowAnimationStyle">@null</item>
-    </style>
 </resources>

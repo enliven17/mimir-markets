@@ -2,9 +2,8 @@
  * Mimir Council: two juries of AI personas that bet on prediction markets.
  *
  * Each persona is an autonomous economic actor with:
- *   - Its own Solana keypair, derived from the admin secret + slug
- *     (lib/solana/keypair.ts), staking from a balance delegated to the
- *     MagicBlock Ephemeral Rollup
+ *   - Its own Circle wallet on Arc (ARC_COUNCIL_WALLETS, addresses in
+ *     lib/launch/council.json), staking USDC on Mimir markets
  *   - A distinct decision-making strategy:
  *       • LLM-biased: an LLM call with a personality prompt prefix
  *       • Rule-based: pure logic, no LLM call (cheap, deterministic)
@@ -12,7 +11,7 @@
  *       • Micro:      small stakes, broad coverage
  *
  * The runtime in agents/council/shared/ reads this list; the worker is
- * agents/council/solana.ts. Client pages import this module, so it must stay
+ * convex/arcCouncil.ts. Client pages import this module, so it must stay
  * free of server-only code.
  */
 
@@ -252,8 +251,8 @@ export const CLASSIC_PERSONAS: PersonaSpec[] = [
 /**
  * The full roster: both juries, classic first.
  *
- * Everything downstream (key derivation, the worker, the jury, the UI) reads
- * this one list. A persona with no ER balance sits out staking, so the
+ * Everything downstream (wallets, the worker, the jury, the UI) reads
+ * this one list. A persona with an empty wallet sits out staking, so the
  * philosopher track rolls out as its wallets are funded.
  */
 export const COUNCIL_PERSONAS: PersonaSpec[] = [...CLASSIC_PERSONAS, ...PHILOSOPHER_PERSONAS];

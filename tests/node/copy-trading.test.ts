@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Keypair } from "@solana/web3.js";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import {
   evaluateCopy,
@@ -19,16 +19,16 @@ import {
 } from "../../lib/copy-trading";
 import { candidateSignals, claimsHeldBy, planCopies } from "../../lib/copy-signals";
 import { usageFromPositions } from "../../lib/copy-trading-store";
-import { signAgentMessage, verifyAgentSignature } from "../../lib/agents/signature";
+import { verifyWalletSignature } from "../../lib/agents/signature";
 import type { IndexedClaim } from "../../lib/baskets";
 
 const NOW = 1_700_000_000_000;
-const FOLLOWER = Keypair.generate();
+const FOLLOWER = privateKeyToAccount(generatePrivateKey());
 
 function permission(over: Partial<CopyPermission> = {}): CopyPermission {
   return {
     id: "perm-1",
-    follower: FOLLOWER.publicKey.toBase58(),
+    follower: FOLLOWER.address,
     signalAgentId: "statistician",
     executionAgentId: "my-agent",
     active: true,
@@ -224,11 +224,11 @@ test("worst-case spend is bounded by the weekly cap", () => {
   assert.equal(worstCaseCopySpend(permission({ maxWeeklyUsdc: 10 })), 10);
 });
 
-test("the signed message spells out every bound and keeps the base58 key exact", () => {
+test("the signed message spells out every bound and keeps the address exact", () => {
   const p = permission({ allowedCategories: ["crypto"] });
   const message = copyPermissionMessage(p);
   for (const fragment of [
-    `follower: ${FOLLOWER.publicKey.toBase58()}`,
+    `follower: ${FOLLOWER.address}`,
     "copy: statistician",
     "executed by: my-agent",
     "per position: 2 USDC",
@@ -247,13 +247,13 @@ test("the signed message spells out every bound and keeps the base58 key exact",
   assert.match(copyPermissionMessage(permission()), /categories: any/);
 });
 
-test("grants and follower proofs verify as ed25519 over the exact message", () => {
+test("grants and follower proofs verify as EIP-191 over the exact message", async () => {
   const message = copyPermissionMessage(permission());
-  const signature = signAgentMessage(message, FOLLOWER.secretKey);
-  const address = FOLLOWER.publicKey.toBase58();
-  assert.equal(verifyAgentSignature({ address, message, signature }), true);
+  const signature = await FOLLOWER.signMessage({ message });
+  const address = FOLLOWER.address;
+  assert.equal(await verifyWalletSignature({ address, message, signature }), true);
   assert.equal(
-    verifyAgentSignature({ address, message: copyPermissionMessage(permission({ maxDailyUsdc: 11 })), signature }),
+    await verifyWalletSignature({ address, message: copyPermissionMessage(permission({ maxDailyUsdc: 11 })), signature }),
     false,
     "changing one bound breaks the signature",
   );
@@ -261,7 +261,7 @@ test("grants and follower proofs verify as ed25519 over the exact message", () =
   const revoke = followerProofMessage("revoke", address, NOW, "perm-1");
   assert.notEqual(list, revoke);
   assert.equal(
-    verifyAgentSignature({ address, message: revoke, signature: signAgentMessage(list, FOLLOWER.secretKey) }),
+    await verifyWalletSignature({ address, message: revoke, signature: await FOLLOWER.signMessage({ message: list }) }),
     false,
     "a list proof cannot revoke",
   );
@@ -298,9 +298,9 @@ test("usage counts creator wins as losses, refunds as settled and v3 limbo as op
 
 // ── Signals from the read index ───────────────────────────────────────────
 
-const SIGNAL_WALLET = Keypair.generate().publicKey.toBase58();
-const EXECUTOR_WALLET = Keypair.generate().publicKey.toBase58();
-const OTHER = Keypair.generate().publicKey.toBase58();
+const SIGNAL_WALLET = privateKeyToAccount(generatePrivateKey()).address;
+const EXECUTOR_WALLET = privateKeyToAccount(generatePrivateKey()).address;
+const OTHER = privateKeyToAccount(generatePrivateKey()).address;
 const NOW_SEC = Math.floor(NOW / 1000);
 
 function claim(over: Partial<IndexedClaim> = {}): IndexedClaim {

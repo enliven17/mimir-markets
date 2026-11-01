@@ -20,7 +20,7 @@ import {
 } from "./copy-trading";
 import type { IndexedClaim } from "./baskets";
 
-// Mirrors lib/solana/config.ts (kept literal so this module stays RPC-free).
+// Mirrors lib/market-codes.ts (kept literal so this module stays dependency-free).
 const ST_OPEN = 0;
 const ST_ACTIVE = 1;
 

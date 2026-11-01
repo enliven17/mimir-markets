@@ -57,7 +57,7 @@ test("undefined and null bodies hash the same as an empty object", () => {
 test("the signed message pins every field that matters", () => {
   const base = envelope();
   const message = agentRequestMessage(base as never);
-  assert.match(message, /^Mimir Agent API request \(Solana\)\n/);
+  assert.match(message, /^Mimir Agent API request\n/);
   assert.match(bodyHash(base.body), /^[0-9a-f]{64}$/, "sha-256 hex");
   assert.match(message, /agent: my-agent/);
   assert.match(message, /action: heartbeat/);
@@ -69,10 +69,10 @@ test("the signed message pins every field that matters", () => {
 });
 
 test("the operator proof names the agent and the wallet, case preserved", () => {
-  const wallet = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
+  const wallet = "0xAbC0000000000000000000000000000000000001";
   assert.equal(
     operatorProofMessage("my-agent", wallet),
-    `Mimir agent operator proof (Solana)\nagent: my-agent\noperator: ${wallet}`,
+    `Mimir agent operator proof\nagent: my-agent\noperator: ${wallet}`,
   );
 });
 

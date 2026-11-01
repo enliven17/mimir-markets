@@ -1,7 +1,7 @@
 /**
  * One reading of a claim's V3 state for every page and API: which phase it is
  * in, what to call it, and which bucket (live / settling / settled) it
- * belongs to. Pure; mirrors lib/solana/config.ts numbering
+ * belongs to. Pure; mirrors lib/market-codes.ts numbering
  * (OPEN 0, ACTIVE 1, RESOLVED 2, CANCELLED 3, PROPOSED 4, DISPUTED 5).
  */
 import {
@@ -11,7 +11,7 @@ import {
   ST_OPEN,
   ST_PROPOSED,
   ST_RESOLVED,
-} from "./solana/config";
+} from "./market-codes";
 
 export type ClaimPhase =
   | "open"

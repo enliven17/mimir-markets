@@ -5,7 +5,7 @@
  * Read from the verified Portal source (Sourcify, chain 5042, src/ArgusV4Portal7.sol) and checked against recent
  * mainnet launches (2026-10-15):
  *   launch(V4HookedLaunchParams7 p, V4TokenMeta meta, bytes32 salt, bytes32 hookSalt), not payable. msg.sender is the
- *   creator (here: the agent's Arc wallet). The dev buy is pulled with transferFrom in the quote asset, so a launch with
+ *   creator (here: the agent owner's own wallet, who signs and pays for the launch). The dev buy is pulled with transferFrom in the quote asset, so a launch with
  *   devBuyQuote = 0 needs no approval and no USDC beyond gas.
  *   Each launch deploys its own splitter, hook, locker and token. The hook must sit at an address whose low 14 bits are
  *   exactly 0x2044 (v4 BEFORE_INITIALIZE | AFTER_SWAP | AFTER_SWAP_RETURNS_DELTA), so `hookSalt` is mined off chain:
@@ -15,8 +15,9 @@
  *   Mean 16,384 tries. The two views are asked of the Portal, never rebuilt here (the contract's own advice).
  *   Revenue (the per-side tax plus the pool's 1% LP fee) reaches the splitter; `distribute()` pays Argus's treasury
  *   (treasuryBps = 1000, 10%, read on every recent splitter) and accrues the creator's share; `claim(account)` pays it
- *   out in native USDC. Both are permissionless. A dividend bucket needs a prior ArgusV4LaunchConfig registration or
- *   the launch reverts, so v1 keeps dividendBps at 0.
+ *   out in native USDC. Both are permissionless, so the owner claims from their own wallet. Mimir takes no share:
+ *   creatorBps is 10000 (the whole 90% Argus leaves goes to the creator), no burn, no dividend (a dividend bucket needs
+ *   a prior ArgusV4LaunchConfig registration or the launch reverts).
  */
 import { decodeEventLog, encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi, type Address, type Hex, type Log } from "viem";
 
@@ -34,11 +35,8 @@ export const ARGUS = {
   totalSupply: 1_000_000_000n * 10n ** 18n,
   startFdvUsdc6: 2_500n * 10n ** 6n,
   bondFdvUsdc6: 45_000n * 10n ** 6n,
-  /**
-   * USDC the agent's Arc wallet must hold to launch (no dev buy), in native 18-dp wei. Measured on mainnet 2026-10-15:
-   * ~2.98M gas at 20 gwei = 0.06 USDC; 0.15 covers Circle's fee level and leaves gas for the first fee rounds.
-   */
-  launchGasWei: 150_000_000_000_000_000n,
+  /** Measured on mainnet 2026-10-15: a launch with no dev buy uses ~2.98M gas (about 0.06 USDC at 20 gwei). */
+  launchGas: 3_000_000n,
 } as const;
 
 export const ARGUS_ABI = parseAbi([
@@ -66,51 +64,8 @@ export const STATE_VIEW_ABI = parseAbi(["function getSlot0(bytes32 poolId) view 
 
 // ───────────────────────────── the fee model
 
-/** The owner's split of their share, whole percents summing to 100 (lib/launch/fees.ts DEFAULT_ALLOCATION shape). */
-export interface OwnerSplit {
-  bankroll: number;
-  buyback: number;
-  creatorPayout: number;
-  holders: number;
-}
-
-/**
- * Mimir's model on Argus, as shares of all revenue R: Argus 10% (taken by the splitter), Mimir platform 10% and AI 10%
- * (taken by us from the creator claim), the owner's 70% across their buckets.
- *
- * Mapping onto the splitter, whose buckets share the 90% Argus leaves (bps of 0.9R):
- *   burnBps    = owner buyback share:  0.7·buyback% of R  →  round(10000 · 0.7·buyback / 90)
- *   creatorBps = everything else (the agent wallet): 10000 − burnBps; it carries Mimir's 20% plus the owner's
- *                bankroll and payout, and our fee round splits each claim (claimSplit below).
- *   dividendBps = liquidityBps = 0 (a dividend needs a prior ArgusV4LaunchConfig registration; holders airdrops on Arc
- *                are not built yet, so `holders` must be 0 for an Argus launch).
- * Exact up to the 1 bp rounding of burnBps, which lands in the owner's bankroll.
- */
-export function argusAllocation(split: OwnerSplit): { creatorBps: number; burnBps: number; dividendBps: 0; liquidityBps: 0 } {
-  const parts = [split.bankroll, split.buyback, split.creatorPayout, split.holders];
-  if (parts.some((p) => !Number.isInteger(p) || p < 0 || p > 100) || parts.reduce((a, b) => a + b, 0) !== 100) throw new Error("the four buckets must be whole percents summing to 100");
-  if (split.holders !== 0) throw new Error("holder airdrops are not available for Argus launches yet: set holders to 0");
-  const burnBps = Math.round((10000 * 0.7 * split.buyback) / 90);
-  return { creatorBps: 10000 - burnBps, burnBps, dividendBps: 0, liquidityBps: 0 };
-}
-
-/**
- * How one creator claim of `claimedUsdc6` (what the splitter paid the agent wallet) divides, so that Mimir's platform
- * and AI shares stay 10% of all revenue each. The creator's slice is 0.9·creatorBps/10000 of revenue.
- */
-export function claimSplit(claimedUsdc6: bigint, creatorBps: number, split: OwnerSplit): { platform: bigint; ai: bigint; bankroll: bigint; payout: bigint } {
-  if (claimedUsdc6 <= 0n) return { platform: 0n, ai: 0n, bankroll: 0n, payout: 0n };
-  // Shares of revenue in parts per 1,000,000 so the ratios are exact integers.
-  const creatorPpm = BigInt(Math.round(0.9 * creatorBps * 100)); // 0.9 · creatorBps/10000 · 1e6
-  const mimirPpm = 100_000n; // 10% of revenue
-  const ownerPpm = 700_000n;
-  const platform = (claimedUsdc6 * mimirPpm) / creatorPpm;
-  const ai = (claimedUsdc6 * mimirPpm) / creatorPpm;
-  const keep = split.bankroll + split.creatorPayout;
-  const payout = keep > 0 ? (claimedUsdc6 * ownerPpm * BigInt(split.creatorPayout)) / (creatorPpm * 100n) : 0n;
-  // Rounding dust and the burn rounding stay in the agent wallet as bankroll.
-  return { platform, ai, payout, bankroll: claimedUsdc6 - platform - ai - payout };
-}
+/** Everything the splitter leaves after Argus's 10% goes to the creator (the owner): no burn, no dividend, no Mimir cut. */
+export const ARGUS_ALLOCATION = { creatorBps: 10000, burnBps: 0, dividendBps: 0, liquidityBps: 0 } as const;
 
 // ───────────────────────────── params
 
@@ -121,7 +76,6 @@ export interface ArgusLaunchInput {
   imageURI: string;
   buyTaxBps: number;
   sellTaxBps: number;
-  split: OwnerSplit;
   devBuyUsdc6?: bigint;
   website?: string;
   twitter?: string;
@@ -135,7 +89,7 @@ export function launchParams(i: ArgusLaunchInput) {
   for (const t of [i.buyTaxBps, i.sellTaxBps]) if (!Number.isInteger(t) || t < 0 || t > ARGUS.maxTaxBps) throw new Error("each tax is 0 to 10%");
   if (i.buyTaxBps === 0 && i.sellTaxBps === 0) throw new Error("at least one of the buy and sell taxes must be above 0");
   if (!/^(ipfs:\/\/|https:\/\/)\S+$/.test(i.imageURI)) throw new Error("image must be an ipfs:// or https:// URI");
-  const a = argusAllocation(i.split);
+  const a = ARGUS_ALLOCATION;
   return {
     p: {
       name, symbol, totalSupply: ARGUS.totalSupply, startFdvUsdc6: ARGUS.startFdvUsdc6, bondFdvUsdc6: ARGUS.bondFdvUsdc6,
@@ -148,7 +102,7 @@ export function launchParams(i: ArgusLaunchInput) {
 }
 export type ArgusParams = ReturnType<typeof launchParams>;
 
-/** A stable token salt per agent (its uid), so a retried launch hits the same addresses rather than a second token. */
+/** A stable token salt per agent (its uid): a retried launch from the same wallet hits the same addresses, never a second token. */
 export const tokenSalt = (agentUid: string): Hex => keccak256(new TextEncoder().encode(`mimir-launch:argus:${agentUid}`));
 
 // ───────────────────────────── the hook miner
@@ -181,6 +135,8 @@ export function encodeLaunch(params: ArgusParams, salt: Hex, hookSalt: Hex): Hex
 
 export interface ArgusLaunched {
   token: Address;
+  creator: Address;
+  symbol: string;
   poolId: Hex;
   hook: Address;
   locker: Address;
@@ -189,13 +145,13 @@ export interface ArgusLaunched {
 
 /** The launch's addresses from its receipt logs (TokenCreated + PartsDeployed from the Portal). */
 export function decodeLaunch(logs: readonly Pick<Log, "address" | "data" | "topics">[]): ArgusLaunched | null {
-  let created: { token: Address; poolId: Hex } | null = null;
+  let created: { token: Address; creator: Address; symbol: string; poolId: Hex } | null = null;
   let parts: { locker: Address; hook: Address; splitter: Address } | null = null;
   for (const l of logs) {
     if (l.address.toLowerCase() !== ARGUS.portal.toLowerCase()) continue;
     try {
       const ev = decodeEventLog({ abi: ARGUS_ABI, data: l.data, topics: l.topics as [Hex, ...Hex[]] });
-      if (ev.eventName === "TokenCreated") created = { token: ev.args.token, poolId: ev.args.poolId };
+      if (ev.eventName === "TokenCreated") created = { token: ev.args.token, creator: ev.args.creator, symbol: ev.args.symbol, poolId: ev.args.poolId };
       if (ev.eventName === "PartsDeployed") parts = { locker: ev.args.locker, hook: ev.args.hook, splitter: ev.args.splitter };
     } catch {
       // not one of ours
@@ -219,5 +175,4 @@ export function priceUsdc(sqrtPriceX96: bigint, token: Address): number {
   return usdcPerTokenRaw * 10 ** (18 - 6);
 }
 
-export const argusTokenUrl = (token: string) => `https://arguspad.io/token/${token}`;
 export const dexChartArc = (poolId: string) => `https://dexscreener.com/arc/${poolId}?embed=1&theme=dark&trades=0&info=0`;

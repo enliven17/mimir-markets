@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { DEFAULT_MARKET_RULES, impliedA, judgeMarkets, kellyStake, marketCandidates, pickStake, type MarketView } from "../../lib/launch/markets";
-import type { JsonRouter } from "../../lib/launch/engine/rank";
+import type { JsonRouter } from "../../lib/launch/router";
 
 const NOW = 1_800_000_000;
 const pool = (over: Partial<MarketView> = {}): MarketView => ({

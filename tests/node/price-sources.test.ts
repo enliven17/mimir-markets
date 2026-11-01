@@ -56,17 +56,10 @@ test("each source keeps its own deadline skew: interval history and Chainlink ro
       { source: "coingecko", priceUsd: 1, at: at - 140_000, maxSkewMs: 150_000 },
       { source: "coinmarketcap", priceUsd: 1, at: at + 160_000, maxSkewMs: 150_000 },
       { source: "chainlink", priceUsd: 1, at: at - 3_000_000, maxSkewMs: 3_600_000 },
-      { source: "flashtrade", priceUsd: 1, at: at - 90_000 },
+      { source: "pyth", priceUsd: 1, at: at - 90_000 },
     ],
     at,
   );
   assert.deepEqual(kept.map((r) => r.source), ["coingecko", "chainlink"]);
 });
 
-test("a keyed NEXT_PUBLIC RPC is refused on mainnet unless declared origin-locked", async () => {
-  const { assertPublicRpcUrl } = await import("../../lib/solana/config");
-  assert.throws(() => assertPublicRpcUrl("X", "https://mainnet.helius-rpc.com/?api-key=abc", true, false), /key or query/);
-  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://mainnet.helius-rpc.com/?api-key=abc", true, true));
-  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://api.mainnet-beta.solana.com", true, false));
-  assert.doesNotThrow(() => assertPublicRpcUrl("X", "https://x/?api-key=abc", false, false), "devnet untouched");
-});

@@ -11,16 +11,15 @@ import ArcCouncil from "@/components/arc/council/ArcCouncil";
 import RegisteredAgents from "@/components/agents/RegisteredAgents";
 import CouncilMark from "@/components/launch/CouncilMark";
 import LaunchedAgents from "@/components/launch/LaunchedAgents";
-import DemoShowcase from "@/components/demo/DemoShowcase";
 import Segmented from "@/components/ui/Segmented";
 import { Link } from "@/i18n/navigation";
 
-type Tab = "demo" | "hosted" | "council" | "connected";
+type Tab = "hosted" | "council" | "connected";
 
-export default function LaunchHome({ solana }: { solana: Record<string, string> }) {
+export default function LaunchHome() {
   const t = useTranslations("launch");
   const ta = useTranslations("agentConnect");
-  const [tab, setTab] = useState<Tab>("demo");
+  const [tab, setTab] = useState<Tab>("hosted");
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-8 sm:gap-10">
@@ -33,9 +32,6 @@ export default function LaunchHome({ solana }: { solana: Record<string, string> 
           <Link href="/launch/new" className="btn-primary !min-h-[46px] !w-auto !px-5 !py-2.5 !text-[15px]">
             {t("launchCta")}
           </Link>
-          <Link href="/demo" className="text-[14px] text-coral transition-colors hover:text-cream">
-            Try the preview · virtual funds
-          </Link>
           <Link href="/agents/new" className="text-[14px] text-muted transition-colors hover:text-cream">
             {t("connectCta")} →
           </Link>
@@ -47,17 +43,14 @@ export default function LaunchHome({ solana }: { solana: Record<string, string> 
           label={t("directoryLabel")}
           tone="maroon"
           options={[
-            { value: "demo", label: "Mimir Preview" },
             { value: "hosted", label: t("tabHosted") },
             { value: "council", label: t("tabCouncil") },
             { value: "connected", label: t("tabConnected") },
           ]}
           value={tab}
           onChange={setTab}
-          className="max-w-[520px]"
+          className="max-w-[420px]"
         />
-        {tab === "demo" ? <DemoShowcase /> : null}
-
         {tab === "hosted" ? (
           <section className="grid gap-4" aria-labelledby="launch-hosted">
             <h2 id="launch-hosted" className="sr-only">
@@ -78,7 +71,7 @@ export default function LaunchHome({ solana }: { solana: Record<string, string> 
                 <p className="m-0 max-w-[62ch] text-[14px] text-muted">{t("councilLead")}</p>
               </div>
             </div>
-            <ArcCouncil solana={solana} />
+            <ArcCouncil />
           </section>
         ) : null}
 

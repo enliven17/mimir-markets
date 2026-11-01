@@ -1,7 +1,7 @@
 /**
  * Shared types for the Mimir Council runtime (agents/council/shared/*).
  */
-import type { OnchainClaim } from "../../../lib/solana/client";
+import type { OnchainClaim } from "../../../lib/market-claim";
 import type { Verdict } from "../../../lib/verdict";
 
 /** The claim fields the council reads. An OnchainClaim satisfies it. */

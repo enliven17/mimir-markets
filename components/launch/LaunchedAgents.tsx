@@ -34,7 +34,7 @@ export default function LaunchedAgents() {
               <p className="m-0 truncate font-display text-[1.25rem] leading-none text-cream">{a.name}</p>
               <p className="m-0 mt-1 truncate text-[12px] text-muted">
                 <span className="mr-1.5 font-mono text-coral">${a.ticker}</span>
-                {[a.markets.enabled ? t("doesMarkets") : null, a.trading.enabled ? t("doesTrading") : null].filter(Boolean).join(" · ")}
+                {[a.markets.enabled ? t("doesMarkets") : null, a.markets.create ? t("doesCreate") : null, a.token ? t(a.token.chain === "arc" ? "hasArgusToken" : "hasClankerToken") : null].filter(Boolean).join(" · ")}
               </p>
             </div>
             {a.status !== "live" ? <span className="text-[12px] text-dim">{a.status === "killed" ? "Shut down" : t("paused")}</span> : null}

@@ -7,12 +7,11 @@ info:
     The envelope is specified in `schemas/agent-api-v1.schema.json`. Prose guide: `docs/AGENTS.md`.
 
     Markets settle on **Arc** (chain id 5042002 on testnet; USDC is the native currency, 18 decimals). An agent's
-    identity is Solana: its owner, operator and payout wallets are base58 Solana public keys, and every request is
-    signed with one of them. Its **Arc operator** is an EVM address it holds the key to; it signs and pays for the
+    owner, operator and payout wallets are EVM addresses, and every request is signed with one of them. Its **Arc operator** is an EVM address it holds the key to; it signs and pays for the
     agent's Arc transactions. **Mimir never holds an agent's keys.**
 
-    **Signatures.** ed25519 over the UTF-8 bytes of the request message (`agentRequestMessage` in
-    `lib/agents/api.ts`), sent base58-encoded in `signature`. The message embeds the SHA-256 of the canonical body,
+    **Signatures.** EIP-191 `personal_sign` over the UTF-8 request message (`agentRequestMessage` in
+    `lib/agents/api.ts`), sent as 0x hex in `signature` (a smart wallet's ERC-1271 signature is checked on chain). The message embeds the SHA-256 of the canonical body,
     so a body cannot be swapped after signing.
 
     **Credentials.** A bearer API key (`authorization: Bearer mk_live_...`) covers day-to-day calls. Owner-gated
@@ -27,7 +26,6 @@ info:
     nothing server side. The response carries `transactions[]` (`chainId`, `to`, `data`, `value` in wei); the agent
     checks each one, signs it with the Arc operator key and sends it to Arc, in order. Every stake pays an entry fee
     (0.5%) taken from the amount sent; the minimum stake is 0.1 USDC.
-    `deposit`, `delegateBalance` and `undelegateBalance` belong to the Solana build and answer 410 `not_on_arc`.
 
     **Budgets.** Per-position and daily USDC caps count the stake of every transaction issued (not landed), so an
     unsigned transaction still uses budget for 24 hours.
@@ -39,8 +37,8 @@ info:
     **Rate limits.** Per client IP before any work, per authenticated agent per minute, and the agent's own
     `requestsPerHour`. Failed calls never count against the hourly budget.
 
-    **Older routes.** `/api/arena/*`, `/api/verify/*` and `/api/notifications*` below read the Solana program's index
-    and describe the Solana build. On Arc, read markets with `listClaims` and `getClaim`.
+    **Reading markets.** Use `listClaims` and `getClaim`, or the public `/api/markets` routes.
+    `/api/notifications*` have no event source yet.
   license:
     name: AGPL-3.0-or-later
 servers:
@@ -80,9 +78,6 @@ paths:
               - challenge
               - dispute
               - withdraw
-              - deposit
-              - delegateBalance
-              - undelegateBalance
       security:
         - {}
         - agentApiKey: []
@@ -108,10 +103,10 @@ paths:
                     displayName: My agent
                     authorityLevel: 3
                     capabilities: []
-                    operatorSignature: <base58 operator proof>
+                    operatorSignature: <0x operator proof>
                     arcOperator: "0x47Ec885446447c62aDE33Ecd29DcF89d7e97edAc"
                     paymentTx: "0x<64 hex: the Arc transaction that paid the deploy fee>"
-                  signature: <base58 owner signature>
+                  signature: <0x owner signature>
               setArcOperator:
                 summary: Point the agent's Arc transactions at a new EVM address (owner-signed)
                 value:
@@ -141,10 +136,10 @@ paths:
                   agentId: my-agent
                   action: createClaim
                   body:
-                    question: Will SOL close above $200 on Friday?
+                    question: Will ETH close above $4000 on Friday?
                     creatorPosition: "Yes"
                     counterPosition: "No"
-                    resolutionUrl: https://www.coingecko.com/en/coins/solana
+                    resolutionUrl: https://www.coingecko.com/en/coins/ethereum
                     category: crypto
                     stakeUsdc: 1
                     deadline: 1792000000
@@ -203,17 +198,6 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/PublicAgent" }
 
-  /api/arena/claims:
-    get:
-      summary: The public claim feed (read index, chain fallback)
-      operationId: listArenaClaims
-      parameters:
-        - { name: state, in: query, schema: { type: string, enum: [open, active, live, resolved, cancelled] } }
-        - { name: category, in: query, schema: { type: string } }
-      responses:
-        "200": { description: Claims, newest first }
-        "429": { description: Chain-scan fallback rate limit }
-
   /api/baskets:
     get:
       summary: The basket directory, ranked by active followers
@@ -232,13 +216,13 @@ paths:
     post:
       summary: Compose a basket (composer-signed, moves nothing)
       description: |
-        The composer signs `composeMessage` (lib/baskets.ts) with ed25519, base58:
+        The composer signs `composeMessage` (lib/baskets.ts) with EIP-191:
 
-            Mimir basket (Solana)
+            Mimir basket
             id: <id>
             name: <name>
             thesis: <thesis>
-            creator: <creatorWallet base58>
+            creator: <creatorWallet address>
               <agentId>: <weightBps> bps      (one line per member, in order)
             signedAt: <ms>
 
@@ -256,11 +240,11 @@ paths:
                 id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$", description: "`new` and `candidates` are reserved" }
                 name: { type: string, maxLength: 80 }
                 thesis: { type: string, maxLength: 500 }
-                creatorWallet: { type: string, description: base58 Solana public key }
+                creatorWallet: { type: string, description: EVM address }
                 members:
                   type: array
                   items: { $ref: "#/components/schemas/BasketMember" }
-                signature: { type: string, description: base58 ed25519 signature }
+                signature: { type: string, description: EIP-191 signature, 0x hex }
                 signedAt: { type: integer, description: ms timestamp }
       responses:
         "201": { description: Created }
@@ -297,11 +281,11 @@ paths:
     post:
       summary: "Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit"
       description: |
-        The follower signs `followMessage` (ed25519, base58, follower in exact base58 case):
+        The follower signs `followMessage` (EIP-191, follower address exactly as given):
 
-            Mimir basket subscription (Solana)
+            Mimir basket subscription
             basket: <id>
-            follower: <follower base58>
+            follower: <follower address>
             perMarketCapUsdc: <cap>
             signedAt: <ms>
             Positions are staked from your own balance with your own signature.
@@ -366,10 +350,8 @@ paths:
       summary: The unsigned challenge transaction for one signal
       description: |
         Requires an active follow; the stake is the signal's suggested stake,
-        so it never exceeds the signed cap. Built by the agent API's builder:
-        fee payer = follower, `er` layer when the claim is delegated (the
-        follower's balance must then be delegated too, else
-        `balance_not_delegated`). Mimir never signs it.
+        so it never exceeds the signed cap. One Arc call (`to`, `data`,
+        `value`) the follower sends from their own wallet. Mimir never signs it.
       operationId: mirrorBasketSignal
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
@@ -395,7 +377,7 @@ paths:
                   signal: { $ref: "#/components/schemas/MirrorSignal" }
                   transactions:
                     type: array
-                    items: { $ref: "#/components/schemas/PreparedTransaction" }
+                    items: { $ref: "#/components/schemas/ArcTransaction" }
         "403": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
@@ -407,10 +389,10 @@ paths:
       description: |
         Behind `MIMIR_FEATURE_COPY_TRADING` (404 `feature_disabled` when off,
         checked before anything else except `probe=1`). The follower signs `followerProofMessage`
-        (ed25519, base58) within 5 minutes of server time:
+        (EIP-191) within 5 minutes of server time:
 
-            Mimir copy list (Solana)
-            follower: <follower base58>
+            Mimir copy list
+            follower: <follower address>
             at: <ms>
       operationId: listCopyPermissions
       parameters:
@@ -429,9 +411,9 @@ paths:
         The follower signs `copyPermissionMessage` (lib/copy-trading.ts), every
         bound spelled out:
 
-            Mimir copy permission (Solana)
+            Mimir copy permission
             id: <id>
-            follower: <follower base58>
+            follower: <follower address>
             copy: <signalAgentId>
             executed by: <executionAgentId>
             per position: <n> USDC
@@ -490,7 +472,7 @@ paths:
     delete:
       summary: Revoke a copy permission, immediately
       description: |
-        Signed like list, with `Mimir copy revoke (Solana)` and an `id: <id>`
+        Signed like list, with `Mimir copy revoke` and an `id: <id>`
         line after the follower. A revoke signed before the current grant does
         not cancel it.
       operationId: revokeCopyPermission
@@ -512,7 +494,7 @@ paths:
         authenticated as the execution agent. The body picks the mode:
 
         - `{}`: `{ copy: [{ permissionId, claimId, signalAgentId, question,
-          category, layer, deadline, claimQuality, payoutRatio, stakeUsdc,
+          category, deadline, claimQuality, payoutRatio, stakeUsdc,
           stakeUnits }], skipped: [{ ..., reason, message }] }` for every
           active permission naming this agent. Signals are the signal agent's
           OPEN/ACTIVE challenger positions with a free seat, gated by the
@@ -520,13 +502,13 @@ paths:
           lib/copy-trading.ts), caps consumed across the batch.
         - `{ prepare: { permissionId, claimId } }`: re-gates that one copy, then
           applies the agent's own limits (as a `challenge`) and returns
-          `{ stakeUsdc, stakeUnits, signer, transactions }`: unsigned, fee
-          payer = operator, `er` when the claim is delegated. A refused gate
+          `{ stakeUsdc, stakeUnits, signer, referrer, transactions }`: one unsigned
+          Arc call from the Arc operator. A refused gate
           answers 409 with the skip reason.
         - `{ report: { permissionId, claimId, executed, signature?, skipReason? } }`:
-          records the outcome. `executed: true` is checked against the claim
-          account on chain (409 `not_on_chain` if the operator holds no
-          position) and recorded at the on-chain stake, once per claim.
+          records the outcome. `executed: true` is checked against the Arc
+          index (409 `not_on_chain` if the operator holds no position) and
+          recorded at the indexed stake, once per market.
 
         Nothing is staked by Mimir and no key is held.
       operationId: copySignals
@@ -544,73 +526,6 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
-
-  /api/arena/{id}:
-    get:
-      summary: One claim with its V3 lifecycle fields (read index, chain fallback)
-      description: |
-        The claim page's source. Chain reads (no `DATABASE_URL`) are rate-limited
-        to 60/min per IP. Amounts are USDC base units (6 decimals) as strings;
-        times are unix seconds. States: 0 open, 1 active, 2 resolved,
-        3 cancelled, 4 proposed, 5 disputed. Sides: 0 none, 1 creator,
-        2 challengers, 3 draw, 4 unresolvable.
-      operationId: getArenaClaim
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
-      responses:
-        "200": { description: "`{ success: true, data: ApiClaim }` (lib/server/arena-claim.ts)" }
-        "400": { description: "`{ success: false, error }` invalid id" }
-        "404": { description: Claim not found }
-        "429": { description: Chain-read rate limit }
-
-  /api/arena/{id}/council:
-    get:
-      summary: Where each council persona stands on one claim
-      operationId: getArenaClaimCouncil
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
-      responses:
-        "200": { description: "`{ claimId, total, stakedCount, totalUsdc, votes: [{ slug, displayName, archetype, track, address, staked, stakeUsdc, paid }] }`" }
-        "400": { description: Invalid id }
-        "404": { description: Claim not found }
-        "429": { description: 30/min per IP }
-        "502": { description: Chain read failed }
-
-  /api/arena/agents:
-    get:
-      summary: The oracle and council personas with their recent activity (the /agents page)
-      operationId: listArenaAgents
-      responses:
-        "200": { description: Per-agent activity summary plus a newest-first activity log }
-        "429": { description: 30/min per IP }
-
-  /api/arena/user/{address}:
-    get:
-      summary: Every claim a wallet created or challenged
-      operationId: listUserClaims
-      parameters:
-        - { name: address, in: path, required: true, schema: { type: string, description: base58 Solana public key } }
-      responses:
-        "200": { description: "`{ success, source, data: { claims, count, indexedAt } }`, same claim shape as /api/arena/claims" }
-        "400": { description: Not a Solana public key }
-        "429": { description: 60/min per IP with the read index, 12/min on the chain-scan path }
-
-  /api/challenge-opportunities:
-    get:
-      summary: Source-backed claim drafts for the arena feed
-      description: |
-        Read-only (the market-creator worker rebuilds the set; no request here
-        calls an LLM). Behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`, else 404
-        `feature_disabled`. A draft becomes a claim through
-        `/arena/create?source=&q=&a=&b=&cat=&deadline=&rule=` (lib/create-prefill.ts).
-      operationId: listChallengeOpportunities
-      parameters:
-        - { name: limit, in: query, schema: { type: integer, minimum: 1 } }
-      responses:
-        "200": { description: "`{ items: ChallengeOpportunity[], count, generatedAt }` (lib/claimDrafts.ts)" }
-        "400": { description: limit out of range }
-        "404": { description: feature_disabled }
-        "429": { description: Rate limit }
 
   /api/claim-draft:
     post:
@@ -691,44 +606,12 @@ paths:
         "429": { description: Rate limit }
         "503": { description: Council unavailable (no LLM key) }
 
-  /api/council/reasoning:
-    get:
-      summary: One persona's take on a claim, in character
-      description: |
-        30 reads/min per IP; LLM generations 6/min per IP and 60/min
-        deploy-wide, memoized 10 minutes per (claim, persona).
-      operationId: councilReasoning
-      parameters:
-        - { name: claimId, in: query, required: true, schema: { type: integer, minimum: 1 } }
-        - { name: persona, in: query, required: true, schema: { type: string } }
-      responses:
-        "200": { description: The persona's reasoning }
-        "400": { description: Unknown persona or bad claimId }
-        "404": { description: Claim not found }
-        "429": { description: Rate limit }
-        "503": { description: Reasoning unavailable }
-
   /api/council/roster:
     get:
-      summary: Both council tracks with each persona's derived Solana address
+      summary: Both council tracks with each persona's Arc wallet
       operationId: councilRoster
       responses:
-        "200": { description: "Personas per track; `address` is empty when this deploy has no admin key to derive from" }
-
-  /api/verify/{id}:
-    get:
-      summary: Verification report for a verdict, or the raw audit bundle
-      description: With `raw=1` the bundle is returned byte for byte as hashed; `sha256(file)` must equal the claim's on-chain `evidence_hash`.
-      operationId: verifyClaim
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
-        - { name: raw, in: query, schema: { type: string, enum: ["1"] } }
-      responses:
-        "200": { description: Report JSON (hash match, on-chain verdict, bundle), or the bundle file }
-        "400": { description: Invalid id }
-        "404": { description: Claim or bundle not found }
-        "429": { description: 60/min per IP }
-        "502": { description: Chain read failed }
+        "200": { description: "Personas per track; `address` is its Arc wallet, empty when it has none yet" }
 
   /api/notifications:
     get:
@@ -739,7 +622,7 @@ paths:
         - { name: address, in: query, required: true, schema: { type: string } }
       responses:
         "200": { description: Newest-first notifications }
-        "400": { description: Not a Solana public key }
+        "400": { description: Not an EVM address }
         "429": { description: Rate limit }
 
   /api/notifications/webhook:
@@ -747,7 +630,7 @@ paths:
       summary: Point a wallet's notifications at an https webhook (an empty url removes it)
       description: |
         The wallet (or an agent's operator key) signs `webhookMessage(address,
-        url, signedAt)` from lib/notifications (ed25519 over UTF-8, base58),
+        url, signedAt)` from lib/notifications (EIP-191 over UTF-8),
         within 5 minutes of server time. The response carries a secret, shown
         once; deliveries carry `x-mimir-signature: sha256=HMAC(secret, rawBody)`.
         10/min per IP; needs a database.
@@ -763,7 +646,7 @@ paths:
                 address: { type: string }
                 url: { type: string }
                 signedAt: { type: integer, description: ms timestamp }
-                signature: { type: string, description: base58 ed25519 }
+                signature: { type: string, description: EIP-191, 0x hex }
       responses:
         "200": { description: Saved; includes the delivery secret }
         "400": { description: Bad address or non-public url }
@@ -827,15 +710,10 @@ components:
               agentId: { type: string }
               stakeUnits: { type: string }
         suggestedStakeUnits: { type: string, description: USDC base units (6 decimals) }
-        layer: { type: string, enum: [base, er] }
         deadline: { type: integer }
 
     Envelope:
       $ref: "../schemas/agent-api-v1.schema.json"
-
-    PreparedTransaction:
-      description: Solana build only (a base64 legacy transaction for the Solana program or the rollup).
-      $ref: "../schemas/agent-api-v1.schema.json#/$defs/preparedTransaction"
 
     ArcTransaction:
       type: object
@@ -939,7 +817,7 @@ components:
             activeMarkets: { type: integer }
         feeQuote:
           type: [object, "null"]
-          description: Solana build only (the program's fee policy); not meaningful on Arc.
+          description: The fee split on a win at the contracts' default policy, given `expectedPayoutUsdc`.
           properties:
             policy:
               type: object
@@ -951,20 +829,6 @@ components:
             platformFeeUsdc: { type: string }
             agentOwnerFeeUsdc: { type: string }
             netPayoutUsdc: { type: string }
-        simulation:
-          type: [object, "null"]
-          description: |
-            Solana build only. Present when `params` was given. The first transaction run through
-            `simulateTransaction` (sigVerify off, blockhash replaced) on its layer.
-            A pre-check refusal (e.g. `balance_not_delegated`) appears as `err`
-            with the message in `logs`.
-          properties:
-            ok: { type: boolean }
-            err: { type: [string, "null"] }
-            logs: { type: array, items: { type: string } }
-            unitsConsumed: { type: [integer, "null"] }
-            layer: { type: string, enum: [base, er, none] }
-            transactions: { type: integer }
 
     Limits:
       type: object
@@ -1017,9 +881,7 @@ components:
             `capability_above_authority`, `rate_limit`, `position_cap`,
             `daily_cap`, `active_markets`, `revoked`, `paused`, `pending`.
             Chain state: `unknown_claim`, `claim_closed`, `self_challenge`,
-            `not_proposed`, `program_paused`, `balance_not_delegated`,
-            `balance_delegated`, `already_delegated`, `not_delegated`,
-            `not_supported`, `not_on_arc`, `no_arc_operator`. Deploy fee: `payment_required`,
+            `not_proposed`, `stake_limit`, `not_on_chain`, `no_arc_operator`. Deploy fee: `payment_required`,
             `payment_invalid`, `payment_used`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
             `stale_signature`, `signature_replay`, `basket_exists`, `not_found`,
             `not_following`, `no_signal`, the basket validation reasons

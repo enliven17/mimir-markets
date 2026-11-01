@@ -16,7 +16,7 @@ import {
   challengerGross,
   splitFees,
   MAX_TOTAL_FEE_BPS,
-} from "./solana/fees";
+} from "./market-fees";
 
 /** 1 USDC in base units (6 decimals). */
 export const ONE_USDC = 1_000_000n;
@@ -67,7 +67,7 @@ export interface BasketDefinition {
   id: string;
   name: string;
   thesis: string;
-  /** Base58 Solana public key of the composer. */
+  /** EVM address of the composer. */
   creatorWallet: string;
   members: BasketMember[];
   createdAt: number;
@@ -277,7 +277,7 @@ export function simulateVirtualBasket(
 
 // ── Claims from the read index → settlements and signals ──────────────────
 
-/** The slice of a `solana_claims` row this module reads. */
+/** The slice of an indexed market row this module reads. */
 export interface IndexedClaim {
   id: number;
   creator: string;
@@ -301,7 +301,7 @@ export interface IndexedClaim {
   created_at?: number;
 }
 
-// Mirrors lib/solana/config.ts (kept literal so this module stays RPC-free).
+// Mirrors lib/market-codes.ts (kept literal so this module stays dependency-free).
 const ST_OPEN = 0;
 const ST_ACTIVE = 1;
 const ST_RESOLVED = 2;
@@ -443,7 +443,7 @@ export function mirrorSignals(args: {
 // ── Signed messages ────────────────────────────────────────────────────────
 
 /**
- * The message a composer signs (ed25519, base58) when publishing a basket.
+ * The message a composer signs (EIP-191) when publishing a basket.
  * Creating a basket moves nothing, but it carries the composer's key, so it is
  * signed: otherwise anyone could publish a thesis under someone else's wallet.
  * Name, thesis and weights are spelled out so the prompt shows what is claimed.
@@ -457,7 +457,7 @@ export function composeMessage(args: {
   signedAt: number;
 }): string {
   return [
-    "Mimir basket (Solana)",
+    "Mimir basket",
     `id: ${args.id}`,
     `name: ${args.name}`,
     `thesis: ${args.thesis}`,
@@ -468,7 +468,7 @@ export function composeMessage(args: {
 }
 
 /**
- * The message a follower signs. It names the basket, the follower (base58,
+ * The message a follower signs. It names the basket, the follower (EVM address,
  * exact case) and the cap, so what is approved is legible in the wallet
  * prompt. Unfollowing is the same signature with the cap set to zero.
  *
@@ -483,7 +483,7 @@ export function followMessage(args: {
   signedAt: number;
 }): string {
   return [
-    "Mimir basket subscription (Solana)",
+    "Mimir basket subscription",
     `basket: ${args.basketId}`,
     `follower: ${args.follower}`,
     `perMarketCapUsdc: ${args.perMarketCapUsdc}`,

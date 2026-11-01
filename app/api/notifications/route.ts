@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const address = normalizeWallet(new URL(req.url).searchParams.get("address"));
-  if (!address) return NextResponse.json({ error: "address must be an EVM address or a Solana key" }, { status: 400 });
+  if (!address) return NextResponse.json({ error: "address must be an EVM address" }, { status: 400 });
   if (!(await allowRequest("notifications", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const items = await listNotifications(address).catch(() => []);
   return NextResponse.json({ items }, { headers: { "cache-control": "private, max-age=20" } });

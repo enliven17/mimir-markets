@@ -55,7 +55,7 @@ dependencies {
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-    // WebView passkeys go through Credential Manager (developer.android.com/identity/sign-in/credential-manager-webview).
+    // WebView WebAuthn (smart wallets that sign with it) goes through Credential Manager (developer.android.com/identity/sign-in/credential-manager-webview).
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
 }

@@ -1,6 +1,6 @@
 "use node";
 
-// The council on Arc, as a Convex cron step (replaces agents/council/solana.ts for Arc markets). Each tick takes the
+// The council on Arc, as a Convex cron step. Each tick takes the
 // open markets from the index, and for each (market, persona) pair still undecided runs the same persona pipeline
 // (agents/council/shared/persona-runner.ts: category filter, rule personas, the LLM persona over one cached evidence
 // fetch, Kelly sizing at the pool's odds). A persona that disagrees with the creator stakes side B from its own
@@ -8,7 +8,6 @@
 // (arcCouncilDb) and shown on the market page; a considered no stands for COUNCIL_REEVAL_MS.
 // Env: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, ARC_COUNCIL_WALLETS (scripts/arc/council-wallets.ts), the LLM keys,
 //      MIMIR_PAUSE_COUNCIL=1 to stop, COUNCIL_DRY_RUN=1 to decide without staking.
-import type { PublicKey } from "@solana/web3.js";
 import { parseEther } from "viem";
 
 import { internal } from "./_generated/api";
@@ -31,7 +30,7 @@ import { LOCK_SECONDS, maxGrossFor, vsRoom } from "../lib/arc/markets";
 import { councilWalletsFromEnv, executeContract } from "../lib/server/circle-w3s";
 import { copyArcStake } from "../lib/launch/arc-copy";
 import { councilCopyKey } from "../lib/launch/copy-key";
-import { createConsoleLogger } from "../lib/launch/worker/log";
+import { createConsoleLogger } from "../lib/launch/log";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex } from "@noble/hashes/utils";
 
@@ -48,7 +47,8 @@ type Market = Doc<"arcMarkets">;
 type Position = Doc<"arcPositions">;
 
 /** The shared runner reads addresses through toBase58() / equals(); an Arc address behind that face. */
-const addr = (a: string) => ({ toBase58: () => a, equals: (o: { toBase58(): string }) => o.toBase58() === a }) as unknown as PublicKey;
+/** Addresses as the oracle and council compare them: lowercase. */
+const addr = (a: string) => a.toLowerCase();
 const units = (wei: string | bigint) => BigInt(wei) / 1_000_000_000_000n;
 
 function asCouncilClaim(m: Market, positions: Position[]): CouncilClaim {
