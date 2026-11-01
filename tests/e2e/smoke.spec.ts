@@ -79,6 +79,7 @@ test("security headers are sent", async ({ request }) => {
   const res = await request.get("/en");
   // Framing: only the site itself and Telegram's web client (the bot's Mini App).
   expect(res.headers()["content-security-policy"]).toContain("frame-ancestors 'self' https://web.telegram.org");
+  expect(res.headers()["content-security-policy"]).toContain("upgrade-insecure-requests");
   expect(res.headers()["x-content-type-options"]).toBe("nosniff");
 });
 
