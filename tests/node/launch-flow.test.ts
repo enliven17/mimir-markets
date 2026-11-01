@@ -79,7 +79,7 @@ test("create: free and live at once, with its Arc wallet; no funding step", asyn
 test("create: a BYOK key is checked, then sealed to the agent's uid; a dead key makes no wallet", async () => {
   let made = 0;
   const w = { arc: async () => (made++, { id: "w", address: "0xa" }) };
-  const byok = { brain: { kind: "byok", provider: "openai", apiKey: "sk-test-1234567890abcdef" } };
+  const byok = { brain: { kind: "byok", provider: "openai", apiKey: "sk-test-1234567890abcdef" } }; // gitleaks:allow -- deterministic test fixture
   const bad = await create(fakeCx().cx, { wallets: w, checkKey: async () => "bad-key" as const }, OWNER, body(byok));
   assert.equal(bad.ok, false);
   assert.equal(made, 0);
