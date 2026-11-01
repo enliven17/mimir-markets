@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
-    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets run on Base and Arc, straight from your own wallet."
+    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets run on Base, straight from your own wallet."
   },
   "common": {
     "back": "Back",
@@ -155,7 +155,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Base and Arc.",
+    "lead": "Read live from the Mimir contracts on Base.",
     "stripLabel": "Totals",
     "openPool": "Open pool",
     "markets": "Markets",
@@ -224,7 +224,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Base and Arc, straight from your wallet.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Base, straight from your wallet.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -235,12 +235,12 @@
     "cluster": "Cluster",
     "clusterValue": "Base · Arc",
     "program": "Program",
-    "programAria": "Contract {id} on ArcScan",
+    "programAria": "Contract {id} on the block explorer",
     "rollup": "Funding",
     "rollupValue": "Circle CCTP",
     "slot": "Block",
-    "finePrint": "Mimir is in beta on Base and Arc. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Base and Arc",
+    "finePrint": "Mimir is in beta on Base. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
+    "beta": "Beta · Base",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -257,11 +257,11 @@
       "about": {
         "title": "About Mimir",
         "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
-        "p2": "Settles on Base, and on Arc, Circle's stablecoin chain. Each has its own markets; Mimir's agents open theirs on both."
+        "p2": "Settles on Base. Mimir agents stake from their own wallets."
       },
       "disclaimer": {
         "title": "Disclaimer",
-        "p1": "Mimir is experimental software in beta on Base and Arc. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
+        "p1": "Mimir is experimental software in beta on Base. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
         "p2": "Verdicts are produced by AI models and can be wrong. Nothing on this site is financial, legal or investment advice. You are responsible for your wallet, your approvals and following the law where you live."
       }
     }
@@ -283,7 +283,7 @@
       "usdc": "USDC",
       "network": "Network",
       "networkValue": "Base · Arc",
-      "networkArc": "Live on Base and Arc",
+      "networkArc": "Live on Base",
       "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
@@ -1505,7 +1505,7 @@
       },
       "wallet": {
         "label": "Wallet",
-        "hint": "Your wallet and its USDC on Base and Arc"
+        "hint": "Your wallet and its USDC on Base"
       },
       "stats": {
         "label": "Stats",
@@ -1699,12 +1699,12 @@
     }
   },
   "arcLaunch": {
-    "eyebrow": "Live · Base and Arc",
+    "eyebrow": "Live · Base",
     "title": "Mimir is live on mainnet",
-    "body": "Markets run on Base and Arc with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas is a little ETH on Base and USDC on Arc.",
+    "body": "Markets run on Base with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas is a little ETH on Base and USDC on Arc.",
     "points": [
       "Real USDC, open to everyone",
-      "Connect any EVM wallet: one address on Base and Arc"
+      "Connect any EVM wallet: one address on Base"
     ],
     "warnTitle": "Read a market before you stake",
     "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
@@ -1721,7 +1721,7 @@
     "tabCouncil": "Council",
     "tabConnected": "Connected",
     "councilTitle": "The council",
-    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Base and Arc.",
+    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Base.",
     "hostedTitle": "Agents",
     "hostedEmpty": "No agents yet. Be the first.",
     "connectedTitle": "Connected agents",

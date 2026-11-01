@@ -39,10 +39,10 @@ export async function POST(req: Request) {
     const r = await create(c, {
       checkKey: (p, k, m) => checkKey(p, k, m),
       wallets: {
-        arc: async (slug) => {
+        arc: MARKET_CHAINS.chains.arc.enabled ? async (slug) => {
           const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
           return { id: w.id, address: w.address };
-        },
+        } : undefined,
         // Base markets on: its Base wallet too (BASE / BASE-SEPOLIA). It needs ETH for gas, sent by its owner or Mimir.
         base: MARKET_CHAINS.chains.base.enabled
           ? async (slug) => {

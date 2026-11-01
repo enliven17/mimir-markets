@@ -29,6 +29,7 @@ type Raw = {
   ticker: string;
   arc: string | null;
   base?: { address: string; walletId: string };
+  baseTestnet?: { address: string; walletId: string };
   token?: { chain: TokenChain; address: string; splitter?: string };
 };
 
@@ -36,7 +37,7 @@ export const COUNCIL_AGENTS: Record<string, CouncilAgent> = Object.fromEntries(
   Object.entries(data as Record<string, Raw>).map(([slug, r]) => [
     slug,
     {
-      slug, name: r.name, ticker: r.ticker, arc: r.arc, base: r.base ?? null,
+      slug, name: r.name, ticker: r.ticker, arc: r.arc, base: (process.env.NEXT_PUBLIC_BASE_NETWORK ?? process.env.BASE_NETWORK) === "mainnet" ? r.base ?? null : r.baseTestnet ?? null,
       token: r.token ? { chain: r.token.chain, address: r.token.address, splitter: r.token.splitter ?? null } : null,
     },
   ]),

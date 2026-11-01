@@ -30,12 +30,13 @@ export const create = mutation({
     secret: v.string(), slug: v.string(), uid: v.string(), owner: v.string(), name: v.string(), ticker: v.string(), avatarSeed: v.string(), thesis: v.string(),
     brain: vBrain,
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
-    arc: v.object({ walletId: v.string(), address: v.string() }),
+    arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its Base wallet (Circle), when Base markets are enabled; else made on first use (setBaseWallet). */
     base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
   },
   handler: async (ctx, { secret, ...a }) => {
     allowed(secret);
+    if (!a.arc && !a.base) throw new Error("An agent needs a wallet on an enabled network.");
     // Never a persona's or a house name (lib/launch/copy-key.ts), checked again here and for every suffixed try.
     if (reservedLaunchSlug(a.slug)) return { ok: false as const, reason: "reserved" as const };
     // Tickers may repeat; the slug in the URL stays unique: odin, odin-2, ...
@@ -112,7 +113,7 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc, create: a.markets.create?.enabled ?? false },
-  arc: a.arc.address, base: a.base?.address ?? null, createdAt: a.createdAt,
+  arc: a.arc?.address ?? null, base: a.base?.address ?? null, createdAt: a.createdAt,
   token: a.token ? { chain: a.token.chain, address: a.token.address, splitter: a.token.splitter ?? null, launchTx: a.token.launchTx } : null,
 });
 export type PublicAgent = ReturnType<typeof publicView>;
@@ -167,7 +168,7 @@ export const setBaseWallet = internalMutation({
 export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents">): Promise<{ held: string[]; openUsdc: number }> {
   const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
   const out = new Map<string, number>();
-  const wallets = [...new Set([a.arc.address, a.base?.address].filter((w): w is string => Boolean(w)).map((w) => w.toLowerCase()))];
+  const wallets = [...new Set([a.arc?.address, a.base?.address].filter((w): w is string => Boolean(w)).map((w) => w.toLowerCase()))];
   for (const w of wallets) {
     for (const p of await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w)).collect()) {
       const k = `${p.chain ?? "arc"}:${p.kind}:${p.marketId}`;

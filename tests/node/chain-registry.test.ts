@@ -25,7 +25,7 @@ test("registry: without contracts no chain is enabled, nothing throws, Base is s
 });
 
 test("registry: a chain is enabled with both market contracts, Base first; the list and default switch it", () => {
-  const env = { arc: { mimirV3: A(1), mimirPool: A(2) }, base: { mimirV3: A(3), mimirPool: A(4), network: "mainnet", minStake: "0.25" } };
+  const env = { marketChains: "base,arc", arc: { mimirV3: A(1), mimirPool: A(2) }, base: { mimirV3: A(3), mimirPool: A(4), network: "mainnet", minStake: "0.25" } };
   const r = marketChains(env);
   assert.deepEqual(r.enabled, ["base", "arc"]);
   assert.equal(r.defaultChain, "base");
@@ -37,19 +37,29 @@ test("registry: a chain is enabled with both market contracts, Base first; the l
   assert.equal(marketChains({ ...env, marketChains: "arc" }).defaultChain, "arc");
   assert.equal(marketChains({ ...env, defaultChain: "arc" }).defaultChain, "arc");
   // A base-only config whose only chain lacks contracts falls back to the first enabled one.
-  assert.equal(marketChains({ arc: env.arc, base: {}, defaultChain: "base" }).defaultChain, "arc");
+  assert.equal(marketChains({ marketChains: "base,arc", arc: env.arc, base: {}, defaultChain: "base" }).defaultChain, "arc");
   // Only one contract: still off.
   assert.equal(marketChains({ arc: {}, base: { mimirV3: A(3) } }).chains.base.enabled, false);
 });
 
 test("registry: enabled-chain list parsing, and the backend reads its own env names", () => {
-  assert.deepEqual(parseEnabledChains(undefined), ["base", "arc"]);
+  assert.deepEqual(parseEnabledChains(undefined), ["base"]);
   assert.deepEqual(parseEnabledChains(" Arc , base,base, sol"), ["arc", "base"]);
   assert.deepEqual(parseEnabledChains(","), []);
   const r = serverMarketChains({ MIMIR_BASE_V3_ADDRESS: A(5), MIMIR_BASE_POOL_ADDRESS: A(6), BASE_RPC: "https://b.example, https://c.example", MIMIR_V3_ADDRESS: A(1) });
   assert.deepEqual(r.enabled, ["base"]);
   assert.deepEqual(r.chains.base.rpcUrls, ["https://b.example", "https://c.example"]);
   assert.equal(r.chains.arc.enabled, false);
+});
+
+test("registry: configured Arc stays dormant until explicitly re-enabled on both tiers", () => {
+  const arc = { mimirV3: A(1), mimirPool: A(2) };
+  const base = { mimirV3: A(3), mimirPool: A(4) };
+  assert.deepEqual(marketChains({ arc, base }).enabled, ["base"]);
+  assert.deepEqual(marketChains({ arc, base, marketChains: "base,arc" }).enabled, ["base", "arc"]);
+  const env = { MIMIR_V3_ADDRESS: A(1), MIMIR_POOL_ADDRESS: A(2), MIMIR_BASE_V3_ADDRESS: A(3), MIMIR_BASE_POOL_ADDRESS: A(4) };
+  assert.deepEqual(serverMarketChains(env).enabled, ["base"]);
+  assert.deepEqual(serverMarketChains({ ...env, MARKET_CHAINS: "base,arc" }).enabled, ["base", "arc"]);
 });
 
 test("amounts: Base scales by 1e12 both ways, exactly; dust is refused or floored on purpose", () => {

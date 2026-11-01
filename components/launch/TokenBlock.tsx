@@ -17,6 +17,7 @@ import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { BASE_CHAIN } from "@/lib/base/chain";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { ARGUS_SPLITTER_ABI } from "@/lib/launch/argus";
 import { BASE_WETH, CLANKER_FEE_LOCKER, FEE_LOCKER_ABI } from "@/lib/launch/base/clanker";
 import { signedPost } from "@/lib/launch/client";
@@ -32,6 +33,7 @@ const MAX_IMAGE_BYTES = 500_000;
 export default function TokenBlock({ slug, ticker, owner, status, token }: { slug: string; ticker: string; owner: string | null; status: string; token: Token | null }) {
   const { address, signMessage } = useMimirWallet();
   const mine = !!owner && !!address && address === owner && !!signMessage;
+  if (token && !MARKET_CHAINS.chains[token.chain].enabled) return null;
   if (token) {
     return (
       <section className="grid gap-4" aria-label={`$${ticker} token`}>
@@ -51,11 +53,12 @@ export default function TokenBlock({ slug, ticker, owner, status, token }: { slu
     );
   }
   if (!mine || status === "killed") return null;
+  if (!MARKET_CHAINS.enabled.some((c) => MARKET_CHAINS.chains[c].network === "mainnet")) return null;
   return <LaunchToken slug={slug} ticker={ticker} owner={address!} signMessage={signMessage!} />;
 }
 
 function LaunchToken({ slug, ticker, owner, signMessage }: { slug: string; ticker: string; owner: Address; signMessage: (m: string) => Promise<string> }) {
-  const [chain, setChain] = useState<"arc" | "base">("arc");
+  const [chain, setChain] = useState<"arc" | "base">("base");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [buyTax, setBuyTax] = useState("2");
@@ -91,7 +94,7 @@ function LaunchToken({ slug, ticker, owner, signMessage }: { slug: string; ticke
         </p>
       </div>
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Launchpad">
-        {(["arc", "base"] as const).map((c) => (
+        {MARKET_CHAINS.enabled.filter((c) => MARKET_CHAINS.chains[c].network === "mainnet").map((c) => (
           <button key={c} type="button" role="radio" aria-checked={chain === c} onClick={() => setChain(c)} className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-[13px] ${chain === c ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}>
             {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
             <img src={c === "arc" ? "/launch/argus.jpg" : "/launch/clanker.svg"} alt="" width={24} height={24} className="h-6 w-6 rounded-full bg-white object-cover" />

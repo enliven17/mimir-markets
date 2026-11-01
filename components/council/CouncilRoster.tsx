@@ -19,6 +19,7 @@ import { arcExplorerUrl } from "@/lib/arc/config";
 import { ExternalMark } from "@/components/ExternalMark";
 import AgentFace from "@/components/launch/AgentFace";
 import { basescan, tokenPage, type AgentToken } from "@/lib/launch/council-view";
+import { MARKET_CHAINS, explorerUrl } from "@/lib/chains/registry";
 
 export type Track = "classic" | "philosopher";
 
@@ -236,7 +237,7 @@ function PersonaCard({
               </a>
             ) : null}
             {p.baseAddress ? (
-              <a href={basescan("address", p.baseAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+              <a href={explorerUrl(MARKET_CHAINS.chains.base, "address", p.baseAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
                 <span className="mr-2 text-dim">Base</span>
                 {short(p.baseAddress)} <ExternalMark />
               </a>

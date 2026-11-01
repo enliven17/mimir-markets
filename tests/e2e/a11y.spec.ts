@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * axe-core on every route (WCAG 2.x A/AA rules): no serious or critical

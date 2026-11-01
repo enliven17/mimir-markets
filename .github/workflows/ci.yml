@@ -33,9 +33,16 @@ jobs:
         continue-on-error: true
       - run: npm run typecheck
       - run: npm run test:smoke
-      # Without the Arc contracts and Convex configured the market pages render
-      # empty, so the build needs no secrets.
+      # Public Sepolia configuration lets browser checks exercise Base routes.
+      # No signer, Circle credentials or internal secrets are used by CI.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_MARKET_CHAINS: base
+          NEXT_PUBLIC_BASE_NETWORK: testnet
+          NEXT_PUBLIC_CONVEX_URL: https://hushed-orca-915.convex.cloud
+          NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS: '0xB29BCcA174B78bE6448234c94Bf1caab44824948'
+          NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS: '0x9d3721dc087103228a4bA9EC72dacEb1B19b4402'
+          NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS: '0xd3356F1a085068b2DA2dfE1A09f1e8ddf0eC0858'
       # Browser smoke: every page on desktop + mobile, no console errors, no
       # horizontal overflow. Runs against the build above.
       - run: npx playwright install --with-deps chromium webkit

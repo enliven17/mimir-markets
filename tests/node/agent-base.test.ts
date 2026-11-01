@@ -7,6 +7,7 @@ process.env.NEXT_PUBLIC_MIMIR_V3_ADDRESS = "0x0e3198328c2afdc242bf14265d5b4115d1
 process.env.NEXT_PUBLIC_MIMIR_POOL_ADDRESS = "0x1558d46be99ca82ca4a857a7a918aae48b704055";
 process.env.NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS = "0x00000000000000000000000000000000000000b3";
 process.env.NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS = "0x00000000000000000000000000000000000000b4";
+process.env.NEXT_PUBLIC_MARKET_CHAINS = "base,arc";
 let prepareArcWrite: typeof import("../../lib/agents/arc-chain").prepareArcWrite;
 let ERC20_POOL_ABI: typeof import("../../lib/chains/calls").ERC20_POOL_ABI;
 let ERC20_ABI: typeof import("../../lib/chains/client").ERC20_ABI;

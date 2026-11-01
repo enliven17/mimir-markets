@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { api } from "@/convex/_generated/api";
 import { builderSuffixFromEnv } from "@/lib/base/builder-code";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
 import { baseAgentPay, callPriceUsd, newBaseCall, PAY_HEADER, parsePayment, quote } from "@/lib/launch/paid-call";
 import { launchCx } from "@/lib/launch/request";
@@ -33,13 +34,13 @@ async function offer(id: string) {
   const w = (await c.client.query(api.agentApiDb.wallets, { secret: c.secret, slug: id })) ?? (Object.hasOwn(COUNCIL_AGENTS, id) ? COUNCIL_AGENTS[id] : null);
   if (!w) return { res: json({ error: "No such live agent." }, 404) };
   const usd = callPriceUsd();
-  const payContract = baseAgentPay();
+  const payContract = MARKET_CHAINS.chains.base.enabled && MARKET_CHAINS.chains.base.network === "mainnet" ? baseAgentPay() : null;
   return {
     c,
     quote: {
       agent: id, name: w.name, ticker: w.ticker, priceUsd: usd,
       // Base: its Base wallet, or else its Arc wallet (the same address); paid through MimirAgentPay with a fresh callId.
-      accepts: quote(usd, { arc: w.arc, base: (w.base && typeof w.base === "object" ? w.base.address : w.base) ?? w.arc }, payContract ? { contract: payContract, ...newBaseCall(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
+      accepts: quote(usd, { arc: MARKET_CHAINS.chains.arc.enabled ? w.arc : null, base: (w.base && typeof w.base === "object" ? w.base.address : w.base) ?? w.arc }, payContract ? { contract: payContract, ...newBaseCall(), dataSuffix: builderSuffixFromEnv(process.env.BASE_BUILDER_CODE) } : null),
       howTo: `Send the USDC amount for one chain to its payTo wallet (on Base: call pay(agent, units, callId) on the payTo contract, after a USDC approve, or payWithPermit), then POST { "prompt": "..." } with header ${PAY_HEADER}: <chain>:<tx> (on Base: base:<tx>:<secret>, with the quote's secret; keep it private until then). One tx buys one call; pay within an hour of calling.`,
     },
   };
@@ -66,6 +67,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const c = launchCx();
   if (!c) return json({ error: "Mimir API is not configured on this server." }, 503);
+  if (!MARKET_CHAINS.chains[pay.chain].enabled || MARKET_CHAINS.chains[pay.chain].network !== "mainnet") return json({ error: "Paid calls on this network are currently disabled." }, 503);
   const r = await c.client.action(api.agentApi.call, { secret: c.secret, slug: id, prompt: body.data.prompt, chain: pay.chain, tx: pay.tx, ...(pay.secret ? { callSecret: pay.secret } : {}) });
   return r.ok ? json({ agent: r.agent, answer: r.answer, paid: { chain: r.chain, tx: r.tx } }) : json({ error: r.error }, r.status);
 }

@@ -308,7 +308,7 @@ export default defineSchema({
       /** Opening its own markets (lib/launch/agent-markets.ts): off unless the owner turns it on; gas from its Arc wallet. */
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
-    arc: v.object({ walletId: v.string(), address: v.string() }),
+    arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /**
      * Its Base wallet (Circle, blockchain BASE / BASE-SEPOLIA): stakes on Base markets. Pays gas in ETH, which the owner
      * or Mimir sends it (no gas station); made at creation when Base is enabled, else on first use (lib/launch/flow.ts).

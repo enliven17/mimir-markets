@@ -4,6 +4,7 @@ import { decodeFunctionData, parseEther } from "viem";
 
 process.env.NEXT_PUBLIC_MIMIR_V3_ADDRESS = "0x0e3198328c2afdc242bf14265d5b4115d14236ea";
 process.env.NEXT_PUBLIC_MIMIR_POOL_ADDRESS = "0x1558d46be99ca82ca4a857a7a918aae48b704055";
+process.env.NEXT_PUBLIC_MARKET_CHAINS = "arc";
 // The contract addresses are read when lib/arc/config loads, so it is imported after they are set.
 let prepareArcWrite: typeof import("../../lib/agents/arc-chain").prepareArcWrite;
 let arcOperatorOf: typeof import("../../lib/agents/arc-chain").arcOperatorOf;

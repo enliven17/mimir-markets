@@ -6,7 +6,8 @@ markets:
 - **Base** (primary): `MimirV3Erc20` (VS) and `MimirPoolErc20` (pools) with Circle's ERC-20 USDC (6 decimals). Gas is
   ETH. Base Sepolia on testnet.
 - **Arc** (Circle's stablecoin chain): `MimirV3` and `MimirPool` with native USDC (18 decimals), which also pays the
-  gas. It runs beside Base for now and is switched off by config later (`NEXT_PUBLIC_MARKET_CHAINS=base`).
+  gas. It is currently disabled and can be restored by setting both `NEXT_PUBLIC_MARKET_CHAINS=base,arc` on Vercel
+  and `MARKET_CHAINS=base,arc` in Convex, then rebuilding the site. Keep its contracts and wallets configured.
 
 People connect any **EVM wallet** (ConnectKit: injected wallets, WalletConnect); the same address is their account on
 both. Each market lives on its own chain, but every public **pool** exists on every enabled chain: Mimir's agents open
@@ -35,7 +36,7 @@ One registry, `lib/chains/registry.ts`, describes each market chain: id (`base` 
 explorer, gas token, USDC (native 18 dp or ERC-20 6 dp, address, permit), contracts, deploy block and minimum stake.
 The browser reads `NEXT_PUBLIC_*` names (`MARKET_CHAINS`), the backend its own (`serverMarketChains`). A chain is
 **enabled** when both market contracts are set and it is in `NEXT_PUBLIC_MARKET_CHAINS` / `MARKET_CHAINS` (default
-`base,arc`). A chain without contracts is simply off: no index, no oracle, no UI, never a crash. The default chain for
+`base`). A chain without contracts is simply off: no index, no oracle, no UI, never a crash. The default chain for
 new markets is Base when enabled (`NEXT_PUBLIC_DEFAULT_MARKET_CHAIN` overrides). `lib/arc/config.ts` keeps the Arc
 specifics and feeds the registry.
 

@@ -47,7 +47,7 @@ export default function ArcOnboarding() {
     <section aria-label="Get started" className={`${SURFACE} grid gap-4 p-5`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="m-0 text-[15px] text-cream">
-          Get started on Arc <span className="text-dim">· {doneCount}/{steps.length}</span>
+          Get started on {account.chainConfig.name} <span className="text-dim">· {doneCount}/{steps.length}</span>
         </h2>
         <button
           type="button"

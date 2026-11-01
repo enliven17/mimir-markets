@@ -25,7 +25,7 @@ const ARC_GAS_RESERVE_WEI = 50_000_000_000_000_000n; // 0.05 USDC
 
 const Body = z.object({
   amount: z.number().positive().max(1_000_000),
-  chain: z.enum(["arc", "base"]).default("arc"),
+  chain: z.enum(["arc", "base"]).default(MARKET_CHAINS.defaultChain),
   asset: z.enum(["usdc", "eth"]).default("usdc"),
 });
 

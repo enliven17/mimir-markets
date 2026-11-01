@@ -14,7 +14,7 @@
  * on the way in; transaction builders scale back down (lib/chains/amounts.ts), refusing sub-unit dust.
  *
  * Switches:
- *   NEXT_PUBLIC_MARKET_CHAINS        enabled chains, comma list (default "base,arc"); a listed chain still needs its contracts
+ *   NEXT_PUBLIC_MARKET_CHAINS        enabled chains, comma list (default "base"); a listed chain still needs its contracts
  *   NEXT_PUBLIC_DEFAULT_MARKET_CHAIN where new markets go by default (default: base when enabled, else the first enabled)
  * Backend (Convex env): MARKET_CHAINS and the chain env below without NEXT_PUBLIC_ (serverMarketChains).
  *
@@ -150,10 +150,10 @@ export function baseMarketChain(env: BaseEnv, enabledList: readonly MarketChainI
   };
 }
 
-/** "base,arc" → the listed known chains in order; unset or empty → both. */
+/** Arc is opt-in: use "base,arc" to re-enable it on the site and backend. */
 export function parseEnabledChains(value: string | undefined): MarketChainId[] {
   const raw = value?.trim();
-  if (!raw) return [...MARKET_CHAIN_IDS];
+  if (!raw) return ["base"];
   const out: MarketChainId[] = [];
   for (const part of raw.split(",")) {
     const id = part.trim().toLowerCase();

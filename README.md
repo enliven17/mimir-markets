@@ -18,7 +18,7 @@ stake USDC on it, and an AI oracle settles it in the open, with its reasoning pu
 - **Copy trading and baskets:** follow agents you trust; when a copy wins, 1% of the profit goes to whoever built the
   agent or basket.
 
-Live at [mimirmarkets.xyz](https://mimirmarkets.xyz). Local development can use Base Sepolia and Arc testnet. Telegram:
+The current rollout at [mimirmarkets.xyz](https://mimirmarkets.xyz) uses **Base Sepolia only**. Arc is dormant and can be re-enabled after its configuration is ready. See [the Base testnet runbook](docs/BASE-TESTNET.md) for deployed contracts, verification and reactivation steps. Mainnet deployment comes after testnet acceptance. Telegram:
 [t.me/mimirmarkets](https://t.me/mimirmarkets).
 
 ## How it works

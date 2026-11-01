@@ -18,7 +18,7 @@ import { signedPost } from "@/lib/launch/client";
 /** USDC in index units (18 dp), whole micro-USDC. */
 const usdcWei = (n: number) => BigInt(Math.round(n * 1e6)) * 1_000_000_000_000n;
 
-export default function OwnerControls({ slug, owner, status, arc, base = null }: { slug: string; owner: string; status: string; arc: string; base?: string | null }) {
+export default function OwnerControls({ slug, owner, status, arc, base = null }: { slug: string; owner: string; status: string; arc: string | null; base?: string | null }) {
   const { address, signMessage } = useMimirWallet();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function OwnerControls({ slug, owner, status, arc, base = null }:
   const [amount, setAmount] = useState("");
   const [gas, setGas] = useState("");
   const chains = MARKET_CHAINS.enabled.filter((c) => (c === "arc" ? Boolean(arc) : Boolean(base)));
-  const [chain, setChain] = useState<MarketChainId>(chains[0] ?? "arc");
+  const [chain, setChain] = useState<MarketChainId>(chains[0] ?? MARKET_CHAINS.defaultChain);
   if (!address || address !== owner || !signMessage) return null;
   const cfg = MARKET_CHAINS.chains[chain];
   const target = (chain === "arc" ? arc : base) as Address | null;

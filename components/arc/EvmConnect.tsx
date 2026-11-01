@@ -48,11 +48,13 @@ const inWalletBrowser =
 const config = createConfig(
   getDefaultConfig({
     // Base first: the most wallets know it, so a WalletConnect session opens there. Every chain stays optional.
-    chains: sepolia ? [baseChain, sepolia, arc] : [baseChain, arc],
+    chains: sepolia
+      ? [sepolia, baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])]
+      : [baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])],
     transports: Object.fromEntries([
       [baseChain.id, http(BASE_CHAIN.rpcUrl)],
       ...(sepolia ? [[sepolia.id, http(baseMarkets.rpcUrl)]] : []),
-      [arc.id, http(ARC.chain.rpcUrl)],
+      ...(MARKET_CHAINS.chains.arc.enabled ? [[arc.id, http(ARC.chain.rpcUrl)]] : []),
     ]) as Record<number, ReturnType<typeof http>>,
     connectors: [
       ...(inWalletBrowser ? [injected({ shimDisconnect: true })] : []),

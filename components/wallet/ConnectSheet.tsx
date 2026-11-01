@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import Modal from "@/components/ui/Modal";
 import { connectEvm, type EvmChainIntent } from "@/components/arc/useEvmWallet";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 
 const rowClass =
   "group flex min-h-[58px] w-full items-center gap-3.5 rounded-2xl bg-cream/[0.04] px-3.5 py-2.5 text-left transition-[background-color,transform] duration-200 ease-out hover:bg-panel-raised focus-visible:bg-panel-raised active:scale-[.985] disabled:cursor-wait";
@@ -42,13 +43,13 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
     <Modal open={open} onClose={onClose} title={t("pickTitle")} variant="sheet" closeLabel={t("close")}>
       <p className="text-[14px] leading-snug text-muted">{t("pickLead")}</p>
       <ul className="mt-5 grid gap-2">
-        {rows.map(([key, icon, name, hint]) => (
+        {rows.filter(([key]) => MARKET_CHAINS.enabled.includes(key)).map(([key, icon, name, hint]) => (
           <li key={key}>
             <button type="button" onClick={() => pick(key)} className={rowClass}>
               {/* eslint-disable-next-line @next/next/no-img-element -- small static network icons */}
               <img src={icon} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-xl" />
               <span className="grid min-w-0 flex-1 gap-1">
-                <span className="font-display text-[1.3rem] leading-none text-cream">{name}</span>
+                <span className="font-display text-[1.3rem] leading-none text-cream">{MARKET_CHAINS.chains[key].name}</span>
                 <span className="text-[13px] leading-snug text-muted">{hint}</span>
               </span>
             </button>
@@ -57,7 +58,7 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
       </ul>
       <p className="mt-6 flex items-center gap-2 text-[12px] text-muted">
         <span aria-hidden className="h-[5px] w-[5px] rounded-full bg-coral" />
-        {t("footnote")}
+        {MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain].network === "testnet" ? "Testnet: test USDC and ETH. Connecting moves no funds." : t("footnote")}
       </p>
     </Modal>
   );

@@ -60,7 +60,7 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       </header>
 
       <FollowButton target={`agent:${slug}`} label="Follow agent forecasts" />
-      <PublicMarketRecord address={a.arc} />
+      <PublicMarketRecord address={a.base ?? a.arc} />
       <WalletsBlock ticker={a.ticker} token={a.token} arc={a.arc} base={a.base} />
       <TokenBlock slug={slug} ticker={a.ticker} owner={card?.owner ?? null} status={card?.status ?? "live"} token={a.token} />
       {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} arc={card.arc} base={card.base} /> : null}

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * Collect uncaught page errors, console errors and failed same-origin
@@ -77,7 +78,7 @@ test("dashboard shows the wallet gate when disconnected", async ({ page }) => {
 test("security headers are sent", async ({ request }) => {
   const res = await request.get("/en");
   // Framing: only the site itself and Telegram's web client (the bot's Mini App).
-  expect(res.headers()["content-security-policy"]).toBe("frame-ancestors 'self' https://web.telegram.org");
+  expect(res.headers()["content-security-policy"]).toContain("frame-ancestors 'self' https://web.telegram.org");
   expect(res.headers()["x-content-type-options"]).toBe("nosniff");
 });
 
@@ -88,40 +89,23 @@ test("health endpoint answers", async ({ request }) => {
   expect(body).toBeTruthy();
 });
 
-test("create page accepts an opportunity-card prefill link", async ({ page }) => {
-  const q = new URLSearchParams({
-    source: "https://www.example.com/market",
-    q: "Will BTC trade above $150,000 by Dec 31, 2026?",
-    cat: "crypto",
-  });
-  await page.goto(`/en/arena/create?${q}`);
-  await expect(page.getByText(/Prefilled from example\.com/)).toBeVisible();
-  // The prefill lands on step 1, filled.
-  await expect(page.getByText("Step 1 of 4")).toBeVisible();
-  await expect(page.getByLabel("Question")).toHaveValue(/BTC trade above \$150,000/);
+test("create page gates Base transactions behind an EVM wallet", async ({ page }) => {
+  await page.goto("/en/arena/create");
+  await expect(page.getByRole("heading", { name: "Open a market" })).toBeVisible();
+  await expect(page.getByText(/This market is on Base/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect wallet", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open with/ })).toHaveCount(0);
 });
 
-test("create flow validates each step and keeps the draft", async ({ page }) => {
-  await page.goto("/en/arena/create", { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByText("Fill in all fields")).toBeVisible();
-  await page.getByLabel("Question").fill("Will ETH trade above $5,000 on Coinbase by the deadline?");
-  await page.getByLabel("Your side").fill("Yes, ETH trades above $5,000");
-  await page.getByLabel("The other side").fill("No, ETH stays at or below $5,000");
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByText("Step 2 of 4")).toBeVisible();
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByText("Step 3 of 4")).toBeVisible();
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByText("Choose a future deadline")).toBeVisible();
-  await page.getByRole("button", { name: "1 week" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByText("Step 4 of 4")).toBeVisible();
-  await expect(page.getByText("Will ETH trade above $5,000 on Coinbase by the deadline?")).toBeVisible();
-  await page.getByRole("button", { name: "Back" }).click();
-  await page.getByRole("button", { name: "Back" }).click();
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Question")).toHaveValue(/Will ETH trade above/);
+test("the connected create form keeps its draft when switching market kinds", async ({ page }) => {
+  await page.addInitScript(registerTestWallet);
+  await page.goto("/en/arena/create");
+  await connectTestWallet(page);
+  await page.getByRole("textbox", { name: "Question", exact: true }).fill("Will ETH trade above $5,000 at the deadline?");
+  await page.getByRole("radio", { name: /Two-sided pool/ }).click();
+  await expect(page.getByRole("textbox", { name: "Question", exact: true })).toHaveValue("Will ETH trade above $5,000 at the deadline?");
+  await expect(page.getByRole("textbox", { name: "Side A", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Side B", exact: true })).toBeVisible();
 });
 
 test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobile }) => {
@@ -134,7 +118,7 @@ test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobi
   const sheet = page.getByRole("dialog", { name: "More" });
   await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute("aria-expanded", "true");
-  await expect(sheet.getByRole("link", { name: /^Agents/ })).toBeFocused();
+  await expect(sheet.getByRole("link", { name: /^Wallet/ })).toBeFocused();
   // Every page that left the pill is one click away.
   for (const name of ["Connect an agent", "Strategies", "Stats", "Docs"]) {
     await expect(sheet.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();
@@ -152,79 +136,48 @@ test("header pill holds on app pages and marks the active link", async ({ page, 
   await expect(page.locator(".nav-shell")).toHaveAttribute("style", /--nav-p:\s*1/);
 });
 
-test("mobile menu panel traps focus and closes on Escape", async ({ page, isMobile }) => {
-  test.skip(!isMobile, "the burger is mobile-only");
+test("mobile More menu opens and closes on Escape", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "mobile navigation");
   await page.goto("/en/arena");
-  const burger = page.getByRole("button", { name: "Open menu" });
-  await burger.click();
-  const panel = page.locator("#mobile-nav");
-  // Terminal leads the nav, so it takes the first focus.
-  await expect(panel.getByRole("link", { name: /^Terminal/ })).toBeFocused();
-  await expect(panel.getByRole("link", { name: /^Stats/ })).toBeVisible();
-  await expect(panel.getByRole("link", { name: "Create a claim" })).toBeVisible();
+  const opener = page.getByRole("button", { name: "More", exact: true }).first();
+  await opener.click();
+  const panel = page.getByRole("dialog", { name: "More" });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("link", { name: /Connect an agent/ })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
-  await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
 });
 
-test("wallet sheet offers install links without an extension", async ({ page, isMobile }) => {
+test("connect sheet offers only Base Sepolia during the testnet rollout", async ({ page }) => {
   await page.goto("/en/arena");
   await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
-  const sheet = page.getByRole("dialog", { name: "Connect a wallet" });
+  const sheet = page.getByRole("dialog", { name: "Connect your wallet" });
   await expect(sheet).toBeVisible();
-  for (const wallet of ["Phantom", "Solflare", "Backpack"]) {
-    await expect(sheet.getByRole("link", { name: new RegExp(`Install ${wallet}`) })).toBeVisible();
-  }
-  if (isMobile) {
-    // No injected wallet on a phone browser: reopen this page inside the wallet.
-    await expect(sheet.getByRole("link", { name: "Open in Phantom" })).toHaveAttribute(
-      "href",
-      /^https:\/\/phantom\.app\/ul\/browse\//,
-    );
-    await expect(sheet.getByRole("link", { name: "Open in Solflare" })).toHaveAttribute(
-      "href",
-      /^https:\/\/solflare\.com\/ul\/v1\/browse\//,
-    );
-  }
+  await expect(sheet.getByRole("button", { name: /Base Sepolia/ })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /^Arc/ })).toHaveCount(0);
+  await expect(sheet.getByText(/Testnet: test USDC/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
 });
 
-test("a Wallet Standard wallet connects from the sheet and disconnects from the chip", async ({ page }) => {
+async function connectTestWallet(page: Page) {
+  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
+  await page.getByRole("dialog", { name: "Connect your wallet" }).getByRole("button", { name: /Base Sepolia/ }).click();
+  await page.getByRole("button", { name: /Mimir Test Wallet/ }).click();
+}
+
+test("an EIP-6963 wallet connects on Base and disconnects from the chip", async ({ page }) => {
   await page.addInitScript(registerTestWallet);
   await page.goto("/en/arena");
-  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
-  const sheet = page.getByRole("dialog", { name: "Connect a wallet" });
-  const row = sheet.getByRole("button", { name: /Mimir Test Wallet/ });
-  await expect(row).toContainText("Detected");
-  await row.click();
-  await expect(sheet).toBeHidden();
-  const chip = page.locator("header").getByRole("button", { name: /Mimir Test Wallet wallet/ });
-  await expect(chip).toContainText("…");
+  await connectTestWallet(page);
+  const chip = page.locator("header").getByRole("button", { name: /Base wallet/ });
+  await expect(chip).toBeVisible();
   await chip.click();
   const menu = page.getByRole("menu", { name: "Wallet" });
-  await expect(menu.getByRole("menuitem", { name: "Copy address" })).toBeVisible();
+  await expect(page.getByText("USDC on Base", { exact: true })).toBeVisible();
+  await expect(page.getByText("USDC on Arc", { exact: true })).toHaveCount(0);
   await menu.getByRole("menuitem", { name: "Disconnect" }).click();
   await expect(page.locator("header").getByRole("button", { name: /^Connect$/ })).toBeVisible();
-});
-
-test("portfolio opens the balance sheet from the hero when connected", async ({ page }) => {
-  await page.addInitScript(registerTestWallet);
-  await page.goto("/en/dashboard?tab=done");
-  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
-  await page.getByRole("dialog", { name: "Connect a wallet" }).getByRole("button", { name: /Mimir Test Wallet/ }).click();
-  await expect(page.getByRole("heading", { name: "Portfolio", level: 1 })).toBeVisible();
-  // Filter state stays in the URL.
-  await expect(page.getByRole("tablist", { name: "Positions by phase" }).getByRole("tab", { name: /^Done/ })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByText("No positions yet. Challenge a claim or publish one.")).toBeVisible();
-  await page.getByRole("button", { name: "Deposit", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "Balance" });
-  await expect(sheet).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
 });
 
 test("agent registration steps through four validated steps", async ({ page }) => {
@@ -250,31 +203,17 @@ test("agent registration steps through four validated steps", async ({ page }) =
   await expect(page.getByLabel("Agent id")).toHaveValue("e2e-agent");
 });
 
-test("copy trading opens the grant form in a sheet under the strategies switch", async ({ page }) => {
-  await page.addInitScript(registerTestWallet);
-  await page.route("**/api/copy/permissions?probe=1", (route) => route.fulfill({ json: { enabled: true } }));
-  await page.goto("/en/baskets");
-  await page.getByRole("navigation", { name: "Strategies views" }).getByRole("link", { name: "Copy" }).click();
-  await expect(page).toHaveURL(/\/en\/copy$/);
-  await page.locator("header").getByRole("button", { name: /^Connect$/ }).click();
-  await page.getByRole("dialog", { name: "Connect a wallet" }).getByRole("button", { name: /Mimir Test Wallet/ }).click();
-  await expect(page.getByRole("button", { name: "Sign to load" })).toBeVisible();
-  await page.getByRole("button", { name: "New permission" }).click();
-  const sheet = page.getByRole("dialog", { name: "Grant a permission" });
-  await expect(sheet.getByRole("button", { name: "Sign and grant" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
+test("copy trading asks for an EVM wallet while disconnected", async ({ page }) => {
+  await page.goto("/en/copy");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: /connect/i }).first()).toBeVisible();
 });
 
-test("docs keep one section open at a time on a phone", async ({ page, isMobile }) => {
-  test.skip(!isMobile, "desktop shows every section beside the contents list");
+test("docs describe agents staking on Base", async ({ page, isMobile }) => {
   await page.goto("/en/docs");
-  const first = page.getByRole("button", { name: /What a claim is/ });
-  const second = page.getByRole("button", { name: /Architecture/ });
-  await expect(first).toHaveAttribute("aria-expanded", "true");
-  await second.click();
-  await expect(second).toHaveAttribute("aria-expanded", "true");
-  await expect(first).toHaveAttribute("aria-expanded", "false");
+  if (isMobile) await page.getByRole("button", { name: /Fingerprint/ }).click();
+  await expect(page.getByRole("heading", { name: /Fingerprint/, level: 3 })).toBeVisible();
+  await expect(page.getByText("Today it stakes on open markets on Base, on rules you set.", { exact: true })).toBeVisible();
 });
 
 test("an unknown path renders the not-found page inside the shell", async ({ page }) => {
@@ -290,12 +229,14 @@ test("an unknown path renders the not-found page inside the shell", async ({ pag
  */
 function registerTestWallet() {
   const account = "0x00000000000000000000000000000000000a11ce";
+  let authorized = false;
   const listeners: Record<string, ((arg: unknown) => void)[]> = {};
   const provider = {
     request: async ({ method }: { method: string }) => {
-      if (method === "eth_requestAccounts" || method === "eth_accounts") return [account];
-      if (method === "eth_chainId") return "0x4cef52"; // Arc testnet
-      if (method === "net_version") return "5042002";
+      if (method === "eth_requestAccounts") { authorized = true; return [account]; }
+      if (method === "eth_accounts") return authorized ? [account] : [];
+      if (method === "eth_chainId") return "0x14a34"; // Base Sepolia
+      if (method === "net_version") return "84532";
       if (method === "personal_sign") return `0x${"11".repeat(65)}`;
       if (method === "wallet_switchEthereumChain" || method === "wallet_addEthereumChain") return null;
       throw new Error(`unsupported ${method}`);

@@ -47,6 +47,22 @@ const body = (over: Record<string, unknown> = {}) => CreateBody.parse({
 });
 const wallets = { arc: async () => ({ id: "c1", address: "0x00000000000000000000000000000000000000ab" }) };
 
+test("create: Base-only agents need no Arc wallet or Arc service", async () => {
+  const f = fakeCx();
+  const base = { id: "base-wallet", address: "0x00000000000000000000000000000000000000bc" };
+  const r = await create(f.cx, { wallets: { base: async () => base }, checkKey: async () => "ok" }, OWNER, body());
+  assert.deepEqual(r, { ok: true, id: "njord", arc: null, base: base.address });
+  assert.equal(f.agent()!.arc, undefined);
+  assert.deepEqual(f.agent()!.base, { walletId: base.id, address: base.address });
+});
+
+test("create: a failed sole Base wallet never stores an unusable agent", async () => {
+  const f = fakeCx();
+  const r = await create(f.cx, { wallets: { base: async () => { throw new Error("Circle unavailable"); } }, checkKey: async () => "ok" }, OWNER, body());
+  assert.equal(r.ok, false);
+  assert.deepEqual(f.calls, []);
+});
+
 test("create: free and live at once, with its Arc wallet; no funding step", async () => {
   const f = fakeCx();
   const r = await create(f.cx, { wallets, checkKey: async () => "ok" as const }, OWNER, body());

@@ -37,9 +37,9 @@ const usdc = (wei: string | bigint) => Number(BigInt(wei)) / 1e18;
 async function walletOn(
   ctx: ActionCtx,
   cfg: MarketChain,
-  a: { id: Id<"launchAgents">; slug: string; arc: { walletId: string; address: string }; base: { walletId: string; address: string } | null },
+  a: { id: Id<"launchAgents">; slug: string; arc?: { walletId: string; address: string }; base: { walletId: string; address: string } | null },
 ): Promise<{ walletId: string; address: string } | null> {
-  if (cfg.id === "arc") return a.arc;
+  if (cfg.id === "arc") return a.arc ?? null;
   if (a.base) return a.base;
   if (!process.env.CIRCLE_WALLET_SET_ID?.trim()) return null;
   const [w] = await createWallets([a.slug], circleBlockchain("base", cfg.network), "mimir-launch");

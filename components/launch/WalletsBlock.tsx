@@ -31,9 +31,9 @@ function CopyButton({ text }: { text: string }) {
 
 export default function WalletsBlock({ ticker, token, arc, base = null }: { ticker: string; token: Pick<AgentToken, "chain" | "address"> | null; arc: string | null; base?: string | null }) {
   const rows: Row[] = [
-    token?.chain === "arc" ? { label: `$${ticker} token`, note: "Its token on Argus (Arc)", address: token.address, href: argusToken(token.address), site: "Argus", tone: "bg-[#a78bfa]" } : null,
+    token?.chain === "arc" && MARKET_CHAINS.chains.arc.enabled ? { label: `$${ticker} token`, note: "Its token on Argus (Arc)", address: token.address, href: argusToken(token.address), site: "Argus", tone: "bg-[#a78bfa]" } : null,
     token?.chain === "base" ? { label: `$${ticker} token`, note: "Its token on Clanker (Base)", address: token.address, href: clankerToken(token.address), site: "Clanker", tone: "bg-[#86efac]" } : null,
-    arc ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets and pays its own gas", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,
+    arc && MARKET_CHAINS.chains.arc.enabled ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets and pays its own gas", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,
     base ? { label: "Base wallet", note: "Stakes USDC on Base markets; needs a little ETH for gas", address: base, href: explorerUrl(MARKET_CHAINS.chains.base, "address", base), site: "BaseScan", tone: "bg-[#0052ff]" } : null,
   ].filter((r): r is Row => r !== null);
   if (!rows.length) return null;

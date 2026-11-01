@@ -11,6 +11,7 @@ import { createPublicClient, http, type Address, type Hex } from "viem";
 import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { baseRpcUrl } from "@/lib/base/chain";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 import { pinImage, prepareLaunch, simulateLaunch } from "@/lib/launch/argus-chain";
 import { clankerDeployTx } from "@/lib/launch/base/deploy";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
@@ -43,6 +44,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (step === "prepare") {
     const parsed = TokenPrepareBody.safeParse(g.body);
     if (!parsed.success) return fail(400, parsed.error.issues[0]?.message ?? "Invalid token.");
+    if (!MARKET_CHAINS.chains[parsed.data.chain].enabled) return fail(503, "This network is currently disabled.");
+    if (MARKET_CHAINS.chains[parsed.data.chain].network !== "mainnet") return fail(503, "Token launches are available after the mainnet rollout.");
     if (parsed.data.chain === "arc" && ARC.network !== "mainnet") return fail(503, "Argus launches run on Arc mainnet only.");
     const arc = arcPublicClient(ARC);
     const r = await prepareTokenLaunch(c, {

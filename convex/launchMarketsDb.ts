@@ -47,7 +47,7 @@ export const createAll = internalMutation({
     let n = 0;
     for (const a of await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", "live")).collect()) {
       if (!a.markets.create?.enabled || !a.arc || (a.leaseUntil ?? 0) > now) continue;
-      const o = await opened(ctx, a._id, [a.arc.address, a.base?.address], now);
+      const o = await opened(ctx, a._id, [a.arc?.address, a.base?.address], now);
       if (o.today >= perDay(a) || now - o.lastAt < SPACING_MS) continue;
       await ctx.scheduler.runAfter(0, internal.launchMarkets.createOne, { id: a._id });
       n++;
@@ -63,7 +63,7 @@ export const forCreate = internalQuery({
     const a = await ctx.db.get(id);
     if (!a || a.status !== "live" || !a.arc || !a.markets.create?.enabled) return null;
     const now = Date.now();
-    const o = await opened(ctx, a._id, [a.arc.address, a.base?.address], now);
+    const o = await opened(ctx, a._id, [a.arc?.address, a.base?.address], now);
     if (o.today >= perDay(a) || now - o.lastAt < SPACING_MS) return null;
     const { openUsdc } = await holdings(ctx, a);
     const rules = (a.markets.rules ?? {}) as { categories?: string[]; chains?: Array<"arc" | "base"> };

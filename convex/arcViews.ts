@@ -5,6 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { councilWallets, oracleKey } from "../lib/chains/house";
+import { serverMarketChains } from "../lib/chains/registry";
 
 const VERDICT_COUNT_CAP = 5000;
 
@@ -13,10 +14,11 @@ export const council = query({
   args: {},
   handler: async (ctx) => {
     const out = [];
-    const arc = councilWallets("arc");
-    const base = councilWallets("base");
+    const enabled = serverMarketChains().enabled;
+    const arc = enabled.includes("arc") ? councilWallets("arc") : {};
+    const base = enabled.includes("base") ? councilWallets("base") : {};
     for (const slug of [...new Set([...Object.keys(arc), ...Object.keys(base)])]) {
-      const addresses = [arc[slug]?.address, base[slug]?.address].filter((a): a is `0x${string}` => Boolean(a)).map((a) => a.toLowerCase());
+      const addresses = [base[slug]?.address, arc[slug]?.address].filter((a): a is `0x${string}` => Boolean(a)).map((a) => a.toLowerCase());
       const address = addresses[0];
       const positions = [];
       for (const a of new Set(addresses)) positions.push(...(await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a)).order("desc").take(300)));
@@ -26,6 +28,7 @@ export const council = query({
       const bets = [];
       for (const p of positions) {
         const chain = p.chain ?? "arc";
+        if (!enabled.includes(chain)) continue;
         const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
         if (!m) continue;
         const settled = m.status === "resolved" || m.status === "cancelled";

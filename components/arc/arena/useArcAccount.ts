@@ -34,13 +34,13 @@ export function useArcAccount(chain: MarketChainId = MARKET_CHAINS.defaultChain)
   const wallet = useMimirWallet();
   const address = wallet.address;
   const cfg = marketChain(chain);
-  const session = useMemo(() => (address ? marketSessionFor(chain, address) : null), [address, chain]);
+  const session = useMemo(() => (address && cfg.enabled ? marketSessionFor(chain, address) : null), [address, chain, cfg]);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [gas, setGas] = useState<bigint | null>(null);
   const [onchainBps, setOnchainBps] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
-    if (!address) {
+    if (!address || !cfg.enabled) {
       setBalance(null);
       setGas(null);
       setOnchainBps(null);

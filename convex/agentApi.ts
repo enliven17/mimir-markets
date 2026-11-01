@@ -16,6 +16,7 @@ import { platformRouter } from "../lib/launch/llm";
 import { baseAgentPay, callIdFor, callPriceUsd, minUnits, verifyArcPayment, verifyBasePayment, type PayChain } from "../lib/launch/paid-call";
 import { secretMatches } from "../lib/internal-secrets";
 import { fenceUntrusted } from "../lib/prompt-safety";
+import { serverMarketChains } from "../lib/chains/registry";
 
 /** A council persona: Mimir's own agent, its Arc wallet in lib/launch/council.json, Mimir's brain. */
 function councilAgent(slug: string) {
@@ -31,6 +32,8 @@ export const call = action({
   args: { secret: v.string(), slug: v.string(), prompt: v.string(), chain: v.union(v.literal("arc"), v.literal("base")), tx: v.string(), callSecret: v.optional(v.string()) },
   handler: async (ctx, { secret, slug, prompt, chain, tx, callSecret }): Promise<Result> => {
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
+    const cfg = serverMarketChains().chains[chain];
+    if (!cfg.enabled || cfg.network !== "mainnet") return { ok: false, status: 503, error: "Paid calls on this network are currently disabled." };
     const a = (await ctx.runQuery(internal.agentApiDb.forCall, { slug })) ?? councilAgent(slug);
     if (!a) return { ok: false, status: 404, error: "No such live agent." };
     const to = a[chain];

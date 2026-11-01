@@ -15,8 +15,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight } from "@/components/icons";
 import { Link, usePathname } from "@/i18n/navigation";
-import { arcPublicClient } from "@/lib/arc/chain";
-import { ARC, arcExplorerUrl } from "@/lib/arc/config";
+import { chainPublicClient } from "@/lib/chains/client";
+import { MARKET_CHAINS, explorerUrl } from "@/lib/chains/registry";
 import { gsap, useGSAP } from "@/lib/motion";
 import dynamic from "next/dynamic";
 import Magnetic from "@/components/motion/Magnetic";
@@ -33,12 +33,13 @@ const REPO_URL = "https://github.com/enliven17/mimir-markets";
 const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;
 const CCTP_URL = "https://developers.circle.com/cctp";
 // The VS market contract stands for "the program": every contract is listed on /docs.
-const PROGRAM_ID = ARC.contracts.mimirV3 ?? "";
+const primaryChain = MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain];
+const PROGRAM_ID = primaryChain.contracts.mimirV3 ?? "";
 const PROGRAM_SHORT = PROGRAM_ID ? `${PROGRAM_ID.slice(0, 6)}…${PROGRAM_ID.slice(-4)}` : "-";
-const PROGRAM_EXPLORER_URL = PROGRAM_ID ? arcExplorerUrl("address", PROGRAM_ID) : ARC.chain.explorer;
+const PROGRAM_EXPLORER_URL = PROGRAM_ID ? explorerUrl(primaryChain, "address", PROGRAM_ID) : primaryChain.explorer;
 const MARK = "Mimir";
 const SLOT_POLL_MS = 8_000;
-const ARC_CLIENT = arcPublicClient();
+const ARC_CLIENT = chainPublicClient(primaryChain);
 
 const groupItems = (key: string) => NAV_MORE_GROUPS.find((g) => g.key === key)?.items ?? [];
 
@@ -181,7 +182,7 @@ export default function Footer() {
                 <dt className="text-muted">{t("cluster")}</dt>
                 <dd className="flex items-center gap-2 text-cream">
                   <span aria-hidden className="live-dot" />
-                  {t("clusterValue")}
+                  {primaryChain.name}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
