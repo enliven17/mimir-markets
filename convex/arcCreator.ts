@@ -8,8 +8,10 @@
 //   4. open each as a two-sided pool (anyone stakes either side) on EVERY enabled chain where the creator has a
 //      Circle developer-controlled wallet (the key stays with Circle), Base first; its stake backs side A. The copies
 //      share a pairKey (lib/chains/linked.ts): the page links them and the oracle settles them with one decision.
+//      A leg that could not open (no funds, a Circle error) is opened later by the twin reconciler (convex/arcTwins.ts).
 //      A pool nobody joined is refunded by the oracle. Leftover VS claims from before the switch are cancelled by step 1.
-// Budgets (CREATOR_DAILY_BUDGET_USDC, CREATOR_DAILY_MARKETS) count each chain on its own.
+// Budget: CREATOR_DAILY_BUDGET_USDC is ONE budget for every chain, shared with the twins (convex/houseBudget.ts).
+// CREATOR_DAILY_MARKETS counts the house's own drafts per chain.
 // Env: ARC_CREATOR_WALLET / BASE_CREATOR_WALLET ({"id","address"}; the Base one needs ETH for gas and USDC), CIRCLE_API_KEY,
 //      CIRCLE_ENTITY_SECRET, the CREATOR_* knobs of the old worker, MIMIR_PAUSE_CREATE_MARKET=1, MARKET_CREATOR_DRY_RUN=1.
 
@@ -118,7 +120,8 @@ export const tick = internalAction({
     const liveOf = (own: (typeof sides)[number]["own"]) => own.filter((m) => (m.status === "open" || m.status === "active") && m.deadline > now);
     // Inventory is counted on the fullest chain (the copies of one draft are one market to the house).
     const live = sides.flatMap((s) => liveOf(s.own));
-    const headroom = envNum("MAX_ACTIVE_CLAIMS", 30) - Math.max(...sides.map((s) => liveOf(s.own).length));
+    // Twins it opened for other people's pools (pairKey "twin:…") are not its inventory.
+    const headroom = envNum("MAX_ACTIVE_CLAIMS", 30) - Math.max(...sides.map((s) => liveOf(s.own).filter((m) => !m.pairKey?.startsWith("twin:")).length));
     if (headroom <= 0) {
       console.log(`[creator] inventory at cap (${live.length})`);
       return;
@@ -133,20 +136,18 @@ export const tick = internalAction({
     }
 
     const stakeUsdc = envNum("CREATOR_STAKE_USDC", 0.1);
-    // A daily budget per chain: what the house stakes on the markets it opens today (UTC) stays under it, so a creator
-    // that keeps losing its stakes costs at most this much a day. Cancelled empty markets give theirs back.
-    const budget = envNum("CREATOR_DAILY_BUDGET_USDC", 1);
+    // ONE daily budget for every chain (convex/houseBudget.ts): each open reserves its seed there first, and the twins
+    // the house opens for other people's pools (convex/arcTwins.ts) draw from the same budget.
     const dayStart = Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()) / 1000);
     const seed = usdToIndex(stakeUsdc);
-    // How many markets each chain can still open today (budget, daily count, USDC and gas in the wallet).
+    // How many markets each chain can still open today (daily count, USDC and gas in the wallet); the budget is checked
+    // per open below.
     const room = new Map<MarketChainId, number>();
     for (const { cfg, wallet, own } of sides) {
-      // ponytail: counts each market at today's stake; a pool's stakeA also holds other people's money on side A.
-      const spentToday = own.filter((m) => m.createdAt >= dayStart && m.status !== "cancelled").length * stakeUsdc;
-      const affordable = Math.max(0, Math.floor((budget - spentToday + 1e-9) / stakeUsdc));
-      // At most CREATOR_DAILY_MARKETS markets a day (UTC) per chain, whatever the budget allows.
-      const dailyLeft = Math.max(0, envNum("CREATOR_DAILY_MARKETS", 2) - own.filter((m) => m.createdAt >= dayStart).length);
-      let n = Math.min(affordable, dailyLeft, drafts.length);
+      // At most CREATOR_DAILY_MARKETS of its own drafts a day (UTC) per chain; twins of other people's pools do not count.
+      const draftsToday = own.filter((m) => m.createdAt >= dayStart && !m.pairKey?.startsWith("twin:")).length;
+      const dailyLeft = Math.max(0, envNum("CREATOR_DAILY_MARKETS", 2) - draftsToday);
+      let n = Math.min(dailyLeft, drafts.length);
       if (n > 0) {
         const [usdc, gas] = await Promise.all([walletUsdcWei(cfg, wallet.address), walletGasWei(cfg, wallet.address)]);
         if (usdc < seed * BigInt(n)) {
@@ -161,12 +162,17 @@ export const tick = internalAction({
       room.set(cfg.id, n);
     }
     if (![...room.values()].some((n) => n > 0)) {
-      console.log(`[creator] daily budget or count used on every chain`);
+      console.log(`[creator] daily count used, or no funds, on every chain`);
       return;
     }
 
     const opened = new Set<MarketChainId>();
+    // Linked whenever more than one chain is enabled, even if only one chain can open it now: the twin reconciler
+    // (convex/arcTwins.ts) opens the missing leg later under the same pairKey.
+    const linkAcross = registry.enabled.length > 1;
+    let budgetLeft = true;
     for (const d of drafts) {
+      if (!budgetLeft) break;
       const targets = sides.filter((s) => (room.get(s.cfg.id) ?? 0) > 0);
       if (!targets.length) break;
       if (dryRun) {
@@ -174,8 +180,14 @@ export const tick = internalAction({
         continue;
       }
       // One pairKey per draft: the copies on each chain are linked (page link, one oracle decision).
-      const pairKey = targets.length > 1 ? pairKeyOf("house", d) : null;
+      const pairKey = linkAcross ? pairKeyOf("house", d) : null;
       for (const { cfg, wallet } of targets) {
+        const hold = await ctx.runMutation(internal.houseBudget.reserve, { chain: cfg.id, wei: seed.toString(), ref: `creator:${pairKey ?? d.question.slice(0, 60)}` });
+        if (hold === null) {
+          console.log(`[creator] daily house budget used (all chains); ${cfg.id} leg left to the twin reconciler`);
+          budgetLeft = false;
+          break;
+        }
         try {
           const tx = await circleCreatePool(cfg, { walletId: wallet.id, address: wallet.address }, {
             question: d.question, labelA: d.creatorPosition, labelB: d.counterPosition, resolutionUrl: d.resolutionUrl, category: d.category, deadline: d.deadline, side: SIDE_A,
@@ -186,10 +198,11 @@ export const tick = internalAction({
           if (pairKey) {
             const marketId = await createdMarketId(cfg, "pool", tx).catch(() => null);
             if (marketId !== null) await ctx.runMutation(internal.arc.link, { pairKey, chain: cfg.id, kind: "pool", marketId });
-            else console.warn(`[creator] ${cfg.id}: opened but could not read the market id of ${tx}; not linked`);
+            else console.warn(`[creator] ${cfg.id}: opened but could not read the market id of ${tx}; the twin reconciler links it`);
           }
         } catch (err) {
-          console.error(`[creator] ${cfg.id}: failed (${d.label}):`, err instanceof Error ? err.message : err);
+          await ctx.runMutation(internal.houseBudget.release, { id: hold });
+          console.error(`[creator] ${cfg.id}: failed (${d.label}); the twin reconciler retries this leg:`, err instanceof Error ? err.message : err);
         }
       }
     }

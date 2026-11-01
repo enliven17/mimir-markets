@@ -23,7 +23,8 @@ import type { ActionCtx } from "./_generated/server";
 import { sizeStakeUnits } from "../agents/council/shared/persona-rules";
 import type { CouncilClaim, EvidenceCacheEntry } from "../agents/council/shared/types";
 import { floorToChain } from "../lib/chains/amounts";
-import { houseCreatorWallet } from "../lib/chains/house";
+import { houseAddresses, houseCreatorWallet } from "../lib/chains/house";
+import { groupLegs, takeReuse } from "../lib/chains/linked";
 import { serverMarketChains, type MarketChainId } from "../lib/chains/registry";
 import { circleStake, walletGasWei, walletUsdcWei } from "../lib/server/chain-circle";
 import { jevEnabled } from "../lib/jev";
@@ -211,7 +212,11 @@ function bestPersonaFor(category: string): PersonaSpec | null {
   );
 }
 
-/** Up to three forecast-only perspectives per market, sharing the existing per-tick call budget. */
+/**
+ * Up to three forecast-only perspectives per market, sharing the existing per-tick call budget. A linked pair (the same
+ * question on Base and Arc, lib/chains/linked.ts) gets ONE take: written once and stored on every leg, and a leg that
+ * appears later gets a copy (no model call).
+ */
 async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<string, EvidenceCacheEntry>, throttle: () => Promise<void>) {
   const takes = await ctx.runQuery(internal.arcCouncilDb.takenMarkets, {});
   const taken = new Map(takes.map((t) => [t.key, t]));
@@ -220,14 +225,24 @@ async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<
   // Jev's triage (only with TYPESAFE_API_KEY): no take on a market it is sure is spam or cannot be settled, and a
   // better category for persona choice when the creator left it as "custom".
   const triage = new Map(jevEnabled() ? (await ctx.runQuery(internal.arcTriage.all, {})).map((t) => [t.key, t]) : []);
+  const houseSet = new Set(houseAddresses());
+  const keyOf = (m: Market) => `${m.chain}:${m.kind}:${m.marketId}`;
+  const ref = (m: Market) => ({ chain: m.chain, kind: m.kind, marketId: m.marketId });
   let written = 0;
-  for (const m of markets.sort((a, b) => b.createdAt - a.createdAt)) {
+  for (const { lead: m, legs } of groupLegs([...markets].sort((a, b) => b.createdAt - a.createdAt))) {
     if (written >= TAKES_PER_TICK) break;
-    const mk = `${m.chain}:${m.kind}:${m.marketId}`;
-    const featured = taken.get(mk);
+    // A leg already has the pair's take: copy it to the legs without one, no model call.
+    const reuse = takeReuse(legs, (l) => taken.has(keyOf(l)));
+    if (reuse.source && reuse.missing.length) {
+      for (const to of reuse.missing) await ctx.runMutation(internal.arcCouncilDb.copyTake, { from: ref(reuse.source), to: ref(to) });
+      for (const to of reuse.missing) taken.set(keyOf(to), taken.get(keyOf(reuse.source))!);
+    }
+    const mk = keyOf(m);
+    const featured = reuse.source ? taken.get(keyOf(reuse.source)) : undefined;
     if (featured && !radarOn) continue;
-    const creator = m.creator.toLowerCase();
-    const t = triage.get(mk);
+    // The daily take cap belongs to the person who opened the question, not to the house twin of their market.
+    const creator = (legs.find((l) => !houseSet.has(l.creator.toLowerCase())) ?? m).creator.toLowerCase();
+    const t = legs.map((l) => triage.get(keyOf(l))).find(Boolean);
     if (skipTake(t)) continue;
     const lead = bestPersonaFor(m.category === "custom" && t && t.categoryConfidence >= JEV_CATEGORY_AT ? t.category : m.category);
     if (!lead) return;
@@ -246,9 +261,13 @@ async function writeTakes(ctx: ActionCtx, markets: Market[], evidenceCache: Map<
         const evidence = await getOrFetchEvidence(mk, m.resolutionUrl, evidenceCache);
         await throttle();
         const result = await evaluateClaimAsPersona(persona, claim, evidence.text, { mode: "take" });
-        const forecast = { chain: m.chain, kind: m.kind, marketId: m.marketId, slug: persona.slug, lean: LEAN[result.verdict], confidence: result.confidence, text: result.explanation.slice(0, 600) };
-        if (!featured && persona.slug === lead.slug) await ctx.runMutation(internal.arcCouncilDb.saveTake, { ...forecast, creator });
-        if (radarOn) await ctx.runMutation(internal.councilOpinions.record, { ...forecast, evidenceHash: bytesToHex(sha256(new TextEncoder().encode(evidence.text))) });
+        const evidenceHash = bytesToHex(sha256(new TextEncoder().encode(evidence.text)));
+        // One call, every leg: the same take on Base and Arc.
+        for (const leg of legs) {
+          const forecast = { ...ref(leg), slug: persona.slug, lean: LEAN[result.verdict], confidence: result.confidence, text: result.explanation.slice(0, 600) };
+          if (!featured && persona.slug === lead.slug) await ctx.runMutation(internal.arcCouncilDb.saveTake, { ...forecast, creator });
+          if (radarOn) await ctx.runMutation(internal.councilOpinions.record, { ...forecast, evidenceHash });
+        }
       } catch (err) {
         console.warn(`[council] forecast on ${m.chain} ${m.kind} #${m.marketId}:`, err instanceof Error ? err.message : err);
       }

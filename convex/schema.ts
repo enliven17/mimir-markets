@@ -137,6 +137,59 @@ export default defineSchema({
     at: v.number(),
   }).index("by_market", ["chain", "kind", "marketId"]).index("by_pair", ["pairKey"]),
 
+  /**
+   * The oracle's one decision per linked pair (lib/chains/linked.ts), saved right after the model decided and before
+   * any leg proposes it: every leg (the deciding one included, on a retry) reuses it instead of deciding again.
+   */
+  arcPairDecisions: defineTable({
+    pairKey: v.string(),
+    /** The leg it was decided on. */
+    chain: vChain,
+    kind,
+    marketId: v.number(),
+    side: v.number(),
+    confidence: v.number(),
+    summary: v.string(),
+    evidenceHash: v.string(),
+    bundle: v.string(),
+    at: v.number(),
+  }).index("by_pair", ["pairKey"]),
+
+  /**
+   * The twin reconciler's work (convex/arcTwins.ts, lib/chains/twins.ts): one row per (source market, target chain).
+   * sending → sent (tx known) → linked; or skipped (final) / failed (retried after notBefore, a few times).
+   */
+  marketTwins: defineTable({
+    srcChain: vChain,
+    srcMarketId: v.number(),
+    chain: vChain,
+    pairKey: v.string(),
+    /** The source's creator (lowercase), for the per-creator daily cap. */
+    creator: v.string(),
+    house: v.boolean(),
+    status: v.union(v.literal("waiting"), v.literal("sending"), v.literal("sent"), v.literal("linked"), v.literal("skipped"), v.literal("failed")),
+    reason: v.optional(v.string()),
+    tx: v.optional(v.string()),
+    marketId: v.optional(v.number()),
+    /** The seed stake, index units. */
+    seed: v.optional(v.string()),
+    /** The UTC day it was opened on ("2026-11-01"). */
+    day: v.optional(v.string()),
+    attempts: v.number(),
+    /** ms: not looked at again before this. */
+    notBefore: v.number(),
+    at: v.number(),
+  })
+    .index("by_source", ["srcChain", "srcMarketId", "chain"])
+    .index("by_status", ["status"])
+    .index("by_creator_day", ["creator", "day"]),
+
+  /**
+   * The house creator's spend, one budget shared by every chain (convex/houseBudget.ts): each market the house opens
+   * (its own drafts and twins) reserves its seed here before it is sent; a failed send releases it.
+   */
+  houseSpend: defineTable({ day: v.string(), chain: vChain, wei: v.string(), ref: v.string(), at: v.number() }).index("by_day", ["day"]),
+
   /** Oracle backoff: a market whose decision was deferred (or failed) is not retried before `notBefore` (ms). */
   arcOracleTries: defineTable({
     chain,

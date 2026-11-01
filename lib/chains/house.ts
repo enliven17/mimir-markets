@@ -47,11 +47,29 @@ export const circleBlockchain = (chain: MarketChainId, network: "testnet" | "mai
   chain === "arc" ? (network === "mainnet" ? "ARC" : "ARC-TESTNET") : network === "mainnet" ? "BASE" : "BASE-SEPOLIA";
 
 /**
- * The oracle EOA's key for a chain (the contracts' `oracle` role). Base: BASE_ORACLE_KEY, else the Arc key
- * (ARC_ORACLE_KEY) so one settlement address can serve both deployments (deploy Base with BASE_ORACLE = that address).
- * On Base it pays gas in ETH: keep it funded. Null when unset or malformed.
+ * The oracle EOA's key: ONE key for every market chain (the contracts' `oracle` role is the same address on Base and
+ * Arc, scripts/base/deploy-markets.mts and scripts/arc/deploy.mjs check it). `ORACLE_KEY`; `ARC_ORACLE_KEY` is read
+ * as a deprecated alias when ORACLE_KEY is unset. There is no per-chain key: BASE_ORACLE_KEY is ignored
+ * (oracleKeyWarnings says so). It pays gas in ETH on Base and USDC on Arc: keep it funded on both.
  */
-export function oracleKeyFor(chain: MarketChainId, env: Env = process.env): `0x${string}` | null {
-  const raw = (chain === "base" ? env.BASE_ORACLE_KEY?.trim() || env.ARC_ORACLE_KEY : env.ARC_ORACLE_KEY)?.trim();
-  return raw && /^0x[0-9a-fA-F]{64}$/.test(raw) ? (raw as `0x${string}`) : null;
+export function oracleKey(env: Env = process.env): `0x${string}` | null {
+  const raw = (env.ORACLE_KEY?.trim() || env.ARC_ORACLE_KEY?.trim()) ?? "";
+  return /^0x[0-9a-fA-F]{64}$/.test(raw) ? (raw as `0x${string}`) : null;
+}
+
+/** The oracle key on a chain: the same key everywhere (oracleKey); `chain` is kept for the callers' readability. */
+export function oracleKeyFor(_chain: MarketChainId, env: Env = process.env): `0x${string}` | null {
+  return oracleKey(env);
+}
+
+/** Where the key came from and what is misconfigured, for the watchdog and the admin panel. */
+export function oracleKeyWarnings(env: Env = process.env): string[] {
+  const out: string[] = [];
+  const main = env.ORACLE_KEY?.trim();
+  const alias = env.ARC_ORACLE_KEY?.trim();
+  if (!main && alias) out.push("ARC_ORACLE_KEY is deprecated: rename it to ORACLE_KEY");
+  if (main && alias && main.toLowerCase() !== alias.toLowerCase()) out.push("ARC_ORACLE_KEY differs from ORACLE_KEY and is ignored: remove it");
+  if (env.BASE_ORACLE_KEY?.trim()) out.push("BASE_ORACLE_KEY is no longer read (one ORACLE_KEY signs on every chain): remove it");
+  if ((main || alias) && !oracleKey(env)) out.push("ORACLE_KEY is not 0x + 64 hex");
+  return out;
 }

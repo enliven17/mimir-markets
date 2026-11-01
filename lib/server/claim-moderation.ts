@@ -15,6 +15,7 @@ import {
 } from "@/lib/moderation/sanitize-moderation-result";
 import { webGeminiKey } from "@/lib/llm";
 import { jevModeration } from "@/lib/moderation/jev-moderation";
+import { LOCAL_BLOCK_PATTERNS } from "@/lib/moderation/local-rules";
 
 export type {
   ClaimModerationDecision,
@@ -23,30 +24,6 @@ export type {
 };
 export { sanitizeModerationResult };
 
-const LOCAL_BLOCK_PATTERNS: Array<{
-  code: ClaimModerationViolationCode;
-  re: RegExp;
-}> = [
-  // Death / self-harm (ES/EN light coverage)
-  {
-    code: "death_self_harm",
-    re: /\b(suicid|suicidarse|autolesi|self[-\s]?harm|kill\s+myself)\b/i,
-  },
-  {
-    code: "death_self_harm",
-    re: /\b(morir|muere|muerte|asesin|mat[ao]n|killed|die|death|murder)\b/i,
-  },
-  // Violence / harm
-  {
-    code: "violence_harm",
-    re: /\b(violaci|rape|raped|abuse|abus(?:o|ar)|golpear|disparar|shoot|stab|bomb|terror)\b/i,
-  },
-  // Doxxing / personal data
-  {
-    code: "doxxing_personal_data",
-    re: /\b(doxx|doxxing|direcci[oó]n|domicilio|tel[eé]fono|dni|passport|ssn)\b/i,
-  },
-];
 
 const DEFAULT_GEMINI_MODEL =
   process.env.CLAIM_MODERATION_MODEL || "gemini-3.5-flash";

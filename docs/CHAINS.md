@@ -9,8 +9,9 @@ markets:
   gas. It runs beside Base for now and is switched off by config later (`NEXT_PUBLIC_MARKET_CHAINS=base`).
 
 People connect any **EVM wallet** (ConnectKit: injected wallets, WalletConnect); the same address is their account on
-both. A market lives on the chain it was opened on. Mimir's own agents open their markets on every enabled chain and
-link the copies (below).
+both. Each market lives on its own chain, but every public **pool** exists on every enabled chain: Mimir's agents open
+theirs on each chain, and Mimir's house creator opens the twin of anyone else's pool, and the copies are linked
+(below). A user stakes on whichever chain they want. VS duels are not mirrored.
 
 ## The shape of it
 
@@ -57,14 +58,55 @@ ERC-8021 Builder Code when `NEXT_PUBLIC_BASE_BUILDER_SUFFIX` is set.
 **Routes.** A market page is `/arena/<chain>/<kind>/<id>`; `/arena/arc/<kind>/<id>` (every older link) is the same
 route with `chain = arc`. Share refs are `<kind>-<id>` on Arc and `base-<kind>-<id>` on Base.
 
-## Linked markets
+## Linked markets and twins
 
-When the house creator or a hosted agent opens a market and more than one chain is enabled, it opens it on each chain
-it can fund and links them with a shared `pairKey` (`lib/chains/linked.ts`, `marketLinks` and `arcMarkets.pairKey`).
-The money stays separate per chain. The market page shows "Also on Base/Arc". The oracle decides the outcome once and
-proposes the same decision on every linked market; what stays per market is what depends on its own stakes (an
-uncontested pool refunds, stakes placed after the outcome was known refund). A mainnet market never reuses a decision
-made for a testnet one.
+Every public pool should exist on every enabled chain, linked by a shared `pairKey` (`lib/chains/linked.ts`,
+`marketLinks` and `arcMarkets.pairKey`). The money stays separate per chain: each leg is its own pool with its own
+stakes, odds and payouts.
+
+- **House creator and hosted agents** open each draft on every chain they can fund, under one pairKey (`house:…`,
+  `agent:<slug>:…`), whenever more than one chain is enabled, even if only one chain could open it right then.
+- **The twin reconciler** (`convex/arcTwins.ts`, every 15 minutes; `lib/chains/twin-reconciler.ts`,
+  `lib/chains/twins.ts`) finds open public pools missing a leg and fills it from the **house creator wallet** on that
+  chain, with the same question, labels, category, deadline and source, then links both legs (`twin:<chain>:pool:<id>`
+  when the source had no pairKey). It covers a house or agent leg that failed (no ETH, no USDC, a Circle error) and
+  every **user-created pool**:
+  - only once indexed, and past moderation (the local rules of `lib/moderation/local-rules.ts`, then Jev when
+    `TYPESAFE_API_KEY` is set) and triage (`arcTriage`: spam ≥ 0.85 or settleable ≤ 0.15 is skipped; with Jev on it
+    waits up to 30 minutes for the triage row);
+  - the create needs a seed stake: **the target chain's minimum stake, on the side the user staked**. It is Mimir's
+    money, counted against the house creator's budget (a house draft's twin is seeded like the creator:
+    `CREATOR_STAKE_USDC` on side A);
+  - skipped when betting would close within `TWIN_MIN_LEAD_MINUTES` (30) of now (the contracts lock 60 s before the
+    deadline, or earlier at a `lockAt`), when the deadline is over a year out, and after `TWIN_MAX_ATTEMPTS` (3)
+    failed opens (a twin the contract rejects; each failure releases its budget and backs off);
+  - at most `TWIN_PER_CREATOR_DAY` (3) twins a day per user, `TWIN_PER_TICK` (4) opens per run;
+  - an identical pool already on the other chain (same question, sides, source, deadline) is linked instead of a new
+    one, which also repairs a link lost after a crash.
+- **VS duels are not mirrored**: a duel is one person's challenge to whoever takes it, with a creator-side stake and a
+  5× cap that do not translate into a house-seeded copy.
+- **The house budget is one budget for every chain**: `CREATOR_DAILY_BUDGET_USDC` (default 1 USDC a day, UTC) covers
+  the creator's drafts and every twin on every chain. Each open reserves its seed in `houseSpend`
+  (`convex/houseBudget.ts`) before it is sent and releases it if the send fails; spent today is the larger of that
+  ledger and the house's indexed positions on markets it opened today. `CREATOR_DAILY_MARKETS` still counts the
+  creator's own drafts per chain (twins of other people's pools do not count).
+
+**One decision per pair.** The oracle decides the outcome once per pairKey and proposes the same decision on every
+leg: the decision is stored (`arcPairDecisions`) right after the model decides and before any leg proposes it, so
+every leg, the deciding leg's retry included, reuses it; the legs share one backoff while it is deferred (one leg
+waiting on a game means the other waits too, instead of asking the model again); and if the house holds a position on
+any leg (its own draft, a twin's seed, a council stake), the pair's decision is held to the house bar (firm verdicts
+only), whichever leg it is made on. This means a user pool with a house twin settles at 80%+ confidence or refunds.
+What stays per leg is what depends on its own stakes: an uncontested pool refunds, stakes placed after the outcome was
+known refund. A mainnet market never reuses a decision made for a testnet one.
+
+**One council take per pair.** The council writes one take for a linked pair (one model call) and stores it on every
+leg; a leg that appears later gets a copy (`arcCouncilDb.copyTake`). The daily take cap counts against the person who
+opened the question, not the house twin. Council *bets* stay per leg (each chain's wallet stakes its own money).
+
+**On the page.** A linked market's page shows each leg's pool, odds and status side by side (never summed: the pools
+settle separately), with "Stake on Base / Stake on Arc": the stake box switches to the chosen leg and the wallet on its
+chain. The Arena shows one card per linked market, both networks' pools side by side and a link to stake on each.
 
 ## Accounts
 
@@ -144,9 +186,10 @@ Scheduled jobs, each run finishing on its own and retried on the next tick (`con
 | Job | Every | What |
 |---|---|---|
 | Indexers (`arcSync`, one per chain) | 30 s | Reads both contracts' logs into markets, positions and every transaction (shown on each market page), Base amounts scaled to 18 dp. Base stays `BASE_CONFIRMATIONS` (6) blocks behind its head. Posts market events to the Telegram route. Cursors are per chain (`arcCursor` name `arc` / `base`). |
-| Oracle (`arcOracle`) | 2 min | One pass per enabled chain. Linked markets reuse one decision. Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
-| Council (`arcCouncil`) | 15 min | On every enabled chain, from that chain's wallets. One forecast take per market from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
-| Market creator (`arcCreator`) | 1 h | Opens house pools from live data on every enabled chain where `ARC_CREATOR_WALLET` / `BASE_CREATOR_WALLET` is set, linked, within `CREATOR_DAILY_BUDGET_USDC` per chain (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1); cancels its own unchallenged VS claims. |
+| Oracle (`arcOracle`) | 2 min | One pass per enabled chain, one key (`ORACLE_KEY`). Linked markets: one stored decision per pair, shared backoff. Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
+| Council (`arcCouncil`) | 15 min | On every enabled chain, from that chain's wallets. One forecast take per market (one per linked pair, on every leg) from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
+| Market creator (`arcCreator`) | 1 h | Opens house pools from live data on every enabled chain where `ARC_CREATOR_WALLET` / `BASE_CREATOR_WALLET` is set, linked, within `CREATOR_DAILY_BUDGET_USDC` for all chains together (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1); cancels its own unchallenged VS claims. |
+| Twins (`arcTwins`) | 15 min | Opens the missing leg of every open public pool from the house creator wallet and links it (above). |
 | Watchdog (`arcWatch`) | 10 min | Per chain: roles, pause, proposals that are not our oracle's, disputes, stuck markets, low gas (USDC on Arc, ETH on Base). |
 | Hosted agents (`launchArc`, `launchMarketsDb`) | 5 min, 1 h | Agents stake on markets (`LAUNCH_ARC=1`) and open their own when allowed. |
 
@@ -222,19 +265,26 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 | L-3 | Low | Tickets from a rotated-out signer stayed valid | Signer epochs; `cancelOwnershipTransfer()` |
 | Caps | Low | Unbounded inputs | Payout ≤ 10×, deadline ≤ 1 year, entry fee ≤ 1% |
 
-## The oracle key on Base
+## The oracle key
 
-The contracts' `oracle` role is one EOA per deployment. On Base it is `BASE_ORACLE_KEY`, or `ARC_ORACLE_KEY` when that
-is unset, so one settlement address can serve both chains (deploy Base with `BASE_ORACLE` = that address). On Base it
-pays gas in **ETH**: keep it funded (the watchdog warns under 0.003 ETH). On Arc it pays in USDC.
+One key signs settlements on every chain: `ORACLE_KEY` (Convex env). The contracts' `oracle` role is that key's
+address on Base and on Arc. `ARC_ORACLE_KEY` is still read as a deprecated alias when `ORACLE_KEY` is unset;
+`BASE_ORACLE_KEY` is no longer read (the watchdog reports a leftover one, a conflicting alias, or no key at all).
+Both deploy scripts take `ORACLE_ADDRESS` (or the chain's own `BASE_ORACLE` / `ARC_ORACLE`, or derive it from
+`ORACLE_KEY`), print it, refuse an address that is not `ORACLE_KEY`'s, and read the other chain's deployed pool
+(`MIMIR_POOL_ADDRESS` + `ARC_RPC` for the Base deploy, `MIMIR_BASE_POOL_ADDRESS` + `BASE_RPC` for the Arc one) to
+refuse a different oracle there (`scripts/lib/oracle-role.mjs`). A chain already deployed with another oracle moves to
+it with `queueOracle` (2-day timelock). The key pays gas in **ETH** on Base (the watchdog warns under 0.003 ETH) and in
+USDC on Arc: keep it funded on both.
 
 ## Switching on Base (ops)
 
 1. Deploy: `scripts/base/deploy-markets.mts`; it prints the site and backend env lines.
 2. Site env: `NEXT_PUBLIC_BASE_NETWORK`, `NEXT_PUBLIC_BASE_RPC`, `NEXT_PUBLIC_MIMIR_BASE_*`. Backend (Convex):
-   `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `BASE_ORACLE_KEY` (optional), `BASE_CREATOR_WALLET`,
+   `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `ORACLE_KEY` (the same key as Arc's), `BASE_CREATOR_WALLET`,
    `BASE_COUNCIL_WALLETS`, `CIRCLE_WALLET_SET_ID`.
-3. Fund with ETH (gas) and USDC: the oracle, the house creator, the council's Base wallets.
+3. Fund with ETH (gas) and USDC: the oracle (ETH only), the house creator (it also seeds the twins of Arc pools), the
+   council's Base wallets.
 4. Deploy the backend. The Arc indexer tags pre-Base rows `chain: "arc"` on its first tick (`convex/chainMigrate.ts`);
    `npx convex run chainMigrate:run` does the same by hand. Until it has run, Arc reads may miss rows for a tick.
 5. To switch Arc off later: `NEXT_PUBLIC_MARKET_CHAINS=base` and `MARKET_CHAINS=base`. Open Arc markets still settle
@@ -244,7 +294,8 @@ pays gas in **ETH**: keep it funded (the watchdog warns under 0.003 ETH). On Arc
 
 - **Circle Wallets:** the first 1,000 monthly active wallets free, then $0.05 down to $0.02 a wallet a month.
 - **Gas:** paid by each wallet: USDC on Arc (about a cent or less at 25 gwei), ETH on Base (a fraction of a cent).
-- **The house:** the market creator's daily budget (default 1 USDC) and, on testnet, council bets.
+- **The house:** the market creator's daily budget (default 1 USDC, every chain together, twins' seeds included) and,
+  on testnet, council bets.
 
 ## Before mainnet
 

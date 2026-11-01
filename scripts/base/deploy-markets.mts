@@ -4,16 +4,19 @@
  * and checks, read from BASE_* instead of ARC_*. The Arc deployment is untouched.
  *
  *   forge build
- *   BASE_DEPLOYER_KEY=0x… BASE_ORACLE=0x… node --import tsx scripts/base/deploy-markets.mts              # Base Sepolia
+ *   BASE_DEPLOYER_KEY=0x… ORACLE_ADDRESS=0x… node --import tsx scripts/base/deploy-markets.mts          # Base Sepolia
  *   BASE_NETWORK=mainnet BASE_CONFIRM_MAINNET=1 BASE_RPC_URL=https://… BASE_DEPLOYER_KEY_FILE=… \
- *     BASE_OWNER=… BASE_ARBITER=… BASE_ORACLE=… BASE_FEE_RECIPIENT=… BASE_FEE_SIGNER=… \
+ *     BASE_OWNER=… BASE_ARBITER=… ORACLE_ADDRESS=… BASE_FEE_RECIPIENT=… BASE_FEE_SIGNER=… \
  *     node --import tsx scripts/base/deploy-markets.mts                                                 # Base mainnet
  *
  * Roles (each its own address; set at deploy, nothing is left on the deployer key):
  *   BASE_OWNER          admin: pause, caps, veto, revoke the oracle/signer, timelocked changes (a Safe on mainnet)
  *   BASE_ARBITER        rules disputed and vetoed proposals (a Safe on mainnet; may be the owner's Safe only with
  *                       BASE_ARBITER_IS_OWNER=1)
- *   BASE_ORACLE         the settlement hot key; never owner, arbiter or fee recipient (the contracts refuse it)
+ *   ORACLE_ADDRESS      the settlement hot key's address, the SAME on Base and Arc: the backend's one ORACLE_KEY signs on
+ *                       every chain. BASE_ORACLE is still read; with ORACLE_KEY in the env too, it must be that key's
+ *                       address. Never owner, arbiter or fee recipient (the contracts refuse it). With MIMIR_POOL_ADDRESS
+ *                       (and ARC_RPC) set, the Arc pool's oracle is read and a different one refuses the deploy.
  *   BASE_FEE_RECIPIENT  receives entry fees, the copy-trade platform share and forfeited bonds (the owner's Safe as
  *                       the treasury only with BASE_FEE_TO_IS_OWNER=1)
  *   BASE_FEE_SIGNER     MimirFees' ticket signer
@@ -49,6 +52,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
 import { builderSuffixFromEnv, withBuilderSuffix } from "../../lib/base/builder-code";
+import { deployedOracle, oracleRole, sameOracleAs } from "../lib/oracle-role.mjs";
 
 const USDC = { mainnet: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", sepolia: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" } as const;
 const SEPOLIA_ID = 84532; // the only chain besides a local one where the contracts accept a dispute window under a day
@@ -84,8 +88,13 @@ const role = (name: string, fallback: Address | undefined): Address | undefined 
 };
 const owner = role("BASE_OWNER", account.address)!;
 const arbiter = role("BASE_ARBITER", owner)!;
-const oracle = role("BASE_ORACLE", undefined);
-if (!oracle) throw new Error("BASE_ORACLE is required (the oracle key may not be the owner, so it cannot default to the deployer)");
+// One oracle on every chain (scripts/lib/oracle-role.mjs): ORACLE_ADDRESS / BASE_ORACLE, checked against ORACLE_KEY.
+const oracleChoice = oracleRole(e, "BASE_ORACLE");
+for (const w of oracleChoice.warnings) console.warn(`warning: ${w}`);
+const oracle = oracleChoice.address as Address;
+const arcPool = (e.MIMIR_POOL_ADDRESS || e.NEXT_PUBLIC_MIMIR_POOL_ADDRESS)?.trim();
+const arcRpc = (e.ARC_RPC || e.NEXT_PUBLIC_ARC_RPC || "https://rpc.testnet.arc.network").split(",")[0].trim();
+const arcCheck = sameOracleAs(oracle, arcPool ? await deployedOracle({ rpc: arcRpc, contract: arcPool }) : null, "Arc");
 const feeTo = role("BASE_FEE_RECIPIENT", account.address)!;
 const feeSigner = role("BASE_FEE_SIGNER", account.address)!;
 
@@ -130,8 +139,9 @@ if (mainnet || e.BASE_STRICT_ROLES === "1") {
 
 const bal = await pub.getBalance({ address: account.address });
 console.log(`${chain.name}: deployer ${account.address} (${Number(bal) / 1e18} ETH), USDC ${usdc}, builder code ${suffix ? "on" : "off"}
-  owner ${owner}  arbiter ${arbiter}  oracle ${oracle}  fees to ${feeTo}  fee signer ${feeSigner}
-  window ${window}s  min stake ${minStakeText} USDC (${minStake} units)`);
+  owner ${owner}  arbiter ${arbiter}  oracle ${oracle} (from ${oracleChoice.source})  fees to ${feeTo}  fee signer ${feeSigner}
+  window ${window}s  min stake ${minStakeText} USDC (${minStake} units)
+  oracle on the other chain: ${arcCheck}`);
 
 type Artifact = { abi: Abi; bytecode: { object: Hex } };
 const art = (n: string): Artifact => JSON.parse(readFileSync(join(root, `forge-out/${n}.sol/${n}.json`), "utf8"));
@@ -181,4 +191,5 @@ MIMIR_BASE_POOL_ADDRESS=${pool.address}
 MIMIR_BASE_USDC_ADDRESS=${usdc}
 MIMIR_BASE_FROM_BLOCK=${fees.block}
 MIMIR_BASE_MIN_STAKE=${minStakeText}
-# BASE_RPC=<a provider URL>, BASE_ORACLE_KEY=<the key of ${oracle}, unless it is ARC_ORACLE_KEY's address>`);
+# BASE_RPC=<a provider URL>
+# ORACLE_KEY=<the key of ${oracle}>: the one oracle key, the same on Base and Arc (no BASE_ORACLE_KEY). Fund ${oracle} with ETH on Base.`);

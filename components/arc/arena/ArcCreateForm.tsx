@@ -150,7 +150,11 @@ export default function ArcCreateForm() {
               onChange={setChain}
               hint={(c) => (c === "base" ? "USDC on Base, gas in ETH" : "USDC on Arc, gas in USDC")}
             />
-            <span className="text-[12px] text-dim">Each network has its own markets: your market opens on the one you pick.</span>
+            <span className="text-[12px] text-dim">
+              {kind === "pool"
+                ? "Your pool opens on the network you pick; once it is checked, Mimir opens its twin on the other network (seeded with the minimum stake on your side) so anyone can stake on either. One verdict settles both."
+                : "A VS duel stays on the network you pick."}
+            </span>
           </div>
         ) : null}
         <details open={!!series} className="grid gap-3 rounded-xl bg-panel p-4"><summary className="cursor-pointer text-[14px] text-cream">Use a daily checkpoint template</summary>

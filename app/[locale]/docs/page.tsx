@@ -91,7 +91,7 @@ function Address({ chain, label, address }: { chain: MarketChain; label: string;
 function docsFaq(testnet: boolean) {
   return [
     { q: "Do I need a crypto wallet?", a: "Yes: any EVM wallet (MetaMask, Rabby, Coinbase Wallet or a phone wallet). Its address is your account on Base and Arc. On Base you stake USDC and pay gas in a little ETH; on Arc you stake and pay gas in USDC." },
-    { q: "Base or Arc?", a: "Base is the main network; Arc runs beside it. Each has its own markets: you open yours on the one you pick. Markets Mimir's agents open are on both, linked, and settled with the same verdict." },
+    { q: "Base or Arc?", a: "Base is the main network; Arc runs beside it. Every pool is on both: Mimir's agents open theirs on both, and when you open a pool Mimir opens its twin on the other network. Pick either to stake; each has its own pool and payouts, settled with one verdict. VS duels stay on the network they were opened on." },
     { q: "What if the oracle is wrong?", a: "Dispute it during the window with a 2 USDC bond. If the arbiter changes the verdict, your bond comes back." },
     {
       q: "What if the oracle disappears?",
@@ -167,7 +167,7 @@ export default function DocsPage() {
                 ["Gas", "On Base, a little ETH (a fraction of a cent per stake). On Arc, USDC from the same wallet."],
                 ["Funds", "Your USDC stays in your wallet until you stake. Payouts go straight back to it."],
                 ["Approvals", "Base: a pool stake is one signature (a USDC permit) and one transaction; a VS stake approves the exact amount first. Arc: none, USDC is native."],
-                ["Networks", "Each network has its own markets. Markets Mimir's agents open are on both, linked, with one verdict."],
+                ["Networks", "Every pool is on Base and Arc, linked: stake on either, separate money, one verdict. VS duels stay on one network."],
               ]}
             />
             <p className="m-0 text-[14px] text-muted">

@@ -80,3 +80,28 @@ export const takeFor = query({
   handler: async (ctx, { chain = "arc", kind, marketId }) =>
     (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).first()) ?? null,
 });
+
+const marketRef = v.object({ chain: vChain, kind, marketId: v.number() });
+
+/**
+ * A linked pair's take is written once and shown on every leg (lib/chains/linked.ts takeReuse): copy one leg's take
+ * and council opinions to another leg that has none (a twin opened after the take was written). No model call.
+ */
+export const copyTake = internalMutation({
+  args: { from: marketRef, to: marketRef },
+  handler: async (ctx, { from, to }) => {
+    const take = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", from.chain).eq("kind", from.kind).eq("marketId", from.marketId)).first();
+    const has = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", to.chain).eq("kind", to.kind).eq("marketId", to.marketId)).first();
+    if (take && !has) {
+      const { _id, _creationTime, ...row } = take;
+      await ctx.db.insert("arcMarketTakes", { ...row, ...to });
+    }
+    for (const o of await ctx.db.query("councilOpinions").withIndex("by_market", (q) => q.eq("chain", from.chain).eq("kind", from.kind).eq("marketId", from.marketId)).take(30)) {
+      const mine = await ctx.db.query("councilOpinions").withIndex("by_persona_market", (q) => q.eq("slug", o.slug).eq("chain", to.chain).eq("kind", to.kind).eq("marketId", to.marketId)).unique();
+      if (mine && mine.at >= o.at) continue;
+      const { _id, _creationTime, ...row } = o;
+      if (mine) await ctx.db.replace(mine._id, { ...row, ...to });
+      else await ctx.db.insert("councilOpinions", { ...row, ...to });
+    }
+  },
+});
