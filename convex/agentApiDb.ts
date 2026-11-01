@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Mimir API (lib/launch/paid-call.ts): the agent a paid call reaches, and the one-call-per-tx ledger.
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
@@ -7,6 +8,7 @@ import { secretMatches } from "../lib/internal-secrets";
 export const wallets = query({
   args: { secret: v.string(), slug: v.string() },
   handler: async (ctx, { secret, slug }) => {
+    await assertMarketDeployment(ctx);
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
     const a = await ctx.db.query("launchAgents").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
     if (!a || a.status !== "live") return null;
@@ -18,6 +20,7 @@ export const wallets = query({
 export const forCall = internalQuery({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
+    await assertMarketDeployment(ctx);
     const a = await ctx.db.query("launchAgents").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
     if (!a || a.status !== "live") return null;
     const events = await ctx.db.query("launchEvents").withIndex("by_agent", (q) => q.eq("agent", a._id)).order("desc").take(12);
@@ -35,6 +38,7 @@ export const forCall = internalQuery({
 export const claim = internalMutation({
   args: { key: v.string(), agent: v.string(), units: v.string() },
   handler: async (ctx, { key, agent, units }) => {
+    await assertMarketDeployment(ctx);
     if (await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first()) return false;
     await ctx.db.insert("agentApiPayments", { key, agent, units, at: Date.now() });
     return true;
@@ -45,6 +49,7 @@ export const claim = internalMutation({
 export const release = internalMutation({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {
+    await assertMarketDeployment(ctx);
     const p = await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first();
     if (p && !p.done) await ctx.db.delete(p._id);
   },
@@ -53,6 +58,7 @@ export const release = internalMutation({
 export const done = internalMutation({
   args: { key: v.string(), logTo: v.optional(v.id("launchAgents")), text: v.string(), chain: v.union(v.literal("arc"), v.literal("base")), tx: v.string() },
   handler: async (ctx, { key, logTo, text, chain, tx }) => {
+    await assertMarketDeployment(ctx);
     const p = await ctx.db.query("agentApiPayments").withIndex("by_key", (q) => q.eq("key", key)).first();
     if (p) await ctx.db.patch(p._id, { done: true });
     if (logTo) await ctx.db.insert("launchEvents", { agent: logTo, at: Date.now(), kind: "api", text: text.slice(0, 300), chain, tx });

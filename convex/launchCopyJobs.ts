@@ -21,6 +21,7 @@ const gated = () => process.env.MIMIR_BACKEND_OFF === "1";
 export const arcOne = internalAction({
   args: { key: v.string(), sub: v.id("launchCopies"), chain: v.optional(vChain), marketId: v.number(), side: v.number() },
   handler: async (ctx, a): Promise<string> => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     if (gated()) return "gated";
     const chain = a.chain ?? "arc";
     const cfg = serverMarketChains().chains[chain];

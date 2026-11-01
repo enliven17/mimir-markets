@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Mimir Launch: hosted agents' records. Writes come only from the web server with MIMIR_LAUNCH_SECRET
 // (lib/launch/flow.ts, lib/launch/token.ts); the public views never return a sealed key, a wallet id or the uid.
 import { v } from "convex/values";
@@ -35,6 +36,7 @@ export const create = mutation({
     base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
   },
   handler: async (ctx, { secret, ...a }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     if (!a.arc && !a.base) throw new Error("An agent needs a wallet on an enabled network.");
     // Never a persona's or a house name (lib/launch/copy-key.ts), checked again here and for every suffixed try.
@@ -57,6 +59,7 @@ export const create = mutation({
 export const forOwner = query({
   args: { secret: v.string(), slug: v.string() },
   handler: async (ctx, { secret, slug }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     return a && {
@@ -72,6 +75,7 @@ export const forOwner = query({
 export const recordToken = mutation({
   args: { secret: v.string(), slug: v.string(), owner: v.string(), token: vAgentToken },
   handler: async (ctx, { secret, slug, owner, token }): Promise<"ok" | "has-token" | "taken" | "no-agent"> => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner) return "no-agent";
@@ -86,6 +90,7 @@ export const recordToken = mutation({
 export const logEvent = mutation({
   args: { secret: v.string(), slug: v.string(), kind: v.union(v.literal("rules"), v.literal("error")), text: v.string() },
   handler: async (ctx, { secret, slug, kind, text }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (a) await log(ctx, a._id, kind, text);
@@ -96,6 +101,7 @@ export const logEvent = mutation({
 export const setStatus = mutation({
   args: { secret: v.string(), slug: v.string(), owner: v.string(), status: v.union(v.literal("live"), v.literal("paused"), v.literal("killed")) },
   handler: async (ctx, { secret, slug, owner, status }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (!a || a.owner !== owner || a.status === "killed") return false;
@@ -122,6 +128,7 @@ export type PublicAgent = ReturnType<typeof publicView>;
 export const card = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
+    await assertMarketDeployment(ctx);
     const a = await bySlug(ctx, slug);
     return a ? publicView(a) : null;
   },
@@ -131,6 +138,7 @@ export const card = query({
 export const detail = query({
   args: { secret: v.string(), slug: v.string() },
   handler: async (ctx, { secret, slug }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (!a) return null;
@@ -142,13 +150,17 @@ export const detail = query({
 export const byOwner = query({
   args: { owner: v.string() },
   handler: async (ctx, { owner }) =>
-    (await ctx.db.query("launchAgents").withIndex("by_owner", (q) => q.eq("owner", owner)).order("desc").take(50)).map(publicView),
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("launchAgents").withIndex("by_owner", (q) => q.eq("owner", owner)).order("desc").take(50)).map(publicView);
+  },
 });
 
 /** The agent's Base wallet, made on first use by the tick (convex/launchArc.ts); never replaced once stored. */
 export const setBaseWallet = internalMutation({
   args: { id: v.id("launchAgents"), base: v.object({ walletId: v.string(), address: v.string() }) },
   handler: async (ctx, { id, base }) => {
+    await assertMarketDeployment(ctx);
     const a = await ctx.db.get(id);
     if (!a || a.base) return a?.base ?? null;
     await ctx.db.patch(id, { base });
@@ -195,6 +207,7 @@ export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents
 export const claimMarketAgents = internalMutation({
   args: { now: v.number(), everyMs: v.number(), max: v.number() },
   handler: async (ctx, { now, everyMs, max }) => {
+    await assertMarketDeployment(ctx);
     const live = await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", "live")).take(500);
     const due = live.filter((a) => a.markets.enabled && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
     for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
@@ -208,6 +221,7 @@ export const claimMarketAgents = internalMutation({
 export const recordStake = internalMutation({
   args: { agent: v.id("launchAgents"), chain: vChain, kind: v.union(v.literal("vs"), v.literal("pool")), marketId: v.number(), side: v.number(), usdc: v.number(), p: v.number(), edge: v.number(), why: v.string(), tx: v.string(), text: v.string() },
   handler: async (ctx, { text, ...s }) => {
+    await assertMarketDeployment(ctx);
     await ctx.db.insert("launchStakes", { ...s, at: Date.now() });
     await log(ctx, s.agent, "stake", text, { chain: s.chain, tx: s.tx });
     const [a, m] = await Promise.all([ctx.db.get(s.agent), ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", s.chain).eq("kind", s.kind).eq("marketId", s.marketId)).unique()]);
@@ -219,6 +233,7 @@ export const recordStake = internalMutation({
 export const note = internalMutation({
   args: { agent: v.id("launchAgents"), kind: v.string(), text: v.string(), pause: v.optional(v.boolean()) },
   handler: async (ctx, { agent, kind, text, pause }) => {
+    await assertMarketDeployment(ctx);
     await log(ctx, agent, kind, text);
     const a = await ctx.db.get(agent);
     if (pause && a?.status === "live") await ctx.db.patch(agent, { status: "paused" });
@@ -229,6 +244,7 @@ export const note = internalMutation({
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     const out = [];
     for (const status of ["live", "paused", "killed"] as const) {
       out.push(...(await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", status)).order("desc").take(100)));
@@ -241,6 +257,7 @@ export const list = query({
 export const publicMarketRecord = query({
   args: { address: v.string() },
   handler: async (ctx, { address }) => {
+    await assertMarketDeployment(ctx);
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return null;
     const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address.toLowerCase())).take(301);
     const records = [];
@@ -262,6 +279,7 @@ export const publicMarketRecord = query({
 export const arcRecord = query({
   args: { secret: v.string(), address: v.string() },
   handler: async (ctx, { secret, address }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const user = address.toLowerCase();
     const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user)).order("desc").take(300);
@@ -287,6 +305,7 @@ export const arcRecord = query({
 export const leaseForOwner = mutation({
   args: { secret: v.string(), slug: v.string(), owner: v.string() },
   handler: async (ctx, { secret, slug, owner }): Promise<number | null> => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     const now = Date.now();
@@ -300,6 +319,7 @@ export const leaseForOwner = mutation({
 export const releaseForOwner = mutation({
   args: { secret: v.string(), slug: v.string(), token: v.number() },
   handler: async (ctx, { secret, slug, token }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const a = await bySlug(ctx, slug);
     if (a?.leaseUntil === token) await ctx.db.patch(a._id, { leaseUntil: undefined });

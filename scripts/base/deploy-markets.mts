@@ -47,6 +47,7 @@ import {
   type Abi,
   type Address,
   type Hex,
+  parseAbi,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
@@ -62,7 +63,8 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const network = (e.BASE_NETWORK?.trim() || "sepolia") as keyof typeof USDC;
 if (!(network in USDC)) throw new Error("BASE_NETWORK must be sepolia or mainnet");
 const mainnet = network === "mainnet";
-if (mainnet && e.BASE_CONFIRM_MAINNET !== "1") throw new Error("mainnet deploy: set BASE_CONFIRM_MAINNET=1");
+const checkOnly = process.argv.includes("--check-only");
+if (mainnet && !checkOnly && e.BASE_CONFIRM_MAINNET !== "1") throw new Error("mainnet deploy: set BASE_CONFIRM_MAINNET=1");
 const chain = mainnet ? base : baseSepolia;
 
 const keyFile = e.BASE_DEPLOYER_KEY_FILE?.trim();
@@ -74,6 +76,7 @@ const account = privateKeyToAccount(key as Hex);
 const usdcRaw = e.BASE_USDC_ADDRESS?.trim() || USDC[network];
 if (!isAddress(usdcRaw, { strict: false })) throw new Error("BASE_USDC_ADDRESS is not an address");
 const usdc = getAddress(usdcRaw);
+if (mainnet && usdc !== getAddress(USDC.mainnet)) throw new Error("Mainnet markets must use canonical Circle USDC on Base");
 const suffix = builderSuffixFromEnv(e.BASE_BUILDER_CODE);
 if (e.BASE_BUILDER_CODE?.trim() && !suffix) throw new Error("BASE_BUILDER_CODE is not a valid code or ERC-8021 suffix");
 
@@ -135,6 +138,14 @@ if (mainnet || e.BASE_STRICT_ROLES === "1") {
   for (const [name, a] of [["owner", owner], ["arbiter", arbiter]] as const) {
     const code = await pub.getCode({ address: a });
     if (!code || code === "0x") throw new Error(`strict roles: the ${name} ${a} has no code; deploy the Safe first`);
+    const safeAbi = parseAbi(["function getOwners() view returns (address[])", "function getThreshold() view returns (uint256)"]);
+    const [owners, threshold] = await Promise.all([
+      pub.readContract({ address: a, abi: safeAbi, functionName: "getOwners" }),
+      pub.readContract({ address: a, abi: safeAbi, functionName: "getThreshold" }),
+    ]);
+    if (owners.length < 3 || threshold < 2n || threshold > BigInt(owners.length)) {
+      throw new Error(`strict roles: ${name} must be a Safe with at least three owners and a threshold of at least two`);
+    }
   }
 }
 
@@ -146,6 +157,14 @@ console.log(`${chain.name}: deployer ${account.address} (${Number(bal) / 1e18} E
 
 type Artifact = { abi: Abi; bytecode: { object: Hex } };
 const art = (n: string): Artifact => JSON.parse(readFileSync(join(root, `forge-out/${n}.sol/${n}.json`), "utf8"));
+
+if (checkOnly) {
+  for (const name of ["MimirFees", "MimirV3Erc20", "MimirPoolErc20"]) {
+    if (!art(name).bytecode.object) throw new Error(`Missing bytecode for ${name}; run forge build`);
+  }
+  console.log("Preflight passed. No transaction was signed or sent. Launch caps still require Safe execution after deployment.");
+  process.exit(0);
+}
 
 const deploy = async (name: string, args: unknown[]) => {
   const a = art(name);

@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
@@ -19,13 +20,17 @@ const chainOf = (r: { chain?: Chain }): Chain => r.chain ?? "arc";
 export const cursor = internalQuery({
   args: { name: v.optional(v.string()) },
   handler: async (ctx, { name }) =>
-    (await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name ?? "arc")).unique())?.block ?? null,
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name ?? "arc")).unique())?.block ?? null;
+  },
 });
 
 /** Record a link (lib/chains/linked.ts) for a market an agent just opened, and stamp the market row if indexed already. */
 export const link = internalMutation({
   args: { pairKey: v.string(), chain: vChain, kind, marketId: v.number() },
   handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
     const seen = await ctx.db.query("marketLinks").withIndex("by_market", (q) => q.eq("chain", a.chain).eq("kind", a.kind).eq("marketId", a.marketId)).unique();
     if (!seen) await ctx.db.insert("marketLinks", { ...a, at: Date.now() });
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", a.chain).eq("kind", a.kind).eq("marketId", a.marketId)).unique();
@@ -52,6 +57,7 @@ export const apply = internalMutation({
     events: v.array(schema.tables.arcEvents.validator),
   },
   handler: async (ctx, { name, block, markets, positions, events }) => {
+    await assertMarketDeployment(ctx);
     // What changed, for Telegram (arcSync posts these to /api/telegram/arc-events).
     const changes: Array<{ type: "new" | "proposed" | "resolved" | "cancelled"; chain: Chain; kind: "vs" | "pool"; marketId: number }> = [];
     for (const p of positions) {
@@ -103,6 +109,7 @@ export const apply = internalMutation({
 export const markets = query({
   args: { chain: chainArg, kind: v.optional(kind), status: v.optional(status), limit: v.optional(v.number()) },
   handler: async (ctx, { chain, kind, status, limit }) => {
+    await assertMarketDeployment(ctx);
     const enabled = serverMarketChains().enabled;
     const n = Math.min(limit ?? 100, 500);
     // Bounded reads: by state (newest deadline first) when one is asked for, else the newest markets.
@@ -119,6 +126,7 @@ export const markets = query({
 export const market = query({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain: c = "arc", kind, marketId }) => {
+    await assertMarketDeployment(ctx);
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).unique();
     if (!m) return null;
     const [positions, events] = await Promise.all([
@@ -138,6 +146,7 @@ export const market = query({
 export const positionsOf = query({
   args: { user: v.string() },
   handler: async (ctx, { user }) => {
+    await assertMarketDeployment(ctx);
     const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user.toLowerCase())).order("desc").take(500);
     return Promise.all(
       rows.map(async (p) => ({
@@ -158,6 +167,7 @@ const POKE_GAP_MS = 5_000;
 export const poke = mutation({
   args: { chain: chainArg },
   handler: async (ctx, { chain: c = "arc" }) => {
+    await assertMarketDeployment(ctx);
     const now = Date.now();
     const name = `${c}-poke`;
     const last = await ctx.db.query("arcHeartbeats").withIndex("by_name", (q) => q.eq("name", name)).unique();
@@ -179,6 +189,7 @@ const SPAM_UNCONTESTED_PER_CREATOR = 3;
 export const oracleWork = internalQuery({
   args: { chain: vChain, now: v.number() },
   handler: async (ctx, { chain: c, now }) => {
+    await assertMarketDeployment(ctx);
     type M = Doc<"arcMarkets">;
     // Past their deadline, by state: VS needs a challenger to be decided ("active"); a pool is decided once open.
     const due = async (st: M["status"]) =>
@@ -254,6 +265,7 @@ export const oracleWork = internalQuery({
 export const deferMarket = internalMutation({
   args: { chain: vChain, kind, marketId: v.number(), error: v.optional(v.string()), capMinutes: v.optional(v.number()) },
   handler: async (ctx, { chain: c, kind, marketId, error, capMinutes }) => {
+    await assertMarketDeployment(ctx);
     const row = await ctx.db.query("arcOracleTries").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).unique();
     const attempts = (row?.attempts ?? 0) + 1;
     const next = { notBefore: Date.now() + retryDelayMs(attempts, capMinutes), lastError: error?.slice(0, 500) };
@@ -265,6 +277,7 @@ export const deferMarket = internalMutation({
 export const saveVerdict = internalMutation({
   args: schema.tables.arcVerdicts.validator,
   handler: async (ctx, verdict) => {
+    await assertMarketDeployment(ctx);
     const c = chainOf(verdict);
     await ctx.db.insert("arcVerdicts", { ...verdict, chain: c });
     // Decided: its retry row is done, so the watchdog stops counting it.
@@ -280,6 +293,7 @@ export const saveVerdict = internalMutation({
 export const linkedVerdicts = internalQuery({
   args: { pairKey: v.string() },
   handler: async (ctx, { pairKey }) => {
+    await assertMarketDeployment(ctx);
     const stored = (await ctx.db.query("arcPairDecisions").withIndex("by_pair", (q) => q.eq("pairKey", pairKey)).take(5)).map((r) => ({
       chain: r.chain, side: r.side, decided: r.side, confidence: r.confidence, summary: r.summary, evidenceHash: r.evidenceHash, bundle: r.bundle, stored: true as const,
     }));
@@ -297,6 +311,7 @@ export const linkedVerdicts = internalQuery({
 export const savePairDecision = internalMutation({
   args: { pairKey: v.string(), chain: vChain, kind, marketId: v.number(), side: v.number(), confidence: v.number(), summary: v.string(), evidenceHash: v.string(), bundle: v.string() },
   handler: async (ctx, d) => {
+    await assertMarketDeployment(ctx);
     const prev = await ctx.db.query("arcPairDecisions").withIndex("by_pair", (q) => q.eq("pairKey", d.pairKey)).first();
     if (prev) return { chain: prev.chain, side: prev.side, confidence: prev.confidence, summary: prev.summary, evidenceHash: prev.evidenceHash, bundle: prev.bundle, fresh: false };
     await ctx.db.insert("arcPairDecisions", { ...d, at: Date.now() });
@@ -311,6 +326,7 @@ export const savePairDecision = internalMutation({
 export const pairHouseHeld = internalQuery({
   args: { pairKey: v.string(), house: v.array(v.string()) },
   handler: async (ctx, { pairKey, house }) => {
+    await assertMarketDeployment(ctx);
     const ours = new Set(house.map((a) => a.toLowerCase()));
     for (const leg of await ctx.db.query("arcMarkets").withIndex("by_pair", (q) => q.eq("pairKey", pairKey)).take(10)) {
       if (ours.has(leg.creator)) return true;
@@ -325,12 +341,16 @@ export const pairHouseHeld = internalQuery({
 export const verdict = query({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain: c = "arc", kind, marketId }) =>
-    (await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).order("desc").first()) ?? null,
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).order("desc").first()) ?? null;
+  },
 });
 
 export const marketWithPositions = internalQuery({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain: c = "arc", kind, marketId }) => {
+    await assertMarketDeployment(ctx);
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).unique();
     if (!m) return null;
     const positions = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).collect();
@@ -343,9 +363,12 @@ const STAKE_EVENTS = new Set(["ClaimCreated", "ClaimChallenged", "MarketCreated"
 export const stakeTimes = internalQuery({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain: c = "arc", kind, marketId }) =>
-    (await ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).take(2000))
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).take(2000))
       .filter((e) => STAKE_EVENTS.has(e.name) && e.at !== undefined)
-      .map((e) => ({ at: e.at as number, user: e.user })),
+      .map((e) => ({ at: e.at as number, user: e.user }));
+  },
 });
 
 /** Markets still taking positions after `closesAfter` (unix seconds): VS open or active, pools open; one chain or all. */
@@ -353,9 +376,12 @@ export const openMarkets = internalQuery({
   args: { closesAfter: v.number(), chain: chainArg },
   handler: async (ctx, { closesAfter, chain: c }) =>
     // Bounded: the next 2000 markets by deadline.
-    (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).take(2000))
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).take(2000))
       .filter((m) => !m.isPrivate && (m.status === "open" || m.status === "active") && (!c || chainOf(m) === c))
-      .map((m) => ({ ...m, chain: chainOf(m) })),
+      .map((m) => ({ ...m, chain: chainOf(m) }));
+  },
 });
 
 /** Every market one address opened (lowercase), any status. */
@@ -363,6 +389,7 @@ export const openMarkets = internalQuery({
 export const openedToday = query({
   args: { creator: v.string() },
   handler: async (ctx, { creator }) => {
+    await assertMarketDeployment(ctx);
     const since = Math.floor(Date.now() / 1000) - 86_400;
     const rows = await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(50);
     return rows.filter((m) => m.createdAt >= since).length;
@@ -373,7 +400,10 @@ export const openedToday = query({
 export const marketsBy = internalQuery({
   args: { creator: v.string(), chain: chainArg },
   handler: async (ctx, { creator, chain: c }) =>
-    (await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(2000))
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(2000))
       .filter((m) => !c || chainOf(m) === c)
-      .map((m) => ({ ...m, chain: chainOf(m) })),
+      .map((m) => ({ ...m, chain: chainOf(m) }));
+  },
 });

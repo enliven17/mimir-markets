@@ -3,7 +3,7 @@
 /**
  * Header wallet chip (`.wallet-chip` / `.wallet-menu`). Disconnected: a glass "Connect" pill that opens the
  * connect sheet. Connected: the EVM wallet's short address in mono with a chevron; the menu holds its USDC on every
- * enabled market chain (Base first, with its ETH for gas), copy address, explorer, the wallet page and disconnect.
+ * enabled market chain (Base first, with its ETH for gas), copy address, explorer and disconnect.
  *
  * Keyboard: the menu opens on Enter/Space/ArrowDown and focuses its first
  * item, arrows move between items, Esc closes and returns focus to the chip,
@@ -13,7 +13,6 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } f
 import { useTranslations } from "next-intl";
 import { Check, Copy, ExternalLink, LogOut, Wallet } from "@/components/icons";
 
-import { Link } from "@/i18n/navigation";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { gasBalanceWei, usdcBalanceWei } from "@/lib/chains/client";
 import { explorerUrl, MARKET_CHAINS, type MarketChainId } from "@/lib/chains/registry";
@@ -219,10 +218,6 @@ export default function WalletChip({ className = "" }: { className?: string }) {
             <ExternalLink size={14} aria-hidden />
             {t("explorer")}
           </a>
-          <Link href="/wallet" role="menuitem" data-menu-item className={menuItem} onClick={() => close(false)}>
-            <Wallet size={14} aria-hidden />
-            {t("manage")}
-          </Link>
           <button
             type="button"
             role="menuitem"

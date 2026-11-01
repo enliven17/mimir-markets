@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // The council's memory on Arc: every persona decision (stake, abstain, retry) per market, for the reasoning shown on
 // market pages and so a considered "no" is not re-asked of the LLM until it expires.
 import { v } from "convex/values";
@@ -11,6 +12,7 @@ const chainArg = v.optional(vChain);
 export const standing = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, { now }) => {
+    await assertMarketDeployment(ctx);
     const rows = await ctx.db.query("arcCouncilDecisions").withIndex("by_until", (q) => q.gt("until", now)).take(4000);
     return rows.map((r) => `${r.slug}:${r.chain ?? "arc"}:${r.kind}:${r.marketId}`);
   },
@@ -31,6 +33,7 @@ export const record = internalMutation({
     until: v.number(),
   },
   handler: async (ctx, d) => {
+    await assertMarketDeployment(ctx);
     const prev = await ctx.db
       .query("arcCouncilDecisions")
       .withIndex("by_persona_market", (q) => q.eq("slug", d.slug).eq("chain", d.chain).eq("kind", d.kind).eq("marketId", d.marketId))
@@ -49,9 +52,12 @@ export const record = internalMutation({
 export const forMarket = query({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain = "arc", kind, marketId }) =>
-    (await ctx.db.query("arcCouncilDecisions").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).collect())
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcCouncilDecisions").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).collect())
       .filter((d) => d.outcome === "staked" || d.outcome === "abstained")
-      .map(({ slug, outcome, rationale, confidence, amount, txHash, at }) => ({ slug, outcome, rationale, confidence, amount, txHash, at })),
+      .map(({ slug, outcome, rationale, confidence, amount, txHash, at }) => ({ slug, outcome, rationale, confidence, amount, txHash, at }));
+  },
 });
 
 /** Markets that already have a council take, as "chain:kind:id" keys, and who opened each and when it was written. */
@@ -59,12 +65,16 @@ export const takenMarkets = internalQuery({
   args: {},
   // The newest 5000 takes: older ones belong to markets long closed (writeTakes only looks at open markets).
   handler: async (ctx) =>
-    (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.chain ?? "arc"}:${t.kind}:${t.marketId}`, creator: t.creator ?? "", slug: t.slug, at: t.at })),
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcMarketTakes").order("desc").take(5000)).map((t) => ({ key: `${t.chain ?? "arc"}:${t.kind}:${t.marketId}`, creator: t.creator ?? "", slug: t.slug, at: t.at }));
+  },
 });
 
 export const saveTake = internalMutation({
   args: { chain: vChain, kind, marketId: v.number(), slug: v.string(), lean: v.number(), confidence: v.number(), text: v.string(), creator: v.string() },
   handler: async (ctx, t) => {
+    await assertMarketDeployment(ctx);
     const prev = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", t.chain).eq("kind", t.kind).eq("marketId", t.marketId)).first();
     if (!prev) {
       await ctx.db.insert("arcMarketTakes", { ...t, at: Date.now() });
@@ -78,7 +88,10 @@ export const saveTake = internalMutation({
 export const takeFor = query({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain = "arc", kind, marketId }) =>
-    (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).first()) ?? null,
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", marketId)).first()) ?? null;
+  },
 });
 
 const marketRef = v.object({ chain: vChain, kind, marketId: v.number() });
@@ -90,6 +103,7 @@ const marketRef = v.object({ chain: vChain, kind, marketId: v.number() });
 export const copyTake = internalMutation({
   args: { from: marketRef, to: marketRef },
   handler: async (ctx, { from, to }) => {
+    await assertMarketDeployment(ctx);
     const take = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", from.chain).eq("kind", from.kind).eq("marketId", from.marketId)).first();
     const has = await ctx.db.query("arcMarketTakes").withIndex("by_market", (q) => q.eq("chain", to.chain).eq("kind", to.kind).eq("marketId", to.marketId)).first();
     if (take && !has) {

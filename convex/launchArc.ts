@@ -51,6 +51,7 @@ async function walletOn(
 export const tick = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     const e = process.env;
     if (e.MIMIR_BACKEND_OFF === "1" || e.LAUNCH_ARC !== "1") return;
     const registry = serverMarketChains(e);

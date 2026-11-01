@@ -33,6 +33,7 @@ const envNum = (name: string, fallback: number) => {
 export const tick = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     const e = process.env;
     if (e.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-twins" });

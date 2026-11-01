@@ -5,6 +5,7 @@
  * shown as "risk X, win at most Y" since every later challenger shrinks your
  * share. Pool: pick a side, shown as what it would return if it closed now.
  */
+import WalletFunding from "@/components/wallet/WalletFunding";
 import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal";
@@ -148,9 +149,7 @@ export default function ArcStakePanel({
         </p>
 
         {blocker === "not-enough" ? (
-          <Link href="/wallet" className={`${BTN_PRIMARY} text-center`}>
-            Add USDC
-          </Link>
+          <WalletFunding chain={cfg} address={account.address} />
         ) : (
           <>
             {blocker ? <p className="m-0 text-[13px] text-pending">{blocker}</p> : null}

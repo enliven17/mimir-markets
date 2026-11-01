@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // The watchdog's reads and its "already told the admin" memory (convex/arcWatch.ts).
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
@@ -7,6 +8,7 @@ import { vChain } from "./schema";
 export const snapshot = internalQuery({
   args: { chain: vChain, now: v.number() },
   handler: async (ctx, { chain, now }) => {
+    await assertMarketDeployment(ctx);
     const byStatus = async (st: "proposed" | "disputed") =>
       (await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st)).take(400)).filter((m) => (m.chain ?? "arc") === chain);
     const proposed = [];
@@ -26,6 +28,7 @@ export const snapshot = internalQuery({
 export const claim = internalMutation({
   args: { key: v.string(), ttlMs: v.number() },
   handler: async (ctx, { key, ttlMs }) => {
+    await assertMarketDeployment(ctx);
     const now = Date.now();
     const row = await ctx.db.query("arcAlerts").withIndex("by_key", (q) => q.eq("key", key)).unique();
     if (row && row.until > now) return false;

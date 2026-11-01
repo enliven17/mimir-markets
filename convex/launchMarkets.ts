@@ -25,6 +25,7 @@ const GAS_RESERVE_USDC = 0.05;
 export const createOne = internalAction({
   args: { id: v.id("launchAgents") },
   handler: async (ctx, { id }) => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     const e = process.env;
     if (e.MIMIR_BACKEND_OFF === "1" || e.LAUNCH_ARC !== "1" || e.LAUNCH_AGENT_MARKETS !== "1") return;
     const registry = serverMarketChains(e);

@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // The twin reconciler's reads and writes (convex/arcTwins.ts runs it; lib/chains/twins.ts decides). Every read bounded.
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
@@ -16,6 +17,7 @@ const status = v.union(v.literal("waiting"), v.literal("sending"), v.literal("se
 export const candidates = internalQuery({
   args: { closesAfter: v.number(), enabled: v.array(vChain), limit: v.optional(v.number()) },
   handler: async (ctx, { closesAfter, enabled, limit }) => {
+    await assertMarketDeployment(ctx);
     const rows = (await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.gt("deadline", closesAfter)).take(1500)).filter(
       (m) => m.kind === "pool" && m.status === "open" && !m.isPrivate && enabled.includes(chainOf(m)),
     );
@@ -49,6 +51,7 @@ export const candidates = internalQuery({
 export const findSame = internalQuery({
   args: { chain: vChain, pairKey: v.string(), question: v.string(), labelA: v.string(), labelB: v.string(), resolutionUrl: v.string(), deadline: v.number() },
   handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
     const rows = await ctx.db.query("arcMarkets").withIndex("by_deadline", (q) => q.eq("deadline", a.deadline)).take(200);
     const hit = rows.find((m) => chainOf(m) === a.chain && m.kind === "pool" && !m.isPrivate && m.status !== "resolved" && (!m.pairKey || m.pairKey === a.pairKey) && sameMarket(m, a));
     return hit ? hit.marketId : null;
@@ -59,6 +62,7 @@ export const findSame = internalQuery({
 export const pending = internalQuery({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     const rows: Doc<"marketTwins">[] = [
       ...(await ctx.db.query("marketTwins").withIndex("by_status", (q) => q.eq("status", "sending")).take(50)),
       ...(await ctx.db.query("marketTwins").withIndex("by_status", (q) => q.eq("status", "sent")).take(50)),
@@ -71,6 +75,7 @@ export const pending = internalQuery({
 export const marketIdByTx = internalQuery({
   args: { chain: vChain, tx: v.string() },
   handler: async (ctx, { chain, tx }) => {
+    await assertMarketDeployment(ctx);
     const ev = (await ctx.db.query("arcEvents").withIndex("by_log", (q) => q.eq("txHash", tx)).take(20)).find((e) => chainOf(e) === chain && e.kind === "pool" && e.name === "MarketCreated");
     return ev ? ev.marketId : null;
   },
@@ -80,7 +85,10 @@ export const marketIdByTx = internalQuery({
 export const creatorToday = internalQuery({
   args: { creator: v.string(), day: v.string() },
   handler: async (ctx, { creator, day }) =>
-    (await ctx.db.query("marketTwins").withIndex("by_creator_day", (q) => q.eq("creator", creator).eq("day", day)).take(100)).filter((t) => !t.house && (t.status === "sending" || t.status === "sent" || t.status === "linked")).length,
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("marketTwins").withIndex("by_creator_day", (q) => q.eq("creator", creator).eq("day", day)).take(100)).filter((t) => !t.house && (t.status === "sending" || t.status === "sent" || t.status === "linked")).length;
+  },
 });
 
 /** Write one (source, target chain) row: created on first sight, patched after. */
@@ -102,6 +110,7 @@ export const put = internalMutation({
     notBefore: v.optional(v.number()),
   },
   handler: async (ctx, { bumpAttempts, notBefore, ...a }) => {
+    await assertMarketDeployment(ctx);
     const row = await ctx.db.query("marketTwins").withIndex("by_source", (q) => q.eq("srcChain", a.srcChain).eq("srcMarketId", a.srcMarketId).eq("chain", a.chain)).unique();
     const now = Date.now();
     const fields = Object.fromEntries(Object.entries(a).filter(([, x]) => x !== undefined)) as typeof a;

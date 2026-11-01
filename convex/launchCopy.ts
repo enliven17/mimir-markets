@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Mimir Launch copy staking: subscriptions and the per-follower copy jobs (lib/launch/copy-stake.ts). The web server
 // (MIMIR_LAUNCH_SECRET) creates and changes subscriptions; the agent ticks fan out jobs (convex/launchCopyJobs.ts).
 // Subscriptions are keyed by lib/launch/copy-key.ts ("council:<slug>", "launch:<slug>"), so a launched agent can never
@@ -25,6 +26,7 @@ const vArc = v.object({ walletId: v.string(), address: v.string(), maxPerStakeUs
 export const forFollower = query({
   args: { secret: v.string(), agent: v.string(), follower: v.string() },
   handler: async (ctx, { secret, agent, follower }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const s = await sub(ctx, agent, follower);
     if (!s) return null;
@@ -40,6 +42,7 @@ export const forFollower = query({
 export const upsert = mutation({
   args: { secret: v.string(), agent: v.string(), follower: v.string(), arc: v.optional(vArc), base: v.optional(vArc), active: v.boolean() },
   handler: async (ctx, { secret, agent, follower, arc, base, active }): Promise<{ arc: string | null; base: string | null }> => {
+    await assertMarketDeployment(ctx);
     allowed(secret);
     const s = await sub(ctx, agent, follower);
     const a = keepStoredWallet(s?.arc, arc);
@@ -57,7 +60,10 @@ export const upsert = mutation({
 export const arcSubs = internalQuery({
   args: { agent: v.string(), chain: v.optional(vChain) },
   handler: async (ctx, { agent, chain = "arc" }) =>
-    (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && s[chain]?.on).map((s) => ({ id: s._id as string })),
+    {
+    await assertMarketDeployment(ctx);
+    return (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && s[chain]?.on).map((s) => ({ id: s._id as string }));
+  },
 });
 
 // ---------------- one follower's job ----------------
@@ -66,6 +72,7 @@ export const arcSubs = internalQuery({
 export const arcSub = internalQuery({
   args: { sub: v.id("launchCopies"), chain: v.optional(vChain) },
   handler: async (ctx, { sub: id, chain = "arc" }) => {
+    await assertMarketDeployment(ctx);
     const s = await ctx.db.get(id);
     const w = s?.[chain];
     return s && w ? { id: s._id as string, follower: s.follower, walletId: w.walletId, wallet: w.address, maxPerStakeUsdc: w.maxPerStakeUsdc, active: s.active, on: w.on } : null;
@@ -76,6 +83,7 @@ export const arcSub = internalQuery({
 export const claim = internalMutation({
   args: { key: v.string(), sub: v.id("launchCopies"), chain: v.optional(vChain) },
   handler: async (ctx, a): Promise<boolean> => {
+    await assertMarketDeployment(ctx);
     if (await job(ctx, a.key)) return false;
     await ctx.db.insert("launchCopyJobs", { ...a, status: "running", at: Date.now() });
     return true;
@@ -85,6 +93,7 @@ export const claim = internalMutation({
 export const finish = internalMutation({
   args: { key: v.string(), status: v.union(v.literal("done"), v.literal("failed"), v.literal("unknown"), v.literal("skipped")), note: v.optional(v.string()) },
   handler: async (ctx, { key, status, note }) => {
+    await assertMarketDeployment(ctx);
     const j = await job(ctx, key);
     if (j && j.status !== "done") await ctx.db.patch(j._id, { status, ...(note ? { note: note.slice(0, 200) } : {}) });
   },

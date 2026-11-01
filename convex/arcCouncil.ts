@@ -84,6 +84,7 @@ const unitsToWei = (u: bigint) => u * 1_000_000_000_000n;
 export const tick = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-council" });
     if (process.env.MIMIR_PAUSE_COUNCIL === "1") return;

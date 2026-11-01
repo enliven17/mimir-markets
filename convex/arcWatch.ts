@@ -62,6 +62,7 @@ const utc = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 16).r
 export const tick = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     const e = process.env;
     const registry = serverMarketChains(e);

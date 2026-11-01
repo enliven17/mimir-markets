@@ -7,6 +7,7 @@
  * Payouts are pushed to the account at settlement (VS) or by the oracle
  * (pools), so there is nothing to claim here except a parked one.
  */
+import WalletFunding from "@/components/wallet/WalletFunding";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { useLocale } from "next-intl";
@@ -194,9 +195,7 @@ function ChainBalance({ chain, address }: { chain: MarketChainId; address: Addre
               : `USDC in your wallet on ${cfg.label}. Stakes and gas are paid from it in USDC.`}
           </p>
         </div>
-        <Link href="/wallet" className={`${BTN_PRIMARY} text-center sm:flex-none`}>
-          Add USDC
-        </Link>
+        <WalletFunding chain={cfg} address={account.address} />
       </section>
       {parked.items.length > 0 ? (
         <section aria-label={`Parked payouts on ${cfg.label}`} className={`${SURFACE} grid gap-3 p-5`}>

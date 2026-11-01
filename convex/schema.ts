@@ -32,6 +32,10 @@ export const status = v.union(
 );
 
 export default defineSchema({
+  marketDeployments: defineTable({
+    chain: vChain, chainId: v.number(), network: v.string(), v3: v.string(), pool: v.string(),
+    fees: v.string(), usdc: v.string(), fromBlock: v.string(), boundAt: v.number(),
+  }).index("by_chain", ["chain"]),
   arcMarkets: defineTable({
     chain,
     kind,

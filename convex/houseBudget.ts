@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // The house creator's daily budget, ONE budget for every chain (CREATOR_DAILY_BUDGET_USDC, default 1 USDC a day):
 // what the house stakes on the markets it opens today (UTC), its own drafts (convex/arcCreator.ts) and the twins it
 // opens for other people's pools (convex/arcTwins.ts) alike. Each open reserves its seed here first, atomically, and a
@@ -41,6 +42,7 @@ async function spentWei(ctx: QueryCtx, day: string): Promise<bigint> {
 export const left = internalQuery({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     const left = budgetWei() - (await spentWei(ctx, budgetDay(Date.now())));
     return (left > 0n ? left : 0n).toString();
   },
@@ -50,6 +52,7 @@ export const left = internalQuery({
 export const reserve = internalMutation({
   args: { chain: vChain, wei: v.string(), ref: v.string() },
   handler: async (ctx, { chain, wei, ref }) => {
+    await assertMarketDeployment(ctx);
     const day = budgetDay(Date.now());
     if (!fitsBudget(budgetWei(), await spentWei(ctx, day), BigInt(wei))) return null;
     return await ctx.db.insert("houseSpend", { day, chain, wei, ref, at: Date.now() });
@@ -60,6 +63,7 @@ export const reserve = internalMutation({
 export const release = internalMutation({
   args: { id: v.id("houseSpend") },
   handler: async (ctx, { id }) => {
+    await assertMarketDeployment(ctx);
     if (await ctx.db.get(id)) await ctx.db.delete(id);
   },
 });

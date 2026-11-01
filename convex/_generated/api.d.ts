@@ -38,6 +38,8 @@ import type * as launchCopyJobs from "../launchCopyJobs.js";
 import type * as launchMarkets from "../launchMarkets.js";
 import type * as launchMarketsDb from "../launchMarketsDb.js";
 import type * as launchMigrate from "../launchMigrate.js";
+import type * as marketDeployment from "../marketDeployment.js";
+import type * as marketDeploymentGuard from "../marketDeploymentGuard.js";
 
 import type {
   ApiFromModules,
@@ -76,6 +78,8 @@ declare const fullApi: ApiFromModules<{
   launchMarkets: typeof launchMarkets;
   launchMarketsDb: typeof launchMarketsDb;
   launchMigrate: typeof launchMigrate;
+  marketDeployment: typeof marketDeployment;
+  marketDeploymentGuard: typeof marketDeploymentGuard;
 }>;
 
 /**

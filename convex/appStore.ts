@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // The app's own records (schema.ts `appStore`), reached only from the web server with MIMIR_STORE_SECRET
 // (lib/server/store.ts). Reads are queries; every write is one `tx` mutation, so the checks a table relied on in
 // Postgres (a code used once, a nonce seen once, a payment tx counted once, the first relay answer wins) hold: a
@@ -24,6 +25,7 @@ const keyArgs = { t: v.string(), k: v.string() };
 export const get = query({
   args: { secret: v.string(), ...keyArgs },
   handler: async (ctx, { secret, t, k }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, t);
     return (await row(ctx, t, k))?.d ?? null;
   },
@@ -32,6 +34,7 @@ export const get = query({
 export const getMany = query({
   args: { secret: v.string(), t: v.string(), ks: v.array(v.string()) },
   handler: async (ctx, { secret, t, ks }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, t);
     const out: Array<unknown> = [];
     for (const k of ks.slice(0, 500)) {
@@ -53,6 +56,7 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { secret, t, i1, i2, since, limit }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, t);
     const n = Math.min(Math.max(limit ?? 1000, 1), 5000);
     const base =
@@ -69,6 +73,7 @@ export const list = query({
 export const count = query({
   args: { secret: v.string(), t: v.string(), i1: v.optional(v.string()) },
   handler: async (ctx, { secret, t, i1 }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, t);
     const q =
       i1 !== undefined
@@ -105,6 +110,7 @@ const step = v.object({
 export const tx = mutation({
   args: { secret: v.string(), steps: v.array(step) },
   handler: async (ctx, { secret, steps }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, ...new Set(steps.map((s) => s.t)));
     const results: unknown[] = [];
     for (const s of steps) {
@@ -165,6 +171,7 @@ export const tx = mutation({
 export const prune = mutation({
   args: { secret: v.string(), t: v.string(), before: v.number(), limit: v.optional(v.number()) },
   handler: async (ctx, { secret, t, before, limit }) => {
+    await assertMarketDeployment(ctx);
     allowed(secret, t);
     if (!PRUNABLE_TABLES.has(t)) throw new Error(`${t} is not prunable`);
     const old = await ctx.db
@@ -180,6 +187,7 @@ export const prune = mutation({
 export const importRows = internalMutation({
   args: { rows: v.array(v.object({ t: v.string(), k: v.string(), d: v.any(), i1: v.optional(v.string()), i2: v.optional(v.string()), at: v.number() })) },
   handler: async (ctx, { rows }) => {
+    await assertMarketDeployment(ctx);
     let written = 0;
     for (const r of rows) {
       const existing = await row(ctx, r.t, r.k);
@@ -195,6 +203,7 @@ export const importRows = internalMutation({
 export const sweep = internalMutation({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     const now = Date.now();
     const cutoffs: Array<[string, number]> = [

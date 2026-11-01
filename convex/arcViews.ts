@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Read-only views for the market UI that span tables: the council roster (each persona's wallets, record and recent
 // stakes) and the oracle's totals. Wallet addresses come from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (public
 // addresses, no secrets).
@@ -13,6 +14,7 @@ const VERDICT_COUNT_CAP = 5000;
 export const council = query({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     const out = [];
     const enabled = serverMarketChains().enabled;
     const arc = enabled.includes("arc") ? councilWallets("arc") : {};
@@ -48,6 +50,7 @@ export const council = query({
 export const oracle = query({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     // Only the public address leaves this function.
     const key = oracleKey();
     const address = key ? privateKeyToAccount(key).address : null;
@@ -66,6 +69,7 @@ export const oracle = query({
 export const challengedBy = query({
   args: { wallets: v.array(v.string()), statuses: v.array(v.string()), limit: v.optional(v.number()) },
   handler: async (ctx, { wallets, statuses, limit }) => {
+    await assertMarketDeployment(ctx);
     const want = new Set(statuses);
     const seen = new Set<string>();
     const out = [];
@@ -91,6 +95,7 @@ export const challengedBy = query({
 export const volumeByUser = query({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     // ponytail: bounded scan of the newest 12k positions per board refresh (the route caches 60s); an aggregate table past that.
     // Money that came straight back scores nothing: cancelled markets, and settled ones that refunded everyone (a draw,
     // unresolvable, a one-sided pool), so opening and cancelling markets cannot farm points.
@@ -117,6 +122,7 @@ const usdcUnits = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString()
 export const stats = query({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     const enabled = serverMarketChains().enabled;
     const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate && enabled.includes(m.chain ?? "arc"));
     const claims = [];

@@ -43,6 +43,7 @@ const vetoed = (status: string, disputer: string) => status === "disputed" && lo
 export const sync = internalAction({
   args: { chain: v.optional(vChain) },
   handler: async (ctx, args) => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     if (process.env.MIMIR_BACKEND_OFF === "1") return; // this deployment is switched off (crons.ts)
     const chainId: MarketChainId = args.chain ?? "arc";
     const cfg = serverMarketChains().chains[chainId];

@@ -119,7 +119,7 @@ test("More sheet opens, moves focus and closes on Escape", async ({ page, isMobi
   const sheet = page.getByRole("dialog", { name: "More" });
   await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute("aria-expanded", "true");
-  await expect(sheet.getByRole("link", { name: /^Wallet/ })).toBeFocused();
+  await expect(sheet.getByRole("link", { name: /^Strategies/ })).toBeFocused();
   // Every page that left the pill is one click away.
   for (const name of ["Connect an agent", "Strategies", "Stats", "Docs"]) {
     await expect(sheet.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();

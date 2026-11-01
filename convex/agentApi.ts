@@ -31,6 +31,7 @@ type Result = { ok: true; answer: string; agent: string; chain: PayChain; tx: st
 export const call = action({
   args: { secret: v.string(), slug: v.string(), prompt: v.string(), chain: v.union(v.literal("arc"), v.literal("base")), tx: v.string(), callSecret: v.optional(v.string()) },
   handler: async (ctx, { secret, slug, prompt, chain, tx, callSecret }): Promise<Result> => {
+    await ctx.runQuery(internal.marketDeployment.check, {});
     if (!secretMatches("launch", secret)) throw new Error("not allowed");
     const cfg = serverMarketChains().chains[chain];
     if (!cfg.enabled || cfg.network !== "mainnet") return { ok: false, status: 503, error: "Paid calls on this network are currently disabled." };

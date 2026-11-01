@@ -1,19 +1,23 @@
+import { MARKET_CHAINS } from "@/lib/chains/registry";
+
 /**
- * The networks Mimir runs markets on, as their official wordmarks (public/networks): Base, the primary network, and
- * Arc beside it. `base` (default true) shows Base first; false shows Arc alone. White marks for the dark theme.
+ * Official wordmarks of enabled market chains. Base first; Arc returns automatically when re-enabled.
+ * `base=false` suppresses Base without making a dormant Arc visible. White marks for the dark theme.
  */
 export function NetworkLogos({ className = "h-6", base = true }: { className?: string; base?: boolean }) {
+  const showBase = base && MARKET_CHAINS.enabled.includes("base");
+  const showArc = MARKET_CHAINS.enabled.includes("arc");
   return (
     <span className={`inline-flex items-center ${/\bgap-/.test(className) ? "" : "gap-4"} ${className}`}>
-      {base ? (
+      {showBase ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVGs, no optimisation to gain */}
           <img src="/networks/base.svg" alt="Base" className="h-[85%] w-auto" />
-          <span aria-hidden className="h-[60%] w-px bg-line" />
+          {showArc ? <span aria-hidden className="h-[60%] w-px bg-line" /> : null}
         </>
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/networks/arc.svg" alt="Arc" className="h-full w-auto" />
+      {showArc ? <img src="/networks/arc.svg" alt="Arc" className="h-full w-auto" /> : null}
     </span>
   );
 }

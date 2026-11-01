@@ -1,3 +1,4 @@
+import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Mimir Launch: agents opening their own markets (convex/launchMarkets.ts does the chain work). The hourly cron is a
 // cheap mutation: it only schedules an action for agents whose owner turned it on, that are under their daily count,
 // and whose last market is a few hours old. Gated by LAUNCH_ARC=1 and its own LAUNCH_AGENT_MARKETS=1.
@@ -41,6 +42,7 @@ const perDay = (a: Doc<"launchAgents">) => Math.min(AGENT_MARKETS_PER_DAY_MAX, M
 export const createAll = internalMutation({
   args: {},
   handler: async (ctx) => {
+    await assertMarketDeployment(ctx);
     // Opening markets has its own switch (LAUNCH_AGENT_MARKETS=1) on top of LAUNCH_ARC: staking can run without it.
     if (process.env.MIMIR_BACKEND_OFF === "1" || process.env.LAUNCH_ARC !== "1" || process.env.LAUNCH_AGENT_MARKETS !== "1") return 0;
     const now = Date.now();
@@ -60,6 +62,7 @@ export const createAll = internalMutation({
 export const forCreate = internalQuery({
   args: { id: v.id("launchAgents") },
   handler: async (ctx, { id }) => {
+    await assertMarketDeployment(ctx);
     const a = await ctx.db.get(id);
     if (!a || a.status !== "live" || !a.arc || !a.markets.create?.enabled) return null;
     const now = Date.now();
@@ -77,6 +80,7 @@ export const record = internalMutation({
     side: v.number(), seedUsdc: v.number(), tx: v.string(), why: v.string(),
   },
   handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
     await ctx.db.insert("launchMarkets", { ...a, at: Date.now() });
     await ctx.db.insert("launchEvents", {
       agent: a.agent, at: Date.now(), kind: "market", chain: a.chain, tx: a.tx,

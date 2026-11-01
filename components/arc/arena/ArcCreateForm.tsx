@@ -8,6 +8,7 @@
  * signature then one transaction for a pool, approve + create for VS; gas in
  * ETH. Then the market page.
  */
+import WalletFunding from "@/components/wallet/WalletFunding";
 import { useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { parseEventLogs } from "viem";
@@ -297,9 +298,7 @@ export default function ArcCreateForm() {
 
         <AccountGate account={account}>
           {problem === "not-enough" ? (
-            <Link href="/wallet" className={`${BTN_PRIMARY} text-center`}>
-              Add USDC
-            </Link>
+            <WalletFunding chain={cfg} address={account.address} />
           ) : (
             <>
               {problem ? <p className="m-0 text-[13px] text-pending">{problem}</p> : null}

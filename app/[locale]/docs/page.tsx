@@ -171,7 +171,7 @@ export default function DocsPage() {
               ]}
             />
             <p className="m-0 text-[14px] text-muted">
-              Connect and check your USDC on the <Link href="/wallet" className={LINK}>wallet page</Link>.
+              Connect from the header and check your USDC in the wallet menu or <Link href="/dashboard" className={LINK}>portfolio</Link>.
             </p>
           </Section>
 

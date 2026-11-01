@@ -10,6 +10,8 @@ import { useQuery } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
 import { Link } from "@/i18n/navigation";
+import { useWalletSheet } from "@/components/wallet/WalletSheetProvider";
+import WalletFunding from "@/components/wallet/WalletFunding";
 import { SURFACE } from "@/components/arena/surface";
 import { useArcAccount } from "./arena/useArcAccount";
 
@@ -17,6 +19,7 @@ const KEY = "mimir:arc-onboarding-hidden";
 
 export default function ArcOnboarding() {
   const account = useArcAccount();
+  const sheet = useWalletSheet();
   const positions = useQuery(api.arc.positionsOf, account.address ? { user: account.address } : "skip");
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
@@ -28,8 +31,8 @@ export default function ArcOnboarding() {
   }, []);
 
   const steps: Array<{ title: string; done: boolean; href: string }> = [
-    { title: "Connect your wallet", done: Boolean(account.address), href: "/wallet" },
-    { title: `Add USDC on ${account.chainConfig.label}`, done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/wallet" },
+    { title: "Connect your wallet", done: Boolean(account.address), href: "/arena" },
+    { title: `Add USDC on ${account.chainConfig.label}`, done: (account.balance ?? 0n) > 0n || (positions?.length ?? 0) > 0, href: "/arena" },
     { title: "Place your first stake", done: (positions?.length ?? 0) > 0, href: "/arena" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -67,9 +70,7 @@ export default function ArcOnboarding() {
           <li key={s.title} className={`rounded-xl p-3 text-[13px] ${s.done ? "bg-panel text-muted" : s === next ? "bg-panel-raised text-cream shadow-[inset_0_0_0_1px_rgb(255_81_72/.5)]" : "bg-panel text-dim"}`}>
             <span className={`mr-1.5 font-mono ${s.done ? "text-win" : "text-coral"}`}>{s.done ? "✓" : i + 1}</span>
             {s === next ? (
-              <Link href={s.href} className="hover:underline">
-                {s.title}
-              </Link>
+              i === 0 ? <button type="button" onClick={sheet.open} className="hover:underline">{s.title}</button> : i === 1 ? <WalletFunding chain={account.chainConfig} address={account.address} /> : <Link href={s.href} className="hover:underline">{s.title}</Link>
             ) : (
               s.title
             )}
