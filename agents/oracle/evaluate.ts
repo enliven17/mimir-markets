@@ -12,9 +12,9 @@
 import { callLLMWithMeta, extractJson, pickGeminiModel, type CallLLMOptions, type LLMResult } from "../../lib/llm";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { isVerdict, type Verdict } from "../../lib/verdict";
-import { fromUsdcUnits } from "../../lib/solana/config";
+import { fromUsdcUnits } from "../../lib/market-codes";
 import { stripResolverFragment } from "../../lib/resolver-spec";
-import type { OnchainClaim } from "../../lib/solana/client";
+import type { OnchainClaim } from "../../lib/market-claim";
 
 export interface OracleVerdict {
   verdict: Verdict;
@@ -96,7 +96,7 @@ export async function evaluateClaim(
   mode: "settle" | "forecast" = "settle",
 ): Promise<OracleVerdict> {
   const potUsdc = fromUsdcUnits(claim.creatorStake + claim.totalChallengerStake);
-  const prompt = `You are Mimir, an impartial AI oracle for a USDC prediction market on Solana.
+  const prompt = `You are Mimir, an impartial AI oracle for a USDC prediction market on Arc.
 
 ${INJECTION_GUARD}
 

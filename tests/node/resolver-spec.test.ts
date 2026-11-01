@@ -45,10 +45,8 @@ test("price specs apply the cross-check's spread and age rules", () => {
   assert.equal(untimed.determined, false);
 });
 
-test("DEX-priced tokens never settle through the structured resolver", () => {
-  const ansem = { kind: "price", symbol: "ANSEM", op: ">", threshold: 0.01 } as const;
+test("DEX readings never settle through the structured resolver", () => {
   const r = (source: string) => ({ source, priceUsd: 0.02, at: AT });
-  assert.equal(evaluatePriceSpec(ansem, [r("dexscreener"), r("jupiter"), r("coingecko")], AT).determined, false);
   const btc = { kind: "price", symbol: "BTC", op: ">", threshold: 0.01 } as const;
   assert.equal(evaluatePriceSpec(btc, [r("dexscreener"), r("coingecko")], AT).determined, false, "any DEX reading disqualifies");
 });

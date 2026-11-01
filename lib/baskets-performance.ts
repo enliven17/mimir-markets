@@ -5,8 +5,8 @@ import "server-only";
  *
  * A basket member is named by id (a council persona slug or a registered agent
  * id); the chain only knows wallets. This resolves ids to the wallets that
- * actually stake (a persona's derived key, an agent's operator wallet), reads
- * the claims those wallets challenged from `solana_claims`, and hands the pure
+ * actually stake (a persona's Arc wallet, an agent's Arc operator), reads the
+ * markets those wallets staked on from the Arc index, and hands the pure
  * functions in lib/baskets.ts realized outcomes. Nothing here invents a
  * return: an agent that never settled anything contributes nothing.
  */
@@ -24,7 +24,7 @@ export async function stakingAddressOf(follower: string | null): Promise<string 
   return normalizeOwner(follower)?.toLowerCase() ?? null;
 }
 import { councilRoster } from "@/lib/server/council-roster";
-import { MIMIR_PROGRAM_ID, ST_ACTIVE, ST_OPEN, ST_RESOLVED } from "@/lib/solana/config";
+import { ST_ACTIVE, ST_OPEN, ST_RESOLVED } from "@/lib/market-codes";
 import {
   mirrorSignals,
   settlementsFromClaims,
@@ -35,8 +35,8 @@ import {
 } from "@/lib/baskets";
 
 /**
- * Map member ids to staking wallets. Personas resolve from the roster (derived
- * from the admin key), registered agents from the registry's operator wallet.
+ * Map member ids to staking wallets. Personas resolve from the roster (their
+ * Arc wallets), registered agents from the registry's operator wallet.
  * An id that resolves to neither is dropped rather than guessed at.
  */
 export async function resolveAgentWallets(agentIds: string[]): Promise<Map<string, string>> {
@@ -62,10 +62,9 @@ function invert(wallets: Map<string, string>): Map<string, string> {
   return byWallet;
 }
 
-/** Claims of this program where any of `wallets` is a challenger, in `states`. Shared with copy trading. */
+/** Markets where any of `wallets` staked, in `states`. Shared with copy trading. */
 export async function claimsChallengedBy(wallets: string[], states: number[], limit: number): Promise<IndexedClaim[]> {
   if (wallets.length === 0) return [];
-  // The Solana program's read index went with Postgres; markets are on Arc.
   return onArc() ? arcClaimsChallengedBy(wallets, states, limit) : [];
 }
 

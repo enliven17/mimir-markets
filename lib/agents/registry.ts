@@ -2,9 +2,9 @@
  * Agent authority model.
  *
  * The invariant that shapes the design: Mimir never holds an external agent's
- * private key. An agent proves who it is by signing (ed25519 over the request
- * message), signs its own Solana transactions, and Mimir verifies signatures
- * and enforces limits. Every wallet below is a base58 Solana public key.
+ * private key. An agent proves who it is by signing (EIP-191 over the request
+ * message), signs its own Arc transactions, and Mimir verifies signatures
+ * and enforces limits. Every wallet below is an EVM address.
  *
  * Owner, operator and payout are three separate wallets on purpose. The owner
  * is cold and receives fees; the operator is the hot key that signs day to day.
@@ -104,11 +104,8 @@ export const ACTION_MIN_AUTHORITY: Record<string, AuthorityLevel> = {
   listEarnings: AUTHORITY_LEVELS.READ_ONLY,
   dryRun: AUTHORITY_LEVELS.READ_ONLY,
   // Taking your own money back out is never gated behind authority.
-  undelegateBalance: AUTHORITY_LEVELS.READ_ONLY,
   withdraw: AUTHORITY_LEVELS.READ_ONLY,
   createClaim: AUTHORITY_LEVELS.CREATE,
-  deposit: AUTHORITY_LEVELS.STAKE,
-  delegateBalance: AUTHORITY_LEVELS.STAKE,
   challenge: AUTHORITY_LEVELS.STAKE,
   dispute: AUTHORITY_LEVELS.STAKE,
 };

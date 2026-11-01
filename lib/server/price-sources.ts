@@ -4,14 +4,8 @@
  * "Independent" is the load-bearing word: two endpoints of the same aggregator
  * would agree with each other about the same mistake. CoinGecko and
  * CoinMarketCap run separate exchange sets and separate weighting, Chainlink is
- * an on-chain oracle network, and Flash Trade quotes the Pyth price its Solana
- * perps settle on, so when they agree the number is not in doubt, and when
- * they do not, something is wrong. Flash Trade only serves the live price, so
- * it joins only when the oracle runs within minutes of the deadline.
- *
- * $ANSEM (a mainnet mint, lib/dex-tokens.ts) is priced
- * from DexScreener + Jupiter (lib/server/dex-prices.ts), plus CoinGecko where
- * listed; historical reads for them only have CoinGecko.
+ * an on-chain oracle network, so when they agree the number is not in doubt,
+ * and when they do not, something is wrong.
  *
  * Both are best-effort. A source being down degrades the settlement to a single
  * reading, which is what the oracle did before this existed; it never blocks it.
@@ -27,9 +21,6 @@
 
 import type { PriceReading } from "../price-consensus";
 import { CHAINLINK_FEEDS, fetchChainlinkPrice } from "./chainlink";
-import { FLASH_CLAIM_SYMBOLS, getFlashPrice } from "../solana/flashtrade";
-import { dexMintFor } from "../dex-tokens";
-import { fetchDexReadings } from "./dex-prices";
 
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CMC_BASE = "https://pro-api.coinmarketcap.com/v1";
@@ -72,7 +63,6 @@ const COINGECKO_IDS: Record<string, string> = {
   LINK: "chainlink",
   MATIC: "matic-network",
   DOT: "polkadot",
-  ANSEM: "the-black-bull",
 };
 
 export function coingeckoIdFor(symbol: string): string | null {
@@ -122,18 +112,6 @@ async function fetchCmcPrice(symbol: string): Promise<PriceReading | null> {
     if (!Number.isFinite(price) || price <= 0) return null;
     const at = Date.parse(quote?.last_updated ?? "");
     return Number.isFinite(at) ? { source: "coinmarketcap", priceUsd: price, at } : null;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchFlashPrice(symbol: string): Promise<PriceReading | null> {
-  if (!(FLASH_CLAIM_SYMBOLS as readonly string[]).includes(symbol.toUpperCase())) return null;
-  try {
-    const px = await getFlashPrice(symbol);
-    if (!Number.isFinite(px.priceUi) || px.priceUi <= 0) return null;
-    if (!px.timestampUs) return null;
-    return { source: "flashtrade", priceUsd: px.priceUi, at: Math.floor(px.timestampUs / 1000) };
   } catch {
     return null;
   }
@@ -233,41 +211,28 @@ export async function fetchPriceReadings(symbol: string, atMs?: number): Promise
 
 async function fetchAllReadings(symbol: string, atMs?: number): Promise<PriceReading[]> {
   const historical = atMs !== undefined && Date.now() - atMs > MAX_DEADLINE_SKEW_MS;
-  // $ANSEM: mainnet DEX prices (live only), plus CoinGecko where listed.
-  const mint = dexMintFor(symbol);
-  if (mint) {
-    const [dex, gecko] = await Promise.all([
-      historical ? Promise.resolve([]) : fetchDexReadings(mint),
-      historical ? fetchCoinGeckoPriceAt(symbol, atMs) : fetchCoinGeckoPrice(symbol),
-    ]);
-    return [...dex, ...(gecko ? [gecko] : [])];
-  }
   const results = await Promise.all(
     historical
       ? [fetchCoinGeckoPriceAt(symbol, atMs), fetchCmcPriceAt(symbol, atMs), fetchChainlinkPrice(symbol, atMs)]
-      : [fetchCoinGeckoPrice(symbol), fetchCmcPrice(symbol), fetchChainlinkPrice(symbol), fetchFlashPrice(symbol)],
+      : [fetchCoinGeckoPrice(symbol), fetchCmcPrice(symbol), fetchChainlinkPrice(symbol)],
   );
   return results.filter((r): r is PriceReading => r !== null);
 }
 
 /**
  * Readings a past deadline can get for `symbol`: CoinGecko history, CMC
- * history (with a key) and Chainlink rounds (listed feeds). DEX-priced tokens
- * report 2 so they never settle off a single CoinGecko number: their pools are
- * the manipulable part, and CoinGecko prices them from the same pools.
+ * history (with a key) and Chainlink rounds (listed feeds).
  */
 export function deadlineReadingsRequired(symbol: string): 1 | 2 {
   const s = symbol.toUpperCase();
-  if (dexMintFor(s)) return 2;
   const sources = (coingeckoIdFor(s) ? 1 : 0) + (process.env.CMC_API_KEY?.trim() ? 1 : 0) + (s in CHAINLINK_FEEDS ? 1 : 0);
   return sources >= 2 ? 2 : 1;
 }
 
-/** CMC needs a key; Chainlink, Flash Trade and the DEX pair (token mints) are keyless but only cover some assets. */
+/** CMC needs a key; Chainlink is keyless but only covers some assets. */
 export function hasSecondPriceSource(symbol?: string): boolean {
   if (process.env.CMC_API_KEY?.trim()) return true;
   if (symbol === undefined) return false;
   const s = symbol.toUpperCase();
-  if (dexMintFor(s)) return true; // DexScreener + Jupiter
-  return s in CHAINLINK_FEEDS || (FLASH_CLAIM_SYMBOLS as readonly string[]).includes(s);
+  return s in CHAINLINK_FEEDS;
 }

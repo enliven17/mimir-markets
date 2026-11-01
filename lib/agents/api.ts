@@ -3,12 +3,12 @@
  *
  * Every request is the same signed envelope. The body is canonicalized (keys
  * sorted, compact JSON), hashed with SHA-256, and that hash goes into a
- * human-readable message the caller signs with its Solana key (ed25519). The
+ * human-readable message the caller signs with its EVM wallet (EIP-191). The
  * server re-derives the hash from the body it received, so a body cannot be
  * swapped after signing and the signer can read what they are agreeing to
  * before they sign it.
  *
- * Pure and isomorphic: the browser onboarding page and the Node SDK build the
+ * Pure and isomorphic: the browser onboarding page and agent clients build the
  * exact same message the server verifies.
  */
 import { sha256 } from "@noble/hashes/sha2";
@@ -24,9 +24,6 @@ export const AGENT_WRITE_ACTIONS = [
   "createClaim",
   "challenge",
   "dispute",
-  "deposit",
-  "delegateBalance",
-  "undelegateBalance",
   "withdraw",
 ] as const;
 
@@ -116,7 +113,7 @@ export function bodyHash(body: unknown): string {
 /** The exact text a caller signs. Readable on purpose: a signer should see what they approve. */
 export function agentRequestMessage(env: AgentEnvelope): string {
   return [
-    "Mimir Agent API request (Solana)",
+    "Mimir Agent API request",
     `version: ${env.version}`,
     `agent: ${env.agentId}`,
     `action: ${env.action}`,
@@ -127,12 +124,9 @@ export function agentRequestMessage(env: AgentEnvelope): string {
   ].join("\n");
 }
 
-/**
- * Proof that an operator wallet controls itself, required at registration.
- * Base58 is case-sensitive, so the key goes in exactly as given.
- */
+/** Proof that an operator wallet controls itself, required at registration. The address goes in exactly as given. */
 export function operatorProofMessage(agentId: string, operatorWallet: string): string {
-  return `Mimir agent operator proof (Solana)\nagent: ${agentId}\noperator: ${operatorWallet}`;
+  return `Mimir agent operator proof\nagent: ${agentId}\noperator: ${operatorWallet}`;
 }
 
 export class AgentEnvelopeError extends Error {

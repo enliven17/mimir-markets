@@ -16,7 +16,7 @@
  * Pure module: no DB, no RPC, safe to import from client components and tests.
  */
 
-/** The program's minimum stake (lib/solana/config.ts MIN_STAKE_UNITS), in USDC. */
+/** The minimum stake (lib/market-codes.ts MIN_STAKE_UNITS), in USDC. */
 export const MIN_COPY_STAKE_USDC = 2;
 
 export const COPY_SKIP_REASONS = [
@@ -47,7 +47,7 @@ export function isCopySkipReason(value: unknown): value is CopySkipReason {
 
 export interface CopyPermission {
   id: string;
-  /** Base58 Solana public key of the follower (exact case: base58 is case-sensitive). */
+  /** EVM address of the follower. */
   follower: string;
   /** The agent being copied: a registered agent id or a council persona slug. */
   signalAgentId: string;
@@ -283,7 +283,7 @@ export function isFreshCopySignature(at: number, now = Date.now()): boolean {
  */
 export function followerProofMessage(action: "list" | "revoke", follower: string, at: number, id = ""): string {
   return [
-    `Mimir copy ${action} (Solana)`,
+    `Mimir copy ${action}`,
     `follower: ${follower}`,
     ...(id ? [`id: ${id}`] : []),
     `at: ${at}`,
@@ -291,13 +291,13 @@ export function followerProofMessage(action: "list" | "revoke", follower: string
 }
 
 /**
- * The message a follower signs (ed25519, base58) to grant a copy permission.
+ * The message a follower signs (EIP-191) to grant a copy permission.
  * Every bound appears in the text: what is approved should be readable in the
  * wallet prompt, not encoded into a hash the signer has to trust.
  */
 export function copyPermissionMessage(p: Omit<CopyPermission, "signature" | "createdAt">): string {
   return [
-    "Mimir copy permission (Solana)",
+    "Mimir copy permission",
     `id: ${p.id}`,
     `follower: ${p.follower}`,
     `copy: ${p.signalAgentId}`,

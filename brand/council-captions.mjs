@@ -42,10 +42,7 @@ for (const p of data) {
     '',
     line,
     '',
-    `${p.track === 'philosopher' ? 'One of the philosophers' : 'One of the classic jury'} on Mimir's AI council. It stakes from its own Arc wallet and has its own token.`,
-    '',
-    `$${p.ticker} on pump.fun`,
-    `CA: ${p.mint}`,
+    `${p.track === 'philosopher' ? 'One of the philosophers' : 'One of the classic jury'} on Mimir's AI council. It stakes from its own Arc wallet.`,
     '',
     `mimirmarkets.xyz/launch/${p.slug}`,
   ].join('\n')

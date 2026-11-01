@@ -13,7 +13,7 @@ export type InfoPanel = "how" | "about" | "disclaimer";
 
 export const INFO_PANELS: readonly InfoPanel[] = ["how", "about", "disclaimer"];
 
-const REPO_URL = "https://github.com/enliven17/mimir-solana";
+const REPO_URL = "https://github.com/enliven17/mimir-markets";
 
 export default function InfoModal({ panel, onClose }: { panel: InfoPanel | null; onClose: () => void }) {
   const t = useTranslations("footer");

@@ -1,6 +1,6 @@
 "use node";
 
-// The house market creator on Arc, as a Convex cron step (replaces agents/market-creator/solana.ts). Each tick:
+// The house market creator on Arc, as a Convex cron step. Each tick:
 //   1. cancel its own VS claims that closed with no challenger (their stake comes back)
 //   2. count its joinable markets; at MAX_ACTIVE_CLAIMS, stop
 //   3. draft from the same rule-built sources (crypto, $ANSEM, sports, stocks, Polymarket when enabled), gate them on
@@ -18,7 +18,6 @@ import type { Doc } from "./_generated/dataModel";
 import { gatherCouncilPreflight, preflightKeeps, preflightPersonas } from "../agents/market-creator/council-preflight";
 import { draftProblem, scoreDraft, type DraftClaim } from "../agents/market-creator/draft";
 import { draftCryptoClaims } from "../agents/market-creator/crypto";
-import { defaultAnsemPerRun, draftAnsemClaims } from "../agents/market-creator/ansem";
 import { draftSportsClaims } from "../agents/market-creator/sports";
 import { draftStockClaims } from "../agents/market-creator/stocks";
 import { fetchPolymarketCandidates, isPolymarketEnabled, polymarketDraft } from "../agents/market-creator/polymarket";
@@ -44,18 +43,17 @@ function creatorWallet(): { id: string; address: `0x${string}` } | null {
   }
 }
 
-async function gatherDrafts(isMainnet: boolean): Promise<DraftClaim[]> {
+async function gatherDrafts(): Promise<DraftClaim[]> {
   const polymarketPerRun = envNum("CREATOR_POLYMARKET_PER_RUN", 2);
-  const [crypto, ansem, sports, polymarket] = await Promise.all([
+  const [crypto, sports, polymarket] = await Promise.all([
     draftCryptoClaims(envNum("CREATOR_CRYPTO_PER_RUN", 2), envNum("CREATOR_HORIZON_MIN", 30)).catch(() => []),
-    draftAnsemClaims(envNum("CREATOR_ANSEM_PER_RUN", Number(defaultAnsemPerRun(isMainnet))), envNum("CREATOR_HORIZON_MIN", 30)).catch(() => []),
     draftSportsClaims(envNum("CREATOR_SPORTS_PER_RUN", 3), envNum("CREATOR_SPORTS_MAX_HOURS", 72)).catch(() => []),
     isPolymarketEnabled() && polymarketPerRun > 0 ? fetchPolymarketCandidates().catch(() => []) : Promise.resolve([]),
   ]);
   const stocks = draftStockClaims(envNum("CREATOR_STOCKS_PER_RUN", 1));
   const borrowed = polymarket.map(polymarketDraft).filter((d): d is DraftClaim => d !== null).slice(0, polymarketPerRun);
-  console.log(`[creator] sources: crypto=${crypto.length} ansem=${ansem.length} sports=${sports.length} stocks=${stocks.length} polymarket=${borrowed.length}`);
-  return [...sports, ...borrowed, ...stocks, ...ansem, ...crypto];
+  console.log(`[creator] sources: crypto=${crypto.length} sports=${sports.length} stocks=${stocks.length} polymarket=${borrowed.length}`);
+  return [...sports, ...borrowed, ...stocks, ...crypto];
 }
 
 function gateDrafts(drafts: DraftClaim[]): DraftClaim[] {
@@ -128,7 +126,7 @@ export const tick = internalAction({
     }
 
     const signatures = live.map((m) => signatureOf({ category: m.category, question: m.question, resolutionUrl: m.resolutionUrl }, `${m.kind} #${m.marketId}`));
-    const unique = filterDuplicates(gateDrafts(await gatherDrafts(cfg.network === "mainnet")), signatures, (d, why) => console.warn(`[draft] drop (duplicate, ${why}): ${d.label}`));
+    const unique = filterDuplicates(gateDrafts(await gatherDrafts()), signatures, (d, why) => console.warn(`[draft] drop (duplicate, ${why}): ${d.label}`));
     const drafts = (await vetDrafts(unique)).slice(0, headroom);
     if (!drafts.length) {
       console.log("[creator] no drafts this cycle");

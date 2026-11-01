@@ -2,8 +2,8 @@
 
 /**
  * /council on Arc: the totals strip, the oracle, then both juries. Each
- * persona bets from its own Circle wallet on Arc and keeps its Solana
- * identity; the card shows both. Records and stakes come live from the Convex
+ * persona stakes from its own Circle wallet on Arc (a Base wallet joins it
+ * once Base markets open). Records and stakes come live from the Convex
  * index (convex/arcViews.ts), bankrolls straight from the Arc RPC.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -29,7 +29,7 @@ import { COUNCIL_AGENTS } from "@/lib/launch/council-view";
 const units = (wei: string | bigint) => (BigInt(wei) / 1_000_000_000_000n).toString();
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-export default function ArcCouncil({ solana }: { solana: Record<string, string> }) {
+export default function ArcCouncil() {
   const t = useTranslations("council");
   const council = useQuery(api.arcViews.council, {});
   const oracle = useQuery(api.arcViews.oracle, {});
@@ -39,17 +39,17 @@ export default function ArcCouncil({ solana }: { solana: Record<string, string> 
     const byslug = new Map((council ?? []).map((c) => [c.slug, c]));
     return COUNCIL_PERSONAS.map((p) => {
       const c = byslug.get(p.slug);
-      // Mimir Launch: a persona with its own agent wallet and token shows those instead of the derived identity.
-      const agent = COUNCIL_AGENTS[p.slug];
+      const agent = Object.hasOwn(COUNCIL_AGENTS, p.slug) ? COUNCIL_AGENTS[p.slug] : null;
       return {
         slug: p.slug,
         displayName: p.displayName,
         bio: p.bio,
         archetype: p.archetype,
         track: trackOf(p),
-        address: agent?.solana ?? solana[p.slug] ?? "",
-        token: agent?.solana ? { ticker: agent.ticker, mint: agent.mint } : undefined,
-        arcAddress: c?.address,
+        ticker: agent?.ticker,
+        token: agent?.token ?? null,
+        arcAddress: c?.address ?? agent?.arc ?? undefined,
+        baseAddress: agent?.base?.address,
         categoryFilter: p.categoryFilter,
         bankroll: c ? units(bankrolls.get(c.address) ?? 0n) : "0",
         atRisk: c ? units(c.atRisk) : "0",
@@ -64,7 +64,7 @@ export default function ArcCouncil({ solana }: { solana: Record<string, string> 
         })),
       };
     });
-  }, [council, bankrolls, solana]);
+  }, [council, bankrolls]);
 
   if (council === undefined) return <Skeleton className="h-64 w-full rounded-2xl" />;
   const sum = (f: (p: RosterPersona) => string) => personas.reduce((a, p) => a + BigInt(f(p)), 0n);

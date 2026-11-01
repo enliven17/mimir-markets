@@ -9,14 +9,13 @@
 import { ARC } from "../arc/config";
 import { AgentEnvelopeError, type AgentWriteAction } from "./api";
 import { CATEGORIES } from "../constants";
-import { DISPUTE_BOND_UNITS } from "../solana/config";
+import { DISPUTE_BOND_UNITS } from "../market-codes";
 
 export const MAX_QUESTION_BYTES = 200;
 export const MAX_POSITION_BYTES = 100;
 export const MAX_URL_BYTES = 200;
 export const MAX_CHALLENGERS = 16;
-/** Minimum stake the program accepts, in USDC. */
-/** On Arc the contracts' own stake minimum (a deploy parameter); 2 USDC for the Solana program. */
+/** The contracts' own stake minimum on Arc (a deploy parameter), in USDC; 2 when not configured. */
 export const MIN_STAKE_USDC = ARC.contracts.mimirV3 ? Number(ARC.contracts.minStakeWei) / 1e18 : 2;
 /** A claim must run at least this long, so it cannot be settled before anyone sees it. */
 export const MIN_CLAIM_DURATION_SEC = 15 * 60;
@@ -33,8 +32,6 @@ export interface CreateClaimParams {
   stakeUnits: bigint;
   deadline: number;
   maxChallengers: number;
-  /** Also return a delegate_claim transaction so challenges run in the ER. */
-  delegate: boolean;
 }
 
 export interface ClaimStakeParams {
@@ -54,10 +51,7 @@ export type WriteParams =
   | { action: "createClaim"; params: CreateClaimParams }
   | { action: "challenge"; params: ClaimStakeParams }
   | { action: "dispute"; params: ClaimParams }
-  | { action: "deposit"; params: AmountParams }
-  | { action: "withdraw"; params: AmountParams }
-  | { action: "delegateBalance"; params: Record<string, never> }
-  | { action: "undelegateBalance"; params: Record<string, never> };
+  | { action: "withdraw"; params: AmountParams };
 
 function bad(message: string): never {
   throw new AgentEnvelopeError(message, 400, "bad_params");
@@ -140,7 +134,6 @@ export function parseWriteParams(
           stakeUnits: usdcToUnits(body.stakeUsdc, "stakeUsdc", MIN_STAKE_USDC),
           deadline,
           maxChallengers,
-          delegate: body.delegate !== false,
         },
       };
     }
@@ -154,12 +147,8 @@ export function parseWriteParams(
       };
     case "dispute":
       return { action, params: { claimId: parseClaimId(body.claimId) } };
-    case "deposit":
     case "withdraw":
       return { action, params: { amountUnits: usdcToUnits(body.amountUsdc, "amountUsdc") } };
-    case "delegateBalance":
-    case "undelegateBalance":
-      return { action, params: {} };
   }
 }
 

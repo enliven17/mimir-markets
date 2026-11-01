@@ -172,13 +172,13 @@ test("duplicates of joinable claims and within a run are dropped", () => {
   assert.match(drops[1], /same source as #7/);
 });
 
-test("inventory and dedupe count only the house's own joinable claims and cancel only own empty expired ones", () => {
-  const me = "Me111111111111111111111111111111";
-  const other = "Other1111111111111111111111111111";
+test("inventory and dedupe count only the house's own joinable claims and list only own empty expired ones", () => {
+  const me = "0x00000000000000000000000000000000000000e1";
+  const other = "0x00000000000000000000000000000000000000e2";
   const claim = (id: number, over: Record<string, unknown>) =>
     ({
       id: BigInt(id),
-      creator: { toBase58: () => me },
+      creator: me,
       question: `q${id}`,
       resolutionUrl: `https://x.test/${id}`,
       category: "crypto",
@@ -190,10 +190,10 @@ test("inventory and dedupe count only the house's own joinable claims and cancel
   const inv = summarizeInventory(
     [
       claim(1, {}), // joinable
-      claim(2, { state: 1, creator: { toBase58: () => other } }), // joinable, someone else's
+      claim(2, { state: 1, creator: other }), // joinable, someone else's
       claim(3, { deadline: NOW_SEC - 10 }), // own, expired, empty → cancel
       claim(4, { deadline: NOW_SEC - 10, challengers: [{}] }), // expired but challenged
-      claim(5, { deadline: NOW_SEC - 10, creator: { toBase58: () => other } }), // not ours
+      claim(5, { deadline: NOW_SEC - 10, creator: other }), // not ours
       claim(6, { state: 3 }), // cancelled
     ],
     me,

@@ -24,7 +24,7 @@ interface PeepAvatarProps {
 
 /**
  * A Mimir pixel face (lib/avatar) on a dark tile. Deterministic per seed; a council persona ("council-<slug>") gets the
- * same face as its pump.fun token. The name is kept from the open-peeps portraits it replaced.
+ * same face as its agent page. The name is kept from the open-peeps portraits it replaced.
  */
 export default function PeepAvatar({
   seed,

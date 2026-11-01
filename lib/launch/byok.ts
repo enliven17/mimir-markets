@@ -6,7 +6,7 @@
  * which it is using. A key that fails pauses the agent upstream; it never falls back to Mimir's keys silently.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import type { JsonRouter } from "./engine/rank";
+import type { JsonRouter } from "./router";
 import { BYOK_PROVIDERS, type ByokProvider } from "./byok-providers";
 
 export { BYOK_PROVIDERS, type ByokProvider };

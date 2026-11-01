@@ -2,7 +2,7 @@
  * POST /api/baskets/{id}/subscribe: follow, re-cap, or unfollow.
  *
  * Following is mirroring, never depositing. This route stores a signed intent
- * (ed25519 over `followMessage`, base58) and a per-market ceiling; it never
+ * (EIP-191 over `followMessage`) and a per-market ceiling; it never
  * takes custody of anything and cannot stake on the follower's behalf.
  * Setting the cap to zero unfollows, so a revocation is the same signature
  * shape as a grant.

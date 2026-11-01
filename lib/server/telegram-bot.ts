@@ -134,7 +134,7 @@ async function onBets(chatId: number): Promise<void> {
   }
   const arc = normalizeOwner(wallet);
   if (!arc) {
-    await sendTo(chatId, "This chat is linked to an old Solana wallet. Link your EVM wallet on the site again.", { reply_markup: await linkButtons(chatId) });
+    await sendTo(chatId, "This chat is linked to an old wallet. Link your EVM wallet on the site again.", { reply_markup: await linkButtons(chatId) });
     return;
   }
   const positions = await arcPositions(arc).catch(() => null);
@@ -219,40 +219,10 @@ export async function handle(update: Update): Promise<void> {
   }
 }
 
-/**
- * The campaign top 10, read from the site's own API so it matches the page
- * (house wallets are filtered there, with the site's env).
- */
-async function onLeaderboard(chatId: number): Promise<void> {
-  const page = `${SITE_URL}/en/campaign`;
-  const button = { reply_markup: { inline_keyboard: [[{ text: "Full leaderboard", url: page }]] } };
-  let rows: Array<{ wallet: string; score: number; early?: boolean }>;
-  try {
-    const res = await fetch(`${SITE_URL}/api/campaign`, { signal: AbortSignal.timeout(15_000) });
-    rows = ((await res.json()) as { rows?: typeof rows }).rows ?? [];
-  } catch {
-    await sendTo(chatId, "The leaderboard is unavailable right now.", button);
-    return;
-  }
-  const medal = ["🥇", "🥈", "🥉"];
-  const lines = rows.slice(0, 10).map(
-    (r, i) => `${medal[i] ?? `${i + 1}.`} <code>${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}</code>  ${r.score.toLocaleString("en-US")} pts${r.early ? "  ⚡ early" : ""}`,
-  );
-  await sendTo(
-    chatId,
-    ["<b>Leaderboard · top 10</b>", "", ...(lines.length ? lines : ["No points yet. Stake on Arc testnet to be first."])].join("\n"),
-    button,
-  );
-}
-
-/** /markets, /website and /leaderboard: the same public answer in private chats and groups. */
+/** /markets and /website: the same public answer in private chats and groups. */
 async function onPublic(chatId: number, command: string): Promise<boolean> {
   if (command === "/markets") {
     await onMarkets(chatId);
-    return true;
-  }
-  if (command === "/leaderboard") {
-    await onLeaderboard(chatId);
     return true;
   }
   if (command === "/website") {
@@ -300,7 +270,6 @@ export async function setup(): Promise<void> {
       { command: "bets", description: "Your open positions" },
       { command: "app", description: "Open Mimir" },
       { command: "markets", description: "Open markets" },
-      { command: "leaderboard", description: "Leaderboard top 10" },
       { command: "website", description: "mimirmarkets.xyz" },
       { command: "alerts", description: "Choose which alerts you get" },
       { command: "unlink", description: "Unlink your wallet" },

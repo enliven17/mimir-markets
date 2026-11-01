@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Live bet effects, the way pump.fun makes a chart feel alive: when a new
+ * Live bet effects, the way a trading chart feels alive: when a new
  * stake lands (a live Convex update, never the first load), a "+$X" chip
  * flies into the side it backed and that side jolts, so a busy market looks
  * busy. GSAP on transforms and opacity only; nothing under reduced motion.

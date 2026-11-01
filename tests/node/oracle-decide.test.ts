@@ -20,7 +20,7 @@ test("confidence tiers settle, mark contested, or refund", () => {
   assert.match(tierVerdict(v(70)).explanation, /^\[CONTESTED\]/);
   assert.equal(tierVerdict(v(40)).verdict, "UNRESOLVABLE");
   assert.equal(applyFetcherTrust(v(95), "jina").confidence, 75, "scraped evidence is capped below FIRM");
-  assert.equal(applyFetcherTrust(v(95), "flashtrade-api").confidence, 95);
+  assert.equal(applyFetcherTrust(v(95), "coingecko-api").confidence, 95);
 });
 
 test("price consensus refunds a model that contradicts two agreeing sources", () => {
@@ -47,19 +47,18 @@ test("price consensus refunds a model that contradicts two agreeing sources", ()
 });
 
 test("the FIRM-only rule covers every house address, not just the oracle", async () => {
-  const { Keypair } = await import("@solana/web3.js");
   const { houseHoldsPosition } = await import("../../agents/oracle/decide");
-  const oracle = Keypair.generate().publicKey;
-  const creatorWallet = Keypair.generate().publicKey;
-  const persona = Keypair.generate().publicKey;
-  const stranger = Keypair.generate().publicKey;
-  const house = new Set([oracle.toBase58(), creatorWallet.toBase58(), persona.toBase58()]);
+  const oracle: string = "0x00000000000000000000000000000000000000a1";
+  const creatorWallet = "0x00000000000000000000000000000000000000a2";
+  const persona = "0x00000000000000000000000000000000000000a3";
+  const stranger = "0x00000000000000000000000000000000000000a4";
+  const house = new Set([oracle, creatorWallet, persona]);
   const claim = (creator: typeof oracle, challengers: Array<typeof oracle> = []) =>
     ({ creator, challengers: challengers.map((addr) => ({ addr })) }) as never;
   assert.equal(houseHoldsPosition(claim(creatorWallet), { oracle, house }), true, "market creator");
   assert.equal(houseHoldsPosition(claim(stranger, [persona]), { oracle, house }), true, "council persona");
   assert.equal(houseHoldsPosition(claim(stranger, [oracle]), { oracle }), true, "the oracle itself");
-  assert.equal(houseHoldsPosition(claim(stranger, [Keypair.generate().publicKey]), { oracle, house }), false);
+  assert.equal(houseHoldsPosition(claim(stranger, ["0x00000000000000000000000000000000000000a5"]), { oracle, house }), false);
 });
 
 test("Polymarket settles from UMA's resolution, waits, then refunds", async () => {
@@ -137,27 +136,11 @@ test("a Polymarket market settles a claim only when it is bound to it", async ()
   assert.equal(polymarketOutcome(claim, resolvedYes({ question: "Will Bitcoin hit $1m in 2026?" }), now).kind, "continue");
 });
 
-test("DEX-token agreement never boosts confidence", () => {
-  const deadline = 1_800_000_000;
-  const claim = { question: "Will $ANSEM trade above $0.01 at the deadline?", creatorPosition: "Yes", counterPosition: "No", deadline };
-  const prices = {
-    symbol: "ANSEM",
-    threshold: 0.01,
-    readings: [
-      { source: "dexscreener" as const, priceUsd: 0.02, at: deadline * 1000 },
-      { source: "jupiter" as const, priceUsd: 0.0201, at: deadline * 1000 },
-    ],
-  };
-  const out = applyPriceConsensus(claim, { verdict: "CREATOR_WINS", confidence: 72, explanation: "" }, prices);
-  assert.equal(out.verdict.confidence, 72);
-});
-
 test("the on-chain summary carries no links; the oracle fetches with a browser UA", async () => {
   const { decisionFor, BROWSER_USER_AGENT } = await import("../../agents/oracle/decide");
-  const { Keypair } = await import("@solana/web3.js");
   const claim = {
     id: 7n,
-    creator: Keypair.generate().publicKey,
+    creator: "0x00000000000000000000000000000000000000a1",
     question: "q",
     creatorPosition: "Yes",
     counterPosition: "No",
@@ -186,7 +169,7 @@ test("a price claim with fewer than two deadline readings defers, then refunds; 
   assert.equal(priceDataGate(1, deadline, deadline + PRICE_DEFER_SECS + 1), "refund");
 });
 
-test("an asset only CoinGecko prices historically settles on one deadline reading; majors and DEX tokens need two", async () => {
+test("an asset only CoinGecko prices historically settles on one deadline reading; majors need two", async () => {
   const { priceDataGate } = await import("../../agents/oracle/decide");
   const { deadlineReadingsRequired } = await import("../../lib/server/price-sources");
   const prev = process.env.CMC_API_KEY;
@@ -194,7 +177,6 @@ test("an asset only CoinGecko prices historically settles on one deadline readin
   try {
     assert.equal(deadlineReadingsRequired("XRP"), 1, "CoinGecko only");
     assert.equal(deadlineReadingsRequired("BTC"), 2, "CoinGecko + Chainlink");
-    assert.equal(deadlineReadingsRequired("ANSEM"), 2, "DEX token: never one number");
     assert.equal(priceDataGate(1, 1000, 1010, 1), "ok");
   } finally {
     if (prev !== undefined) process.env.CMC_API_KEY = prev;

@@ -1,7 +1,7 @@
 /**
  * Mimir Launch: the default token image, the agent's pixel face (lib/avatar) as a 512x512 PNG on Mimir's ink ground,
  * for launches with no uploaded image (ported from snipad). 14 px per grid unit keeps every pixel edge whole; the
- * 32 px margin keeps the face inside pump.fun's round crop. Deterministic per seed.
+ * 32 px margin keeps the face inside a launchpad's round crop. Deterministic per seed.
  */
 import { ImageResponse } from "next/og";
 import { AVATAR_SEED_RE, avatarDataUri, avatarFromSeed, restingFace } from "@/lib/avatar";

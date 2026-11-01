@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Marquee, RollingNumber, useInViewOnce } from "@/components/motion";
 import { liveStats, poolUsdc, tickerClaims } from "@/lib/landing";
 import { formatUsdcBare } from "@/lib/money";
-import { ST_RESOLVED } from "@/lib/solana/config";
+import { ST_RESOLVED } from "@/lib/market-codes";
 import { useLandingFeed } from "./LandingFeed";
 
 const whole = (n: number) => Math.round(n).toLocaleString("en-US");

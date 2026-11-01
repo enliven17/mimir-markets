@@ -1,54 +1,50 @@
-# Architecture: markets on Arc, wallets on Solana
+# Architecture: markets on Arc, any EVM wallet
 
-Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People keep their **Solana**
-wallet: it is their identity and it funds them over CCTP. This build runs on Arc testnet + Solana devnet; Arc
-mainnet + Solana mainnet come together, open to everyone.
+Markets, stakes, settlement and payouts live on **Arc**, Circle's stablecoin chain. People connect any **EVM wallet**
+(ConnectKit: injected wallets, WalletConnect) on Arc or Base; its address is their account. Markets on **Base** come
+next, on their own ERC-20 USDC contracts (`contracts/*Erc20.sol`, `scripts/base/`).
 
 ## The shape of it
 
 ```
- Solana (the user's wallet)                      Arc
- ──────────────────────────                      ─────────────────────────────────────────────────
- USDC ──depositForBurn (CCTP, fast)──▶ attestation ──▶ smart account: receiveMessage (sponsored)
-                                                           │
- passkey (device) ── signs user ops ──▶ Circle bundler ──▶ smart account ──▶ MimirV3 (VS) / MimirPool
-                                       + Gas Station          ▲   │                 │
-                                                              └───┘ payouts          │ events
- USDC ◀── receive_message on Solana ◀── attestation ◀── smart account: approve + depositForBurn
-                                                                                     ▼
-                                                              the backend: indexer, oracle, council, creator
+ the user's EVM wallet ── signs and sends ──▶ MimirV3 (VS) / MimirPool on Arc ──events──▶ the backend
+        │  (stakes and gas in USDC)                    ▲                                indexer, oracle,
+        │                                              │ payouts                        council, creator,
+        └── an agent's token (optional) ──▶ Argus (Arc) / Clanker (Base)                hosted agents
 ```
 
-- **No relayer, no hot key for users.** Every user action is a user operation signed by the user's passkey; Circle's
-  Gas Station pays the gas. `msg.sender` is the user's own smart account, so positions and payouts are theirs.
-- **Mimir's own actors** (oracle, council personas, market creator) sign through Circle developer-controlled
-  wallets or a dedicated oracle key; no persona key sits on Mimir's servers.
-- **Agents** bring their own EVM key; the agent API returns unsigned Arc transactions ([AGENTS.md](AGENTS.md)).
+- **No relayer, no hot key for users.** Every user action is a transaction from the user's own wallet, gas paid in
+  USDC on Arc. `msg.sender` is the user, so positions and payouts are theirs.
+- **Mimir's own actors** (oracle, council personas, market creator) and hosted agents sign through Circle
+  developer-controlled wallets or a dedicated oracle key; no persona key sits on Mimir's servers.
+- **Connected agents** bring their own EVM key; the agent API returns unsigned Arc transactions ([AGENTS.md](AGENTS.md)).
 
 ## Accounts
 
-- **Create:** connect the Solana wallet, create a passkey (Face ID, fingerprint, device PIN), get a Circle Modular
-  Wallet (ERC-4337 smart account). Its address is known before it deploys; it deploys on its first operation.
-- **Link:** the Solana wallet and the smart account each sign one message naming the other
-  (`app/api/arc/bind`). The link is what the campaign and Telegram use to join the two.
-- **Recover:** at sign-up the user downloads a 12-word recovery file and confirms it. The words derive an EOA added as
-  a second owner of the smart account; with them a new passkey can be put on the same account. Lose both and the
-  account is gone.
-- **Open access:** anyone can sign in from a Solana wallet or (native Arc sign-in) an Arc wallet; no invite code.
-  Per-account stake caps, rate limits and wallet proofs still apply.
-- **Native Arc sign-in:** an Arc (EVM) wallet instead of a Solana one. It signs once to bind to the passkey account
-  (`lib/arc/evm.ts`, `/api/arc/evm-bind`) and approves a USDC spending cap for it; a stake that needs more than the
-  account holds pulls the shortfall with `transferFrom` in the same passkey operation. No deposit needed.
-
-## Moving money
-
-- **Deposit (Solana → Arc):** one Solana transaction, CCTP `depositForBurn` with Fast Transfer and the smart account
-  as recipient (domain 5 → 26). The app waits for Circle's attestation, then the account calls `receiveMessage` in a
-  sponsored operation. 13–18 s end to end on testnet. Bridge once per deposit, never per bet.
-- **Withdraw (Arc → Solana):** one sponsored operation, `approve` + `depositForBurn` to the user's Solana USDC
-  account; the mint on Solana is a Solana transaction the wallet sends.
+- **Connect:** any EVM wallet, on Arc or Base. Connecting never switches the network; a transaction switches to its
+  chain right before sending (`components/arc/useEvmWallet.ts`).
+- **Prove:** routes that act for a wallet take an EIP-191 signature of a readable message (`lib/owner.ts`); a smart
+  wallet's ERC-1271 signature is checked on Arc, then on Base.
+- **Open access:** no invite code. Per-account stake caps, rate limits and wallet proofs still apply.
 - **One balance, two views:** USDC on Arc is native (18 decimals, what `msg.value` spends) and also the ERC-20 at
-  `0x3600…0000` (6 decimals). CCTP mints into it; the market contracts spend it natively.
+  `0x3600…0000` (6 decimals). The market contracts spend it natively.
+
+## Hosted agents (Mimir Launch)
+
+- **Free to create** (`lib/launch/flow.ts`, `convex/launch.ts`): the owner signs once; Mimir makes the agent's Circle
+  wallet on Arc and stores it live. No funding step.
+- **Staking** (`convex/launchArc.ts`, `lib/launch/markets.ts`): every 10 minutes per agent, its brain gives P(side A)
+  for the open pools its rules allow; it stakes the best edge at a fraction of Kelly from its own wallet, which the
+  owner funds with USDC and can withdraw from. It may also open markets (`convex/launchMarkets.ts`) when allowed.
+- **Copying** (`lib/launch/copy-stake.ts`, `convex/launchCopyJobs.ts`): followers mirror its pool stakes from Circle
+  copy wallets of their own, under their own cap.
+- **Its token (optional)** (`lib/launch/token.ts`): built server-side for the owner's wallet as creator (Argus on Arc:
+  `lib/launch/argus*.ts`, creatorBps 10000; Clanker v4 on Base: `lib/launch/base/`, the owner as admin and only reward
+  recipient), signed and sent by the owner, then recorded once its receipt checks out (sender and creator are the
+  owner, the symbol is the agent's ticker). Every creator fee goes to the owner, who claims from the agent page
+  (Argus splitter `distribute()` + `claim(owner)`; ClankerFeeLocker `claim(owner, WETH)`). Mimir holds nothing.
+- **Council agents** have an Arc wallet (`ARC_COUNCIL_WALLETS`) and an optional Base wallet in
+  `lib/launch/council.json` (address and Circle wallet id), for Base markets later.
 
 ## Market contracts (`contracts/`)
 
@@ -80,7 +76,8 @@ oracle and fee-recipient changes go through 2-day timelocks. Native USDC only.
   0.5% for everyone, never above 1% (`MAX_ENTRY_BPS`). Kept on refunds.
 - **Copy trades:** a position opened with a `referrer` (the basket creator, or the copied agent's owner) pays 1% of
   its net profit to the referrer and 1% to Mimir, on wins only.
-- **Agent deploy:** a flat $1, paid in USDC on Arc and checked by the API.
+- **Agent deploy (API-registered agents):** a flat $1, paid in USDC on Arc and checked by the API. Hosted agents are free.
+- **Agents' tokens:** no Mimir fee; the owner keeps every creator fee.
 - No other fee on winnings.
 
 ## The backend
@@ -93,10 +90,11 @@ Scheduled jobs, each run finishing on its own and retried on the next tick (`con
 | Oracle (`arcOracle`) | 1 min | Proposes, finalizes, refunds and pays. A pool with only one side staked is refunded without a model call. Otherwise `agents/oracle/decide.ts`: deterministic rules, then evidence and two price feeds, then a settlement-grade model. 80%+ settles, 60–79% settles marked contested, below 60% refunds. The audit bundle's sha256 goes on chain. A deferred market is retried after 10 minutes. |
 | Council (`arcCouncil`) | 5 min | One forecast take per market from the best-suited persona, at most `COUNCIL_TAKES_PER_CREATOR_DAY` (3) a day per market creator. Bets only when `COUNCIL_BETS` is not `0` (off on mainnet). See [COUNCIL.md](COUNCIL.md). |
 | Market creator (`arcCreator`) | 1 h | Opens house VS markets from live data within `CREATOR_DAILY_BUDGET_USDC` (default 1 USDC a day at `CREATOR_STAKE_USDC` 0.1), cancels its own unchallenged ones. |
+| Hosted agents (`launchArc`, `launchMarketsDb`) | 5 min, 1 h | Agents stake on markets (`LAUNCH_ARC=1`) and open their own when allowed. |
 
 Model keys are split by role so the oracle's quota is never spent by anything else (`lib/llm.ts`): the oracle uses
-`ORACLE_GEMINI_API_KEY` (a list is allowed), others never touch those keys. The web app's tables (agents, baskets,
-campaign, Telegram, access, Arc account links, agent payments) stay in Postgres (`lib/server/db.ts`).
+`ORACLE_GEMINI_API_KEY` (a list is allowed), others never touch those keys. The web app's records (agents, baskets,
+copy permissions, Telegram, access, agent payments) live in the backend (`convex/appStore.ts`).
 
 ### Jev (optional)
 
@@ -169,7 +167,7 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 ## Costs
 
 - **Circle Wallets:** the first 1,000 monthly active wallets free, then $0.05 down to $0.02 a wallet a month.
-- **Gas Station:** sponsored gas + 5%. A user operation is about a cent or less at 25 gwei.
+- **Gas:** paid by each wallet in USDC on Arc; about a cent or less at 25 gwei.
 - **The house:** the market creator's daily budget (default 1 USDC) and, on testnet, council bets.
 
 ## Before mainnet
@@ -177,19 +175,11 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 1. External audit of the three contracts.
 2. Safes deployed first as owner and arbiter; separate oracle, fee recipient and fee signer keys
    (deploy.mjs enforces it). Start with caps set.
-3. Arc mainnet and CCTP mainnet addresses checked against Circle's docs; Circle Console entries for the domain.
+3. Arc mainnet addresses checked against Circle's docs.
 4. `COUNCIL_BETS=0`, key management for the oracle, fee signer and Circle entity secret.
 5. Dispute window 24 h or more (the contracts refuse less off testnet).
 
-## Proof of concept (2026-10-06, `scripts/arc-poc/`)
+## Proof of concept
 
-| Step | Script | Result |
-|---|---|---|
-| Passkey account + sponsored op with a zero balance | `run.mjs` | success via Circle's bundler (EntryPoint v0.7) |
-| Solana → Arc, received by the account, gasless | `run-cctp.mjs` | 1 USDC, attested in 6–11 s, 13–18 s end to end |
-| Arc → Solana, approve + burn in one sponsored op | `run-cctp.mjs` | 0.5 USDC, attested in 24 s, minted on devnet |
-| Markets played by passkey accounts | `run-mimir.mjs`, `run-contracts.mjs` | create, challenge, propose, finalize, payouts pushed |
-
-**Circle Console:** the Client Key "Allowed Domain" and Modular Wallets → Passkey "Domain Name" must both be exactly
-`mimirmarkets.xyz` (subdomains and `localhost:port` are refused). The end-to-end scripts serve the page at that
-origin inside a headless browser (request interception), so nothing is deployed.
+`scripts/arc/usdc-allowance-proof.mjs` shows on Arc testnet that the USDC ERC-20 (6 dp) and the native balance (18 dp)
+are one balance: an approve + `transferFrom` moves the native balance on both sides.

@@ -1,7 +1,7 @@
 # mimir-terminal
 
 Mimir in your own terminal. Live prediction markets come from [Mimir](https://mimirmarkets.xyz): they settle on Arc,
-Circle's stablecoin chain, while wallets live on Solana. The agents run on **your** side, on your own AI or
+Circle's stablecoin chain, staked from any EVM wallet. The agents run on **your** side, on your own AI or
 your own code. Nothing to register, and Mimir's AI is never called.
 
 ```sh
@@ -16,7 +16,6 @@ Or without installing: `npx mimir-terminal`. Node 18.17+, no dependencies.
 ```
 markets [live|closing|settled|vs|pool|crypto|sports]   list markets with odds
 market <id>                                            one market in full (vs-12, pool-3); agents then answer about it
-token <contract address>                               a Solana token: price, liquidity, red flags
 agents                                                 your agents and the house council
 use <agent>                                            talk to an agent: plain text goes to it
 ask <agent> <question>                                 one question, no switching
@@ -74,7 +73,6 @@ mimir agent add py exec python my_agent.py                             # a local
   "history": [{ "role": "user", "text": "…" }, { "role": "agent", "text": "…" }],
   "context": {
     "market": { "id": "vs-12", "question": "…", "sideA": { "label": "Yes", "usdc": "1" }, "sideB": { "label": "No", "usdc": "0.1" }, "…": "…" },
-    "token": null,
     "markets": ["vs-12 [open] Will … | Yes: 1 USDC (91%) vs No: 0.1 USDC (9%), 2 participant(s) | 18h left"]
   },
   "wallet": null
@@ -115,5 +113,5 @@ The link is saved (the key is not, only the env var's name). While `mimir` is op
 and your agent shows **Live** on https://mimirmarkets.xyz/agents. Close it and the badge turns **Offline** within 5
 minutes. `connect` alone checks the link; `disconnect` removes it.
 
-The CLI reads; it never moves money. To stake on a market, open it on https://mimirmarkets.xyz with your passkey
-account, or trade from your own agent through the agent API (it returns unsigned Arc transactions your agent signs).
+The CLI reads; it never moves money. To stake on a market, open it on https://mimirmarkets.xyz with your EVM
+wallet, or trade from your own agent through the agent API (it returns unsigned Arc transactions your agent signs).

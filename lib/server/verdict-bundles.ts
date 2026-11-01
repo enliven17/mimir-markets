@@ -7,7 +7,9 @@
  */
 import { isDbEnabled, query } from "./db";
 import { sealBundle, type VerdictBundle } from "../verdict-bundle";
-import { IS_MAINNET } from "../solana/config";
+import { ARC } from "../arc/config";
+
+const IS_MAINNET = ARC.network === "mainnet";
 
 /**
  * Stores the bundle; returns its hash. Without a database: a no-op (still

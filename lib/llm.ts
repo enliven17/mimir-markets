@@ -30,7 +30,9 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createHash } from "node:crypto";
-import { IS_MAINNET } from "./solana/config";
+import { ARC } from "./arc/config";
+
+const IS_MAINNET = ARC.network === "mainnet";
 
 export type LLMProvider = "gemini" | "anthropic" | "groq" | "openrouter";
 
@@ -59,7 +61,7 @@ export interface CallLLMOptions {
   role?: LLMRole;
   /** Settlement-grade models only (SETTLEMENT_MODELS); throws when none is available. */
   settlement?: boolean;
-  /** Cluster override for tests; defaults to IS_MAINNET. */
+  /** Network override for tests; defaults to Arc mainnet or not. */
   mainnet?: boolean;
   /**
    * Low-stakes chat (the terminal): free-tier providers first (Groq, then

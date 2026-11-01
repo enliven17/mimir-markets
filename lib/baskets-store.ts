@@ -3,10 +3,10 @@
  * creator; `basket_subscriptions`, key basket:follower, i1 the basket, i2 the follower).
  *
  * A subscription is a signed intent, not a deposit: the row records the cap a
- * follower approved and the ed25519 signature that approved it. Setting the
+ * follower approved and the EIP-191 signature that approved it. Setting the
  * cap to zero is how you unfollow, so a revocation is the same shape as a
- * grant and can be audited the same way. Wallets are base58 and stored exactly
- * as given (base58 is case-sensitive).
+ * grant and can be audited the same way. Wallets are EVM addresses, stored
+ * exactly as given.
  *
  * No "server-only" guard, matching lib/agents/store.ts. Without the backend
  * every call throws; routes catch and degrade.

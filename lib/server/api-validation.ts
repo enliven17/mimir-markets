@@ -1,17 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
-
-export const INVITE_KEY_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
-
-/** True for a well-formed Solana base58 public key. */
-function isAddress(value: string): boolean {
-  try {
-    // eslint-disable-next-line no-new
-    new PublicKey(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { isAddress } from "viem";
 
 export type ApiErrorShape = {
   error: {
@@ -42,22 +29,10 @@ export function parsePositiveIntegerParam(value: string | undefined): number | n
   return parsed;
 }
 
+/** A well-formed EVM address, as given, or null. */
 export function parseAddressParam(value: string | undefined): string | null {
   const trimmed = value?.trim();
-  if (!trimmed || !isAddress(trimmed)) {
-    return null;
-  }
-
-  return trimmed;
-}
-
-export function parseInviteKey(value: string | null): string | null {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) {
-    return "";
-  }
-
-  if (!INVITE_KEY_PATTERN.test(trimmed)) {
+  if (!trimmed || !isAddress(trimmed, { strict: false })) {
     return null;
   }
 

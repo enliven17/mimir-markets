@@ -205,7 +205,6 @@ test("market cap, volume and TVL questions are not price claims", async () => {
   assert.equal(priceCheckTarget("Will Solana TVL be above $10B?"), null);
   assert.equal(priceCheckTarget("Will BTC FDV top $3T?"), null);
   assert.deepEqual(priceCheckTarget("Will SOL trade above $250?"), { symbol: "SOL", threshold: 250 });
-  assert.deepEqual(priceCheckTarget("Will $ANSEM trade above $0.0102?"), { symbol: "ANSEM", threshold: 0.0102 });
 });
 
 test("every spelling of a non-price metric keeps a question off the price path", async () => {

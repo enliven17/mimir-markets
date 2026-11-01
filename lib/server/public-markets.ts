@@ -100,7 +100,7 @@ export function filterMarkets(list: PublicMarket[], filter: MarketFilter, now: n
 }
 
 /**
- * The published CLI before 0.4 reads the retired Solana index: tell it to update instead of showing an empty list.
+ * The published CLI before 0.4 reads a retired index: tell it to update instead of showing an empty list.
  * Returns the response to send, or null for every other caller.
  */
 export function oldCliGone(req: Request): Response | null {

@@ -13,8 +13,8 @@ import {
   ST_DISPUTED,
   ST_PROPOSED,
   ST_RESOLVED,
-} from "./solana/config";
-import { challengerGross, creatorGross } from "./solana/fees";
+} from "./market-codes";
+import { challengerGross, creatorGross } from "./market-fees";
 
 export const NOTIFICATION_KINDS = [
   "challenged",
@@ -35,7 +35,7 @@ export interface NotificationEvent {
   payload: Record<string, unknown>;
 }
 
-/** The read-index fields the diff needs (a subset of SolanaClaimRow). */
+/** The read-index fields the diff needs (a subset of an indexed market row). */
 export interface ClaimSnapshot {
   id: number;
   creator: string;

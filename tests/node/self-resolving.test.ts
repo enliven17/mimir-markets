@@ -112,7 +112,7 @@ test("dust shares are skipped, all-negative rounds pay nothing", () => {
   assert.deepEqual(allocateBonus([-1, -2, 0], 0.01), [0, 0, 0]);
 });
 
-// ── jury composition and tally (Solana in-process jury) ──────────────────────
+// ── jury composition and tally (in-process jury) ──────────────────────────────
 
 test("jurors with a stake and off-category specialists are kept off the jury", async () => {
   const { eligibleJurors } = await import("../../agents/oracle/council-vote");

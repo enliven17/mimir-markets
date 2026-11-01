@@ -40,7 +40,7 @@ export interface EvmAccount {
 
 /** Set while wagmi holds a connection, so a reload mounts ConnectKit to restore it. */
 const CONNECTED_KEY = "mimir:evm-connected";
-/** Older keys (the Arc sign-in proof, the raw Robinhood connection): only cleaned up. */
+/** Older keys from earlier wallet versions: only cleaned up. */
 const LEGACY_KEYS = ["mimir:evm-wallet", "mimir.robinhood.via", "mimir:entry-mode"];
 
 let loaded = false;

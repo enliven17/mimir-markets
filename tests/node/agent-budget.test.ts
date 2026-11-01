@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { STAKING_ACTIONS } from "../../lib/agents/registry";
 import { parseWriteParams, stakeOf } from "../../lib/agents/params";
-import { DISPUTE_BOND_UNITS } from "../../lib/solana/config";
+import { DISPUTE_BOND_UNITS } from "../../lib/market-codes";
 import { releaseStake, requestsLastHour, reserveDailyStake, stakedLastDayUnits } from "../../lib/agents/store";
 import { useMemoryStore } from "../../lib/server/store";
 

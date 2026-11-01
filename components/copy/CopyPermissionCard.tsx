@@ -12,7 +12,7 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { formatUsdc } from "@/lib/money";
 import type { CopyPermissionView } from "@/lib/copy-client";
 import { COPY_CATEGORIES } from "@/lib/copy-form";
-import { explorerUrl } from "@/lib/solana/config";
+import { arcExplorerUrl as explorerUrl } from "@/lib/arc/config";
 
 type PermissionStatus = "active" | "expired" | "revoked";
 

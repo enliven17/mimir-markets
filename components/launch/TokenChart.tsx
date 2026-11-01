@@ -2,19 +2,19 @@
 
 /**
  * An agent token's live chart. DexScreener's embed waits forever ("Loading pair…") for a token it has no pair for,
- * which is every token still on its first trades (the council's pump.fun tokens, Argus on Arc, a fresh Pons curve).
+ * which is every token still on its first trades (a fresh Argus or Clanker token).
  * So the pair is looked up first, from the browser (each viewer's own rate limit):
  *   1. DexScreener  GET api.dexscreener.com/tokens/v1/{chain}/{token}       → embed the pair
  *   2. GeckoTerminal GET api.geckoterminal.com/api/v2/networks/{net}/tokens/{token}/pools → embed the pool
  *   3. neither: say so, with a link to where the token trades.
- * Chain ids are the same on both (solana, arc, robinhood; base too), checked 2026-10-19.
+ * Chain ids are the same on both (arc, base), checked 2026-10-19.
  */
 import { useEffect, useState } from "react";
 
 import { ExternalMark } from "@/components/ExternalMark";
 import Skeleton from "@/components/ui/Skeleton";
 
-type Chain = "solana" | "arc" | "robinhood" | "base";
+type Chain = "arc" | "base";
 type Found = { kind: "loading" } | { kind: "embed"; src: string } | { kind: "none" };
 
 async function findChart(chain: Chain, token: string, signal: AbortSignal): Promise<string | null> {

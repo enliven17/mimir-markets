@@ -5,7 +5,7 @@
  * not a market. The number a reader actually wants is where the crowd is, and
  * on a funded claim that is already on chain: it is the split of the stakes.
  *
- * Mimir on Solana is pari-mutuel (see `payout_challenger` in the program): a
+ * Mimir is pari-mutuel (MimirV3 pays the winning side): a
  * winning challenger gets their stake back plus a pro-rata share of the
  * creator stake. Money piling onto one side lowers that side's payout, which
  * is the crowd saying it is the likelier outcome, so the implied probability of

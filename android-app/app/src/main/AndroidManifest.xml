@@ -36,22 +36,6 @@
             </intent-filter>
         </activity>
 
-        <!-- A wallet's answer (Phantom / Solflare deeplink): hand it to the server and step aside, so the waiting
-             page in MainActivity is never reloaded. More specific than MainActivity's host filter. -->
-        <activity
-            android:name=".WalletReturnActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity="xyz.mimirmarkets.app"
-            android:theme="@style/Theme.Mimir.Invisible">
-            <intent-filter android:autoVerify="true" android:priority="10">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="mimirmarkets.xyz" android:path="/api/wallet-return" />
-            </intent-filter>
-        </activity>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

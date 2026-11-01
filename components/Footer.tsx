@@ -29,7 +29,7 @@ import { ExternalMark } from "@/components/ExternalMark";
 // The closer is home-only; its SplitText reveal loads only there.
 const SplitReveal = dynamic(() => import("@/components/motion/SplitReveal"));
 
-const REPO_URL = "https://github.com/enliven17/mimir-solana";
+const REPO_URL = "https://github.com/enliven17/mimir-markets";
 const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;
 const CCTP_URL = "https://developers.circle.com/cctp";
 // The VS market contract stands for "the program": every contract is listed on /docs.

@@ -6,7 +6,7 @@ import "server-only";
  * Two credentials exist. A bearer API key identifies the agent for day-to-day
  * calls and lets the server fill in the nonce and timestamp itself. Owner-gated
  * actions ignore keys entirely and demand a real signature from the owner
- * wallet (ed25519, base58-encoded), so a stolen hot key cannot issue itself new
+ * wallet (EIP-191), so a stolen hot key cannot issue itself new
  * keys, rotate the operator or move the payout address.
  */
 import {

@@ -3,7 +3,7 @@
  *
  * Read-only and unauthenticated: who is connected to Mimir is public
  * information. Wallets are published because every one of them signs on chain
- * anyway (base58 Solana keys); nothing here is a credential.
+ * anyway (EVM addresses); nothing here is a credential.
  */
 import { listAgents } from "@/lib/agents/store";
 import { storeEnabled } from "@/lib/server/store";

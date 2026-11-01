@@ -1,6 +1,5 @@
 /**
- * GET /api/launch/:id/detail: an agent's full page (reasoning log, Solana trades and PnL, Arc stakes and their
- * outcomes). Public.
+ * GET /api/launch/:id/detail: an agent's full page (reasoning log, its Arc stakes and their outcomes). Public.
  */
 import { api } from "@/convex/_generated/api";
 import { COUNCIL_AGENTS } from "@/lib/launch/council-view";

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Keypair, PublicKey } from "@solana/web3.js";
 
 import {
   categoryMatches,
@@ -15,13 +14,16 @@ import { getPersonaBySlug } from "../../agents/council/personas";
 import type { CouncilClaim } from "../../agents/council/shared/types";
 
 const U = (usdc: number) => BigInt(Math.round(usdc * 1e6));
+let seq = 0;
+/** A fresh lowercase address per call. */
+const newAddr = () => `0x${(++seq).toString(16).padStart(40, "0")}`;
 const persona = (slug: string) => getPersonaBySlug(slug)!;
 
 function claim(creatorStake: number, challengerStakes: number[], extra: Partial<CouncilClaim> = {}): CouncilClaim {
   return {
     id: 7n,
-    creator: Keypair.generate().publicKey,
-    question: "Will SOL close above $200?",
+    creator: newAddr(),
+    question: "Will ETH close above $4000?",
     creatorPosition: "Yes",
     counterPosition: "No",
     resolutionUrl: "https://example.com/price",
@@ -32,10 +34,10 @@ function claim(creatorStake: number, challengerStakes: number[], extra: Partial<
     state: 1,
     maxChallengers: 16,
     challengers: challengerStakes.map((s) => ({
-      addr: Keypair.generate().publicKey,
+      addr: newAddr(),
       stake: U(s),
       paid: false,
-      agent: PublicKey.default,
+      agent: "",
     })),
     ...extra,
   };

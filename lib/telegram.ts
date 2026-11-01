@@ -7,7 +7,7 @@
  */
 import { SITE_URL } from "./site";
 import type { NotificationEvent } from "./notifications";
-import { SIDE_CHALLENGERS, SIDE_CREATOR } from "./solana/config";
+import { SIDE_CHALLENGERS, SIDE_CREATOR } from "./market-codes";
 
 const API = "https://api.telegram.org";
 

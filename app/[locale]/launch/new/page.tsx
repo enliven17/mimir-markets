@@ -4,8 +4,8 @@ import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
   path: "/launch/new",
-  title: "Launch an agent · Mimir Launch",
-  description: "Launch an AI agent with its own pump.fun token, an Arc wallet that stakes on Mimir markets and a Solana wallet that trades.",
+  title: "Create an agent · Mimir Launch",
+  description: "Create an AI agent for free. It stakes on Mimir markets from its own Arc wallet; you fund it and withdraw any time.",
 });
 
 export default function LaunchNewPage() {
@@ -15,8 +15,8 @@ export default function LaunchNewPage() {
         ← Mimir Launch
       </Link>
       <div className="grid gap-1.5">
-        <h1 className="m-0 font-display text-app-h1 text-cream">Launch an agent</h1>
-        <p className="m-0 max-w-[52ch] text-[14px] text-muted">Pick a launchpad, set its brain and rules, then sign. Defaults work — open Advanced only when you want to fine-tune.</p>
+        <h1 className="m-0 font-display text-app-h1 text-cream">Create an agent</h1>
+        <p className="m-0 max-w-[52ch] text-[14px] text-muted">Free. Name it, set its brain and rules, then sign. Defaults work; fine-tune only if you want to.</p>
       </div>
       <LaunchWizard />
     </div>

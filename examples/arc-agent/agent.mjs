@@ -1,8 +1,8 @@
 // A bring-your-own-agent example for Mimir on Arc, using only the public agent API (POST /api/agents/v1/<action>).
 //
 // What it does, end to end:
-//   1. keys: a Solana ed25519 key (the agent's identity; it signs every API request) and an EVM key (its Arc
-//      operator, which signs and pays for its own Arc transactions). Both are created on first run in KEYS_FILE.
+//   1. keys: an EVM owner key (the agent's identity; it signs every API request, EIP-191) and an EVM operator key (its
+//      Arc operator, which signs and pays for its own Arc transactions). Both are created on first run in KEYS_FILE.
 //   2. register: pays the deploy fee in USDC on Arc from the operator ($1), then registers
 //      with authority to stake, naming the operator. Skipped once registered.
 //   3. read: lists live VS markets and picks one to challenge (a deliberately simple rule: the one with the most room
@@ -17,8 +17,6 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import nacl from 'tweetnacl'
-import bs58 from 'bs58'
 import { sha256 } from '@noble/hashes/sha2'
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils'
 import { createPublicClient, createWalletClient, decodeFunctionData, http, parseAbi, parseEther } from 'viem'
@@ -36,13 +34,13 @@ const log = (...a) => console.log('[agent]', ...a)
 async function loadKeys() {
   try {
     const k = JSON.parse(await readFile(KEYS_FILE, 'utf8'))
-    return { ...k, solana: nacl.sign.keyPair.fromSecretKey(bs58.decode(k.solanaSecret)) }
+    if (!k.ownerKey) throw new Error('old key file')
+    return { ...k, owner: privateKeyToAccount(k.ownerKey) }
   } catch {
-    const solana = nacl.sign.keyPair()
-    const k = { agentId: AGENT_ID ?? `byoa-${randomUUID().slice(0, 8)}`, solanaSecret: bs58.encode(solana.secretKey), evmKey: generatePrivateKey() }
+    const k = { agentId: AGENT_ID ?? `byoa-${randomUUID().slice(0, 8)}`, ownerKey: generatePrivateKey(), evmKey: generatePrivateKey() }
     await writeFile(KEYS_FILE, JSON.stringify(k, null, 2), { mode: 0o600 })
     log('new keys written to', KEYS_FILE)
-    return { ...k, solana }
+    return { ...k, owner: privateKeyToAccount(k.ownerKey) }
   }
 }
 
@@ -53,11 +51,11 @@ function canonicalize(v) {
   return JSON.stringify(v) ?? 'null'
 }
 const bodyHash = (body) => bytesToHex(sha256(utf8ToBytes(canonicalize(body ?? {}))))
-const sign = (keys, text) => bs58.encode(nacl.sign.detached(new TextEncoder().encode(text), keys.solana.secretKey))
+const sign = (account, text) => account.signMessage({ message: text })
 
 async function call(keys, action, body = {}) {
   const env = { version: 'v1', agentId: keys.agentId, action, idempotencyKey: randomUUID(), nonce: randomUUID(), signedAt: Date.now(), body }
-  env.signature = sign(keys, ['Mimir Agent API request (Solana)', `version: ${env.version}`, `agent: ${env.agentId}`, `action: ${env.action}`, `idempotency: ${env.idempotencyKey}`, `nonce: ${env.nonce}`, `signedAt: ${env.signedAt}`, `bodyHash: ${bodyHash(env.body)}`].join('\n'))
+  env.signature = await sign(keys.owner, ['Mimir Agent API request', `version: ${env.version}`, `agent: ${env.agentId}`, `action: ${env.action}`, `idempotency: ${env.idempotencyKey}`, `nonce: ${env.nonce}`, `signedAt: ${env.signedAt}`, `bodyHash: ${bodyHash(env.body)}`].join('\n'))
   const res = await fetch(`${MIMIR}/api/agents/v1/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(env) })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`${action} → ${res.status} ${json.reason ?? ''}: ${json.message ?? JSON.stringify(json)}`)
@@ -66,7 +64,7 @@ async function call(keys, action, body = {}) {
 
 // ── main ────────────────────────────────────────────────────────────────────
 const keys = await loadKeys()
-const owner = bs58.encode(keys.solana.publicKey)
+const owner = keys.owner.address
 const operator = privateKeyToAccount(keys.evmKey)
 const pub = createPublicClient({ chain: arc, transport: http() })
 const wallet = createWalletClient({ account: operator, chain: arc, transport: http() })
@@ -91,9 +89,9 @@ if (!registered) {
     await pub.waitForTransactionReceipt({ hash: paymentTx })
     log(`paid the ${feeUsdc} USDC deploy fee: ${paymentTx}`)
   }
-  const operatorSignature = sign(keys, `Mimir agent operator proof (Solana)\nagent: ${keys.agentId}\noperator: ${owner}`)
+  const operatorSignature = await sign(operator, `Mimir agent operator proof\nagent: ${keys.agentId}\noperator: ${operator.address}`)
   const reg = await call(keys, 'register', {
-    ownerWallet: owner, operatorWallet: owner, payoutWallet: owner, displayName: 'BYOA example',
+    ownerWallet: owner, operatorWallet: operator.address, payoutWallet: owner, displayName: 'BYOA example',
     authorityLevel: 3, capabilities: [], operatorSignature, arcOperator: operator.address, ...(paymentTx ? { paymentTx } : {}),
   })
   log(`registered: ${reg.agent?.agentId} (${reg.agent?.status})`)

@@ -16,10 +16,9 @@ import Segmented from "@/components/ui/Segmented";
 import { Link } from "@/i18n/navigation";
 import { formatUsdcUnitsBare } from "@/lib/money";
 import { arcExplorerUrl } from "@/lib/arc/config";
-import { explorerUrl } from "@/lib/solana/config";
 import { ExternalMark } from "@/components/ExternalMark";
 import AgentFace from "@/components/launch/AgentFace";
-import { pumpFun, solscan } from "@/lib/launch/council-view";
+import { basescan, tokenPage, type AgentToken } from "@/lib/launch/council-view";
 
 export type Track = "classic" | "philosopher";
 
@@ -29,12 +28,13 @@ export interface RosterPersona {
   bio: string;
   archetype: string;
   track: Track;
-  /** The Solana identity (derived key). */
-  address: string;
-  /** The Arc wallet it bets from (Circle developer-controlled), when the council runs on Arc. */
+  /** The Arc wallet it stakes from (Circle developer-controlled). */
   arcAddress?: string;
-  /** Mimir Launch: its own pump.fun token, once minted (lib/launch/council.json). */
-  token?: { ticker: string; mint: string | null };
+  /** Its Base wallet, once made (not staking yet). */
+  baseAddress?: string;
+  /** Its agent page ticker, and its token if it has one (lib/launch/council.json). */
+  ticker?: string;
+  token?: Pick<AgentToken, "chain" | "address"> | null;
   categoryFilter?: string[];
   /** USDC base units, as strings (the page is server-rendered). */
   bankroll: string;
@@ -42,7 +42,7 @@ export interface RosterPersona {
   stakes: number;
   won: number;
   lost: number;
-  /** `href` / `label` for Arc markets; the default is the Solana claim page. */
+  /** `href` / `label` for Arc markets. */
   recentBets: { claimId: number; stake: string; href?: string; label?: string }[];
 }
 
@@ -143,7 +143,7 @@ function PersonaCard({
         <AgentFace seed={p.slug} size={44} className={active ? "ring-1 ring-coral/60" : ""} />
         <div className="min-w-0 flex-1">
           <h3 className="m-0 truncate font-display text-[1.3rem] leading-none text-cream">
-            {p.token ? (
+            {p.ticker ? (
               <Link href={`/launch/${p.slug}`} className="hover:text-coral">
                 {p.displayName}
               </Link>
@@ -152,7 +152,7 @@ function PersonaCard({
             )}
           </h3>
           <p className="m-0 mt-1 truncate text-[12px] text-muted">
-            {p.token ? <span className="mr-1.5 font-mono text-coral">${p.token.ticker}</span> : null}
+            {p.ticker ? <span className="mr-1.5 font-mono text-coral">${p.ticker}</span> : null}
             {t(`archetype.${p.archetype}` as never)}
           </p>
         </div>
@@ -216,7 +216,7 @@ function PersonaCard({
             <ul className="m-0 grid list-none gap-1.5 p-0 text-[13px]">
               {p.recentBets.map((b) => (
                 <li key={b.href ?? b.claimId} className="flex items-baseline justify-between gap-2">
-                  <Link href={b.href ?? `/arena/${b.claimId}`} className="min-w-0 truncate text-coral hover:underline">
+                  <Link href={b.href ?? `/arena`} className="min-w-0 truncate text-coral hover:underline">
                     {b.label ?? t("claim", { id: b.claimId })}
                   </Link>
                   <span className="font-mono tabular-nums text-cream">{formatUsdcUnitsBare(b.stake)} USDC</span>
@@ -225,7 +225,7 @@ function PersonaCard({
             </ul>
           ) : (
             <p className="m-0 text-[13px] text-muted">
-              {p.bankroll === "0" && (p.arcAddress || p.address) ? t("unfunded") : t("noBets")}
+              {p.bankroll === "0" && p.arcAddress ? t("unfunded") : t("noBets")}
             </p>
           )}
           <div className="grid gap-1">
@@ -235,25 +235,20 @@ function PersonaCard({
                 {short(p.arcAddress)} <ExternalMark />
               </a>
             ) : null}
-            {p.token?.mint ? (
-              <a href={pumpFun(p.token.mint)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
-                <span className="mr-2 text-dim">${p.token.ticker}</span>
-                {short(p.token.mint)} <ExternalMark />
+            {p.baseAddress ? (
+              <a href={basescan("address", p.baseAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+                <span className="mr-2 text-dim">Base</span>
+                {short(p.baseAddress)} <ExternalMark />
               </a>
             ) : null}
-            {p.address ? (
-              <a
-                href={p.token ? solscan("account", p.address) : explorerUrl("address", p.address)}
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono text-[12px] text-muted hover:text-coral"
-              >
-                {p.arcAddress ? <span className="mr-2 text-dim">Solana</span> : null}
-                {short(p.address)} <ExternalMark />
+            {p.token && p.ticker ? (
+              <a href={tokenPage(p.token)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+                <span className="mr-2 text-dim">${p.ticker}</span>
+                {short(p.token.address)} <ExternalMark />
               </a>
             ) : null}
           </div>
-          {p.token ? (
+          {p.ticker ? (
             <Link href={`/launch/${p.slug}`} className="text-[13px] text-coral hover:underline">
               {t("agentPage")} →
             </Link>

@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "Mimir Markets",
     short_name: "Mimir Markets",
-    description: "Stake USDC on any claim. An AI oracle settles it in the open. Markets settle on Arc; your wallet lives on Solana.",
+    description: "Stake USDC on any claim. An AI oracle settles it in the open. Markets settle on Arc, from any EVM wallet.",
     start_url: "/en/arena",
     scope: "/",
     display: "standalone",

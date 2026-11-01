@@ -1,4 +1,4 @@
-// Structured JSON logs to stdout (private ops log; the public live view is the `events` table).
+// Structured JSON logs to stdout (private ops log; the public live view is the `launchEvents` table).
 export type Fields = Record<string, unknown>;
 export type Log = {
   debug(msg: string, fields?: Fields): void;
@@ -39,7 +39,7 @@ export function publicError(err: unknown): string {
     .slice(0, 160);
 }
 
-/** Masks credentials that ride in URLs or key=value pairs (Helius/RPC URLs carry api keys). */
+/** Masks credentials that ride in URLs or key=value pairs (RPC URLs can carry api keys). */
 export const redact = (line: string): string => line.replace(/(api[-_]?key|token|secret|auth)=[^&"\s\\]+/gi, "$1=***");
 
 /** Logger for Convex functions: stdout is not captured there, console is. Lines are redacted. */

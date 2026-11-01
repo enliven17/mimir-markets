@@ -10,7 +10,7 @@
  * The oracle evaluates it before asking any model; the LLM is only the
  * fallback when the resolver cannot reach a determinate answer.
  *
- * Solana claims have no settlement-rule field, so the spec rides in the
+ * Markets have no settlement-rule field on chain, so the spec rides in the
  * resolution URL's fragment, which is stored on chain with the claim (so
  * nobody can change it after people stake) and never sent to the server when
  * the evidence is fetched:
@@ -23,7 +23,6 @@
  *
  * Pure: no network. The oracle supplies the price readings or fetched JSON.
  */
-import { dexMintFor } from "./dex-tokens";
 import { freshReadings, MAX_SOURCE_SPREAD, priceCheckTarget, type PriceReading } from "./price-consensus";
 
 export type ResolverOp = ">" | ">=" | "<" | "<=" | "==" | "!=";
@@ -122,7 +121,7 @@ export type ResolverOutcome =
   | { determined: false; detail: string };
 
 /** These read the same DEX pools: thin, cheap to move near a deadline, and not independent. */
-const DEX_SOURCES: ReadonlySet<string> = new Set(["dexscreener", "jupiter"]);
+const DEX_SOURCES: ReadonlySet<string> = new Set(["dexscreener"]);
 
 /**
  * A price spec against independent readings at the deadline (`atMs`): every
@@ -138,7 +137,7 @@ export function evaluatePriceSpec(
   readings: Array<{ source: string; priceUsd: number; at: number; maxSkewMs?: number }>,
   atMs: number,
 ): ResolverOutcome {
-  if (dexMintFor(spec.symbol) || readings.some((r) => DEX_SOURCES.has(r.source))) {
+  if (readings.some((r) => DEX_SOURCES.has(r.source))) {
     return { determined: false, detail: `${spec.symbol} is DEX-priced: no structured settlement` };
   }
   const usable = freshReadings(readings as PriceReading[], atMs);
@@ -246,7 +245,7 @@ export function priceSpecFromQuestion(question: string, symbol: string, threshol
   return { kind: "price", symbol, op: above ? ">" : "<", threshold };
 }
 
-// ── Resolution-URL fragment form (Solana: the spec lives on chain in the URL) ──
+// ── Resolution-URL fragment form (the spec lives on chain in the URL) ──────────
 
 const OP_WORDS: Record<ResolverOp, string> = { ">": "gt", ">=": "gte", "<": "lt", "<=": "lte", "==": "eq", "!=": "ne" };
 const WORD_OPS = Object.fromEntries(Object.entries(OP_WORDS).map(([op, w]) => [w, op])) as Record<string, ResolverOp>;
@@ -381,7 +380,7 @@ const MAJOR_SYMBOLS: Array<{ symbol: string; pattern: RegExp }> = [
   { symbol: "AVAX", pattern: /\b(avax|avalanche)\b/i },
 ];
 
-/** Majors plus the mainnet tokens priced from DEX data ($ANSEM). */
+/** The symbols a price spec may name. */
 function priceSymbols(): Array<{ symbol: string; pattern: RegExp }> {
-  return [...MAJOR_SYMBOLS, { symbol: "ANSEM", pattern: /\b(ansem|black bull)\b/i }];
+  return MAJOR_SYMBOLS;
 }

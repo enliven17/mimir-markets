@@ -47,7 +47,7 @@ import androidx.webkit.WebViewFeature
  * - Launch: Android's splash (the horn on ink) hands over to our launch screen, which stays until the page calls
  *   window.MimirApp.ready() (or finishes loading, or 8 s pass), then fades.
  * - mimirmarkets.xyz stays in the WebView; any other link opens in a Custom Tab or its own app (wallets, X).
- * - Passkeys: WebView WebAuthn through Credential Manager where the device's WebView supports it.
+ * - WebAuthn (smart wallets): WebView WebAuthn through Credential Manager where the device's WebView supports it.
  * - Downloads: blob/data files (the recovery phrase) are saved to Downloads through the bridge.
  * - Offline: the bundled offline page with a Retry.
  */
@@ -135,7 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // An App Link while the app runs: open it here (wallet answers go to WalletReturnActivity instead). Only
+        // An App Link while the app runs: open it here. Only
         // pages: a file or an API URL handed back by a browser would bounce between us and it.
         val uri = intent.data?.takeIf { isSite(it) } ?: return
         if (Updater.isOurApk(uri)) updater.start(uri.toString()) else if (isPage(uri)) web.loadUrl(withApp(uri).toString())
@@ -289,12 +289,10 @@ class MainActivity : ComponentActivity() {
         return !path.startsWith("/api/") && !FILE_PATH.containsMatchIn(path)
     }
 
-    /** Wallet links open the wallet app; other https links open a Custom Tab in our colours; the rest by intent. */
+    /** https links open a Custom Tab in our colours; the rest (wallet apps among them) by intent. */
     private fun openOutside(uri: Uri) {
-        val host = uri.host.orEmpty()
-        val walletLink = host.endsWith("phantom.app") || host.endsWith("phantom.com") || host.endsWith("solflare.com")
         try {
-            if ((uri.scheme == "http" || uri.scheme == "https") && !walletLink) {
+            if (uri.scheme == "http" || uri.scheme == "https") {
                 CustomTabsIntent.Builder()
                     .setDefaultColorSchemeParams(CustomTabColorSchemeParams.Builder().setToolbarColor(INK).build())
                     .setShowTitle(true)

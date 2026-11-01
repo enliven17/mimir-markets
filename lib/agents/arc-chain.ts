@@ -142,10 +142,10 @@ export async function arcOperatorPositions(operator: Address) {
   return arcPositions(operator);
 }
 
-// Same numbering as the Solana program and MimirV3: 0 open … 5 disputed.
+// MimirV3 numbering: 0 open … 5 disputed.
 const STATUS_OF = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
 
-/** Public markets from the index, filtered like the Solana listClaims (state numbers, category), newest first. */
+/** Public markets from the index, filtered by state numbers and category, newest first. */
 export async function arcMarkets(f: { states?: number[]; category?: string; limit: number; kind?: unknown }) {
   const wanted = f.states ? new Set(f.states.map((s) => STATUS_OF[s])) : null;
   const kind = f.kind === "vs" || f.kind === "pool" ? f.kind : undefined;

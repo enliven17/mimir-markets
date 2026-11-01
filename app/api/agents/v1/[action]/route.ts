@@ -8,11 +8,9 @@
  * replayed nonce, a taken agent id or on-chain state that makes the write
  * pointless, 429 for rate limits, 503 when the database or chain is down.
  *
- * On-chain writes never touch a key here: they return unsigned transactions
- * for the agent to sign with its operator key and submit itself.
+ * On-chain writes never touch a key here: they return unsigned Arc
+ * transactions for the agent to sign with its Arc operator key and send itself.
  */
-import { PublicKey } from "@solana/web3.js";
-
 import {
   AgentEnvelopeError,
   agentRequestMessage,
@@ -26,7 +24,6 @@ import {
 } from "@/lib/agents/api";
 import { apiKeyPrefix, generateApiKey, hashApiKey } from "@/lib/agents/api-keys";
 import { authenticateAgentRequest } from "@/lib/agents/authenticate";
-import { prepareWrite, readAgentFees, readBalances, readClaim, toJsonSafe } from "@/lib/agents/chain";
 import { arcAgentsEnabled, arcMarket, arcMarkets, arcOperatorBalance, arcOperatorOf, arcOperatorPositions, assertArcStakeAllowed, prepareArcWrite } from "@/lib/agents/arc-chain";
 import { deployPriceWei, recordDeployPayment, verifyDeployPayment } from "@/lib/server/agent-payment";
 import { normalizeOwner } from "@/lib/owner";
@@ -43,10 +40,8 @@ import {
   type AgentRecord,
   type AuthorityLevel,
 } from "@/lib/agents/registry";
-import { isSolanaKey, normalizeWallet, verifyWalletSignature } from "@/lib/agents/signature";
+import { normalizeWallet, verifyWalletSignature } from "@/lib/agents/signature";
 import {
-  claimsChallengedBy,
-  claimsCreatedBy,
   consumeNonce,
   createAgent,
   getAgent,
@@ -70,7 +65,6 @@ import {
 import { checkUrl } from "@/lib/research/ssrf";
 import { storeEnabled } from "@/lib/server/store";
 import { allowRequest, clientIp } from "@/lib/server/rate-limit";
-import { readClaims } from "@/lib/server/solana-index";
 import { MAX_BODY_BYTES, readLimitedJson } from "@/lib/server/body-limit";
 import { impersonatesReserved, isReservedAgentId } from "@/lib/agents/reserved";
 
@@ -218,7 +212,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   const operatorWallet = normalizeWallet(env.body.operatorWallet);
   const payoutWallet = env.body.payoutWallet === undefined ? ownerWallet : normalizeWallet(env.body.payoutWallet);
   if (!ownerWallet || !operatorWallet || !payoutWallet) {
-    throw new AgentEnvelopeError("ownerWallet, operatorWallet and payoutWallet must be EVM addresses or Solana public keys", 400, "bad_wallets");
+    throw new AgentEnvelopeError("ownerWallet, operatorWallet and payoutWallet must be EVM addresses", 400, "bad_wallets");
   }
   const authorityLevel = env.body.authorityLevel ?? 0;
   if (!isAuthorityLevel(authorityLevel)) {
@@ -313,16 +307,12 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
 
 // ── everything else ─────────────────────────────────────────────────────────
 
-/** The agent owner credited on-chain for positions: only MONETISE agents earn the agent fee. */
-function agentOwnerFor(agent: AgentRecord): PublicKey | null {
-  return agent.status === "active" && agent.capabilities.includes("fee_earner") && isSolanaKey(agent.payoutWallet)
-    ? new PublicKey(agent.payoutWallet)
-    : null;
-}
-
+/** Live markets the agent opened from its Arc operator (the index). */
 async function activeMarketsOf(agent: AgentRecord): Promise<number> {
-  const created = await claimsCreatedBy(agent.operatorWallet, 200).catch(() => []);
-  return created.filter((c) => LIVE_STATES.includes(c.state)).length;
+  if (!agent.arcOperator || !arcAgentsEnabled()) return 0;
+  const operator = agent.arcOperator.toLowerCase();
+  const live = await arcMarkets({ states: LIVE_STATES, limit: 10_000 }).catch(() => []);
+  return (live as Array<{ creator?: string }>).filter((m) => m.creator?.toLowerCase() === operator).length;
 }
 
 async function handleAuthenticated(env: AgentEnvelope, authorization: string | null): Promise<Handled> {
@@ -373,36 +363,18 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         };
       }
     }
-    if (arcAgentsEnabled()) {
-      if (!agent.arcOperator) {
-        if (reservation !== null) await releaseStake(reservation, "no_arc_operator").catch(() => undefined);
-        throw new AgentEnvelopeError("set an Arc operator first (setArcOperator): Arc transactions are sent from it", 409, "no_arc_operator");
-      }
-      let arc;
-      try {
-        await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
-        arc = prepareArcWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body);
-      } catch (err) {
-        if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
-        throw err;
-      }
-      if (reservation === null) await recordRequest(agent.agentId, env.action, true, null, stakeUnits).catch(() => undefined);
-      return {
-        status: 200,
-        body: {
-          ok: true,
-          action: env.action,
-          chain: "arc",
-          signer: agent.arcOperator,
-          transactions: arc.transactions,
-          submit: "Sign each transaction with the Arc operator key (value is native USDC in wei) and send it to Arc, in order.",
-        },
-      };
+    if (!arcAgentsEnabled()) {
+      if (reservation !== null) await releaseStake(reservation, "chain_unavailable").catch(() => undefined);
+      throw new AgentEnvelopeError("Arc markets are not configured on this deployment", 503, "chain_unavailable");
     }
-    const operator = new PublicKey(agent.operatorWallet);
-    let prepared;
+    if (!agent.arcOperator) {
+      if (reservation !== null) await releaseStake(reservation, "no_arc_operator").catch(() => undefined);
+      throw new AgentEnvelopeError("set an Arc operator first (setArcOperator): Arc transactions are sent from it", 409, "no_arc_operator");
+    }
+    let arc;
     try {
-      prepared = await onChain(() => prepareWrite(write, { operator, agentOwner: agentOwnerFor(agent) }));
+      await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
+      arc = prepareArcWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body);
     } catch (err) {
       if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
       throw err;
@@ -413,11 +385,10 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
       body: {
         ok: true,
         action: env.action,
-        ...(prepared.claimId ? { claimId: prepared.claimId } : {}),
-        signer: agent.operatorWallet,
-        transactions: prepared.transactions,
-        submit:
-          "Sign each transaction with the operator key and send it to its layer, in order, confirming each before the next.",
+        chain: "arc",
+        signer: agent.arcOperator,
+        transactions: arc.transactions,
+        submit: "Sign each transaction with the Arc operator key (value is native USDC in wei) and send it to Arc, in order.",
       },
     };
   }
@@ -447,14 +418,13 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         requestsLastHour: used,
         spentTodayUsdc: unitsToUsdc(spentUnits),
         activeMarkets,
-        agentOwner: agentOwnerFor(agent),
       });
       return { status: 200, body: { ok: true, ...result } };
     }
 
     case "rotateOperator": {
       const next = normalizeWallet(env.body.operatorWallet);
-      if (!next) throw new AgentEnvelopeError("operatorWallet must be an EVM address or a Solana public key", 400, "bad_wallets");
+      if (!next) throw new AgentEnvelopeError("operatorWallet must be an EVM address", 400, "bad_wallets");
       const proofOk = await verifyWalletSignature({
         address: next,
         message: operatorProofMessage(agent.agentId, next),
@@ -546,63 +516,38 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         throw new AgentEnvelopeError(`state must be one of ${Object.keys(STATE_FILTERS).join(", ")}`, 400, "bad_params");
       }
       const limit = Math.min(Math.max(Number(env.body.limit ?? 50) || 50, 1), 200);
-      if (arcAgentsEnabled()) {
-        const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind }));
-        return { status: 200, body: { ok: true, chain: "arc", source: "index", markets } };
-      }
-      const rows = await readClaims({ states, category: str(env.body, "category", 32) || undefined, limit });
-      return { status: 200, body: { ok: true, source: "index", claims: rows } };
+      requireArc();
+      const markets = await onChain(() => arcMarkets({ states, category: str(env.body, "category", 32) || undefined, limit, kind: env.body.kind }));
+      return { status: 200, body: { ok: true, chain: "arc", source: "index", markets } };
     }
 
     case "getClaim": {
       const claimId = parseClaimId(env.body.claimId);
-      if (arcAgentsEnabled()) {
-        const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId)));
-        if (!market) throw new AgentEnvelopeError(`market ${claimId} does not exist`, 404, "unknown_claim");
-        return { status: 200, body: { ok: true, chain: "arc", market } };
-      }
-      const found = await onChain(() => readClaim(claimId));
-      if (!found) throw new AgentEnvelopeError(`claim ${claimId} does not exist`, 404, "unknown_claim");
-      return {
-        status: 200,
-        body: { ok: true, delegated: found.delegated, claim: toJsonSafe(found.claim) },
-      };
+      requireArc();
+      const market = await onChain(() => arcMarket(env.body.kind === "pool" ? "pool" : "vs", Number(claimId)));
+      if (!market) throw new AgentEnvelopeError(`market ${claimId} does not exist`, 404, "unknown_claim");
+      return { status: 200, body: { ok: true, chain: "arc", market } };
     }
 
     case "getBalances": {
-      if (arcAgentsEnabled() && agent.arcOperator) {
-        return { status: 200, body: { ok: true, chain: "arc", arcOperator: agent.arcOperator, ...(await onChain(() => arcOperatorBalance(agent.arcOperator!))) } };
-      }
-      const balances = await onChain(() => readBalances(new PublicKey(agent.operatorWallet)));
-      return { status: 200, body: { ok: true, operatorWallet: agent.operatorWallet, ...balances } };
+      const operator = requireArcOperator(agent);
+      return { status: 200, body: { ok: true, chain: "arc", arcOperator: operator, ...(await onChain(() => arcOperatorBalance(operator))) } };
     }
 
     case "listPositions": {
-      if (arcAgentsEnabled() && agent.arcOperator) {
-        const positions = await onChain(() => arcOperatorPositions(agent.arcOperator!));
-        return { status: 200, body: { ok: true, chain: "arc", source: "index", arcOperator: agent.arcOperator, positions } };
-      }
-      const [created, challenged] = await Promise.all([
-        claimsCreatedBy(agent.operatorWallet).catch(() => []),
-        claimsChallengedBy(agent.operatorWallet).catch(() => []),
-      ]);
-      return {
-        status: 200,
-        body: { ok: true, source: "index", operatorWallet: agent.operatorWallet, created, challenged },
-      };
+      const operator = requireArcOperator(agent);
+      const positions = await onChain(() => arcOperatorPositions(operator));
+      return { status: 200, body: { ok: true, chain: "arc", source: "index", arcOperator: operator, positions } };
     }
 
     case "listEarnings": {
-      const fees = isSolanaKey(agent.payoutWallet) ? await onChain(() => readAgentFees(new PublicKey(agent.payoutWallet))) : 0n;
       return {
         status: 200,
         body: {
           ok: true,
           payoutWallet: agent.payoutWallet,
-          // Accrued in the program's FeeBalance PDA for the payout wallet; the
-          // payout wallet pulls them itself with claim_agent_fees.
-          agentFeesUnits: fees.toString(),
-          claimWith: "claim_agent_fees (signed by the payout wallet)",
+          // On Arc the contracts pay a referrer's share straight to it at payout: nothing accrues here to claim.
+          note: "Referrer and copy fees on Arc are paid by the contracts directly to the wallet named in the stake.",
         },
       };
     }
@@ -610,6 +555,16 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     default:
       throw new AgentEnvelopeError(`${env.action} is not implemented`, 404, "unknown_action");
   }
+}
+
+function requireArc(): void {
+  if (!arcAgentsEnabled()) throw new AgentEnvelopeError("Arc markets are not configured on this deployment", 503, "chain_unavailable");
+}
+
+function requireArcOperator(agent: AgentRecord): `0x${string}` {
+  requireArc();
+  if (!agent.arcOperator) throw new AgentEnvelopeError("set an Arc operator first (setArcOperator)", 409, "no_arc_operator");
+  return agent.arcOperator as `0x${string}`;
 }
 
 function publicView(agent: AgentRecord) {

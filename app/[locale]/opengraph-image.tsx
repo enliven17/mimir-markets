@@ -46,7 +46,7 @@ export default async function Image() {
             <span style={{ color: "#FF2B2B" }}>Settle.</span>
           </div>
           <div style={{ display: "flex", marginTop: 36, fontSize: 32, lineHeight: 1.35, color: "#A89D93" }}>
-            Stake USDC on any claim. An AI oracle settles it in the open, on Arc, funded from Solana.
+            Stake USDC on any claim. An AI oracle settles it in the open, on Arc.
           </div>
           <div style={{ display: "flex", marginTop: "auto", fontFamily: "Mono", fontSize: 24, letterSpacing: 2 }}>mimirmarkets.xyz</div>
         </div>

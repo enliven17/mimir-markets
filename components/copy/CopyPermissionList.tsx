@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The follower's own permissions. Loading and revoking each take an ed25519
+ * The follower's own permissions. Loading and revoking each take an EIP-191
  * signature over `followerProofMessage`, so nobody else can read a wallet's
  * limits or cancel its copies. Neither costs a fee.
  */

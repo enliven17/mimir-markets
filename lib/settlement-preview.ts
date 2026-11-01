@@ -7,7 +7,6 @@
  */
 import { priceCheckTarget } from "./price-consensus";
 import { effectiveResolverSpec, stripResolverFragment } from "./resolver-spec";
-import { dexMintFor } from "./dex-tokens";
 
 export type SettlementMethod = "resolver-price" | "resolver-json" | "price-consensus" | "evidence-llm";
 
@@ -56,18 +55,18 @@ export function settlementPreview(c: PreviewInput): SettlementPreview {
   if (waitsForFinal === "polymarket") steps.push("Waits for the Polymarket market to be resolved by UMA (up to 72h) and settles from that result; unresolved by then, everyone is refunded.");
 
   let method: SettlementMethod;
-  if (spec?.kind === "price" && !dexMintFor(spec.symbol)) {
+  if (spec?.kind === "price") {
     method = "resolver-price";
-    steps.push(`Reads ${spec.symbol}/USD at ${deadline} from CoinGecko, Chainlink and Flash Trade (plus CoinMarketCap when configured).`);
+    steps.push(`Reads ${spec.symbol}/USD at ${deadline} from CoinGecko and Chainlink (plus CoinMarketCap when configured).`);
     steps.push(`YES if every source shows ${spec.symbol} ${spec.op} $${spec.threshold.toLocaleString("en-US")}; sources that disagree mean a refund.`);
     steps.push("No AI model is involved unless the price sources cannot answer.");
   } else if (spec?.kind === "json") {
     method = "resolver-json";
     steps.push(`Reads ${spec.path} from ${spec.url} after the deadline.`);
     steps.push(`YES if it is ${spec.op} ${JSON.stringify(spec.value)}. No AI model is involved unless the source cannot be read.`);
-  } else if (spec?.kind === "price" || price) {
+  } else if (price) {
     method = "price-consensus";
-    steps.push(`Reads the resolution source, plus ${spec?.kind === "price" ? spec.symbol : price!.symbol}/USD at ${deadline} from independent price feeds.`);
+    steps.push(`Reads the resolution source, plus ${price.symbol}/USD at ${deadline} from independent price feeds.`);
     steps.push("An AI oracle judges the evidence; if the price feeds disagree with each other or with the model, everyone is refunded.");
   } else {
     method = "evidence-llm";

@@ -46,7 +46,7 @@ const CLOUDFLARE_MARKERS = [
   "attention required! | cloudflare",
 ] as const;
 
-export type EvidenceFetcherKind = "coingecko-api" | "flashtrade-api" | "espn-api" | "direct" | "jina";
+export type EvidenceFetcherKind = "coingecko-api" | "espn-api" | "direct" | "jina";
 
 export interface EvidenceSnapshot {
   /** Normalized final URL (after redirects when applicable). */
@@ -98,11 +98,6 @@ export async function fetchEvidence(
 
   if (host === "coingecko.com") {
     const snap = await fetchCoinGeckoSnapshot(parsed, opts);
-    if (snap) return snap;
-  }
-
-  if (host === "flashapi.trade") {
-    const snap = await fetchFlashTradeSnapshot(parsed, opts);
     if (snap) return snap;
   }
 
@@ -353,77 +348,6 @@ async function fetchCoinGeckoSnapshot(
     text,
     fetchedAt: Date.now(),
     fetcher: "coingecko-api",
-  };
-}
-
-// ── Flash Trade handler ───────────────────────────────────────────────────
-
-const FLASH_PRICES_PATH = /^\/prices\/([A-Z0-9]+)$/i;
-
-async function fetchFlashTradeSnapshot(
-  url: URL,
-  opts: FetchEvidenceOptions,
-): Promise<EvidenceSnapshot | null> {
-  const match = url.pathname.match(FLASH_PRICES_PATH);
-  if (!match) return null;
-  const symbol = match[1].toUpperCase();
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      headers: { Accept: "application/json", "User-Agent": BROWSER_USER_AGENT },
-      cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch {
-    return null;
-  }
-
-  if (!response.ok) return null;
-
-  let payload: any;
-  try {
-    payload = await response.json();
-  } catch {
-    return null;
-  }
-
-  const priceUi = typeof payload.priceUi === "number" ? payload.priceUi : null;
-  if (priceUi === null) return null;
-
-  const fetchedAt = new Date().toISOString();
-  const timestampUs = typeof payload.timestampUs === "number" ? payload.timestampUs : null;
-  const priceTime = timestampUs ? new Date(timestampUs / 1000).toISOString() : fetchedAt;
-  const marketSession = String(payload.marketSession ?? "unknown");
-  const confidence = typeof payload.confidence === "number" ? payload.confidence : null;
-
-  const lines = [
-    `Flash Trade price snapshot: ${symbol}`,
-    `Source: ${url.toString()}`,
-    `Fetched at: ${fetchedAt}`,
-    ``,
-    `symbol: ${symbol}`,
-    `current_price_usd: ${priceUi}`,
-    `market_session: ${marketSession}`,
-    `price_timestamp: ${priceTime}`,
-  ];
-  if (confidence !== null) lines.push(`confidence_units: ${confidence}`);
-  if (typeof payload.price === "number" && typeof payload.exponent === "number") {
-    lines.push(`raw_price_mantissa: ${payload.price}`);
-    lines.push(`raw_price_exponent: ${payload.exponent}`);
-    lines.push(`raw_price_formula: ${payload.price} × 10^${payload.exponent} = ${payload.price * Math.pow(10, payload.exponent)} USD`);
-  }
-  lines.push(``, `Note: priceUi is the human-readable USD price (e.g. current_price_usd: ${priceUi} means $${priceUi}).`);
-
-  const text = lines.join("\n").slice(0, opts.maxChars ?? DEFAULT_MAX_CHARS);
-
-  return {
-    sourceUrl: url.toString(),
-    title: `${symbol} · Flash Trade`,
-    text,
-    fetchedAt: Date.now(),
-    fetcher: "flashtrade-api",
   };
 }
 

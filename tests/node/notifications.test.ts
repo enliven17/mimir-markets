@@ -28,7 +28,7 @@ test("a new challenge notifies the creator once per challenger count", () => {
   const events = claimEvents(prior(1, 1), claim);
   assert.equal(events.length, 1);
   assert.equal(events[0].kind, "challenged");
-  assert.equal(events[0].recipient, CREATOR, "base58 recipient is never lowercased");
+  assert.equal(events[0].recipient, CREATOR, "the recipient is kept exactly as given");
   assert.equal(events[0].dedupe, "count:2");
   assert.equal(events[0].payload.challenger, B);
 });

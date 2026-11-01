@@ -1,10 +1,8 @@
 /**
  * Postgres is retired. The app's records live in the backend (lib/server/store.ts, convex/appStore.ts).
  *
- * What still imports this is Solana-era code: the read index of the old program, its oracle's verdict bundles and
- * forecasts, challenge opportunities, notifications and the paid terminal's charges, plus the Solana workers in
- * agents/. Every one of them already ran without a database (`isDbEnabled()` false: empty lists, 503s, skipped
- * work), which is how they behave now. The Solana version, database included, lives on the `magicblock-er` branch.
+ * What still imports this is older code (verdict bundles, forecasts, notifications, ops health): every caller already
+ * runs without a database (`isDbEnabled()` false: empty lists, 503s, skipped work), which is how it behaves now.
  */
 
 export function isDbEnabled(): boolean {
@@ -12,7 +10,7 @@ export function isDbEnabled(): boolean {
 }
 
 const retired = (): never => {
-  throw new Error("Postgres is retired: this Solana-era feature has no database (see the magicblock-er branch)");
+  throw new Error("Postgres is retired: this feature has no database");
 };
 
 /** Never resolves to a pool: callers check isDbEnabled() first, or catch. */

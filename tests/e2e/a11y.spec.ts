@@ -1,6 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { FIXTURE_CLAIM_ID, mockFixtureClaim } from "./fixtures";
 
 /**
  * axe-core on every route (WCAG 2.x A/AA rules): no serious or critical
@@ -9,25 +8,23 @@ import { FIXTURE_CLAIM_ID, mockFixtureClaim } from "./fixtures";
 const ROUTES = [
   "/en",
   "/en/arena",
-  `/en/arena/${FIXTURE_CLAIM_ID}`,
   "/en/arena/create",
   "/en/dashboard",
   "/en/council",
   "/en/agents",
   "/en/agents/new",
   "/en/stats",
-  "/en/calibration",
   "/en/baskets",
   "/en/baskets/new",
   "/en/copy",
-  "/en/verify/1",
+  "/en/launch",
+  "/en/launch/new",
   "/en/docs",
   "/en/no-such-page",
 ];
 
 for (const path of ROUTES) {
   test(`no serious axe violations on ${path}`, async ({ page }) => {
-    await mockFixtureClaim(page);
     await page.goto(path, { waitUntil: "load" });
     await expect(page.locator("h1").first()).toBeVisible();
     // Let entrances finish so axe reads final colours, not mid-fade ones.

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { esc, LINK_CODE_PATTERN, newMarketText, notificationText, telegramLinkMessage } from "../../lib/telegram";
-import { SIDE_CHALLENGERS, SIDE_UNRESOLVABLE } from "../../lib/solana/config";
+import { SIDE_CHALLENGERS, SIDE_UNRESOLVABLE } from "../../lib/market-codes";
 
 const event = (kind: string, payload: Record<string, unknown>) =>
   ({ recipient: "W", claimId: 7, kind, dedupe: kind, payload: { question: "Will <b>SOL</b> > $250?", ...payload } }) as never;
@@ -26,21 +26,6 @@ test("a new market message escapes user text", () => {
   const text = newMarketText({ id: 1, question: "a & b <script>", creatorStake: "2000000", deadline: 1_800_000_000 });
   assert.ok(text.includes(esc("a & b <script>")));
   assert.match(text, /2 USDC/);
-});
-
-test("DEX stats read the deepest pair, with no settlement liquidity floor", async () => {
-  const { parseDexStats } = await import("../../lib/server/dex-prices");
-  const mint = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
-  const stats = parseDexStats(
-    [
-      { chainId: "solana", baseToken: { address: mint }, priceUsd: "0.00001", liquidity: { usd: 500 } },
-      { chainId: "solana", baseToken: { address: mint }, priceUsd: "0.00001846", liquidity: { usd: 10374 }, marketCap: 17475, volume: { h24: 34694 }, priceChange: { h24: -43.05 }, url: "https://dexscreener.com/solana/x" },
-      { chainId: "base", baseToken: { address: mint }, priceUsd: "9", liquidity: { usd: 1e9 } },
-    ],
-    mint,
-  );
-  assert.equal(stats?.priceUsd, 0.00001846);
-  assert.equal(stats?.pairUrl, "https://dexscreener.com/solana/x");
 });
 
 test("each wallet alert answers to its own switch; new markets have theirs", async () => {

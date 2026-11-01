@@ -1,6 +1,6 @@
 import { withResolverFragment, resolverSpecFor } from "./resolver-spec";
 export const MARKET_SERIES = [
-  { id: "sol-daily", symbol: "SOL", name: "SOL daily checkpoint", source: "https://www.coingecko.com/en/coins/solana" },
+  { id: "eth-daily", symbol: "ETH", name: "ETH daily checkpoint", source: "https://www.coingecko.com/en/coins/ethereum" },
   { id: "btc-daily", symbol: "BTC", name: "BTC daily checkpoint", source: "https://www.coingecko.com/en/coins/bitcoin" },
 ] as const;
 export function nextSeriesDeadline(now: number) {

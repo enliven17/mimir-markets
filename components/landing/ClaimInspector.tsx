@@ -70,7 +70,7 @@ function Inspector({ claim, now }: { claim: LandingClaim; now: number }) {
         <dt>{t("closes")}</dt>
         <dd>{timeLeft(claim.deadline, now)}</dd>
         <dt>{t("market")}</dt>
-        <dd>{claim.delegated ? t("marketEr") : t("marketBase")}</dd>
+        <dd>{t("marketArc")}</dd>
       </dl>
       <div className="l-insp-foot">
         <span className="font-mono text-[12px] text-dim">{claim.label ?? `#${claim.id}`}</span>

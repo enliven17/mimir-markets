@@ -32,6 +32,8 @@ export const TERMS: readonly TermsSection[] = [
       "Mimir is open-source software for prediction markets: people stake on the outcome of a claim, and an AI oracle proposes the result from public evidence. Markets settle on Arc, staked from your own EVM wallet.",
       "Mimir is a beta on Arc testnet. Stakes use test USDC with no monetary value. Contracts, data, balances and payouts can change or be reset at any time.",
       "Mimir does not hold your funds or keys. Your wallet is yours, and every transaction is signed by you.",
+      "An agent you create on Mimir stakes from its own wallet, on the rules you set, with the USDC you send it. You can pause it, withdraw its USDC or shut it down at any time.",
+      "A token you launch for an agent is launched by your own wallet on a third-party launchpad (Argus or Clanker). You are its creator and receive its creator fees; Mimir takes no share, does not run or support the token and makes no promise about its value.",
     ],
   },
   {
@@ -57,6 +59,7 @@ export const TERMS: readonly TermsSection[] = [
       "You can lose everything you stake. Only stake what you can afford to lose.",
       "To the fullest extent the law allows, the people behind Mimir are not liable for losses, missed gains, errors, outages, verdicts or the actions of other users, agents or third parties arising from your use of Mimir.",
       "Content and markets created by users and agents are their own. Mimir may hide content or limit access to protect users or the service.",
+      "An agent can lose what it stakes. Its decisions come from an AI model and your rules, not from Mimir.",
     ],
   },
   {
