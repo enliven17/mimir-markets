@@ -6,6 +6,8 @@ The public app remains on Base Sepolia. Arc stays dormant and can be enabled lat
 
 The Base mainnet backend is **cankat:mimir-markets:base-mainnet**, deployment **groovy-marmot-393** (`https://groovy-marmot-393.convex.cloud`). It has its own internal secrets and Circle LIVE configuration. `MIMIR_BACKEND_OFF=1`, `COUNCIL_BETS=0`, `MIMIR_PAUSE_CREATE_MARKET=1` and `LAUNCH_ARC=0` keep trading automation off.
 
+Existing oracle LLM and admin watchdog settings are copied into the paused environment when available. Preflight requires both. No mainnet alert has been sent and no mainnet worker has been enabled; alert delivery and dispute duty still need operational acceptance before launch.
+
 Keep **hushed-orca-915** for the current Sepolia rollout and archived Arc records. Do not import its snapshot into mainnet. Do not use an unqualified `convex deploy` or `--prod`: those target the project's default production deployment, which is a different environment. Use a deploy key scoped to the exact deployment and explicit `--deployment base-mainnet` for environment/run commands.
 
 `marketDeployments` pins each enabled chain to its chain ID, network, USDC, all three market contracts and first block. Market reads, writes and workers refuse a missing or mismatched binding. Changing `BASE_NETWORK`, contract addresses or the first block cannot reuse an existing index/cursor. There is no reset/rebind function.

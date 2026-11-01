@@ -24,6 +24,8 @@ need(e.NEXT_PUBLIC_BASE_NETWORK === "mainnet", "Frontend network must be mainnet
 need(e.NEXT_PUBLIC_CONVEX_URL === "https://groovy-marmot-393.convex.cloud", "Use the isolated Base mainnet Convex deployment");
 need(e.CONVEX_DEPLOYMENT?.endsWith("groovy-marmot-393") || e.CONVEX_DEPLOYMENT?.endsWith(":base-mainnet"), "Explicit Base mainnet Convex target required");
 need(e.CIRCLE_API_KEY?.startsWith("LIVE_API_KEY:"), "Circle LIVE credentials required");
+need(e.ORACLE_GEMINI_API_KEY || e.ORACLE_ANTHROPIC_API_KEY, "Dedicated oracle LLM credentials required");
+need(e.TELEGRAM_BOT_TOKEN && e.TELEGRAM_ADMIN_IDS, "Configure the existing watchdog's admin alert channel before launch");
 need(e.COUNCIL_BETS === "0", "Council bets must remain off during launch");
 need(e.MIMIR_PAUSE_CREATE_MARKET === "1", "House creator stays off until funded wallets and budgets are reviewed");
 need(BigInt(e.BASE_DISPUTE_WINDOW ?? "0") >= 86400n, "Dispute window must be at least 24 hours");
