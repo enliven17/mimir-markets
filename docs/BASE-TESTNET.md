@@ -50,4 +50,6 @@ To re-enable Arc, first verify its network, RPC, contracts, oracle role and fund
 
 ## Mainnet comes later
 
+The newer deployment guard requires a binding for every enabled chain. Keep archived Arc mainnet dormant in this Sepolia backend. Reactivate Arc mainnet in the isolated Base mainnet backend instead, using the binding/reindex steps in [BASE-MAINNET.md](BASE-MAINNET.md). Do not use testnet adoption to relabel Arc mainnet history.
+
 Deploy fresh Base mainnet contracts after testnet acceptance. Use the strict role checks, Safe owner/arbiter, distinct oracle and signer, at least a one-day dispute window, mainnet USDC, and reviewed caps. Switch the site, Convex contracts, first block, RPC, Circle credentials and wallets together. Testnet balances and history must never be interpreted as mainnet funds.

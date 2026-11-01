@@ -21,6 +21,8 @@ npx convex run --deployment base-mainnet marketDeployment:check '{}'
 
 Legacy testnet adoption is explicit (`adoptExistingTestnet:true`) and never permits adopting unbound mainnet records. Dormant Arc records stay in their original environment.
 
+To restore Arc mainnet later, configure its existing mainnet contracts and RPC in this **mainnet** backend, enable `base,arc`, and bind `marketDeployment:bind` with `chain:"arc"`. The binding permits another mainnet chain alongside legitimate Base mainnet agents, but refuses testnet bindings. Reindex Arc from its deployment block; do not copy the mixed Sepolia/archive snapshot. Set the matching frontend values and rebuild only after the binding succeeds.
+
 ## Roles, wallets and limits
 
 - Base Safe: **0x5b3Cd4D9E2ab1Cc1317bD274aa19ED92D60e12C1**. CREATE2 prediction matches the existing Arc mainnet Safe address; **it still needs deployment on Base**. This is not proof of a deployed Base Safe.

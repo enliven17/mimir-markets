@@ -27,8 +27,11 @@ export const bind = internalMutation({
     }
     if (await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", chain)).first()) hasData = true;
     if (cfg.network === "mainnet") {
-      // A fresh mainnet environment must also leave testnet agent wallets, tokens and permissions behind.
-      if (await ctx.db.query("launchAgents").first() || await ctx.db.query("appStore").first()) hasData = true;
+      // The first mainnet binding proves the shared agent data starts clean. A later mainnet chain (Arc)
+      // may join that same environment without rejecting legitimate Base agents/permissions.
+      const bindings = await ctx.db.query("marketDeployments").collect();
+      if (bindings.some((b) => b.network !== "mainnet")) throw new Error("Mainnet requires a clean Convex environment, not testnet bindings");
+      if (!bindings.length && (await ctx.db.query("launchAgents").first() || await ctx.db.query("appStore").first())) hasData = true;
     }
     if (hasData && !(cfg.network === "testnet" && adoptExistingTestnet === true)) {
       throw new Error("Existing unbound data: mainnet requires a clean Convex deployment; legacy testnet adoption must be explicit");

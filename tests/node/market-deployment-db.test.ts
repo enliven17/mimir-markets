@@ -15,6 +15,7 @@ class Store {
         select(q); return query;
       },
       first: async () => rows[0] ?? null,
+      collect: async () => rows,
       unique: async () => { assert.ok(rows.length <= 1); return rows[0] ?? null; },
     };
     return query;
@@ -66,5 +67,18 @@ test("a leftover cursor or agent wallet prevents binding a supposedly empty main
       await assert.rejects(callBind(store.context(), { chain: "base" }), /clean Convex/);
       assert.equal(store.tables.has("marketDeployments"), false);
     }
+  });
+});
+
+test("a second mainnet chain can join existing mainnet agents, but cannot join testnet bindings", async () => {
+  await configured("mainnet", async () => {
+    const store = new Store();
+    store.tables.set("marketDeployments", [{ chain: "arc", network: "mainnet" }]);
+    store.tables.set("appStore", [{ t: "mainnet_permissions" }]);
+    await callBind(store.context(), { chain: "base" });
+    await assertMarketDeployment(store.context());
+    const mixed = new Store();
+    mixed.tables.set("marketDeployments", [{ chain: "arc", network: "testnet" }]);
+    await assert.rejects(callBind(mixed.context(), { chain: "base" }), /not testnet bindings/);
   });
 });
