@@ -5,6 +5,8 @@ import { createPublicClient, encodeFunctionData, getAddress, http, parseAbi, par
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { BASE_USDC, serverMarketChains } from "../../lib/chains/registry";
+import councilData from "../../lib/launch/council.json";
+import { activePersonas } from "../../agents/council/personas";
 
 const e = process.env;
 const failures: string[] = [];
@@ -28,6 +30,15 @@ need(e.ORACLE_GEMINI_API_KEY || e.ORACLE_ANTHROPIC_API_KEY, "Dedicated oracle LL
 need(e.TELEGRAM_BOT_TOKEN && e.TELEGRAM_ADMIN_IDS, "Configure the existing watchdog's admin alert channel before launch");
 need(e.COUNCIL_BETS === "0", "Council bets must remain off during launch");
 need(e.MIMIR_PAUSE_CREATE_MARKET === "1", "House creator stays off until funded wallets and budgets are reviewed");
+try {
+  const wallets = JSON.parse(e.BASE_COUNCIL_WALLETS ?? "{}");
+  const publicWallets = councilData as Record<string, { base?: { address: string; walletId: string } }>;
+  for (const { slug } of activePersonas()) {
+    need(wallets[slug]?.address && wallets[slug]?.id === publicWallets[slug]?.base?.walletId && wallets[slug].address.toLowerCase() === publicWallets[slug].base?.address.toLowerCase(), `Public/backend mainnet wallet mismatch for ${slug}`);
+  }
+  const creator = JSON.parse(e.BASE_CREATOR_WALLET ?? "{}");
+  need(creator.id && creator.address, "Prepare the Base mainnet creator wallet");
+} catch { failures.push("Invalid Base mainnet wallet configuration"); }
 need(BigInt(e.BASE_DISPUTE_WINDOW ?? "0") >= 86400n, "Dispute window must be at least 24 hours");
 need(e.BASE_RPC_URL && !/mainnet\.base\.org/.test(e.BASE_RPC_URL), "Configure a dedicated production RPC");
 const client = createPublicClient({ chain: base, transport: http(e.BASE_RPC_URL || base.rpcUrls.default.http[0], { timeout: 10_000, retryCount: 0 }) });

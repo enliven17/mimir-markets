@@ -13,6 +13,10 @@
     "baseTestnet": {
       "address": "0x15510bda2b1dc1aaaddf70efceea86cca57dae17",
       "walletId": "c0ba107d-4d65-5e39-b5a7-723d0ec35fcf"
+    },
+    "base": {
+      "address": "0x8fea6762baeb487550234a79d27f234501150eb0",
+      "walletId": "a84e62a0-4900-58f5-b3c6-52a3a358996c"
     }
   },
   "optimist": {
@@ -22,6 +26,10 @@
     "baseTestnet": {
       "address": "0x1993b8b698213db41c025135609ba4a029a1719a",
       "walletId": "36a0f98e-49c1-5fb4-b808-e69c50c89032"
+    },
+    "base": {
+      "address": "0x29ad3e993bd484fcbd784637f77edac4ec7b6346",
+      "walletId": "8535d5e8-b726-5885-ba3c-643e726b703a"
     }
   },
   "pessimist": {
@@ -31,6 +39,10 @@
     "baseTestnet": {
       "address": "0x85c0b2249ede25b5e8507b705218e7a313678617",
       "walletId": "728b1716-4f0b-599d-a67e-6c3e3cddc3ca"
+    },
+    "base": {
+      "address": "0xb8030d240a4f8d79e346e8d7fb19eabb46b6d7f4",
+      "walletId": "3f7e9964-2bb7-5ac1-a5ac-c9687aa5029e"
     }
   },
   "contrarian": {
@@ -40,6 +52,10 @@
     "baseTestnet": {
       "address": "0xf08cb4a02a7e1fb2ca6f3afe8fbc2bbdb0d2e1fd",
       "walletId": "e2f506bf-f075-52cf-89dc-fd37f90521eb"
+    },
+    "base": {
+      "address": "0x724e3cc34331df870913eff37d0fb7c86ab35aec",
+      "walletId": "59ab4c88-ef04-550b-b563-2908b4aac632"
     }
   },
   "statistician": {
@@ -49,6 +65,10 @@
     "baseTestnet": {
       "address": "0x7904c58b4e09d052fd866f591ff764fd53734e81",
       "walletId": "5c2a7ff5-13f3-5d6f-95d0-3ad0a8187dc6"
+    },
+    "base": {
+      "address": "0x20b471e236822c7ee1ccf6477d92d7566d2b1525",
+      "walletId": "d8a7f77c-b8b9-534a-bead-a8e58771d64a"
     }
   },
   "whale-watcher": {
@@ -58,6 +78,10 @@
     "baseTestnet": {
       "address": "0xebcf757ed05efa8bc065765316ea0ea57e54595f",
       "walletId": "bc18c552-26bd-59b5-856b-270403510176"
+    },
+    "base": {
+      "address": "0xd6ae45f82452ea45c2fe3196b0797bb0a42c330e",
+      "walletId": "3e9d4e33-8146-5d2d-acf3-e877a426f505"
     }
   },
   "crypto-maxi": {
@@ -67,6 +91,10 @@
     "baseTestnet": {
       "address": "0x4634709dd0ef2c31e510abd1d1e1f510423bdc20",
       "walletId": "da7c3fab-b2ab-5daa-b511-7686d6f39cdc"
+    },
+    "base": {
+      "address": "0x34c95c7f6abc916c5eec013a4572589a61db5220",
+      "walletId": "82f5cdb4-cde9-5026-9ea3-3c3fb24e8e6d"
     }
   },
   "sports-pundit": {
@@ -76,6 +104,10 @@
     "baseTestnet": {
       "address": "0x3e5e0259383ef4327f2b44b1067d9225d2ffefac",
       "walletId": "43fffd41-fbdb-5115-81ee-7ac75b59c0f1"
+    },
+    "base": {
+      "address": "0x4ce3d934ce73a3d463f0dcf8dc81a207f326785f",
+      "walletId": "9b5e2ed7-51d8-5dd9-a74f-94e5dad0fa37"
     }
   },
   "weatherman": {
@@ -85,6 +117,10 @@
     "baseTestnet": {
       "address": "0x06242e0725cfd919cb362003975b3abd64ac47c0",
       "walletId": "94551be1-6d68-5c09-9ab1-125cb00adf3f"
+    },
+    "base": {
+      "address": "0xc7e9513c37a49d8607f2b2b808a699bb2a04503a",
+      "walletId": "3d63f875-ea52-5247-958d-8fc6d6999b8b"
     }
   },
   "doomer": {
@@ -94,6 +130,10 @@
     "baseTestnet": {
       "address": "0x8ce4b2410b1a35132875dda56871649bcfd85fb4",
       "walletId": "8bbf6862-1caa-5cbd-92c1-60981ba54b68"
+    },
+    "base": {
+      "address": "0x844e668c88d33082ba1b86ed782b7c2a32b942db",
+      "walletId": "66b62404-ea11-58e3-8919-5151f5f2545a"
     }
   },
   "yapper": {
@@ -103,6 +143,10 @@
     "baseTestnet": {
       "address": "0x8db29edfdffd9e415882695bfd4b6137e3527c63",
       "walletId": "f1d7ead7-17cb-558c-b061-e74048a2221a"
+    },
+    "base": {
+      "address": "0x421663bb14684a55c980791376c410011c4d2f01",
+      "walletId": "d2c73c07-9345-511b-9e99-19360e764a2e"
     }
   },
   "kahneman": {
@@ -112,6 +156,10 @@
     "baseTestnet": {
       "address": "0x1ad5e62abe406f57e19c6bb8f508c5e1b304bdbb",
       "walletId": "ac08ec9e-1f94-5e6d-95a7-4e538417a09d"
+    },
+    "base": {
+      "address": "0xc88124fd6cb8eb4c4e4b0c07f51246023044ff37",
+      "walletId": "47864211-b7c5-51d1-8d8f-61a83146aa31"
     }
   },
   "taleb": {
@@ -121,6 +169,10 @@
     "baseTestnet": {
       "address": "0xe7c8c736997c6ba33c83d8b0d1df50d7f5150682",
       "walletId": "5c8c7f6a-627f-54ef-aebc-8858e3fff258"
+    },
+    "base": {
+      "address": "0xf43848add5f819b3040d7d39ce2ed85311a5b16f",
+      "walletId": "2d94b050-61a9-5011-8387-8f6661dbbb1c"
     }
   },
   "feynman": {
@@ -130,6 +182,10 @@
     "baseTestnet": {
       "address": "0x1fcd7eadcf62fb6f3b7351647cbf27cf209639f4",
       "walletId": "1d5d288c-5d34-5155-a6ef-e87efde018e6"
+    },
+    "base": {
+      "address": "0xd21b0da5669112e44fb2a704e0c30eb2b4f61c13",
+      "walletId": "ea4cc96f-6a3f-5638-903d-48c7cb8cd67e"
     }
   },
   "munger": {
@@ -139,6 +195,10 @@
     "baseTestnet": {
       "address": "0x5d23e74c6074a79155839a0e9e38f5abc08b3d00",
       "walletId": "28c07afb-f8cc-53ed-9167-b9111f5cc7c5"
+    },
+    "base": {
+      "address": "0x68b3caad97b8dec3d580dd9101827e8d0579c50d",
+      "walletId": "ddf9c32c-6027-596e-bffc-a4f74a03a994"
     }
   },
   "ada": {
@@ -148,6 +208,10 @@
     "baseTestnet": {
       "address": "0x1670a2fad045a146a216129be44c4adbf4ea8375",
       "walletId": "d8651713-daea-5af6-b439-b68083dcebfe"
+    },
+    "base": {
+      "address": "0x2c7b4de4706eda8dc52a4dfab12d6acf31d048ac",
+      "walletId": "b235b001-2cae-5af1-916d-6c89c425e2c9"
     }
   },
   "meadows": {
@@ -157,6 +221,10 @@
     "baseTestnet": {
       "address": "0xaf4c6b5d7e6461c24c843c4dc479a5ced5cfd359",
       "walletId": "48bfb19a-9b0b-52ce-953d-12a8c5547194"
+    },
+    "base": {
+      "address": "0xd4897728bab251f3dd6f369857ae14a81e41d008",
+      "walletId": "a4ec9e50-8d1d-5343-b635-851ee41c1104"
     }
   },
   "machiavelli": {
@@ -166,6 +234,10 @@
     "baseTestnet": {
       "address": "0x31bf99d5f935b76e8fd291795f8fa242b3d89e8c",
       "walletId": "9b3f1595-5842-508e-b83a-4ad523239c5d"
+    },
+    "base": {
+      "address": "0xa7e58e672f58f3dfe963bbc0ca5c3bb6f6937abb",
+      "walletId": "0cc5c395-ec75-5fed-b7d8-a14ffcfcb3b7"
     }
   },
   "aurelius": {
@@ -175,6 +247,10 @@
     "baseTestnet": {
       "address": "0x9eac62a26c1d951264d9f34c4f2779929c1c54e7",
       "walletId": "333aab04-de9b-580a-abe0-768a7104c4cb"
+    },
+    "base": {
+      "address": "0x13c382404a5db5b6fc04291f7494714789fb5f47",
+      "walletId": "e8ade8c7-424a-5f07-b1c8-3c5380875efe"
     }
   },
   "lao-tzu": {
@@ -184,6 +260,10 @@
     "baseTestnet": {
       "address": "0xa5fd420dfdf6927b58a34a722f31ff23515395cc",
       "walletId": "8ef2c8e0-4ab1-50c8-b9b7-26375774a8eb"
+    },
+    "base": {
+      "address": "0x0410292eabd31a6a31e68d8fa85b98210c65bdc1",
+      "walletId": "d1c936b8-00c7-5dee-aaf8-4b899c7121fb"
     }
   }
 }
