@@ -80,9 +80,9 @@ test("house wallets, oracle key and Circle blockchains per chain", () => {
   assert.deepEqual(Object.keys(councilWallets("base", env)), ["socrates"]);
   assert.deepEqual(councilWallets("arc", env), {});
   assert.deepEqual(houseAddresses(env).sort(), [A(10), A(11), A(12)].sort());
-  // Base falls back to the Arc oracle key; its own key wins when set.
+  // One oracle key on every chain: ARC_ORACLE_KEY is its deprecated alias, BASE_ORACLE_KEY is not read.
   assert.equal(oracleKeyFor("base", env), KEY_A);
-  assert.equal(oracleKeyFor("base", { ...env, BASE_ORACLE_KEY: KEY_B }), KEY_B);
+  assert.equal(oracleKeyFor("base", { ...env, BASE_ORACLE_KEY: KEY_B }), KEY_A);
   assert.equal(oracleKeyFor("arc", { ARC_ORACLE_KEY: "nope" }), null);
   assert.equal(circleBlockchain("base", "testnet"), "BASE-SEPOLIA");
   assert.equal(circleBlockchain("base", "mainnet"), "BASE");

@@ -5,7 +5,11 @@
 //   ARC_OWNER          admin: pause, caps, veto, revoke the oracle/signer, timelocked changes (a Safe on mainnet)
 //   ARC_ARBITER        rules disputed and vetoed proposals (a Safe on mainnet; may be the owner's Safe only with
 //                      ARC_ARBITER_IS_OWNER=1)
-//   ARC_ORACLE         the settlement hot key; never owner, arbiter or fee recipient (the contracts refuse it)
+//   ORACLE_ADDRESS     the settlement hot key's address, the SAME on Arc and Base: the backend's one ORACLE_KEY signs on
+//                      every chain. ARC_ORACLE is still read; with ORACLE_KEY in the env too, it must be that key's
+//                      address. Never owner, arbiter or fee recipient (the contracts refuse it). With
+//                      MIMIR_BASE_POOL_ADDRESS (and BASE_RPC) set, the Base pool's oracle is read and a different one
+//                      refuses the deploy.
 //   ARC_FEE_RECIPIENT  receives entry fees, the copy-trade platform share and forfeited bonds (the owner's Safe as
 //                      the treasury only with ARC_FEE_TO_IS_OWNER=1)
 //   ARC_FEE_SIGNER     MimirFees' ticket signer (the app signs no tickets: everyone pays the standard fee)
@@ -16,13 +20,14 @@
 //   ARC_STRICT_ROLES=1 applies the mainnet role checks on testnet too (a rehearsal of the mainnet setup)
 // Mainnet refuses to run unless every role is set, none is the deployer, they do not collide, and the owner and
 // arbiter are contracts (the Safe deployed first). Testnet fills missing roles with throwaway-friendly defaults:
-// owner and arbiter the deployer, oracle ARC_ORACLE (required: it must differ from the owner), fees to the deployer.
+// owner and arbiter the deployer, oracle ORACLE_ADDRESS (required: it must differ from the owner), fees to the deployer.
 // Fees are fixed in the contracts: 0.5% entry, copy trades 1% + 1% of profit.
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPublicClient, createWalletClient, getAddress, http, isAddress, parseEther } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { deployedOracle, oracleRole, sameOracleAs } from '../lib/oracle-role.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const art = async (n) => JSON.parse(await readFile(join(root, `forge-out/${n}.sol/${n}.json`), 'utf8'))
@@ -48,8 +53,13 @@ const role = (name, fallback) => {
 }
 const owner = role('ARC_OWNER', account.address)
 const arbiter = role('ARC_ARBITER', owner)
-const oracle = role('ARC_ORACLE', undefined)
-if (!oracle) throw new Error('ARC_ORACLE is required (the oracle key may not be the owner, so it cannot default to the deployer)')
+// One oracle on every chain (scripts/lib/oracle-role.mjs): ORACLE_ADDRESS / ARC_ORACLE, checked against ORACLE_KEY.
+const oracleChoice = oracleRole(e, 'ARC_ORACLE')
+for (const w of oracleChoice.warnings) console.warn(`warning: ${w}`)
+const oracle = oracleChoice.address
+const basePool = (e.MIMIR_BASE_POOL_ADDRESS || e.NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS)?.trim()
+const baseRpc = (e.BASE_RPC || e.BASE_RPC_URL || e.NEXT_PUBLIC_BASE_RPC || 'https://sepolia.base.org').split(',')[0].trim()
+const baseCheck = sameOracleAs(oracle, basePool ? await deployedOracle({ rpc: baseRpc, contract: basePool }) : null, 'Base')
 const feeTo = role('ARC_FEE_RECIPIENT', account.address)
 const feeSigner = role('ARC_FEE_SIGNER', account.address)
 
@@ -85,7 +95,8 @@ if (strict) {
 }
 
 console.log(`${chain.name}: deployer ${account.address} (${Number(await pub.getBalance({ address: account.address })) / 1e18} USDC)
-  owner ${owner}  arbiter ${arbiter}  oracle ${oracle}  fees to ${feeTo}  fee signer ${feeSigner}  window ${window}s`)
+  owner ${owner}  arbiter ${arbiter}  oracle ${oracle} (from ${oracleChoice.source})  fees to ${feeTo}  fee signer ${feeSigner}  window ${window}s
+  oracle on the other chain: ${baseCheck}`)
 
 const deploy = async (name, args) => {
   const a = await art(name)
@@ -102,4 +113,6 @@ console.log(`\nNEXT_PUBLIC_MIMIR_FEES_ADDRESS=${fees.contractAddress}
 NEXT_PUBLIC_MIMIR_V3_ADDRESS=${v3.contractAddress}
 NEXT_PUBLIC_MIMIR_POOL_ADDRESS=${pool.contractAddress}
 NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK=${v3.blockNumber}
-NEXT_PUBLIC_MIMIR_MIN_STAKE=${minStake}`)
+NEXT_PUBLIC_MIMIR_MIN_STAKE=${minStake}
+
+# Backend: ORACLE_KEY=<the key of ${oracle}>, the one oracle key on Arc and Base. Fund ${oracle} with USDC (gas) on Arc.`)

@@ -4,7 +4,9 @@
  * /arena: every public market on every enabled chain (Base, Arc), live from
  * Convex (convex/arc.ts, kept current by the indexers). Three views (Open,
  * Settling, Settled), a network filter and a VS / Pool filter. Each card shows
- * its network and links to /arena/<chain>/<kind>/<id>.
+ * its network and links to /arena/<chain>/<kind>/<id>. A linked market (the same
+ * question on Base and Arc, lib/chains/linked.ts) is one card with both legs:
+ * "Stake on Base / Stake on Arc", each leg's pool side by side.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -16,7 +18,8 @@ import { FeedCard } from "@/components/ui/Card";
 import { ArenaCardSkeleton } from "@/components/ui/Skeleton";
 import { Link } from "@/i18n/navigation";
 import { marketPath } from "@/lib/chains/links";
-import { MARKET_CHAINS, type MarketChainId } from "@/lib/chains/registry";
+import { groupLegs } from "@/lib/chains/linked";
+import { MARKET_CHAINS, marketChain, type MarketChainId } from "@/lib/chains/registry";
 import { ChainBadge } from "../NetworkLogos";
 import ArcOnboarding from "../ArcOnboarding";
 import MarketSeries from "./MarketSeries";
@@ -60,7 +63,8 @@ export default function ArcArena() {
   }, [markets, kind, chain, now, enabled]);
   const open = byView.open;
   const inPlay = open.reduce((sum, m) => sum + m.volumeUsd, 0);
-  const shown = byView[view];
+  // One card per linked market (its legs side by side); a network filter shows that network's legs only.
+  const shown = useMemo(() => groupLegs(byView[view]), [byView, view]);
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -69,7 +73,7 @@ export default function ArcArena() {
           <h1 className="m-0 font-display text-app-h1 text-cream">Arena</h1>
           <p className="m-0 flex items-center gap-2 text-[14px] text-muted">
             <span aria-hidden className="live-dot !h-1.5 !w-1.5" />
-            <span className="text-cream">{markets ? open.length : "-"}</span> open
+            <span className="text-cream">{markets ? groupLegs(open).length : "-"}</span> open
             <span aria-hidden>·</span>
             <span className="text-cream">{markets ? `$${inPlay.toFixed(2)}` : "-"}</span> in play
             <span aria-hidden>·</span>
@@ -100,7 +104,7 @@ export default function ArcArena() {
               className={`press min-w-0 truncate rounded-full px-2 py-2 text-[14px] sm:px-4 sm:py-1.5 ${view === v ? "bg-panel-raised text-cream" : "text-muted"}`}
             >
               {label}
-              <span className="ml-1.5 text-dim">{markets ? byView[v].length : ""}</span>
+              <span className="ml-1.5 text-dim">{markets ? groupLegs(byView[v]).length : ""}</span>
             </button>
           ))}
         </div>
@@ -154,8 +158,8 @@ export default function ArcArena() {
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {shown.map((m, i) => (
-            <ArcMarketCard key={m._id} m={m} now={now} index={i} />
+          {shown.map(({ key, lead, legs }, i) => (
+            <ArcMarketCard key={key} m={lead} legs={legs} now={now} index={i} />
           ))}
         </div>
       )}
@@ -163,7 +167,7 @@ export default function ArcArena() {
   );
 }
 
-function ArcMarketCard({ m, now, index }: { m: ArcMarket & { chain: MarketChainId }; now: number; index: number }) {
+function ArcMarketCard({ m, legs, now, index }: { m: ArcMarket & { chain: MarketChainId }; legs: Array<ArcMarket & { chain: MarketChainId }>; now: number; index: number }) {
   const phase = arcPhase(m, now);
   // A live bet: the card jolts and the new money pops up over the pool (BetFx.tsx).
   const cardRef = useRef<HTMLDivElement>(null);
@@ -189,7 +193,9 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket & { chain: MarketChainI
       >
         <div className="flex min-h-[22px] items-center justify-between gap-3 text-[12px]">
           <span className="flex items-center gap-2">
-            <ChainBadge chain={m.chain} />
+            {legs.map((l) => (
+              <ChainBadge key={l.chain} chain={l.chain} />
+            ))}
             <span className="rounded-full bg-panel-raised px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-coral">
               {KIND_LABEL[m.kind]}
             </span>
@@ -211,10 +217,21 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket & { chain: MarketChainI
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-line pt-3.5 text-[13px]">
-          <span className="flex items-baseline gap-1.5">
-            <span className="text-[15px] text-cream">${m.volumeUsd.toFixed(2)}</span>
-            <span className="text-dim">pool</span>
-          </span>
+          {legs.length > 1 ? (
+            // Separate pools, separate settlement: each leg's money side by side, never summed.
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              {legs.map((l) => (
+                <span key={l.chain} className="whitespace-nowrap">
+                  <span className="text-cream">${l.volumeUsd.toFixed(2)}</span> <span className="text-dim">{marketChain(l.chain).label}</span>
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-[15px] text-cream">${m.volumeUsd.toFixed(2)}</span>
+              <span className="text-dim">pool</span>
+            </span>
+          )}
           <span className="truncate font-mono text-[12px] text-muted">
             {phase === "open" ? <Countdown until={m.deadline} format={(t) => `${t} left`} /> : winner}
           </span>
@@ -224,6 +241,15 @@ function ArcMarketCard({ m, now, index }: { m: ArcMarket & { chain: MarketChainI
           </span>
         </div>
       </Link>
+      {legs.length > 1 && phase === "open" ? (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 pb-4 text-[13px] sm:px-6">
+          {legs.map((l) => (
+            <Link key={l.chain} href={marketPath(l.chain, l.kind, l.marketId)} className="text-coral hover:underline">
+              Stake on {marketChain(l.chain).label} →
+            </Link>
+          ))}
+        </div>
+      ) : null}
     </FeedCard>
   );
 }

@@ -4,7 +4,8 @@
  * /arena/<chain>/<kind>/<id>: one market on Base or Arc, live from Convex. The
  * question, its network, both sides with their money, time left or the verdict,
  * the stake box while betting is open, who is in, and the same market on the
- * other network when Mimir opened it on both (linked).
+ * other network (linked, lib/chains/linked.ts): both legs' figures side by side
+ * and a "Stake on Base / Stake on Arc" switch in the stake box.
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -17,9 +18,9 @@ import Skeleton from "@/components/ui/Skeleton";
 import Modal from "@/components/ui/Modal";
 import { Link } from "@/i18n/navigation";
 import type { ArcMarketKind } from "@/lib/arc/markets";
-import { marketPath } from "@/lib/chains/links";
 import { explorerUrl, MARKET_CHAINS, marketChain, marketContract, type MarketChainId } from "@/lib/chains/registry";
 import { ChainBadge } from "../NetworkLogos";
+import { LegsCompare, LegStakeBox, StakeChainSwitch, type Leg } from "./MarketLegs";
 import RollingNumber from "@/components/motion/RollingNumber";
 import { weiToUsd } from "@/lib/arc/markets";
 import ArcActivity from "./ArcActivity";
@@ -74,6 +75,8 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
   const now = useNowSec(15_000);
   const wide = useWide();
   const [sheet, setSheet] = useState(false);
+  // Which leg of a linked market the stake box works on (this page's own by default).
+  const [stakeChain, setStakeChain] = useState<MarketChainId>(chain);
   const me = address?.toLowerCase() ?? null;
 
   if (m === undefined) {
@@ -102,6 +105,14 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
   const mine = me ? m.positions.filter((p) => p.user === me) : [];
   const contract = marketContract(cfg, kind);
   const linked = (m.linked ?? []).filter((l) => MARKET_CHAINS.chains[l.chain].enabled);
+  const legs: Leg[] = linked.length
+    ? [{ chain, kind, marketId: m.marketId, status: m.status, stakeA: m.stakeA, stakeB: m.stakeB, volumeUsd: m.volumeUsd, participants: m.participants, deadline: m.deadline, lockAt: m.lockAt }, ...linked]
+        .sort((a, b) => MARKET_CHAINS.enabled.indexOf(a.chain) - MARKET_CHAINS.enabled.indexOf(b.chain))
+    : [];
+  const pickedLeg = legs.find((l) => l.chain === stakeChain && l.chain !== chain) ?? null;
+  // Open while any leg takes stakes: the box can switch to the leg that still does.
+  const anyOpen = phase === "open" || legs.some((l) => arcPhase({ status: l.status, deadline: l.deadline ?? 0, lockAt: l.lockAt }, now) === "open");
+  const switcher = legs.length > 1 ? <StakeChainSwitch legs={legs} picked={stakeChain} onPick={setStakeChain} /> : null;
 
   return (
     <div className="mx-auto grid w-full min-w-0 max-w-[1040px] grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
@@ -119,16 +130,7 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             </span>
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>
-          {linked.length ? (
-            <p className="m-0 flex flex-wrap items-center gap-2 text-[13px] text-muted">
-              {linked.map((l) => (
-                <Link key={`${l.chain}:${l.marketId}`} href={marketPath(l.chain, l.kind, l.marketId)} className="inline-flex items-center gap-2 text-coral hover:underline">
-                  Also on <ChainBadge chain={l.chain} /> →
-                </Link>
-              ))}
-              <span className="text-dim">Same question, separate money; settled with the same verdict.</span>
-            </p>
-          ) : null}
+          {legs.length > 1 ? <LegsCompare legs={legs} current={chain} picked={stakeChain} onPick={setStakeChain} labelA={m.labelA} labelB={m.labelB} now={now} /> : null}
           {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} />}
         </header>
 
@@ -219,9 +221,9 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
         </section>
       </div>
 
-      {phase === "open" && !wide ? (
+      {anyOpen && !wide ? (
         <>
-          <ArcMarketActions m={m} mine={mine} account={account} now={now} />
+          {pickedLeg ? null : <ArcMarketActions m={m} mine={mine} account={account} now={now} />}
           {/* Keeps the last section clear of the sticky stake button. */}
           <div aria-hidden className="h-16" />
           <div className="fixed inset-x-0 bottom-[var(--tab-bar)] z-50 px-[var(--gut)] pb-2.5 pt-2">
@@ -230,12 +232,18 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             </button>
           </div>
           <Modal open={sheet} onClose={() => setSheet(false)} title={kind === "vs" ? "Challenge" : "Take a side"} variant="sheet">
-            <ArcStakePanel m={m} mine={mine} account={account} inSheet />
+            <div className="grid gap-3">
+              {switcher}
+              {pickedLeg ? <LegStakeBox leg={pickedLeg} now={now} inSheet /> : phase === "open" ? <ArcStakePanel m={m} mine={mine} account={account} inSheet /> : <p className="m-0 text-[14px] text-muted">{PHASE_LABEL[phase]} on {cfg.label}.</p>}
+            </div>
           </Modal>
         </>
       ) : (
-      <aside aria-label="Stake" className={`${SURFACE} h-fit p-5 lg:sticky lg:top-[96px]`}>
-        {phase === "open" ? (
+      <aside aria-label="Stake" className={`${SURFACE} grid h-fit gap-4 p-5 lg:sticky lg:top-[96px]`}>
+        {switcher}
+        {pickedLeg ? (
+          <LegStakeBox leg={pickedLeg} now={now} />
+        ) : phase === "open" ? (
           <ArcStakePanel m={m} mine={mine} account={account} />
         ) : (
           <div className="grid gap-2">
@@ -249,7 +257,7 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             </p>
           </div>
         )}
-        <ArcMarketActions m={m} mine={mine} account={account} now={now} />
+        {pickedLeg ? null : <ArcMarketActions m={m} mine={mine} account={account} now={now} />}
       </aside>
       )}
     </div>

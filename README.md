@@ -5,9 +5,11 @@ stake USDC on it, and an AI oracle settles it in the open, with its reasoning pu
 
 - **Connect any EVM wallet.** Your address is your account on every network; every transaction is signed by you.
 - **Markets run on Base**, with Circle's USDC (gas in ETH), **and on Arc**, Circle's stablecoin chain (USDC pays the
-  gas too). Each network has its own contracts and its own markets; you open yours on the one you pick. Mimir's own
-  agents open theirs on both and link them, so the same question is playable on either.
-- **An AI oracle** reads the market's source, checks prices against two feeds, and proposes a result. Anyone in the
+  gas too). Each network has its own contracts and its own pools; pick either and stake there. Every public pool
+  exists on both: Mimir's agents open theirs on both, and when you open a pool on one network Mimir opens its twin on
+  the other (seeded with the minimum stake on your side) and links them. One oracle decision settles both.
+  VS duels are personal challenges and stay on the network they were opened on.
+- **An AI oracle** (one key, the same address on every network) reads the market's source, checks prices against two feeds, and proposes a result. Anyone in the
   market can dispute it. When it cannot be sure, everyone gets their money back.
 - **A council of twenty AI personas** writes a forecast under every market.
 - **Bring your own agent:** an API that returns unsigned transactions, so Mimir never holds an agent's key.
@@ -84,10 +86,10 @@ contracts are set; nothing breaks without them. The ones that matter:
 | Group | Variables |
 |---|---|
 | Chains | `NEXT_PUBLIC_MARKET_CHAINS` (default `base,arc`), `NEXT_PUBLIC_DEFAULT_MARKET_CHAIN` (default `base`); backend `MARKET_CHAINS` |
-| Base | `NEXT_PUBLIC_BASE_NETWORK` (`testnet` = Sepolia / `mainnet`), `NEXT_PUBLIC_BASE_RPC`, `NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE`; backend `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `BASE_ORACLE_KEY`, `BASE_CREATOR_WALLET`, `BASE_COUNCIL_WALLETS` |
+| Base | `NEXT_PUBLIC_BASE_NETWORK` (`testnet` = Sepolia / `mainnet`), `NEXT_PUBLIC_BASE_RPC`, `NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE`; backend `BASE_NETWORK`, `BASE_RPC`, `MIMIR_BASE_*`, `BASE_CREATOR_WALLET`, `BASE_COUNCIL_WALLETS` |
 | Arc | `NEXT_PUBLIC_ARC_NETWORK` (`testnet`/`mainnet`), `NEXT_PUBLIC_ARC_RPC`, `NEXT_PUBLIC_ARC_EXPLORER`, `NEXT_PUBLIC_MIMIR_V3_ADDRESS`, `NEXT_PUBLIC_MIMIR_POOL_ADDRESS`, `NEXT_PUBLIC_MIMIR_FEES_ADDRESS`, `NEXT_PUBLIC_MIMIR_ARC_FROM_BLOCK`, `NEXT_PUBLIC_MIMIR_MIN_STAKE` |
 | Wallets | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` (phone wallets in ConnectKit; optional) |
-| Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ARC_ORACLE_KEY`, `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
+| Backend | `NEXT_PUBLIC_CONVEX_URL`; on the backend itself: `MIMIR_V3_ADDRESS`, `MIMIR_POOL_ADDRESS`, `ORACLE_KEY` (one oracle key for every chain; `ARC_ORACLE_KEY` is a deprecated alias), `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, `ARC_COUNCIL_WALLETS`, `ARC_CREATOR_WALLET`, the model keys |
 | Models | `ORACLE_GEMINI_API_KEY` (the oracle's own, a list allowed), `COUNCIL_GEMINI_API_KEY`, `GEMINI_API_KEY(S)`, `ANTHROPIC_API_KEY` / `ORACLE_ANTHROPIC_API_KEY` |
 | Jev (optional) | `TYPESAFE_API_KEY`, `JEV_MODEL`: triage and moderation before the full model; off when empty ([CHAINS.md](docs/CHAINS.md#jev-optional)) |
 | Council | `COUNCIL_BETS` (`0` on mainnet), `COUNCIL_TAKES_PER_CREATOR_DAY`, see [docs/COUNCIL.md](docs/COUNCIL.md) |

@@ -12,7 +12,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import { chainPublicClient } from "../lib/chains/client";
-import { houseCreatorWallet, oracleKeyFor } from "../lib/chains/house";
+import { houseCreatorWallet, oracleKey, oracleKeyFor, oracleKeyWarnings } from "../lib/chains/house";
 import { serverMarketChains } from "../lib/chains/registry";
 import { proposalProblem, roleProblems, type Problem } from "../lib/arc/watch";
 
@@ -31,7 +31,7 @@ const MARKET = parseAbi([
 ]);
 const FEES = parseAbi(["function owner() view returns (address)", "function pendingOwner() view returns (address)", "function pendingSigner() view returns (address)"]);
 // How long a job may be silent before it counts as stopped (its cron interval plus slack).
-const STALE_MS: Record<string, number> = { "arc-sync": 5 * 60_000, "base-sync": 5 * 60_000, "arc-oracle": 10 * 60_000, "arc-creator": 3 * HOUR };
+const STALE_MS: Record<string, number> = { "arc-sync": 5 * 60_000, "base-sync": 5 * 60_000, "arc-oracle": 10 * 60_000, "arc-creator": 3 * HOUR, "arc-twins": HOUR };
 /** Low-balance floors for the gas token (USDC on Arc, ETH on Base). */
 const LOW_GAS = { arc: { oracle: 0.5, creator: 0.3 }, base: { oracle: 0.003, creator: 0.002 } } as const;
 
@@ -149,6 +149,10 @@ export const tick = internalAction({
       // Keys and texts name the chain: the same market id exists on both.
       problems.push(...local.map((p) => ({ ...p, key: `${chainId}:${p.key}`, text: `${on}${p.text}` })));
     }
+
+    // One oracle key signs on every chain (lib/chains/house.ts): say when the env is set the old way.
+    for (const w of oracleKeyWarnings(e)) problems.push({ key: `oracle-key:${w.slice(0, 40)}`, ttlMs: 24 * HOUR, text: `⚠️ ${w}` });
+    if (registry.enabled.length && !oracleKey(e)) problems.push({ key: "oracle-key:none", ttlMs: 12 * HOUR, text: "⚠️ No ORACLE_KEY: nothing is settled on any chain." });
 
     const seen = new Set<string>();
     for (const p of problems) {

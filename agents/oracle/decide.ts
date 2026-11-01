@@ -124,6 +124,11 @@ export interface DecideContext {
    * FIRM verdicts only.
    */
   house?: ReadonlySet<string>;
+  /**
+   * The house holds a position on another leg of this market's link (lib/chains/linked.ts): the pair is decided once,
+   * so the decision is held to the house bar whichever leg it is made on.
+   */
+  houseHeld?: boolean;
   /** Council-as-jury settlement, when enabled. */
   jury: JuryConfig | null;
   now?: () => number;
@@ -575,7 +580,7 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
 
   // The house judging a market it holds a position in (oracle, market creator
   // or a council persona) settles FIRM verdicts only.
-  if (houseHoldsPosition(claim, ctx) && verdict.confidence < CONFIDENCE_HIGH_MIN && verdict.verdict !== "UNRESOLVABLE") {
+  if ((ctx.houseHeld || houseHoldsPosition(claim, ctx)) && verdict.confidence < CONFIDENCE_HIGH_MIN && verdict.verdict !== "UNRESOLVABLE") {
     verdict = {
       verdict: "UNRESOLVABLE",
       confidence: verdict.confidence,

@@ -2,6 +2,7 @@
 // heartbeats and which settings and keys are present. Read-only. Callable only with the admin secret (MIMIR_ADMIN_SECRET), which the
 // site's admin route holds; key values never leave this function, only whether they are set (and how many).
 import { secretMatches } from "../lib/internal-secrets";
+import { oracleKey } from "../lib/chains/house";
 import { privateKeyToAccount } from "viem/accounts";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
@@ -65,8 +66,8 @@ export const overview = query({
     const council = Object.entries(jsonEnv<Record<string, { address: string }>>("ARC_COUNCIL_WALLETS") ?? {}).map(([slug, w]) => ({ slug, address: w.address.toLowerCase() }));
     const baseCouncil = Object.entries(jsonEnv<Record<string, { address: string }>>("BASE_COUNCIL_WALLETS") ?? {}).map(([slug, w]) => ({ slug, address: w.address.toLowerCase() }));
     const councilSet = new Set([...council, ...baseCouncil].map((c) => c.address));
-    const oracleKey = process.env.ARC_ORACLE_KEY?.trim();
-    const oracleAddress = oracleKey && /^0x[0-9a-fA-F]{64}$/.test(oracleKey) ? privateKeyToAccount(oracleKey as `0x${string}`).address : null;
+    const signer = oracleKey();
+    const oracleAddress = signer ? privateKeyToAccount(signer).address : null;
 
     // Market ids repeat across chains: every key names the chain (a row without one is Arc's).
     type Keyed = { chain?: "arc" | "base"; kind: string; marketId: number };
@@ -185,7 +186,7 @@ export const overview = query({
         [
           "ORACLE_GEMINI_API_KEY", "ORACLE_ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GEMINI_API_KEYS", "COUNCIL_GEMINI_API_KEY",
           "CREATOR_GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GROQ_API_KEYS", "OPENROUTER_API_KEY", "OPENROUTER_API_KEYS", "TYPESAFE_API_KEY",
-          "ARC_ORACLE_KEY", "BASE_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET",
+          "ORACLE_KEY", "ARC_ORACLE_KEY", "BASE_ORACLE_KEY", "CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "MIMIR_STORE_SECRET", "MIMIR_EVENTS_SECRET", "MIMIR_ADMIN_SECRET", "MIMIR_INTERNAL_SECRET",
         ].map((k) => [k, keyCount(k)]),
       ),
     };

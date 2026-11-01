@@ -4,7 +4,7 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { councilWallets, oracleKeyFor } from "../lib/chains/house";
+import { councilWallets, oracleKey } from "../lib/chains/house";
 
 const VERDICT_COUNT_CAP = 5000;
 
@@ -41,18 +41,16 @@ export const council = query({
   },
 });
 
-/** The oracle's address (Arc; `base` when Base uses another key) and how many verdicts it has published. */
+/** The oracle's address (one key, the same address on every chain) and how many verdicts it has published. */
 export const oracle = query({
   args: {},
   handler: async (ctx) => {
-    // Only the public addresses leave this function.
-    const arcKey = oracleKeyFor("arc");
-    const baseKey = oracleKeyFor("base");
-    const baseAddress = baseKey ? privateKeyToAccount(baseKey).address : null;
-    const address = arcKey ? privateKeyToAccount(arcKey).address : baseAddress;
+    // Only the public address leaves this function.
+    const key = oracleKey();
+    const address = key ? privateKeyToAccount(key).address : null;
     // Bounded count: past VERDICT_COUNT_CAP the page shows "N+".
     const verdicts = await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP);
-    return { address, base: baseAddress, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
+    return { address, base: address, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
   },
 });
 

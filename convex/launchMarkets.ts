@@ -3,7 +3,8 @@
 // Mimir Launch: one agent opens one market, if its owner turned that on (convex/launchMarketsDb.ts schedules it).
 // The brain drafts it; lib/launch/agent-markets.ts holds it to the house creator's bar; the pool opens from the agent's
 // own Circle wallet with its seed stake on every enabled chain it plays and can fund (Base: USDC + ETH for gas; Arc:
-// USDC), and the copies are linked (lib/chains/linked.ts: one page link, one oracle decision). Under the agent lease,
+// USDC), and the copies are linked (lib/chains/linked.ts: one page link, one oracle decision). A chain it could not
+// open on gets a house twin from the reconciler (convex/arcTwins.ts). Under the agent lease,
 // so it never overlaps a tick spending from the same agent. LAUNCH_ARC_DRY_RUN=1 drafts and checks without opening.
 import { v } from "convex/values";
 
@@ -83,7 +84,9 @@ export const createOne = internalAction({
       if (!targets.length) return void (await say("hold", `wanted to open "${draft.question.slice(0, 90)}" but has no funded wallet for the seed stake (USDC, and ETH for gas on Base)`));
       if (e.LAUNCH_ARC_DRY_RUN === "1") return void (await say("hold", `[dry run] would open "${draft.question.slice(0, 120)}" (${draft.category}) on ${targets.map((t) => t.cfg.label).join(" and ")}, closing ${new Date(draft.deadline * 1000).toISOString()}`));
 
-      const pairKey = targets.length > 1 ? pairKeyOf(`agent:${a.slug}`, draft) : undefined;
+      // Linked whenever more than one chain is enabled: a chain the agent cannot open on (rules, funds, a failure) gets
+      // its twin from the house creator later (convex/arcTwins.ts), under this pairKey.
+      const pairKey = registry.enabled.length > 1 ? pairKeyOf(`agent:${a.slug}`, draft) : undefined;
       for (const { cfg, w, seed, seedWei } of targets) {
         try {
           const tx = await circleCreatePool(cfg, w, draft, seedWei);

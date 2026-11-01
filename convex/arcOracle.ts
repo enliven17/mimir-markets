@@ -10,11 +10,13 @@
 // While a contract is paused (the owner's emergency stop) its proposals, finalizations and pool payouts revert, so they
 // are skipped; refundExpired still runs (paused, it refunds every stake).
 // A deferred or failed decision is retried with exponential backoff (lib/oracle-queue.ts). Disputes go to the owner (the arbiter), not here.
-// Linked markets (lib/chains/linked.ts): the same question on Base and Arc is decided once; the other chain's market
-// proposes that same decision (its own late-stake and uncontested-refund rules still apply). A mainnet market never
-// reuses a decision made for a testnet market.
-// Env: ARC_ORACLE_KEY (the contracts' oracle EOA on Arc; gas in USDC), BASE_ORACLE_KEY (Base; else ARC_ORACLE_KEY; gas
-// in ETH, keep it funded), the LLM keys lib/llm.ts reads, the chain env lib/chains/registry.ts serverMarketChains reads.
+// Linked markets (lib/chains/linked.ts): the same question on Base and Arc is decided ONCE per pairKey. The decision is
+// stored (arcPairDecisions) before any leg proposes it, every leg proposes that same decision (its own late-stake and
+// uncontested-refund rules still apply), the legs share one backoff while it is deferred (arc.oracleWork), and if the
+// house is in any leg the house bar applies to the pair. A mainnet market never reuses a decision made for a testnet one.
+// Env: ORACLE_KEY (the contracts' oracle EOA, the SAME address on every chain; ARC_ORACLE_KEY is a deprecated alias;
+// gas in USDC on Arc and ETH on Base, keep it funded on both), the LLM keys lib/llm.ts reads, the chain env
+// lib/chains/registry.ts serverMarketChains reads.
 import { applyPayoutPolicy } from "../lib/oracle-payout-policy";
 import { createPublicClient, createWalletClient, parseAbi, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -127,7 +129,7 @@ export const tick = internalAction({
     for (const id of registry.enabled) {
       const s = setup(registry.chains[id]);
       if (!s) {
-        console.warn(`[oracle] ${id}: no oracle key (${id === "base" ? "BASE_ORACLE_KEY or " : ""}ARC_ORACLE_KEY); skipped`);
+        console.warn(`[oracle] ${id}: no oracle key (ORACLE_KEY); skipped`);
         continue;
       }
       try {
@@ -189,8 +191,10 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
           console.log(`${tag}: linked (${m.pairKey}), reusing the ${linked.chain} decision: side ${side}`);
         } else {
           const full = await ctx.runQuery(internal.arc.marketWithPositions, { chain: c, kind: m.kind, marketId: m.marketId });
+          // One decision for the whole pair: if the house is in any leg (its twin seed, its own draft), the house bar applies.
+          const houseHeld = m.pairKey ? await ctx.runQuery(internal.arc.pairHouseHeld, { pairKey: m.pairKey, house: [...s.house] }) : false;
           const raw: SettlementDecision | null = await decide(
-            { oracle: addr(s.account.address.toLowerCase()), house: s.house, jury: null },
+            { oracle: addr(s.account.address.toLowerCase()), house: s.house, houseHeld, jury: null },
             asClaim(s.cfg, m, full?.positions ?? []),
           );
           if (!raw) {
@@ -208,6 +212,21 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
           hash = toHex(decision.evidenceHash);
           bundle = decision.bundle;
           verdictName = decision.verdict.verdict;
+          if (m.pairKey) {
+            // Stored before anything is proposed: every leg, this one too on a retry, reuses it (no second model call).
+            const kept = await ctx.runMutation(internal.arc.savePairDecision, {
+              pairKey: m.pairKey, chain: c, kind: m.kind, marketId: m.marketId, side, confidence, summary, evidenceHash: hash, bundle: JSON.stringify(bundle),
+            });
+            if (!kept.fresh) {
+              // Another run decided this pair first: propose that decision, not ours.
+              side = kept.side;
+              confidence = kept.confidence;
+              summary = kept.summary;
+              hash = kept.evidenceHash as Hex;
+              bundle = JSON.parse(kept.bundle || "{}");
+              verdictName = Object.entries(SIDE).find(([, n]) => n === side)?.[0] ?? String(side);
+            }
+          }
         }
         const decided = side;
         const decidedSummary = summary;

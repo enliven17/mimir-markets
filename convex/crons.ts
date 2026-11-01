@@ -15,6 +15,8 @@ crons.interval("arc oracle", { minutes: 2 }, internal.arcOracle.tick, {});
 crons.interval("arc council", { minutes: 15 }, internal.arcCouncil.tick, {});
 // The house market creator: drafts and opens two-sided pools hourly, linked on every enabled chain (convex/arcCreator.ts).
 crons.interval("arc market creator", { hours: 1 }, internal.arcCreator.tick, {});
+// The twin reconciler: opens the missing leg of every public pool from the house creator and links it (convex/arcTwins.ts).
+crons.interval("market twins", { minutes: 15 }, internal.arcTwins.tick, {});
 // The app store's housekeeping: expired relay answers, old rate-limit windows, nonces and replies (convex/appStore.ts).
 crons.interval("app store sweep", { minutes: 10 }, internal.appStore.sweep, {});
 // The watchdog: problems that need a human go to the admin Telegram (convex/arcWatch.ts).
