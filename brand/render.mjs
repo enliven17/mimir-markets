@@ -38,15 +38,7 @@ for (const [page, out, w, h] of [
   ['splash.html', '../scripts/android/splash/splash-xhdpi.png', 300, 300],
   ['splash.html', '../scripts/android/splash/splash-xxhdpi.png', 450, 450],
   ['splash.html', '../scripts/android/splash/splash-xxxhdpi.png', 600, 600],
-  ['roadmap.html', 'roadmap.png', 1920, 1080],
-  ['community.html', 'community.png', 1080, 1080],
-  ['holders.html', 'holders.png', 1600, 900],
-  ['networks.html', 'networks.png', 1600, 900],
-  ['roadmap-october.html', 'roadmap-october.png', 1920, 1080],
-  ['members100.html', 'members100.png', 1080, 1080],
-  ['burn.html', 'burn.png', 1080, 1080],
-  ['burn-200k.html', 'burn-200k.png', 1080, 1080],
-  ['post-arc.html', 'post-arc.png', 1080, 1080],
+  // Documentation illustrations stay separate from published social campaigns.
   ['article-system.html', 'article-system.png', 1600, 900],
   ['article-lifecycle.html', 'article-lifecycle.png', 1600, 900],
   ['article-oracle.html', 'article-oracle.png', 1600, 900],
@@ -60,9 +52,9 @@ for (const [page, out, w, h] of [
   ['kit-logo-export.html?horn-red', 'kit/logo/mimir-horn-red.png', 512, 512],
   ['kit-logo-export.html?mark', 'kit/logo/mimir-mark.png', 512, 512],
   ['kit-logo-export.html?mark-mono-ink', 'kit/logo/mimir-mark-ink.png', 512, 512],
-  // `node render.mjs roadmap` renders only the pages whose name contains the argument.
+  // `node render.mjs kit-` renders only the pages whose name contains the argument.
 ].filter(([page]) => page.includes(process.argv[2] ?? ''))) {
-  // Post images and their sources stay local (see .gitignore): skip a page this checkout does not have.
+  // Some documentation illustration sources are local: skip a page this checkout does not have.
   if (!existsSync(join(root, page.split('?')[0]))) {
     console.log('skip', page, '(source not in this checkout)')
     continue

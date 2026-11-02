@@ -67,8 +67,7 @@ all payout or governance behavior.
 | Full Foundry suite with `BASE_MAINNET_FORK_RPC=https://mainnet.base.org` | 247 passed, zero failed/skipped, including seven fork tests with canonical Base USDC and Safe |
 | Base VS / pool unit suites | 69 passed, including two fuzz tests with 256 cases each |
 | `npm run test:smoke` | 601 passed, zero failed |
-| `npm run typecheck` | Blocked by three existing errors in the untouched, untracked `scripts/arc-poc/_privy-test.ts` (removed Solana imports and their resulting implicit-any error) |
-| Same project typecheck excluding only that PoC | Zero errors |
+| `npm run typecheck` | Zero errors after the local-only legacy `scripts/arc-poc` directory was excluded during workspace cleanup |
 | Separate typecheck of `scripts/base/preflight-mainnet.mts` | Zero errors |
 | Optimized deployed runtime (Solidity 0.8.28, via-IR, runs 1) | VS 24,446 bytes; pool 16,863 bytes; both below the 24,576-byte Base limit |
 
@@ -76,6 +75,9 @@ The contract-size regression test checks deployed runtime explicitly; Foundry's 
 are not sufficient proof of EIP-170 compatibility. Missing-claim checks in Base VS use `ClaimNotFound()` to keep
 the wallet-grant update inside that limit. All verification above ran locally; fork writes never broadcast to
 Base, and no live deployment, pause, refund or settlement was sent.
+
+The first project typecheck encountered three pre-existing errors in the untracked `_privy-test.ts` from removed
+Solana imports. The legacy PoC remains local and is excluded from both Git and the application typecheck.
 
 ## Deployment
 

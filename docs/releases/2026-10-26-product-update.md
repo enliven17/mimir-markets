@@ -119,5 +119,5 @@ Arc launches use their distinct USDC funding path and should not be mixed into t
    against the target deployment. Inspect a copy's skipped reason without sending a real trade for verification.
 5. Publish the prepared social package only after the changed routes work on the live domain.
 
-Verification details are in [verification.md](verification.md). Announcement copy and six rendered assets are in
-[`brand/product-update-2026-10/`](../../brand/product-update-2026-10/README.md).
+Verification details are in [verification.md](verification.md). The published announcement package was removed
+from the checkout after use; its copy and rendered assets remain in Git history under `brand/product-update-2026-10/`.

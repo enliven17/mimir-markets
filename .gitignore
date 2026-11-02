@@ -118,3 +118,27 @@ forge-cache/
 
 # Local mainnet runbook (keys, wallets, steps); never committed.
 MAINNET-TODO.md
+
+# Local planning, private application drafts, legacy build outputs and experiments.
+/NEAR-TODO.md
+/output/
+/onchain/target/
+/scripts/arc-poc/
+
+# One-off creative sources and presentation exports; keep the shared brand kit above.
+brand/_*.mjs
+brand/*-render.mjs
+brand/*.pdf
+brand/preview-campaign/
+brand/source/*.css
+!brand/source/base.css
+!brand/source/kit-sheet.css
+brand/source/*.json
+brand/source/mimir-arch*.svg
+brand/source/avatars/
+brand/source/launchpads/
+brand/source/match/
+brand/source/pitch-img/
+brand/source/networks/*
+!brand/source/networks/arc.svg
+brand/source/fonts/Geist-Variable.woff2

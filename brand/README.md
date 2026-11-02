@@ -2,7 +2,8 @@
 
 Everything here renders from plain HTML in `source/` with the site's own tokens (`app/globals.css`). Videos,
 their projects and post images are made locally and are not tracked (see `.gitignore`); this folder keeps the
-identity: the logo, the X profile and banner, and the kit sheets.
+identity: the logo, the X profile and banner, and the kit sheets. Published campaign packages are removed after
+use; their tracked versions remain in Git history. Presentation exports and personal drafts stay local.
 
 ![Logo](kit/mimir-kit-logo.png)
 ![Colour](kit/mimir-kit-colour.png)
@@ -71,7 +72,7 @@ Licences are in `source/fonts/`.
 
 - Plain and specific. Say what happens: "Stake USDC on a claim. The AI oracle settles it."
 - The line: **Don't argue. Settle.**
-- Name the networks as users meet them: you connect an EVM wallet; markets settle on Arc (Base markets are coming).
+- Name the networks as users meet them: you connect an EVM wallet; the current rollout uses Base Sepolia, with Arc dormant.
 - Say "the backend" or "Mimir's backend", never the vendors behind it.
 - No price talk, no promises of returns, no "to the moon".
 - Numbers are real or marked as examples.
@@ -81,7 +82,7 @@ Licences are in `source/fonts/`.
 ```sh
 cd brand
 npm install
-npm run render            # every page this checkout has (post pages are local-only and skipped)
+npm run render            # brand assets and any documentation illustrations available locally
 node render.mjs kit-      # only the brand kit sheets and logo PNGs
 ```
 
