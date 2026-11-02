@@ -43,8 +43,9 @@ export default function RegisteredAgents() {
 
   useEffect(() => {
     let cancelled = false;
-    const load = () =>
-      fetch("/api/agents/registry")
+    const load = () => {
+      if (document.hidden) return;
+      return fetch("/api/agents/registry")
         .then((r) => r.json())
         .then((d: { agents?: RegisteredAgent[] }) => {
           if (!cancelled) setAgents(d.agents ?? []);
@@ -53,11 +54,14 @@ export default function RegisteredAgents() {
           // Keep the last list on a failed refresh; only the first load falls back to empty.
           if (!cancelled) setAgents((prev) => prev ?? []);
         });
+    };
     void load();
     const timer = setInterval(load, REFRESH_MS);
+    document.addEventListener("visibilitychange", load);
     return () => {
       cancelled = true;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", load);
     };
   }, []);
 
