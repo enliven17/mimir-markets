@@ -133,4 +133,56 @@ contract BaseMainnetForkTest {
         vm.warp(deadline + 1 days + 1); vsMarket.finalizeResolution(id);
         require(usdc.balanceOf(bob) > before, "VS winner paid in real USDC");
     }
+
+    function _vsPosition(bool isPrivate) internal returns (MimirV3Erc20 vsMarket, uint256 id) {
+        MimirFees fees = new MimirFees(address(safe), vm.addr(105));
+        vsMarket = new MimirV3Erc20(address(safe), address(safe), oracle, address(safe), V3Fees(address(fees)), 1 days, 100_000, V3Usdc(address(usdc)));
+        require(address(vsMarket).code.length <= 24_576, "Base runtime exceeds EIP-170");
+        vm.prank(alice); require(usdc.approve(address(vsMarket), 1e6));
+        vm.prank(alice);
+        id = vsMarket.createClaim("Fork private VS", "Yes", "No", "u", deadline, 1e6, "custom", 0, "binary", "fixed", 20_000, "", "", 3, isPrivate, "visible-key", address(0));
+        vm.prank(bob); require(usdc.approve(address(vsMarket), 1e6));
+    }
+
+    function test_realUsdcPrivateVsRejectsCopiedCalldata() public {
+        (MimirV3Erc20 vsMarket, uint256 id) = _vsPosition(true);
+        bytes memory data = abi.encodeCall(MimirV3Erc20.challengeClaim, (id, 1e6, "visible-key", address(0)));
+        vm.prank(bob);
+        (bool copied, bytes memory reason) = address(vsMarket).call(data);
+        require(!copied && keccak256(reason) == keccak256(abi.encodeWithSelector(MimirV3Erc20.NotInvited.selector)));
+        require(usdc.balanceOf(bob) == 10e6, "unauthorized wallet was charged");
+        address[] memory accounts = new address[](1);
+        accounts[0] = bob;
+        vm.prank(alice); vsMarket.setInvited(id, accounts, true);
+        vm.prank(bob);
+        (bool invited,) = address(vsMarket).call(data);
+        require(invited, "invited wallet could not join");
+    }
+
+    function test_realUsdcPausedVsProposalRefundsWithoutDispute() public {
+        (MimirV3Erc20 vsMarket, uint256 id) = _vsPosition(false);
+        vm.prank(bob); vsMarket.challengeClaim(id, 1e6, "", address(0));
+        vm.warp(deadline + 1);
+        vm.prank(oracle); vsMarket.resolveClaim(id, 1, "proposed", 90, bytes32(0));
+        vm.prank(address(safe)); vsMarket.setPaused(true);
+        vm.warp(deadline + 1 + 7 days);
+        vsMarket.refundExpired(id);
+        require(usdc.balanceOf(alice) == 10e6 - 5_000 && usdc.balanceOf(bob) == 10e6 - 5_000, "net stakes not refunded");
+        require(vsMarket.accruedFees(address(safe)) == 10_000, "entry fees changed on refund");
+    }
+
+    function test_realUsdcPausedPoolProposalRefundsWithoutDispute() public {
+        vm.prank(alice); require(usdc.approve(address(pool), 1e6));
+        vm.prank(alice); uint256 id = pool.createMarket("Fork paused pool", "Yes", "No", "u", "custom", deadline, 1, address(0), 1e6);
+        vm.prank(bob); require(usdc.approve(address(pool), 1e6));
+        vm.prank(bob); pool.stake(id, 2, address(0), 1e6);
+        vm.warp(deadline + 1);
+        vm.prank(oracle); pool.resolve(id, 1, "proposed", bytes32(0));
+        require(_safeCall(abi.encodeCall(MimirPoolErc20.setPaused, (true)), true));
+        vm.warp(deadline + 1 + 7 days);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice); pool.claimFor(id, bob);
+        require(usdc.balanceOf(alice) == 10e6 - 5_000 && usdc.balanceOf(bob) == 10e6 - 5_000, "net stakes not refunded");
+        require(pool.accruedFees(address(safe)) == 10_000, "entry fees changed on refund");
+    }
 }

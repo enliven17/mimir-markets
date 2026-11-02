@@ -2,6 +2,13 @@
 
 The Solana/Robinhood removal and Base/Arc migration comes from `ccr-e1f759c7-alijkt` (`c216919`). Base is now the only enabled market chain. Arc contracts, wallets and indexed history remain available for a later rollout.
 
+The [November 2 security update](releases/base-contract-security-2026-11-02.md) changes the Base VS private-entry
+authorization and both markets' paused-proposal refunds. The November 1 addresses below predate those fixes.
+Deploy fresh VS and pool contracts and use a fresh backend/index binding before treating the fixes as active;
+the existing deployment binding cannot be reset or rebound. Switch the frontend/backend configuration together
+and preserve the legacy settlement path for existing positions. Existing contracts have no upgrade path;
+editing source does not change their behavior.
+
 ## Deployed on 2026-11-01
 
 - Chain: Base Sepolia, **84532**; RPC `https://sepolia.base.org`.

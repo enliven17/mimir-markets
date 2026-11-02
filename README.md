@@ -102,15 +102,20 @@ contracts are set; nothing breaks without them. The ones that matter:
 
 | Contract | Base Sepolia (primary) | Base mainnet | Arc testnet |
 |---|---|---|---|
-| MimirV3 (VS) | not deployed yet | not deployed yet | `0x5c55500acefebb1559009a2735d00f25fe3e808a` |
-| MimirPool | not deployed yet | not deployed yet | `0x4a846757db42d258ea30b29a53dac025207846fd` |
-| MimirFees | not deployed yet | not deployed yet | `0x3ce9b9731e5b9432ceeb04bb0e27c220293a976d` |
+| MimirV3 (VS) | `0xB29BCcA174B78bE6448234c94Bf1caab44824948` | not deployed yet | `0x5c55500acefebb1559009a2735d00f25fe3e808a` |
+| MimirPool | `0x9d3721dc087103228a4bA9EC72dacEb1B19b4402` | not deployed yet | `0x4a846757db42d258ea30b29a53dac025207846fd` |
+| MimirFees | `0xd3356F1a085068b2DA2dfE1A09f1e8ddf0eC0858` | not deployed yet | `0x3ce9b9731e5b9432ceeb04bb0e27c220293a976d` |
 | USDC | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 dp) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 dp) | native (18 dp) |
 
 Base: `MimirV3Erc20` and `MimirPoolErc20`, deployed with `scripts/base/deploy-markets.mts` (it prints the env lines);
 chain id 84532 (Sepolia) / 8453, gas in ETH. Arc testnet: chain id 5042002, RPC `https://rpc.testnet.arc.network`,
 explorer [testnet.arcscan.app](https://testnet.arcscan.app), from block 65993456, minimum stake 0.1 USDC, dispute
 window 1 hour; redeploy with `scripts/arc/deploy.mjs`.
+
+The deployed Base Sepolia market addresses above predate the
+[November 2 contract security fixes](docs/releases/base-contract-security-2026-11-02.md). Fresh VS and pool
+deployments are required to activate wallet-bound private entry and paused-proposal refunds. No external
+contract audit is claimed; one remains required before mainnet.
 
 ## Docs
 

@@ -98,6 +98,31 @@ contract MimirV3Erc20Test {
         mimir.challengeClaim(id, stake, "", ref);
     }
 
+    function _private(string memory mode, uint256 slots, string memory legacyKey) internal returns (uint256 id) {
+        vm.prank(creator);
+        id = mimir.createClaim(
+            "Private duel", "yes", "no", "u", DEADLINE, STAKE,
+            "custom", 0, "binary", mode, 20_000, "", "", slots, true, legacyKey, address(0)
+        );
+    }
+
+    function _invite(uint256 id, address who, bool allowed) internal {
+        address[] memory accounts = new address[](1);
+        accounts[0] = who;
+        vm.prank(creator);
+        mimir.setInvited(id, accounts, allowed);
+    }
+
+    function _denyChallenge(address who, uint256 id, uint256 stake, string memory legacyKey) internal {
+        uint256 balance = _bal(who);
+        vm.prank(who);
+        (bool ok, bytes memory reason) = address(mimir).call(abi.encodeWithSelector(
+            MimirV3Erc20.challengeClaim.selector, id, stake, legacyKey, address(0)
+        ));
+        assert(!ok && keccak256(reason) == keccak256(abi.encodeWithSelector(MimirV3Erc20.NotInvited.selector)));
+        assert(_bal(who) == balance && !mimir.hasChallenged(id, who));
+    }
+
     function _resolve(uint256 id, uint8 side) internal {
         vm.warp(AFTER);
         vm.prank(oracle);
@@ -132,6 +157,10 @@ contract MimirV3Erc20Test {
         assert(mimir.DISPUTE_BOND() == 2e6);
         assert(mimir.MIN_STAKE() == 2e6);
         assert(address(mimir.usdc()) == address(usdc));
+    }
+
+    function test_runtimeFitsBaseContractSizeLimit() public view {
+        assert(address(mimir).code.length <= 24_576);
     }
 
     function test_constructorRefusesAMinimumOutOfRangeAndATokenWithoutCode() public {
@@ -428,6 +457,210 @@ contract MimirV3Erc20Test {
             abi.encodeWithSelector(MimirV3Erc20.resolveClaim.selector, id, CREATOR, "x", uint8(1), bytes32(0))
         );
         assert(!late);
+    }
+
+    function test_privateClaimRejectsCopiedCreationKey() public {
+        uint256 id = _private("fixed", 1, "visible-in-calldata");
+        _denyChallenge(bob, id, STAKE, "visible-in-calldata");
+        (,,,,,,, uint256 reserved,,,,,,,,,,) = mimir.getClaim(id);
+        assert(reserved == 0);
+        _invite(id, alice, true);
+        _challenge(alice, id, STAKE, address(0));
+        (,,,,,,, reserved,,,,,,,,,,) = mimir.getClaim(id);
+        assert(reserved == STAKE); // only the invited wallet can reserve liquidity
+    }
+
+    function test_privatePoolRoomAndSlotCannotBeTakenWithACopiedKey() public {
+        uint256 id = _private("pool", 1, "visible-in-calldata");
+        _invite(id, alice, true);
+        _denyChallenge(bob, id, 5 * STAKE, "visible-in-calldata");
+        _challenge(alice, id, 5 * STAKE, address(0));
+        (address joined, uint256 stake) = mimir.getChallenger(id, 0);
+        assert(joined == alice && stake == 5 * STAKE);
+    }
+
+    function test_aCopiedInvitedChallengeDoesNotAuthorizeAnotherWallet() public {
+        uint256 id = _private("pool", 3, "creation-key");
+        _invite(id, alice, true);
+        bytes memory data = abi.encodeWithSelector(
+            MimirV3Erc20.challengeClaim.selector, id, 2 * ONE, "first-challenger-calldata", address(0)
+        );
+        vm.prank(alice);
+        (bool joined,) = address(mimir).call(data);
+        assert(joined);
+        // Replay the exact input after the first invited participant has joined.
+        vm.prank(bob);
+        (bool replay, bytes memory reason) = address(mimir).call(data);
+        assert(!replay && keccak256(reason) == keccak256(abi.encodeWithSelector(MimirV3Erc20.NotInvited.selector)));
+        assert(_bal(bob) == 1_000 * ONE && !mimir.hasChallenged(id, bob));
+    }
+
+    function test_privateClaimsNeedWalletGrantsEvenWithAnEmptyLegacyKey() public {
+        uint256 id = _private("pool", 3, "");
+        _denyChallenge(bob, id, STAKE, "");
+        _invite(id, alice, true);
+        _challenge(alice, id, STAKE, address(0));
+        assert(mimir.hasChallenged(id, alice));
+    }
+
+    function test_onlyTheCreatorCanGrantOrRevokeInvites() public {
+        uint256 id = _private("pool", 3, "");
+        address[] memory accounts = new address[](1);
+        accounts[0] = bob;
+        vm.prank(bob);
+        (bool stranger,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        // Even the protocol owner cannot choose a private claim's participants.
+        (bool admin,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        assert(!stranger && !admin && !mimir.invited(id, bob));
+        _invite(id, alice, true);
+        vm.prank(bob);
+        accounts[0] = alice;
+        (bool revoked,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, false)));
+        assert(!revoked && mimir.invited(id, alice));
+    }
+
+    function test_revocationBlocksEntryWithoutChangingFundedPositions() public {
+        uint256 id = _private("pool", 3, "");
+        _invite(id, alice, true);
+        _invite(id, bob, true);
+        _challenge(alice, id, STAKE, address(0));
+        _invite(id, alice, false);
+        _invite(id, bob, false);
+        _denyChallenge(bob, id, STAKE, "");
+        _resolve(id, CHALLENGERS);
+        assert(_bal(alice) == 1_010 * ONE); // removing access cannot confiscate a position
+    }
+
+    function test_invitesAreScopedToTheClaimAndRematchesStartClosed() public {
+        uint256 parent = _private("pool", 3, "same-public-key");
+        uint256 other = _private("pool", 3, "same-public-key");
+        _invite(parent, alice, true);
+        _denyChallenge(alice, other, STAKE, "same-public-key");
+        vm.prank(creator);
+        uint256 rematch = mimir.createRematch(parent, DEADLINE, STAKE, "same-public-key");
+        assert(!mimir.invited(rematch, alice));
+        (,,,,,, bool isPrivate,) = mimir.getClaimMarketConfig(rematch);
+        assert(isPrivate);
+        _denyChallenge(alice, rematch, STAKE, "same-public-key");
+        _invite(rematch, bob, true);
+        _challenge(bob, rematch, STAKE, address(0));
+        assert(mimir.invited(parent, alice) && !mimir.invited(parent, bob));
+    }
+
+    function test_invalidInviteBatchesRevertAtomicallyAndClosedClaimsRejectChanges() public {
+        uint256 id = _private("pool", 3, "");
+        address[] memory accounts = new address[](2);
+        accounts[0] = alice;
+        accounts[1] = address(0);
+        vm.prank(creator);
+        (bool zero,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        assert(!zero && !mimir.invited(id, alice));
+        accounts[1] = creator;
+        vm.prank(creator);
+        (bool self,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        accounts = new address[](101);
+        for (uint256 i = 0; i < accounts.length; i++) accounts[i] = alice;
+        vm.prank(creator);
+        (bool oversized,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        assert(!self && !oversized);
+        vm.prank(creator);
+        mimir.cancelClaim(id);
+        accounts = new address[](1);
+        accounts[0] = alice;
+        vm.prank(creator);
+        (bool closed,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (id, accounts, true)));
+        uint256 publicId = _create(creator, STAKE, address(0));
+        vm.prank(creator);
+        (bool publicClaim,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.setInvited, (publicId, accounts, true)));
+        assert(!closed && !publicClaim);
+    }
+
+    function testFuzz_uninvitedWalletCannotUsePublicCalldata(address outsider) public {
+        if (outsider == address(0) || outsider == creator || outsider == alice) return;
+        uint256 id = _private("pool", 3, "public-calldata");
+        _invite(id, alice, true);
+        _denyChallenge(outsider, id, STAKE, "public-calldata");
+    }
+
+    function testFuzz_settlementConservesUsdcWithEntryAndCopyFees(uint64 c, uint64 a, uint8 verdict) public {
+        _use(_deploy(IMimirFees(address(fees)), 0, 1e4));
+        uint256 id = _create(creator, 2 * ONE + uint256(c) % (98 * ONE), referrer);
+        _challenge(alice, id, 2 * ONE + uint256(a) % (8 * ONE), referrer);
+        _resolve(id, uint8(1 + uint256(verdict) % 4));
+        assert(_bal(creator) + _bal(alice) + _bal(bob) + _bal(address(mimir)) == 3_000 * ONE);
+        assert(_bal(address(mimir)) == mimir.accruedFees(platform) + mimir.accruedFees(referrer));
+    }
+
+    function test_pausedUndisputedProposalCanBeRefundedAfterGrace() public {
+        _use(_deploy(IMimirFees(address(new FlatFees(0))), WINDOW, 2 * ONE));
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(alice, id, STAKE, address(0));
+        _resolve(id, CREATOR);
+        mimir.setPaused(true);
+        vm.warp(AFTER + 7 days);
+        vm.prank(bob);
+        mimir.refundExpired(id);
+        assert(_state(id) == mimir.ST_RESOLVED());
+        assert(_bal(creator) == 1_000 * ONE && _bal(alice) == 1_000 * ONE);
+    }
+
+    function test_pausedProposalWaitsAFullGraceFromALateProposal() public {
+        _use(_deploy(IMimirFees(address(new FlatFees(0))), WINDOW, 2 * ONE));
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(alice, id, STAKE, address(0));
+        uint256 proposedAt = DEADLINE + 6 days;
+        vm.warp(proposedAt);
+        vm.prank(oracle);
+        mimir.resolveClaim(id, CREATOR, "late proposal", 90, bytes32(0));
+        mimir.setPaused(true);
+        vm.warp(proposedAt + 7 days - 1);
+        (bool early,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.refundExpired, (id)));
+        assert(!early);
+        vm.warp(proposedAt + 7 days);
+        mimir.refundExpired(id);
+        mimir.setPaused(false);
+        (bool doublePay,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.finalizeResolution, (id)));
+        assert(!doublePay && _bal(creator) == 1_000 * ONE && _bal(alice) == 1_000 * ONE);
+    }
+
+    function test_unpausedProposalCannotBeConvertedToARefund() public {
+        _use(_deploy(IMimirFees(address(new FlatFees(0))), WINDOW, 2 * ONE));
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(alice, id, STAKE, address(0));
+        _resolve(id, CREATOR);
+        vm.warp(AFTER + 7 days);
+        (bool refund,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.refundExpired, (id)));
+        assert(!refund);
+        mimir.finalizeResolution(id);
+        assert(_bal(creator) == 1_010 * ONE && _bal(alice) == 990 * ONE);
+    }
+
+    function test_unruledDisputeHonoursProposalAndForfeitsBond() public {
+        uint256 id = _disputed();
+        vm.warp(AFTER + 7 days);
+        mimir.refundExpired(id);
+        assert(_bal(creator) == 1_010 * ONE && _bal(alice) == 988 * ONE);
+        assert(mimir.accruedFees(platform) == 2 * ONE);
+    }
+
+    function test_pausedDisputeRefundsBothStakesAndTheBond() public {
+        uint256 id = _disputed();
+        mimir.setPaused(true);
+        vm.warp(AFTER + 7 days);
+        mimir.refundExpired(id);
+        assert(_bal(creator) == 1_000 * ONE && _bal(alice) == 1_000 * ONE);
+        assert(mimir.accruedFees(platform) == 0);
+    }
+
+    function test_vetoedProposalRefundsIfArbiterDoesNotRule() public {
+        _use(_deploy(IMimirFees(address(new FlatFees(0))), WINDOW, 2 * ONE));
+        uint256 id = _create(creator, STAKE, address(0));
+        _challenge(alice, id, STAKE, address(0));
+        _resolve(id, CREATOR);
+        mimir.vetoProposal(id);
+        vm.warp(AFTER + 7 days);
+        mimir.refundExpired(id);
+        assert(_bal(creator) == 1_000 * ONE && _bal(alice) == 1_000 * ONE);
     }
 
     function test_pauseStopsPositionsAndSettlementButNotRefunds() public {

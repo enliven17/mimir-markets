@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { decodeFunctionData, type Address, type Hex } from "viem";
 
-import { ARC_POOL_ABI, ARC_V3_ABI, actionCall, actionCalls, approveCall, DISPUTE_BOND_WEI, ERC20_POOL_ABI, ERC20_V3_ABI, needsApproval, permitTypedData, splitSignature, type MarketAction } from "../../lib/chains/calls";
+import { ARC_POOL_ABI, ARC_V3_ABI, actionCall, actionCalls, approveCall, DISPUTE_BOND_WEI, ERC20_POOL_ABI, ERC20_V3_ABI, needsApproval, permitTypedData, setClaimInviteesCall, splitSignature, type MarketAction } from "../../lib/chains/calls";
 import { ERC20_ABI } from "../../lib/chains/client";
 import { marketChains } from "../../lib/chains/registry";
 import { NoGasError, sendMarketAction } from "../../lib/chains/send";
@@ -58,6 +58,30 @@ test("Base: a create keeps its fields; sub-unit dust never reaches the chain", (
   assert.deepEqual(d.args.slice(5), [2_000_000_000n, 2, "0x0000000000000000000000000000000000000000", 100_000n]);
   assert.throws(() => actionCall(base, { ...stakePool, stake: USDC + 1n }), /decimals/);
   assert.throws(() => approveCall(arc, A(1), USDC), /native/);
+});
+
+test("Base private VS starts closed and wallet grants need no shared key or USDC approval", () => {
+  const create: MarketAction = {
+    type: "create",
+    market: { kind: "vs", question: "Q?", labelA: "Yes", labelB: "No", resolutionUrl: "https://x", category: "custom", deadline: 2_000_000_000, stake: USDC, isPrivate: true },
+  };
+  const d = decodeFunctionData({ abi: ERC20_V3_ABI, data: actionCall(base, create).data });
+  assert.equal(d.functionName, "createClaim");
+  assert.equal(d.args[14], true);
+  assert.equal(d.args[15], "", "no invite secret goes on chain");
+  for (const allowed of [true, false]) {
+    const grant = setClaimInviteesCall(base, 9, [ME, A(7)], allowed);
+    assert.equal(grant.to, base.contracts.mimirV3);
+    assert.equal(grant.value, undefined);
+    assert.deepEqual(decodeFunctionData({ abi: ERC20_V3_ABI, data: grant.data }).args, [9n, [ME, A(7)], allowed]);
+  }
+  assert.throws(() => actionCall(arc, create), /Base VS/);
+  assert.throws(() => actionCall(base, { type: "create", market: { ...create.market, kind: "pool" } }), /Base VS/);
+  assert.throws(() => setClaimInviteesCall(arc, 9, [ME], true), /Base VS/);
+  assert.throws(() => setClaimInviteesCall(base, 0, [ME], true), /claim id/);
+  assert.throws(() => setClaimInviteesCall(base, 1, [], true), /1 to 100/);
+  assert.throws(() => setClaimInviteesCall(base, 1, Array(101).fill(ME), true), /1 to 100/);
+  assert.throws(() => setClaimInviteesCall(base, 1, [A(0)], true), /wallet/);
 });
 
 test("Base: the permit variants carry the signature; VS never takes one", () => {

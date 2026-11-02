@@ -12,7 +12,12 @@ Keep **hushed-orca-915** for the current Sepolia rollout and archived Arc record
 
 `marketDeployments` pins each enabled chain to its chain ID, network, USDC, all three market contracts and first block. Market reads, writes and workers refuse a missing or mismatched binding. Changing `BASE_NETWORK`, contract addresses or the first block cannot reuse an existing index/cursor. There is no reset/rebind function.
 
-After configuring **fresh, verified** mainnet contracts, bind the empty mainnet backend:
+After configuring **fresh, verified** mainnet contracts with the
+[November 2 security fixes](releases/base-contract-security-2026-11-02.md), bind the empty mainnet backend.
+The preflight rejects a VS deployment without the wallet-invitation getter; role checks alone do not establish
+that a deployment includes this fix. An independent external contract audit remains required before mainnet.
+
+Bind the backend:
 
 ```powershell
 npx convex run --deployment base-mainnet marketDeployment:bind '{"chain":"base"}'

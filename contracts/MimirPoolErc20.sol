@@ -570,9 +570,10 @@ contract MimirPoolErc20 {
         if (outcome < SIDE_A || outcome > UNRESOLVABLE) revert BadSide();
     }
 
-    /// When refundExpired opens: the grace counted from the deadline, or from the dispute.
+    /// When refundExpired opens: grace from the latest deadline, proposal or dispute.
     function _refundAt(Market storage m) internal view returns (uint256 start) {
         start = m.deadline;
+        if (m.proposedAt > start) start = m.proposedAt;
         if (m.disputedAt > start) start = m.disputedAt;
         start += RESOLUTION_GRACE_SECONDS;
     }
@@ -666,11 +667,13 @@ contract MimirPoolErc20 {
     /// Escape hatch, by anyone once the grace has passed. A market the oracle never resolved is refunded in full;
     /// a dispute the arbiter never ruled on settles to the oracle's proposal and the bond is forfeited, so a cheap
     /// dispute cannot turn a loss into a free refund.
+    /// While paused, an undisputed proposal also refunds after its own grace,
+    /// even when its dispute window has already closed.
     function refundExpired(uint256 id) external nonReentrant {
         Market storage m = _markets[id];
         if (m.creator == address(0)) revert NoMarket();
         bool disputed = m.state == ST_DISPUTED;
-        if (!disputed && m.state != ST_OPEN) revert NotOpen();
+        if (!disputed && m.state != ST_OPEN && !(paused && m.state == ST_PROPOSED)) revert NotOpen();
         if (block.timestamp < _refundAt(m)) revert GraceNotOver();
         // A vetoed proposal (no disputer) or an emergency pause refunds instead of honouring the proposal.
         if (disputed && !paused && m.disputer != address(0)) {

@@ -1,8 +1,9 @@
 # Mimir docs
 
-You connect any **EVM wallet**, on Arc or Base. Markets settle on **Arc**, Circle's stablecoin chain; markets on
-**Base** are coming, on their own contracts. The product is on mainnet; testnet configuration remains available for
-development.
+You connect an **EVM wallet**. The current rollout uses **Base Sepolia**; Arc is dormant. Mainnet activation is
+separate from testnet acceptance and requires fresh contracts and an external contract audit. See the
+[Base testnet runbook](BASE-TESTNET.md), [mainnet preparation](BASE-MAINNET.md), and the
+[November 2 Base contract security update](releases/base-contract-security-2026-11-02.md).
 
 Read in this order.
 

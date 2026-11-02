@@ -1,7 +1,7 @@
 /** Read-only launch gate. node --env-file=<reviewed mainnet env> --import tsx scripts/base/preflight-mainnet.mts */
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { createPublicClient, encodeFunctionData, getAddress, http, parseAbi, parseUnits, type Address, type Hex } from "viem";
+import { createPublicClient, encodeFunctionData, getAddress, http, parseAbi, parseUnits, zeroAddress, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { BASE_USDC, serverMarketChains } from "../../lib/chains/registry";
@@ -84,6 +84,12 @@ try {
     need(await read("MIN_STAKE") === cfg.contracts.minStakeWei / 10n ** 12n, `Minimum stake mismatch at ${address}`);
     need(await read("maxMarketStake") === marketCap && await read("maxAccountStake") === accountCap, `Execute reviewed Safe caps at ${address}`);
     need(await read("paused") === false, `${address} is paused`);
+    // Legacy Base VS has the same create/challenge selectors but unsafe bearer
+    // invites. Refuse it even when all launch roles and token settings match.
+    if (address === cfg.contracts.mimirV3) {
+      const defaultInvite = await client.readContract({ address, abi: parseAbi(["function invited(uint256,address) view returns (bool)"]), functionName: "invited", args: [0n, zeroAddress] }).catch(() => null);
+      need(defaultInvite === false, "Deploy the Base VS wallet-invitation security update");
+    }
     proposals.push({ to: address, value: "0", data: encodeFunctionData({ abi: parseAbi(["function setCaps(uint256 market,uint256 account)"]), functionName: "setCaps", args: [marketCap, accountCap] }) });
   }
   if (cfg.contracts.mimirFees) {

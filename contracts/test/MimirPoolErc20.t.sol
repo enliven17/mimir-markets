@@ -259,6 +259,33 @@ contract MimirPoolErc20Test {
         assert(_bal(cold) == ONE / 10);
     }
 
+    function test_aHedgersLossAndUncopiedStakeDoNotPayCopyFees() public {
+        uint256 id = _create(alice, 10 * ONE, B);
+        vm.prank(carol);
+        pool.stake(id, A, referrer, 10 * ONE);
+        _stake(carol, id, 10 * ONE, A); // uncopied top-up
+        _stake(carol, id, 10 * ONE, B); // own losing hedge
+        _settle(id, A);
+        (uint256 owed, uint256 fee) = pool.claimable(id, carol);
+        // Gross payout 40; net profit 10 after the losing hedge. Half the
+        // winning position was copied, so copy fees apply to only 5 USDC.
+        assert(owed == 40 * ONE - ONE / 10 && fee == ONE / 10);
+        pool.claimFor(id, carol);
+        assert(_bal(carol) == 110 * ONE - ONE / 10);
+        assert(pool.accruedFees(referrer) == ONE / 20 && pool.accruedFees(platform) == ONE / 20);
+    }
+
+    function test_aHedgerWithANetLossPaysNoCopyFee() public {
+        uint256 id = _create(alice, 10 * ONE, A);
+        vm.prank(carol);
+        pool.stake(id, A, referrer, 10 * ONE);
+        _stake(carol, id, 10 * ONE, B);
+        _settle(id, A);
+        // Carol's winning share is 5, less than her losing hedge of 10.
+        (uint256 owed, uint256 fee) = pool.claimable(id, carol);
+        assert(owed == 15 * ONE && fee == 0);
+    }
+
     // ── A blacklisted winner is parked ──────────────────────────────────────
 
     function test_aBlacklistedWinnerIsParkedAndPullsElsewhere() public {
@@ -336,6 +363,84 @@ contract MimirPoolErc20Test {
         _stake(carol, id, 4 * ONE, B);
         vm.warp(DEADLINE + 7 days);
         vm.prank(keeper);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice);
+        pool.claimFor(id, carol);
+        assert(_bal(alice) == 100 * ONE && _bal(carol) == 100 * ONE);
+    }
+
+    function test_pausedUndisputedProposalCanBeRefundedAfterGrace() public {
+        uint256 id = _create(alice, 10 * ONE, A);
+        _stake(carol, id, 10 * ONE, B);
+        _propose(id, A);
+        pool.setPaused(true);
+        vm.warp(AFTER + 7 days);
+        vm.prank(keeper);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice);
+        pool.claimFor(id, carol);
+        assert(_state(id) == pool.ST_RESOLVED());
+        assert(_bal(alice) == 100 * ONE && _bal(carol) == 100 * ONE);
+    }
+
+    function test_pausedProposalWaitsAFullGraceFromALateProposal() public {
+        uint256 id = _create(alice, 10 * ONE, A);
+        _stake(carol, id, 10 * ONE, B);
+        uint256 proposedAt = DEADLINE + 6 days;
+        vm.warp(proposedAt);
+        vm.prank(oracle);
+        pool.resolve(id, A, "late proposal", bytes32(0));
+        pool.setPaused(true);
+        vm.warp(proposedAt + 7 days - 1);
+        (bool early,) = address(pool).call(abi.encodeCall(MimirPoolErc20.refundExpired, (id)));
+        assert(!early);
+        vm.warp(proposedAt + 7 days);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice);
+        pool.claimFor(id, carol);
+        pool.setPaused(false);
+        (bool doublePay,) = address(pool).call(abi.encodeCall(MimirPoolErc20.finalize, (id)));
+        assert(!doublePay && _bal(alice) == 100 * ONE && _bal(carol) == 100 * ONE);
+    }
+
+    function test_unpausedProposalCannotBeConvertedToARefund() public {
+        uint256 id = _create(alice, 10 * ONE, A);
+        _stake(carol, id, 10 * ONE, B);
+        _propose(id, A);
+        vm.warp(AFTER + 7 days);
+        (bool refund,) = address(pool).call(abi.encodeCall(MimirPoolErc20.refundExpired, (id)));
+        assert(!refund);
+        pool.finalize(id);
+        pool.claimFor(id, alice);
+        assert(_bal(alice) == 110 * ONE && _bal(carol) == 90 * ONE);
+    }
+
+    function test_unruledDisputeHonoursProposalAndForfeitsBond() public {
+        uint256 id = _disputed();
+        vm.warp(AFTER + 7 days);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice);
+        assert(_bal(alice) == 110 * ONE && _bal(carol) == 88 * ONE);
+        assert(pool.accruedFees(platform) == 2 * ONE);
+    }
+
+    function test_pausedDisputeRefundsBothStakesAndTheBond() public {
+        uint256 id = _disputed();
+        pool.setPaused(true);
+        vm.warp(AFTER + 7 days);
+        pool.refundExpired(id);
+        pool.claimFor(id, alice);
+        pool.claimFor(id, carol);
+        assert(_bal(alice) == 100 * ONE && _bal(carol) == 100 * ONE);
+        assert(pool.accruedFees(platform) == 0);
+    }
+
+    function test_vetoedProposalRefundsIfArbiterDoesNotRule() public {
+        uint256 id = _create(alice, 10 * ONE, A);
+        _stake(carol, id, 10 * ONE, B);
+        _propose(id, A);
+        pool.vetoProposal(id);
+        vm.warp(AFTER + 7 days);
         pool.refundExpired(id);
         pool.claimFor(id, alice);
         pool.claimFor(id, carol);

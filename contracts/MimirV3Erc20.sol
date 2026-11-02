@@ -19,8 +19,9 @@ interface IUsdc {
  * MimirV3Erc20 — MimirV3 (contracts/MimirV3.sol, the Arc deployment) ported
  * to a chain where USDC is an ERC-20 (Base: 6 decimals, FiatToken v2 with
  * EIP-2612 permit and a blacklist; gas is ETH). Every rule, role, timelock,
- * pause semantic, fee, dispute flow, escape hatch and event is MimirV3's; only
- * the money transport and the amount constants differ:
+ * fee and dispute flow follows MimirV3. Base also uses wallet-bound private
+ * invitations and permits paused, undisputed proposals to refund after grace.
+ * The other differences are the money transport and amount constants:
  *
  *   - `usdc` is immutable, set by a new LAST constructor argument (must have code):
  *     constructor(owner, arbiter, oracle, feeRecipient, fees, disputeWindow, minStake, usdc).
@@ -31,8 +32,7 @@ interface IUsdc {
  *     equal the amount (no fee-on-transfer surprises). There is no receive():
  *     ETH sent to the contract reverts, as before.
  *   - No ...WithPermit variants (unlike MimirPoolErc20): with the port the
- *     runtime is ~23.85 KB of the 24,576-byte EIP-170 limit, and one permit
- *     variant measured +800 bytes (over the limit). Approve first, or batch
+ *     runtime is close to the 24,576-byte EIP-170 limit. Approve first, or batch
  *     approve + call in one smart-account user operation.
  *   - Settlement pushes are low-level USDC transfer calls. A transfer that
  *     reverts or returns false (blacklisted recipient, USDC paused) is parked in
@@ -54,7 +54,7 @@ interface IUsdc {
  *     a copy-trade profit under 100 units pays no copy fee. Pool-odds shares
  *     round down and the dust goes back to the creator, as before.
  *
- * MimirV3 notes, unchanged:
+ * Market rules:
  *
  * Fees:
  *   - An entry fee on every stake that opens or joins a claim (create,
@@ -81,8 +81,10 @@ interface IUsdc {
  *     leave: cancel, withdraw, and refundExpired, which while paused refunds
  *     every stake instead of honouring a proposal.
  *
- * Known limit: invite keys travel in calldata, so a private claim hides its
- * link from the UI, not from someone reading the chain.
+ * Private claims use a creator-managed wallet allowlist, never a shared secret.
+ * Call setInvited after creation; a new private claim or rematch starts with
+ * no invited wallets. The legacy inviteKey arguments are ignored for ABI
+ * compatibility. Questions, positions and invited addresses remain public.
  */
 contract MimirV3Erc20 {
     // ── State constants ───────────────────────────────────────────────────────
@@ -175,7 +177,7 @@ contract MimirV3Erc20 {
         string  settlementRule;
         uint256 maxChallengers;
         bool    isPrivate;
-        bytes32 inviteKeyHash;       // keccak256(inviteKey) for private claims
+        bytes32 inviteKeyHash;       // legacy ABI field, always zero; access uses invited
         bytes32 evidenceHash;        // keccak256(evidence content) — verifiable reasoning trace
     }
 
@@ -191,6 +193,8 @@ contract MimirV3Erc20 {
     mapping(uint256 => address) public challengerReferrer;
     // Prevents double-entry per claim
     mapping(uint256 => mapping(address => bool)) public hasChallenged;
+    /// Only the claim's creator can grant or revoke access to a private claim.
+    mapping(uint256 => mapping(address => bool)) public invited;
 
     mapping(address => uint256) public wins;
     mapping(address => uint256) public losses;
@@ -259,6 +263,7 @@ contract MimirV3Erc20 {
     // ── Events ────────────────────────────────────────────────────────────────
     event ClaimCreated(uint256 indexed id, address indexed creator, string category);
     event ClaimChallenged(uint256 indexed id, address indexed challenger, uint256 stake);
+    event InviteUpdated(uint256 indexed id, address indexed account, bool allowed);
     event ClaimResolved(uint256 indexed id, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash);
     event ClaimCancelled(uint256 indexed id, uint256 refunded);
     event OracleChanged(address indexed previous, address indexed next);
@@ -304,6 +309,9 @@ contract MimirV3Erc20 {
     error TransferFailed();
     /// Too little gas left for a settlement push.
     error LowGas();
+    error NotInvited();
+    error BadInvite();
+    error ClaimNotFound();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -660,7 +668,6 @@ contract MimirV3Erc20 {
         string  settlementRule;
         uint256 maxChallengers;
         bool    isPrivate;
-        string  inviteKey;
         address referrer;
     }
 
@@ -680,7 +687,7 @@ contract MimirV3Erc20 {
         string  calldata settlementRule,
         uint256          maxChallengers,
         bool             isPrivate,
-        string  calldata inviteKey,
+        string  calldata /* legacyInviteKey */,
         address          referrer
     ) external whenNotPaused nonReentrant returns (uint256 id) {
         return _createClaim(CreateArgs({
@@ -699,7 +706,6 @@ contract MimirV3Erc20 {
             settlementRule:      settlementRule,
             maxChallengers:      maxChallengers,
             isPrivate:           isPrivate,
-            inviteKey:           inviteKey,
             referrer:            referrer
         }));
     }
@@ -709,9 +715,7 @@ contract MimirV3Erc20 {
         require(a.deadline > block.timestamp, "Mimir: deadline in past");
         require(a.deadline <= block.timestamp + MAX_DEADLINE_AHEAD, "Mimir: deadline too far");
         require(bytes(a.question).length > 0, "Mimir: empty question");
-        // A private claim with no key would silently be public (a rematch of a
-        // private parent included).
-        require(!a.isPrivate || bytes(a.inviteKey).length > 0, "Mimir: private claim needs invite key");
+        // Private claims start closed; only explicit wallet grants enable entry.
 
         // Normalise odds params
         bool isFixed = _strEq(a.oddsMode, "fixed");
@@ -754,9 +758,7 @@ contract MimirV3Erc20 {
             settlementRule:           a.settlementRule,
             maxChallengers:           maxCh,
             isPrivate:                a.isPrivate,
-            inviteKeyHash:            bytes(a.inviteKey).length > 0
-                                          ? keccak256(bytes(a.inviteKey))
-                                          : bytes32(0),
+            inviteKeyHash:            bytes32(0),
             evidenceHash:             bytes32(0)
         });
 
@@ -774,10 +776,10 @@ contract MimirV3Erc20 {
         uint256 parentId,
         uint256 deadline,
         uint256 stakeAmount,
-        string  calldata inviteKey
+        string  calldata /* legacyInviteKey */
     ) external whenNotPaused nonReentrant returns (uint256 id) {
         Claim storage parent = claims[parentId];
-        require(parent.creator != address(0), "Mimir: parent not found");
+        if (parent.creator == address(0)) revert ClaimNotFound();
 
         return _createClaim(CreateArgs({
             question:            parent.question,
@@ -795,7 +797,6 @@ contract MimirV3Erc20 {
             settlementRule:      parent.settlementRule,
             maxChallengers:      parent.maxChallengers,
             isPrivate:           parent.isPrivate,
-            inviteKey:           inviteKey,
             // The parent's referrer earned it on the parent's creator; a
             // stranger rematching the claim does not inherit it.
             referrer:            msg.sender == parent.creator ? claimReferrer[parentId] : address(0)
@@ -803,18 +804,34 @@ contract MimirV3Erc20 {
     }
 
     // ── Write: challenge ──────────────────────────────────────────────────────
+    /// Grant/revoke wallets, up to MAX_CHALLENGERS per batch. Revocation only
+    /// blocks future entry; it never changes a position already funded. Rematches
+    /// have their own empty list, even when the creator is the same.
+    function setInvited(uint256 claimId, address[] calldata accounts, bool allowed) external {
+        Claim storage claim = claims[claimId];
+        if (msg.sender != claim.creator || !claim.isPrivate || claim.state > ST_ACTIVE || accounts.length > MAX_CHALLENGERS) {
+            revert BadInvite();
+        }
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            if (account == address(0) || account == claim.creator) revert BadInvite();
+            invited[claimId][account] = allowed;
+            emit InviteUpdated(claimId, account, allowed);
+        }
+    }
+
     function challengeClaim(
         uint256 claimId,
         uint256 stakeAmount,
-        string  calldata inviteKey,
+        string  calldata /* legacyInviteKey */,
         address referrer
     ) external whenNotPaused nonReentrant {
-        _challenge(claimId, stakeAmount, inviteKey, referrer);
+        _challenge(claimId, stakeAmount, referrer);
     }
 
-    function _challenge(uint256 claimId, uint256 stakeAmount, string calldata inviteKey, address referrer) private {
+    function _challenge(uint256 claimId, uint256 stakeAmount, address referrer) private {
         Claim storage claim = claims[claimId];
-        require(claim.creator != address(0), "Mimir: claim not found");
+        if (claim.creator == address(0)) revert ClaimNotFound();
         require(claim.state == ST_OPEN || claim.state == ST_ACTIVE, "Mimir: not open");
         require(msg.sender != claim.creator, "Mimir: self-challenge");
         require(!hasChallenged[claimId][msg.sender], "Mimir: already challenged");
@@ -828,13 +845,9 @@ contract MimirV3Erc20 {
         );
         uint256 lock = lockAt[claimId];
         if (lock != 0 && block.timestamp >= lock) revert Locked();
-        // Private claim: verify invite key (before the fee contract is called).
-        if (claim.isPrivate && claim.inviteKeyHash != bytes32(0)) {
-            require(
-                keccak256(bytes(inviteKey)) == claim.inviteKeyHash,
-                "Mimir: invalid invite key"
-            );
-        }
+        // Public calldata cannot confer authority: authorize the caller's wallet
+        // before calling the fee contract or pulling any USDC.
+        if (claim.isPrivate && !invited[claimId][msg.sender]) revert NotInvited();
         uint256 net = _takeEntry(claimId, stakeAmount);
         _checkCaps(net, claim.creatorStake + claim.totalChallengerStake + net);
 
@@ -889,7 +902,7 @@ contract MimirV3Erc20 {
         bytes32 evidenceHash  // keccak256 of evidence text — verifiable on-chain
     ) external onlyOracle whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
-        require(claim.creator != address(0), "Mimir: claim not found");
+        if (claim.creator == address(0)) revert ClaimNotFound();
         require(claim.state == ST_ACTIVE, "Mimir: not active");
         require(block.timestamp >= claim.deadline, "Mimir: not yet expired");
         if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
@@ -1007,12 +1020,14 @@ contract MimirV3Erc20 {
      *    Except when the owner vetoed the proposal, or the contract is paused (an
      *    emergency: the proposal may come from a stolen key): then every stake is
      *    refunded and a bond goes back to its disputer.
+     *  - A paused, undisputed PROPOSED claim refunds after the grace counted
+     *    from its proposal, so pause cannot strand it after the dispute window.
      */
     function refundExpired(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
-        require(claim.creator != address(0), "Mimir: claim not found");
+        if (claim.creator == address(0)) revert ClaimNotFound();
         bool disputed = claim.state == ST_DISPUTED;
-        require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
+        require(disputed || claim.state == ST_ACTIVE || (paused && claim.state == ST_PROPOSED), "Mimir: not active");
         require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
         Proposal storage p = proposals[claimId];
         if (disputed && !paused && p.disputer != address(0)) {
@@ -1030,11 +1045,12 @@ contract MimirV3Erc20 {
     }
 
     /// When refundExpired opens for a claim: grace counted from the deadline,
-    /// or from the dispute if there was one. From then on verdicts are refused,
+    /// or from the proposal/dispute if later. From then on new verdicts are refused,
     /// so the outcome depends on the clock, not on transaction order.
     function _refundAt(uint256 claimId) internal view returns (uint256 start) {
         start = claims[claimId].deadline;
-        // disputedAt is only ever set on a disputed claim.
+        uint256 proposedAt = proposals[claimId].proposedAt;
+        if (proposedAt > start) start = proposedAt;
         uint256 disputedAt = proposals[claimId].disputedAt;
         if (disputedAt > start) start = disputedAt;
         start += RESOLUTION_GRACE_SECONDS;
@@ -1134,7 +1150,7 @@ contract MimirV3Erc20 {
     // ── Write: cancel ─────────────────────────────────────────────────────────
     function cancelClaim(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
-        require(claim.creator != address(0), "Mimir: claim not found");
+        if (claim.creator == address(0)) revert ClaimNotFound();
         require(msg.sender == claim.creator, "Mimir: not creator");
         require(claim.state == ST_OPEN, "Mimir: not open");
 

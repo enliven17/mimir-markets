@@ -245,6 +245,12 @@ missing role, a role equal to the deployer, colliding roles, and an owner or arb
 - **Early lock:** `setLockAt(id, at)`, by the creator or owner, closes a market to new stakes before the usual lock
   (kickoff). It can only move earlier and must sit at least the lock period before the deadline (`LockSet` event).
 
+Base source update (2026-11-02): private VS claims use creator-managed wallet grants through `setInvited`;
+legacy invite-key strings confer no access. A private rematch starts with no grants. Both Base market contracts
+also allow paused, undisputed proposals to refund after a full seven-day grace from the proposal. These changes
+require fresh deployments and do not update the existing Arc or Base contracts. See the
+[security update](releases/base-contract-security-2026-11-02.md) for exact behavior and verification scope.
+
 ### First review (2026-10-06)
 
 | # | Severity | Issue | Fix |
