@@ -172,6 +172,8 @@ contract MimirPoolErc20 {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
     address public oracle;
@@ -224,6 +226,7 @@ contract MimirPoolErc20 {
     event FeeRecipientChanged(address indexed previous, address indexed next);
     event Paused(bool paused);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
 
@@ -342,6 +345,7 @@ contract MimirPoolErc20 {
     function acceptOwnership() external {
         if (msg.sender != pendingOwner) revert NotPendingOwner();
         if (block.timestamp < pendingOwnerEta) revert Timelocked();
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -362,9 +366,21 @@ contract MimirPoolErc20 {
         oracle = address(0);
     }
 
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        if (next != address(0) && next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -398,6 +414,7 @@ contract MimirPoolErc20 {
     function executeOracle() external {
         if (pendingOracleEta == 0) revert NothingQueued();
         if (block.timestamp < pendingOracleEta) revert Timelocked();
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -421,6 +438,7 @@ contract MimirPoolErc20 {
     function executeFeeRecipient() external {
         if (pendingFeeEta == 0) revert NothingQueued();
         if (block.timestamp < pendingFeeEta) revert Timelocked();
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -618,7 +636,7 @@ contract MimirPoolErc20 {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
-        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0) revert NotParticipant();
+        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0 && msg.sender != auditAgent && msg.sender != arbiter) revert NotParticipant();
         _pull(DISPUTE_BOND);
         m.state = ST_DISPUTED;
         m.disputer = msg.sender;

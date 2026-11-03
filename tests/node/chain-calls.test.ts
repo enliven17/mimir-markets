@@ -17,6 +17,18 @@ const ME = A(99);
 const stakePool: MarketAction = { type: "stake", kind: "pool", marketId: 5, stake: 2n * USDC, side: 1 };
 const stakeVs: MarketAction = { type: "stake", kind: "vs", marketId: 9, stake: 3n * USDC, side: 2 };
 
+test("native private VS creates closed without a secret and grants carry no value", () => {
+  const c = actionCall(arc, { type: "create", market: { kind: "vs", question: "Q?", labelA: "Yes", labelB: "No", resolutionUrl: "u", category: "custom", deadline: 2_000_000_000, stake: USDC, isPrivate: true } });
+  assert.equal(c.value, USDC);
+  const args = decodeFunctionData({ abi: ARC_V3_ABI, data: c.data }).args!;
+  assert.equal(args[14], true);
+  assert.equal(args[15], "");
+  const grant = setClaimInviteesCall(arc, 9, [ME], true);
+  assert.equal(grant.value, undefined);
+  assert.equal(grant.to, arc.contracts.mimirV3);
+  assert.deepEqual(decodeFunctionData({ abi: ERC20_V3_ABI, data: grant.data }).args, [9n, [ME], true]);
+});
+
 test("Arc: one payable call, the stake as msg.value in 18 dp", () => {
   const c = actionCall(arc, stakePool);
   assert.equal(c.to, A(2));
@@ -75,9 +87,7 @@ test("Base private VS starts closed and wallet grants need no shared key or USDC
     assert.equal(grant.value, undefined);
     assert.deepEqual(decodeFunctionData({ abi: ERC20_V3_ABI, data: grant.data }).args, [9n, [ME, A(7)], allowed]);
   }
-  assert.throws(() => actionCall(arc, create), /Base VS/);
-  assert.throws(() => actionCall(base, { type: "create", market: { ...create.market, kind: "pool" } }), /Base VS/);
-  assert.throws(() => setClaimInviteesCall(arc, 9, [ME], true), /Base VS/);
+  assert.throws(() => actionCall(base, { type: "create", market: { ...create.market, kind: "pool" } }), /VS claim/);
   assert.throws(() => setClaimInviteesCall(base, 0, [ME], true), /claim id/);
   assert.throws(() => setClaimInviteesCall(base, 1, [], true), /1 to 100/);
   assert.throws(() => setClaimInviteesCall(base, 1, Array(101).fill(ME), true), /1 to 100/);

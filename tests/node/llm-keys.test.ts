@@ -3,6 +3,37 @@ import test from "node:test";
 
 import { activeLLMProvider, geminiKeyFor } from "../../lib/llm";
 
+test("audit role uses only dedicated model credentials and never another worker's quota", async () => {
+  const { geminiKeysFor, anthropicKeyFor, providerChain } = await import("../../lib/llm");
+  withEnv({ AUDIT_GEMINI_API_KEY: "audit", AUDIT_ANTHROPIC_API_KEY: "audit-claude", ORACLE_GEMINI_API_KEY: "oracle", ORACLE_ANTHROPIC_API_KEY: "oracle-claude", GEMINI_API_KEY: "web", GEMINI_API_KEYS: "web2", COUNCIL_GEMINI_API_KEY: "council", ANTHROPIC_API_KEY: "web-claude", LLM_PROVIDER: undefined }, () => {
+    for (const mainnet of [true, false]) {
+      const scope = { role: "audit", mainnet, keyEnv: "ORACLE_GEMINI_API_KEY" } as any;
+      assert.deepEqual(geminiKeysFor(scope), ["audit"]);
+      assert.equal(anthropicKeyFor(scope), "audit-claude");
+      assert.ok(providerChain({ ...scope, settlement: true }).every(p => p === "gemini" || p === "anthropic"));
+    }
+  });
+  withEnv({ AUDIT_GEMINI_API_KEY: undefined, AUDIT_ANTHROPIC_API_KEY: undefined, GEMINI_API_KEY: "web", ANTHROPIC_API_KEY: "web-claude", ORACLE_GEMINI_API_KEY: "oracle", ORACLE_ANTHROPIC_API_KEY: "oracle-claude" }, () => {
+    assert.deepEqual(geminiKeysFor({ role: "audit" } as any), []);
+    assert.equal(anthropicKeyFor({ role: "audit" } as any), "");
+    assert.deepEqual(providerChain({ role: "audit", settlement: true } as any), []);
+  });
+});
+
+test("audit and proposer/shared model credentials cannot alias", async () => {
+  const { geminiKeysFor, anthropicKeyFor } = await import("../../lib/llm");
+  withEnv({ AUDIT_GEMINI_API_KEY: "same", AUDIT_ANTHROPIC_API_KEY: "same-a", ORACLE_GEMINI_API_KEY: "same", ORACLE_ANTHROPIC_API_KEY: "same-a", GEMINI_API_KEY: "web", GEMINI_API_KEYS: undefined, ANTHROPIC_API_KEY: "web-a" }, () => {
+    assert.deepEqual(geminiKeysFor({ role: "audit" } as any), []);
+    assert.equal(anthropicKeyFor({ role: "audit" } as any), "");
+  });
+  withEnv({ AUDIT_GEMINI_API_KEY: "same", AUDIT_ANTHROPIC_API_KEY: "same-a", ORACLE_GEMINI_API_KEY: "oracle", ORACLE_ANTHROPIC_API_KEY: "oracle-a", GEMINI_API_KEY: "same", GEMINI_API_KEYS: undefined, ANTHROPIC_API_KEY: "same-a" }, () => {
+    assert.deepEqual(geminiKeysFor({ role: "web", mainnet: true }), []);
+    assert.equal(anthropicKeyFor({ role: "web", mainnet: true }), "");
+    assert.deepEqual(geminiKeysFor({ role: "audit" } as any), []);
+    assert.equal(anthropicKeyFor({ role: "audit" } as any), "");
+  });
+});
+
 function withEnv(vars: Record<string, string | undefined>, fn: () => void): void {
   const prev: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(vars)) {

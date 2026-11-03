@@ -12,7 +12,7 @@ export function lateStakes(knownAt: number | null, stakes: readonly StakeTime[])
   return stakes.filter((s) => s.at >= knownAt);
 }
 
-export function lateStakeSummary(knownAt: number, late: readonly StakeTime[]): string {
+export function lateStakeSummary(knownAt: number, late: readonly StakeTime[], witnessesOnly = false): string {
   const when = new Date(knownAt * 1000).toISOString().slice(0, 16).replace("T", " ");
-  return `Refunded: ${late.length} stake${late.length === 1 ? "" : "s"} came in after the outcome was known (${when} UTC). A market has to close before its result is public, so nobody is paid from it.`;
+  return `Refunded: ${witnessesOnly ? "at least " : ""}${late.length} stake${late.length === 1 ? "" : "s"} came in after the outcome was known (${when} UTC). A market has to close before its result is public, so nobody is paid from it.`;
 }

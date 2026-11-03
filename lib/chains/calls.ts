@@ -24,6 +24,11 @@ export const DISPUTE_BOND_WEI = 2_000_000_000_000_000_000n;
 export const ARC_V3_ABI = parseAbi([
   "function createClaim(string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 deadline, uint256 stakeAmount, string category, uint256 parentId, string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, string inviteKey, address referrer) payable returns (uint256)",
   "function challengeClaim(uint256 claimId, uint256 stakeAmount, string inviteKey, address referrer) payable",
+  "function setInvited(uint256 claimId, address[] accounts, bool allowed)",
+  "function invited(uint256 claimId, address account) view returns (bool)",
+  "error NotInvited()",
+  "error BadInvite()",
+  "error NotParticipant()",
   "function cancelClaim(uint256 claimId)",
   "function disputeResolution(uint256 claimId) payable",
   "function withdraw()",
@@ -78,7 +83,7 @@ export interface NewMarketInput {
   /** Pool only: the side the opening stake backs (1 = A, 2 = B). */
   side?: 1 | 2;
   referrer?: Address;
-  /** Base VS only: starts closed until the creator grants wallets with setInvited. */
+  /** VS only: starts closed until the creator grants wallets with setInvited. */
   isPrivate?: boolean;
 }
 
@@ -88,6 +93,7 @@ export type MarketAction =
   | { type: "stake"; kind: MarketKind; marketId: number; stake: bigint; side: 1 | 2; referrer?: Address }
   | { type: "dispute"; kind: MarketKind; marketId: number }
   | { type: "cancel"; marketId: number }
+  | { type: "invite"; marketId: number; accounts: readonly Address[]; allowed: boolean }
   | { type: "claim"; marketId: number }
   | { type: "withdraw"; kind: MarketKind };
 
@@ -100,7 +106,7 @@ export interface PermitSig {
 }
 
 export const kindOfAction = (a: MarketAction): MarketKind =>
-  a.type === "create" ? a.market.kind : a.type === "cancel" ? "vs" : a.type === "claim" ? "pool" : a.kind;
+  a.type === "create" ? a.market.kind : a.type === "cancel" || a.type === "invite" ? "vs" : a.type === "claim" ? "pool" : a.kind;
 
 /** The contract an action goes to; throws when the chain lacks it. */
 export function actionContract(chain: MarketChain, a: MarketAction): Address {
@@ -137,13 +143,12 @@ export function actionCall(chain: MarketChain, a: MarketAction, permit?: PermitS
       const m = a.market;
       const referrer = m.referrer ?? zeroAddress;
       if (m.kind === "vs") {
-        if (m.isPrivate && !erc20) throw new Error("Wallet invitations require the Base VS contract");
         const args = [m.question, m.labelA, m.labelB, m.resolutionUrl, BigInt(m.deadline), amount, m.category, 0n, "binary", "pool", 0n, "", "", 0n, m.isPrivate ?? false, "", referrer] as const;
         data = erc20
           ? encodeFunctionData({ abi: ERC20_V3_ABI, functionName: "createClaim", args })
           : encodeFunctionData({ abi: ARC_V3_ABI, functionName: "createClaim", args });
       } else {
-        if (m.isPrivate) throw new Error("Private markets require a Base VS claim");
+        if (m.isPrivate) throw new Error("Private markets require a VS claim");
         const head = [m.question, m.labelA, m.labelB, m.resolutionUrl, m.category, BigInt(m.deadline), m.side ?? 1, referrer] as const;
         data = !erc20
           ? encodeFunctionData({ abi: ARC_POOL_ABI, functionName: "createMarket", args: head })
@@ -180,6 +185,8 @@ export function actionCall(chain: MarketChain, a: MarketAction, permit?: PermitS
     case "cancel":
       data = encodeFunctionData({ abi: ARC_V3_ABI, functionName: "cancelClaim", args: [id(a.marketId)] });
       break;
+    case "invite":
+      return setClaimInviteesCall(chain, a.marketId, a.accounts, a.allowed);
     case "claim":
       data = encodeFunctionData({ abi: ARC_POOL_ABI, functionName: "claim", args: [id(a.marketId)] });
       break;
@@ -190,15 +197,14 @@ export function actionCall(chain: MarketChain, a: MarketAction, permit?: PermitS
   return value ? { to, data, value } : { to, data };
 }
 
-/** Creator-only wallet grants/revocations on the patched Base VS deployment; no USDC approval or invite secret. */
+/** Creator-only wallet grants on patched VS contracts; no value, USDC approval or invite secret. */
 export function setClaimInviteesCall(chain: MarketChain, marketId: number, accounts: readonly Address[], allowed: boolean): ArcCall {
-  if (chain.usdc.kind !== "erc20") throw new Error("Wallet invitations require the Base VS contract");
   if (!Number.isSafeInteger(marketId) || marketId <= 0) throw new Error("Invalid VS claim id");
   if (accounts.length === 0 || accounts.length > 100) throw new Error("Invite 1 to 100 wallets per transaction");
   if (accounts.some((account) => !/^0x[0-9a-fA-F]{40}$/.test(account) || account.toLowerCase() === zeroAddress)) throw new Error("Invalid invited wallet");
   const to = chain.contracts.mimirV3;
   if (!to) throw new Error(`Mimir's VS contract is not configured on ${chain.label}`);
-  return { to, data: encodeFunctionData({ abi: ERC20_V3_ABI, functionName: "setInvited", args: [BigInt(marketId), accounts, allowed] }) };
+  return { to, data: encodeFunctionData({ abi: chain.usdc.kind === "erc20" ? ERC20_V3_ABI : ARC_V3_ABI, functionName: "setInvited", args: [BigInt(marketId), accounts, allowed] }) };
 }
 
 /** An ERC-20 approve of exactly `wei` (index units) of the chain's USDC to `spender`. */

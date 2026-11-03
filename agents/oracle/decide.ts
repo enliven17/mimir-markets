@@ -8,8 +8,8 @@
  *   4. a structured resolver spec (in the resolution URL fragment) settles it
  *      from data alone when the data is determinate, and no model is asked.
  *      Honoured only when trustworthy (lib/resolver-spec.ts
- *      effectiveResolverSpec): json specs on allowlisted API hosts, price
- *      specs that match the question, never DEX-priced tokens;
+ *      effectiveResolverSpec): price specs that match the question, never
+ *      DEX-priced tokens. Generic JSON rules cannot authorize settlement;
  *   5. no evidence at all: wait up to 6h, then refund (UNRESOLVABLE);
  *   6. the council jury (COUNCIL_SETTLEMENT=1) or the oracle's own LLM verdict;
  *   7. the price cross-check: disagreeing sources, or a model contradicting
@@ -31,7 +31,6 @@ import {
 import { gatewayFetch } from "../../lib/research/gateway";
 import {
   effectiveResolverSpec,
-  evaluateJsonSpec,
   evaluatePriceSpec,
   resolverSpecFor,
   stripResolverFragment,
@@ -313,29 +312,12 @@ const resolverDecision = (claim: OnchainClaim, side: "CREATOR_WINS" | "CHALLENGE
   );
 
 /** Settle from the (honoured) resolver spec when the data is determinate on Yes/No positions; null otherwise. */
-async function tryStructuredResolver(claim: OnchainClaim, spec: ResolverSpec | null, prices: DeadlinePrices | null): Promise<SettlementDecision | null> {
+async function tryStructuredResolver(claim: OnchainClaim, spec: ReturnType<typeof effectiveResolverSpec>, prices: DeadlinePrices | null): Promise<SettlementDecision | null> {
   if (!spec) return null;
-  let outcome: ResolverOutcome;
-  if (spec.kind === "price") {
-    const readings = prices && prices.symbol === spec.symbol
-      ? prices.readings
-      : await fetchPriceReadings(spec.symbol, claim.deadline * 1000).catch(() => []);
-    outcome = evaluatePriceSpec(spec, readings, claim.deadline * 1000);
-  } else {
-    try {
-      // Read at settlement time: right for final results, wrong for live values.
-      // No redirects: the allowlisted host must answer itself.
-      const res = await gatewayFetch(spec.url, {
-        headers: { accept: "application/json", "user-agent": BROWSER_USER_AGENT },
-        maxRedirects: 0,
-      });
-      outcome = res.status === 200
-        ? evaluateJsonSpec(spec, JSON.parse(res.body), { claimCreatedAtMs: claim.createdAt * 1000 })
-        : { determined: false, detail: `resolver source answered ${res.status}` };
-    } catch (err) {
-      outcome = { determined: false, detail: `resolver source unreadable: ${err instanceof Error ? err.message : String(err)}` };
-    }
-  }
+  const readings = prices && prices.symbol === spec.symbol
+    ? prices.readings
+    : await fetchPriceReadings(spec.symbol, claim.deadline * 1000).catch(() => []);
+  const outcome: ResolverOutcome = evaluatePriceSpec(spec, readings, claim.deadline * 1000);
   const side = outcome.determined ? winnerFor(outcome.conditionMet, claim.creatorPosition, claim.counterPosition) : null;
   console.log(`[settle] Structured resolver (${spec.kind}): ${outcome.detail}${side ? ` → ${side}` : " → not determined, falling back"}`);
   if (!outcome.determined || !side) return null;
@@ -477,7 +459,7 @@ export async function decide(ctx: DecideContext, claim: OnchainClaim): Promise<S
   if (rawSpec && !spec) {
     console.warn(
       `[settle] Claim #${claim.id}: ignoring its ${rawSpec.kind} resolver spec ` +
-        (rawSpec.kind === "json" ? "(host not on the JSON resolver allowlist)" : "(does not match the question's symbol/threshold/direction)"),
+        (rawSpec.kind === "json" ? "(generic JSON settlement is disabled; evaluating the original question)" : "(does not match the question's symbol/threshold/direction)"),
     );
   }
   const prices = await deadlinePrices(claim, spec);

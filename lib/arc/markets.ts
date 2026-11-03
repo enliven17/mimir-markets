@@ -27,6 +27,10 @@ export const MAX_POOL_MULTIPLE = 5n;
 export const MIMIR_V3_ABI = parseAbi([
   "function createClaim(string question, string creatorPosition, string counterPosition, string resolutionUrl, uint256 deadline, uint256 stakeAmount, string category, uint256 parentId, string marketType, string oddsMode, uint256 challengerPayoutBps, string handicapLine, string settlementRule, uint256 maxChallengers, bool isPrivate, string inviteKey, address referrer) payable returns (uint256)",
   "function challengeClaim(uint256 claimId, uint256 stakeAmount, string inviteKey, address referrer) payable",
+  "function setInvited(uint256 claimId, address[] accounts, bool allowed)",
+  "function invited(uint256 claimId, address account) view returns (bool)",
+  "error NotInvited()",
+  "error BadInvite()",
   "function cancelClaim(uint256 claimId)",
   "function disputeResolution(uint256 claimId) payable",
   "event ClaimCreated(uint256 indexed id, address indexed creator, string category)",

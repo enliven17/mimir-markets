@@ -40,3 +40,18 @@ test("the preview only promises specs the oracle honours", () => {
     "spec contradicts the question",
   );
 });
+
+test("trusted JSON metadata shows original-question evidence evaluation before staking", () => {
+  const url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401234567";
+  for (const metadata of [
+    { resolutionUrl: `${url}#mimir=json:eq:true:header.competitions[0].status.type.completed` },
+    { resolutionUrl: url, settlementRule: `resolver: ${JSON.stringify({ kind: "json", url, path: "header.competitions[0].status.type.completed", op: "==", value: true })}` },
+  ]) {
+    const preview = settlementPreview({ ...base, ...metadata, question: "Will the final combined score exceed 250?", category: "sports", disputeWindow: 3600 });
+    assert.equal(preview.method, "evidence-llm");
+    assert.equal(preview.waitsForFinal, "sports");
+    assert.ok(preview.steps.some(step => step.includes("AI oracle judges the evidence against the claim")));
+    assert.ok(preview.steps.some(step => step.includes("any participant can dispute")));
+    assert.doesNotMatch(preview.steps.join("\n"), /No AI model|YES if it is/);
+  }
+});

@@ -185,7 +185,7 @@ contract SecurityFixesTest is Base {
         );
     }
 
-    function test_theInviteKeyIsCheckedBeforeTheFeeContract() public {
+    function test_theWalletGrantIsCheckedBeforeTheFeeContract() public {
         SwitchFees sw = new SwitchFees();
         MimirV3 m = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(sw)), WINDOW, 1e16);
         vm.prank(creator);
@@ -195,7 +195,7 @@ contract SecurityFixesTest is Base {
         );
         sw.arm();
         vm.prank(alice);
-        vm.expectRevert(bytes("Mimir: invalid invite key"));
+        vm.expectRevert(MimirV3.NotInvited.selector);
         m.challengeClaim{value: ONE}(id, ONE, "wrong", address(0));
     }
 

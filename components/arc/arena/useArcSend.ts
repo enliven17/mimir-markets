@@ -22,6 +22,8 @@ export function describeSendError(err: unknown, chain: Pick<MarketChain, "label"
   const msg = e?.shortMessage ?? e?.message ?? "Something went wrong.";
   // The contracts' own words, when the revert reason made it through.
   if (/PoolFull/.test(msg)) return "This market is full: challengers can stake at most 5× the creator's stake.";
+  if (/NotInvited/.test(msg)) return "The creator has not approved this wallet to join this private claim.";
+  if (/BadInvite/.test(msg)) return "Only the creator can change approvals for valid participant wallets on an open private claim.";
   if (/BettingClosed|challenge window closed/.test(msg)) return "Staking has closed on this market.";
   if (/already challenged/.test(msg)) return "You already challenged this market.";
   if (/transfer amount exceeds (balance|allowance)|ERC20: insufficient/i.test(msg)) return `Not enough USDC on ${chain.label} for this.`;

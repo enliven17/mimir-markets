@@ -20,6 +20,8 @@ import AccountGate from "./AccountGate";
 import { BTN_PRIMARY, usd, usdFine, type ArcMarket } from "./shared";
 import type { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
+import { useClaimInvitation } from "./useClaimInvitation";
+import JsonRuleNotice from "./JsonRuleNotice";
 
 export default function ArcStakePanel({
   m,
@@ -42,6 +44,8 @@ export default function ArcStakePanel({
   const [shared, setShared] = useState<{ side: 1 | 2; amount: string } | null>(null);
 
   const contract = marketContract(cfg, m.kind);
+  const restricted = m.kind === "vs" && m.isPrivate;
+  const invitation = useClaimInvitation(cfg, m.marketId, account.address, restricted);
   // Launch caps, the early lock and the pause, read live from the contract (the index can lag a block or two).
   const [limits, setLimits] = useState<StakeLimits | null>(null);
   useEffect(() => {
@@ -75,6 +79,9 @@ export default function ArcStakePanel({
   let blocker: string | null = null;
   if (m.kind === "vs" && isCreator) blocker = "You created this market: challengers take the other side.";
   else if (m.kind === "vs" && mine.some((p) => p.side === 2)) blocker = "You already challenged this market.";
+  else if (restricted && invitation.error) blocker = "Could not verify this wallet's approval. Try again before staking.";
+  else if (restricted && invitation.allowed === null) blocker = "Checking this wallet's approval…";
+  else if (restricted && !invitation.allowed) blocker = "The creator has not approved this wallet to join this private claim.";
   else if (room === 0n) blocker = "This market is full: challengers can stake at most 5× the creator's stake.";
   else if (stake === null) blocker = "Enter an amount in USDC.";
   else if (stake < MIN_STAKE_WEI) blocker = `The minimum stake is ${usd(MIN_STAKE_WEI)}.`;
@@ -89,6 +96,7 @@ export default function ArcStakePanel({
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;
+    if (restricted && !(await invitation.checkNow())) return;
     if (await send({ type: "stake", kind: m.kind, marketId: m.marketId, stake, side: m.kind === "vs" ? 2 : side })) {
       void account.reload();
       setShared({ side, amount: usd(stake) });
@@ -99,6 +107,7 @@ export default function ArcStakePanel({
     <div className="grid gap-4">
       {inSheet ? null : <h2 className="m-0 font-display text-[1.4rem] leading-none text-cream">{m.kind === "vs" ? "Challenge" : "Take a side"}</h2>}
       <AccountGate account={account}>
+        <JsonRuleNotice resolutionUrl={m.resolutionUrl} />
         {m.kind === "pool" ? (
           <div role="radiogroup" aria-label="Side" className="grid grid-cols-2 gap-2">
             {([1, 2] as const).map((s) => (
@@ -169,7 +178,7 @@ export default function ArcStakePanel({
         <Modal open onClose={() => setShared(null)} title="You're in" variant="sheet">
           <div className="mt-4 grid gap-4">
             <p className="m-0 text-[14px] leading-relaxed text-muted">
-              {shared.amount} on <span className="text-cream">&ldquo;{shared.side === 1 ? m.labelA : m.labelB}&rdquo;</span>. Tell people, and let them take the other side.
+              {shared.amount} on <span className="text-cream">&ldquo;{shared.side === 1 ? m.labelA : m.labelB}&rdquo;</span>. {restricted ? "Only creator-approved wallets can join this private claim." : "Tell people, and let them take the other side."}
             </p>
             {/* The card X will show under the post. */}
             <img
@@ -181,7 +190,7 @@ export default function ArcStakePanel({
             />
             <div className="flex flex-wrap gap-3">
               <a
-                href={betIntentUrl(m.kind, m.marketId, shared.side, m.question, shared.side === 1 ? m.labelA : m.labelB, shared.amount, undefined, account.chain)}
+                href={betIntentUrl(m.kind, m.marketId, shared.side, m.question, shared.side === 1 ? m.labelA : m.labelB, shared.amount, undefined, account.chain, restricted)}
                 target="_blank"
                 rel="noreferrer"
                 className={`${BTN_PRIMARY} flex-1 text-center`}

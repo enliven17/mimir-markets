@@ -8,7 +8,7 @@
 import { priceCheckTarget } from "./price-consensus";
 import { effectiveResolverSpec, stripResolverFragment } from "./resolver-spec";
 
-export type SettlementMethod = "resolver-price" | "resolver-json" | "price-consensus" | "evidence-llm";
+export type SettlementMethod = "resolver-price" | "price-consensus" | "evidence-llm";
 
 export interface SettlementPreview {
   method: SettlementMethod;
@@ -44,7 +44,7 @@ function duration(seconds: number): string {
 }
 
 export function settlementPreview(c: PreviewInput): SettlementPreview {
-  // Only the specs the oracle honours (trusted JSON hosts, price specs matching the question).
+  // Only matching price specs may bypass evidence/agent evaluation here.
   const spec = effectiveResolverSpec({ question: c.question, resolutionUrl: c.resolutionUrl, settlementRule: c.settlementRule });
   const price = priceCheckTarget(c.question, c.settlementRule ?? "");
   const deadline = new Date(c.deadline * 1000).toISOString().replace(".000Z", "Z");
@@ -60,10 +60,6 @@ export function settlementPreview(c: PreviewInput): SettlementPreview {
     steps.push(`Reads ${spec.symbol}/USD at ${deadline} from CoinGecko and Chainlink (plus CoinMarketCap when configured).`);
     steps.push(`YES if every source shows ${spec.symbol} ${spec.op} $${spec.threshold.toLocaleString("en-US")}; sources that disagree mean a refund.`);
     steps.push("No AI model is involved unless the price sources cannot answer.");
-  } else if (spec?.kind === "json") {
-    method = "resolver-json";
-    steps.push(`Reads ${spec.path} from ${spec.url} after the deadline.`);
-    steps.push(`YES if it is ${spec.op} ${JSON.stringify(spec.value)}. No AI model is involved unless the source cannot be read.`);
   } else if (price) {
     method = "price-consensus";
     steps.push(`Reads the resolution source, plus ${price.symbol}/USD at ${deadline} from independent price feeds.`);

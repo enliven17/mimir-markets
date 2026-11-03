@@ -34,6 +34,7 @@ import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFi
 import { useArcAccount } from "./useArcAccount";
 import SettlementTimeline from "./SettlementTimeline";
 import FollowButton from "@/components/discovery/FollowButton";
+import PrivateClaimAccess from "./PrivateClaimAccess";
 
 /** Anyone writes this URL on-chain: link it only when it is http(s), never javascript: or data:. */
 function safeHref(url: string): string | null {
@@ -123,6 +124,7 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             <span className="rounded-full bg-panel-raised px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-coral">{KIND_LABEL[kind]}</span>
             <span className="font-mono text-dim">#{m.marketId}</span>
             <span>· {m.category}</span>
+            {m.isPrivate ? <span className="text-pending">Private · approved wallets only</span> : null}
             <span className="ml-auto flex items-center gap-2">
               <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${PHASE_DOT[phase]}`} />
               {PHASE_LABEL[phase]}
@@ -131,10 +133,11 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>
           {legs.length > 1 ? <LegsCompare legs={legs} current={chain} picked={stakeChain} onPick={setStakeChain} labelA={m.labelA} labelB={m.labelB} now={now} /> : null}
-          {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} />}
+          {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} isPrivate={m.isPrivate} />}
         </header>
 
-        {fresh ? <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} fresh /> : null}
+        <PrivateClaimAccess m={m} account={account} />
+        {fresh ? <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} fresh isPrivate={m.isPrivate} /> : null}
 
         <section aria-label="Sides" className={`${SURFACE} grid gap-4 p-5`}>
           <div className="grid grid-cols-2 gap-3">

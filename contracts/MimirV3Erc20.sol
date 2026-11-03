@@ -217,6 +217,8 @@ contract MimirV3Erc20 {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
     uint256 public pendingOwnerEta;
@@ -287,6 +289,7 @@ contract MimirV3Erc20 {
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
 
@@ -411,9 +414,21 @@ contract MimirV3Erc20 {
     }
 
     /// The arbiter is the owner's choice (often the same multisig), never the oracle.
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        if (next != address(0) && next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -436,6 +451,7 @@ contract MimirV3Erc20 {
     function executeOracle() external {
         require(pendingOracleEta != 0, "Mimir: nothing queued");
         require(block.timestamp >= pendingOracleEta, "Mimir: timelocked");
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -461,6 +477,7 @@ contract MimirV3Erc20 {
     function acceptOwnership() external {
         require(msg.sender == pendingOwner, "Mimir: not pending owner");
         require(block.timestamp >= pendingOwnerEta, "Mimir: timelocked");
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -491,6 +508,7 @@ contract MimirV3Erc20 {
     function executeFeeRecipient() external {
         require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
         require(block.timestamp >= pendingFeeRecipientEta, "Mimir: timelocked");
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -948,7 +966,7 @@ contract MimirV3Erc20 {
         Proposal storage p = proposals[claimId];
         require(claim.state == ST_PROPOSED, "Mimir: nothing to dispute");
         require(block.timestamp < p.proposedAt + disputeWindow, "Mimir: dispute window closed");
-        require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender], "Mimir: not a participant");
+        require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender] || msg.sender == auditAgent || msg.sender == arbiter, "Mimir: not a participant");
         // The bond is not a position: no entry fee.
         _pull(DISPUTE_BOND);
         claim.state  = ST_DISPUTED;

@@ -7,8 +7,8 @@
 //   finalize proposals whose dispute window has closed
 //   refund   markets nobody settled within the 7-day grace (refundExpired)
 //   pay      pool winners (and everyone on a refund) with claimFor: the money only ever goes to the user
-// While a contract is paused (the owner's emergency stop) its proposals, finalizations and pool payouts revert, so they
-// are skipped; refundExpired still runs (paused, it refunds every stake).
+// While a contract is paused (the owner's emergency stop), skip proposals, finalizations and contested winner payouts.
+// Expired proposals can refund after their full grace, and pool refunds remain payable while paused.
 // A deferred or failed decision is retried with exponential backoff (lib/oracle-queue.ts). Disputes go to the owner (the arbiter), not here.
 // Linked markets (lib/chains/linked.ts): the same question on Base and Arc is decided ONCE per pairKey. The decision is
 // stored (arcPairDecisions) before any leg proposes it, every leg proposes that same decision (its own late-stake and
@@ -145,14 +145,14 @@ export const tick = internalAction({
 async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain["id"], MarketChain>): Promise<void> {
     const c = s.cfg.id;
     const now = Math.floor(Date.now() / 1000);
-    const work = await ctx.runQuery(internal.arc.oracleWork, { chain: c, now });
     const contract = (kind: "vs" | "pool") => (kind === "vs" ? s.mimirV3 : s.mimirPool);
     // Unreadable counts as paused: a revert would only burn the retry budget.
     const isPaused = (address: Hex, abi: typeof V3 | typeof POOL) =>
       s.pub.readContract({ address, abi, functionName: "paused" } as Parameters<Setup["pub"]["readContract"]>[0]).then(Boolean, () => true);
     const [vsPaused, poolPaused] = await Promise.all([isPaused(s.mimirV3, V3), isPaused(s.mimirPool, POOL)]);
+    const work = await ctx.runQuery(internal.arc.oracleWork, { chain: c, now, vsPaused, poolPaused });
     const paused = (kind: "vs" | "pool") => (kind === "vs" ? vsPaused : poolPaused);
-    if (vsPaused || poolPaused) console.log(`[oracle] ${c} paused: vs=${vsPaused} pool=${poolPaused}; proposing, finalizing and payouts skipped there`);
+    if (vsPaused || poolPaused) console.log(`[oracle] ${c} paused: vs=${vsPaused} pool=${poolPaused}; proposals, finalizations and contested winner payouts skipped there`);
     let changed = false;
 
     for (const m of work.decide.filter((d) => !paused(d.kind)).slice(0, MAX_DECISIONS_PER_TICK)) {
@@ -242,10 +242,10 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
           const late = lateStakes(knownAt, await ctx.runQuery(internal.arc.stakeTimes, { chain: c, kind: m.kind, marketId: m.marketId }));
           if (knownAt !== null && late.length) {
             side = SIDE.UNRESOLVABLE;
-            summary = lateStakeSummary(knownAt, late);
-            bundle = { ...(bundle as object), lateStakeRefund: { knownAt, lateStakes: late, overriddenVerdict: verdictName } };
+            summary = lateStakeSummary(knownAt, late, true);
+            bundle = { ...(bundle as object), lateStakeRefund: { knownAt, lateStakes: late, witnessesOnly: true, overriddenVerdict: verdictName } };
             hash = toHex(sealBundle(bundle as VerdictBundle).bytes);
-            console.log(`${tag}: ${late.length} late stake(s) after ${knownAt}, refund instead of ${verdictName}`);
+            console.log(`${tag}: at least ${late.length} late stake(s) after ${knownAt}, refund instead of ${verdictName}`);
           }
         }
         const tx =
@@ -296,7 +296,7 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
       }
     }
 
-    for (const p of poolPaused ? [] : work.pay) {
+    for (const p of work.pay) {
       for (const user of p.users) {
         try {
           const [payout] = await s.pub.readContract({ address: s.mimirPool, abi: POOL, functionName: "claimable", args: [BigInt(p.marketId), user as Hex] });

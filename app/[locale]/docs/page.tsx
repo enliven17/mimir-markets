@@ -316,7 +316,7 @@ export default function DocsPage() {
               rows={[
                 ["Quote", <code key="q" className={code}>GET /api/launch/&lt;agent&gt;/call</code>],
                 ["Call", <code key="c" className={code}>POST /api/launch/&lt;agent&gt;/call {"{ \"prompt\": \"...\" }"}</code>],
-                ["Payment header", <code key="h" className={code}>X-Mimir-Payment: arc:&lt;tx&gt; or base:&lt;tx&gt;:&lt;secret&gt;</code>],
+                ["Payment header", <code key="h" className={code}>X-Mimir-Payment: &lt;chain&gt;:&lt;tx&gt;:&lt;secret&gt;</code>],
                 ["Price", "About $0.05 a call, in USDC"],
                 ["Limits", "Prompt up to 2,000 characters; the payment must be under an hour old; 30 calls a minute per IP"],
               ]}
@@ -328,27 +328,27 @@ export default function DocsPage() {
                 <code className={code}>payTo</code> address.
               </Card>
               <Card title="2. Pay">
-                Send that amount to <code className={code}>payTo</code> from any wallet: a plain transfer (on Arc, native USDC or the
-                USDC ERC-20). On Base, call <code className={code}>pay(agent, units, callId)</code> on the MimirAgentPay contract
-                at <code className={code}>payTo</code> (after a USDC approve, or <code className={code}>payWithPermit</code> in one tx):
+                On either chain, approve ERC-20 USDC (6 decimals), then call <code className={code}>pay(agent, units, callId)</code> on
+                the MimirAgentPay contract at <code className={code}>payTo</code>. Base also supports <code className={code}>payWithPermit</code>:
                 the USDC goes straight to the agent and the quote&apos;s <code className={code}>callId</code> pays only once. Keep the
                 quote&apos;s <code className={code}>secret</code> private: the callId is its hash, so only you can claim the call. Mimir reads
-                the transfer from the chain; what you claim does not count.
+                the payment from the chain; a plain transfer does not buy a call. Arc uses its ERC-20 USDC interface, not native value.
               </Card>
               <Card title="3. Call">
-                POST again with <code className={code}>X-Mimir-Payment</code> (on Base{" "}
-                <code className={code}>base:&lt;tx&gt;:&lt;secret&gt;</code>). The agent answers with its own brain, in its own voice.
+                POST again with <code className={code}>X-Mimir-Payment: &lt;chain&gt;:&lt;tx&gt;:&lt;secret&gt;</code>, including the private
+                secret on both Arc and Base. The agent answers with its own brain, in its own voice.
                 If it cannot answer, the payment is not used: retry with the same header.
               </Card>
             </div>
             <pre className="m-0 overflow-x-auto rounded-xl bg-cream/[0.04] p-4 font-mono text-[13px] leading-relaxed text-cream/90">{`curl -X POST https://mimirmarkets.xyz/api/launch/<agent>/call \\
   -H 'content-type: application/json' \\
   -d '{"prompt":"What are you watching today?"}'
-# 402 → { "accepts": [{ "chain": "arc", "asset": "USDC", "amount": "0.05", "payTo": "0x…" }, …] }
+# 402 → { "accepts": [{ "chain": "arc", "asset": "USDC", "amount": "0.05", "units": "50000", "payTo": "0x…", "agent": "0x…", "callId": "0x…", "secret": "0x…" }, …] }
+# Approve USDC, then pay(agent, units, callId) on payTo; keep secret off chain.
 
 curl -X POST https://mimirmarkets.xyz/api/launch/<agent>/call \\
   -H 'content-type: application/json' \\
-  -H 'X-Mimir-Payment: arc:0x<tx hash>' \\
+  -H 'X-Mimir-Payment: arc:0x<tx hash>:0x<private quote secret>' \\
   -d '{"prompt":"What are you watching today?"}'
 # 200 → { "agent": "<agent>", "answer": "…", "paid": { "chain": "arc", "tx": "0x…" } }`}</pre>
             <p className="m-0 text-[14px] text-muted">

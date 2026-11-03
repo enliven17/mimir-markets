@@ -18,6 +18,7 @@ import { eventRow, lower, POOL_ABI, V3_ABI, ZERO_ADDRESS, type DecodedLog, type 
 import { jevEnabled } from "../lib/jev";
 import { triageMarket } from "../lib/jev-triage";
 import { vChain } from "./schema";
+import { settlementTiming as timing } from "../lib/chains/settlement-timing";
 
 const V3_STATUS = ["open", "active", "resolved", "cancelled", "proposed", "disputed"] as const;
 const POOL_STATUS = ["open", "proposed", "disputed", "resolved"] as const;
@@ -28,15 +29,6 @@ const CHUNK: Record<MarketChainId, bigint> = { arc: 250n, base: 200n };
 const MAX_CHUNKS = 40;
 /** Blocks the Base indexer stays behind its head (reorg margin). */
 const confirmations = (chain: MarketChainId) => (chain === "base" ? BigInt(Number(process.env.BASE_CONFIRMATIONS ?? 6) || 0) : 0n);
-/** Both contracts: refundExpired opens this long after the deadline (or the dispute). */
-const RESOLUTION_GRACE_SECONDS = 7 * 86_400;
-/** Proposal timing: when the dispute window closes (0 = no proposal) and when the refund escape hatch opens. */
-function timing(deadline: bigint, proposedAt: bigint, disputedAt: bigint, window: bigint) {
-  return {
-    disputableUntil: proposedAt > 0n ? Number(proposedAt + window) : 0,
-    refundAt: Number((disputedAt > deadline ? disputedAt : deadline) + BigInt(RESOLUTION_GRACE_SECONDS)),
-  };
-}
 /** The owner's veto is a dispute with no disputer (vetoProposal). */
 const vetoed = (status: string, disputer: string) => status === "disputed" && lower(disputer) === ZERO_ADDRESS;
 

@@ -42,7 +42,7 @@ try {
 need(BigInt(e.BASE_DISPUTE_WINDOW ?? "0") >= 86400n, "Dispute window must be at least 24 hours");
 need(e.BASE_RPC_URL && !/mainnet\.base\.org/.test(e.BASE_RPC_URL), "Configure a dedicated production RPC");
 const client = createPublicClient({ chain: base, transport: http(e.BASE_RPC_URL || base.rpcUrls.default.http[0], { timeout: 10_000, retryCount: 0 }) });
-const roles = ["BASE_OWNER", "BASE_ARBITER", "BASE_FEE_RECIPIENT", "ORACLE_ADDRESS", "BASE_FEE_SIGNER"] as const;
+const roles = ["BASE_OWNER", "BASE_ARBITER", "BASE_FEE_RECIPIENT", "ORACLE_ADDRESS", "BASE_FEE_SIGNER", "AUDIT_AGENT_ADDRESS"] as const;
 const addresses: Partial<Record<typeof roles[number], Address>> = {};
 for (const name of roles) {
   try { addresses[name] = getAddress(e[name] ?? ""); } catch { failures.push(`${name} is missing or invalid`); }
@@ -66,6 +66,13 @@ try {
     need((await client.getBalance({ address: deployer })) >= parseUnits("0.001", 18), "Deployer needs at least 0.001 Base ETH; estimate gas again before sending");
   } else failures.push("Configure the local deployer key file");
   const oracle = addresses.ORACLE_ADDRESS;
+  const auditor = addresses.AUDIT_AGENT_ADDRESS;
+  if (auditor) {
+    need(![addresses.BASE_OWNER, addresses.BASE_ARBITER, addresses.BASE_FEE_RECIPIENT, oracle, addresses.BASE_FEE_SIGNER].includes(auditor), "Audit agent must be separate from all privileged launch roles");
+    need((await client.getBalance({ address: auditor })) > 0n, "Fund audit agent with Base ETH");
+    const auditBalance = await client.readContract({ address: cfg.usdc.address, abi: parseAbi(["function balanceOf(address) view returns (uint256)"]), functionName: "balanceOf", args: [auditor] });
+    need(auditBalance >= 4_000_000n, "Fund audit agent for at least two 2-USDC bonds; size the operational budget separately");
+  }
   if (oracle) {
     need(![addresses.BASE_OWNER, addresses.BASE_ARBITER, addresses.BASE_FEE_RECIPIENT, addresses.BASE_FEE_SIGNER].includes(oracle), "Oracle must be separate from Safe/treasury/signer");
     need((await client.getBalance({ address: oracle })) > 0n, "Fund oracle with Base ETH");
@@ -84,6 +91,8 @@ try {
     need(await read("MIN_STAKE") === cfg.contracts.minStakeWei / 10n ** 12n, `Minimum stake mismatch at ${address}`);
     need(await read("maxMarketStake") === marketCap && await read("maxAccountStake") === accountCap, `Execute reviewed Safe caps at ${address}`);
     need(await read("paused") === false, `${address} is paused`);
+    const registeredAudit = await client.readContract({ address, abi: parseAbi(["function auditAgent() view returns (address)"]), functionName: "auditAgent" }).catch(() => null);
+    need(Boolean(auditor) && registeredAudit?.toLowerCase() === auditor?.toLowerCase() && registeredAudit !== zeroAddress, `Install the reviewed audit-agent role at ${address}`);
     // Legacy Base VS has the same create/challenge selectors but unsafe bearer
     // invites. Refuse it even when all launch roles and token settings match.
     if (address === cfg.contracts.mimirV3) {

@@ -24,10 +24,11 @@ export const betLink = (kind: BetKind, id: number, side: 1 | 2, origin = SITE_UR
 export const betCardUrl = (kind: BetKind, id: number, side: 1 | 2, origin = SITE_URL, chain: BetChain = "arc") =>
   `${origin}/api/og/bet?kind=${kind}&id=${id}&side=${side}${chain === "arc" ? "" : `&chain=${chain}`}&v=${BET_CARD_VERSION}`;
 
-export function betCaption(question: string, sideLabel: string, amountUsd: string): string {
+export function betCaption(question: string, sideLabel: string, amountUsd: string, isPrivate = false): string {
   const q = question.length > 140 ? `${question.slice(0, 137)}…` : question;
+  if (isPrivate) return `I put ${amountUsd} on "${sideLabel}".\n\n${q}\n\nOnly creator-approved wallets can join this private claim.`;
   return `I put ${amountUsd} on "${sideLabel}".\n\n${q}\n\nThink I'm wrong? Take the other side on Mimir. An AI oracle settles it in the open.`;
 }
 
-export const betIntentUrl = (kind: BetKind, id: number, side: 1 | 2, question: string, sideLabel: string, amountUsd: string, origin = SITE_URL, chain: BetChain = "arc") =>
-  `https://x.com/intent/post?text=${encodeURIComponent(betCaption(question, sideLabel, amountUsd))}&url=${encodeURIComponent(betLink(kind, id, side, origin, chain))}`;
+export const betIntentUrl = (kind: BetKind, id: number, side: 1 | 2, question: string, sideLabel: string, amountUsd: string, origin = SITE_URL, chain: BetChain = "arc", isPrivate = false) =>
+  `https://x.com/intent/post?text=${encodeURIComponent(betCaption(question, sideLabel, amountUsd, isPrivate))}&url=${encodeURIComponent(betLink(kind, id, side, origin, chain))}`;

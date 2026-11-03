@@ -17,3 +17,7 @@ test("no known moment means nothing is late", () => {
 test("the summary says how many and when", () => {
   assert.match(lateStakeSummary(0, [{ at: 5 }, { at: 6 }]), /^Refunded: 2 stakes came in after the outcome was known \(1970-01-01 00:00 UTC\)/);
 });
+
+test("latest-event witnesses do not claim to be a complete count", () => {
+  assert.match(lateStakeSummary(0, [{ at: 5 }], true), /^Refunded: at least 1 stake/);
+});

@@ -36,8 +36,8 @@ interface IMimirFees {
  *     leave: cancel, withdraw, and refundExpired, which while paused refunds
  *     every stake instead of honouring a proposal.
  *
- * Known limit: invite keys travel in calldata, so a private claim hides its
- * link from the UI, not from someone reading the chain.
+ * Private participation requires creator-managed wallet grants. Market data
+ * and transactions remain public; legacy invite strings confer no authority.
  */
 contract MimirV3 {
     // ── State constants ───────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ contract MimirV3 {
         string  settlementRule;
         uint256 maxChallengers;
         bool    isPrivate;
-        bytes32 inviteKeyHash;       // keccak256(inviteKey) for private claims
+        bytes32 inviteKeyHash;       // legacy getter field, always zero
         bytes32 evidenceHash;        // keccak256(evidence content) — verifiable reasoning trace
     }
 
@@ -146,6 +146,7 @@ contract MimirV3 {
     mapping(uint256 => address) public challengerReferrer;
     // Prevents double-entry per claim
     mapping(uint256 => mapping(address => bool)) public hasChallenged;
+    mapping(uint256 => mapping(address => bool)) public invited;
 
     mapping(address => uint256) public wins;
     mapping(address => uint256) public losses;
@@ -168,6 +169,8 @@ contract MimirV3 {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
     uint256 public pendingOwnerEta;
@@ -235,8 +238,10 @@ contract MimirV3 {
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
+    event InviteUpdated(uint256 indexed id, address indexed account, bool allowed);
 
     // Custom errors for reverts added after the 2026-10-06 review (EIP-170 budget).
     error Reentrant();
@@ -253,6 +258,9 @@ contract MimirV3 {
     error Locked();
     error NotProposed();
     error WindowClosed();
+    error NotInvited();
+    error BadInvite();
+    error NotParticipant();
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     // Modifiers call private checks so the code exists once, not per function (EIP-170).
@@ -350,9 +358,22 @@ contract MimirV3 {
     }
 
     /// The arbiter is the owner's choice (often the same multisig), never the oracle.
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        // Every caller has already established a nonzero role/caller address.
+        if (next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -375,6 +396,7 @@ contract MimirV3 {
     function executeOracle() external {
         require(pendingOracleEta != 0, "Mimir: nothing queued");
         require(block.timestamp >= pendingOracleEta, "Mimir: timelocked");
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -400,6 +422,7 @@ contract MimirV3 {
     function acceptOwnership() external {
         require(msg.sender == pendingOwner, "Mimir: not pending owner");
         require(block.timestamp >= pendingOwnerEta, "Mimir: timelocked");
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -430,6 +453,7 @@ contract MimirV3 {
     function executeFeeRecipient() external {
         require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
         require(block.timestamp >= pendingFeeRecipientEta, "Mimir: timelocked");
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -631,9 +655,7 @@ contract MimirV3 {
         require(a.deadline > block.timestamp, "Mimir: deadline in past");
         require(a.deadline <= block.timestamp + MAX_DEADLINE_AHEAD, "Mimir: deadline too far");
         require(bytes(a.question).length > 0, "Mimir: empty question");
-        // A private claim with no key would silently be public (a rematch of a
-        // private parent included).
-        require(!a.isPrivate || bytes(a.inviteKey).length > 0, "Mimir: private claim needs invite key");
+        // Private claims start closed. Legacy invite strings are ignored.
 
         // Normalise odds params
         bool isFixed = _strEq(a.oddsMode, "fixed");
@@ -676,9 +698,7 @@ contract MimirV3 {
             settlementRule:           a.settlementRule,
             maxChallengers:           maxCh,
             isPrivate:                a.isPrivate,
-            inviteKeyHash:            bytes(a.inviteKey).length > 0
-                                          ? keccak256(bytes(a.inviteKey))
-                                          : bytes32(0),
+            inviteKeyHash:            bytes32(0),
             evidenceHash:             bytes32(0)
         });
 
@@ -724,11 +744,26 @@ contract MimirV3 {
         }));
     }
 
+    /// Creator-only per-claim wallet grants, matching Base. Revocation never
+    /// changes funded positions; a rematch has a fresh id and starts closed.
+    function setInvited(uint256 claimId, address[] calldata accounts, bool allowed) external {
+        Claim storage claim = claims[claimId];
+        if (msg.sender != claim.creator || !claim.isPrivate || claim.state > ST_ACTIVE || accounts.length > MAX_CHALLENGERS) {
+            revert BadInvite();
+        }
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            if (account == address(0) || account == claim.creator) revert BadInvite();
+            invited[claimId][account] = allowed;
+            emit InviteUpdated(claimId, account, allowed);
+        }
+    }
+
     // ── Write: challenge ──────────────────────────────────────────────────────
     function challengeClaim(
         uint256 claimId,
         uint256 stakeAmount,
-        string  calldata inviteKey,
+        string  calldata /* legacyInviteKey */,
         address referrer
     ) external payable whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
@@ -746,13 +781,8 @@ contract MimirV3 {
         );
         uint256 lock = lockAt[claimId];
         if (lock != 0 && block.timestamp >= lock) revert Locked();
-        // Private claim: verify invite key (before the fee contract is called).
-        if (claim.isPrivate && claim.inviteKeyHash != bytes32(0)) {
-            require(
-                keccak256(bytes(inviteKey)) == claim.inviteKeyHash,
-                "Mimir: invalid invite key"
-            );
-        }
+        // Authorize the actual caller before fees or liquidity/slot accounting.
+        if (claim.isPrivate && !invited[claimId][msg.sender]) revert NotInvited();
         uint256 net = _takeEntry(claimId, stakeAmount);
         _checkCaps(net, claim.creatorStake + claim.totalChallengerStake + net);
 
@@ -849,7 +879,7 @@ contract MimirV3 {
         Proposal storage p = proposals[claimId];
         require(claim.state == ST_PROPOSED, "Mimir: nothing to dispute");
         require(block.timestamp < p.proposedAt + disputeWindow, "Mimir: dispute window closed");
-        require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender], "Mimir: not a participant");
+        if (msg.sender != claim.creator && !hasChallenged[claimId][msg.sender] && msg.sender != auditAgent && msg.sender != arbiter) revert NotParticipant();
         // The bond is not a position: no entry fee.
         require(msg.value == DISPUTE_BOND, "Mimir: wrong USDC value");
         claim.state  = ST_DISPUTED;
@@ -921,12 +951,13 @@ contract MimirV3 {
      *    Except when the owner vetoed the proposal, or the contract is paused (an
      *    emergency: the proposal may come from a stolen key): then every stake is
      *    refunded and a bond goes back to its disputer.
+     *  - A paused undisputed proposal refunds after its own full grace.
      */
     function refundExpired(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.creator != address(0), "Mimir: claim not found");
         bool disputed = claim.state == ST_DISPUTED;
-        require(disputed || claim.state == ST_ACTIVE, "Mimir: not active");
+        require(disputed || claim.state == ST_ACTIVE || (paused && claim.state == ST_PROPOSED), "Mimir: not active");
         require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
         Proposal storage p = proposals[claimId];
         if (disputed && !paused && p.disputer != address(0)) {
@@ -943,12 +974,13 @@ contract MimirV3 {
         }
     }
 
-    /// When refundExpired opens for a claim: grace counted from the deadline,
-    /// or from the dispute if there was one. From then on verdicts are refused,
+    /// When refundExpired opens: grace from the latest deadline, proposal or
+    /// dispute. From then on new verdicts are refused,
     /// so the outcome depends on the clock, not on transaction order.
     function _refundAt(uint256 claimId) internal view returns (uint256 start) {
         start = claims[claimId].deadline;
-        // disputedAt is only ever set on a disputed claim.
+        uint256 proposedAt = proposals[claimId].proposedAt;
+        if (proposedAt > start) start = proposedAt;
         uint256 disputedAt = proposals[claimId].disputedAt;
         if (disputedAt > start) start = disputedAt;
         start += RESOLUTION_GRACE_SECONDS;

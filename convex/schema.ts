@@ -60,7 +60,7 @@ export default defineSchema({
     isPrivate: v.boolean(),
     /** Unix seconds the proposed result can be disputed until; 0 = no proposal yet. */
     disputableUntil: v.number(),
-    /** Unix seconds refundExpired opens (7 days after the deadline, or after a dispute). */
+    /** Unix seconds refundExpired opens (7 days after the latest deadline, proposal or dispute). */
     refundAt: v.number(),
     /** Early close (setLockAt, LockSet): no new stakes from this unix second; 0 or absent = the usual lock. */
     lockAt: v.optional(v.number()),
@@ -110,6 +110,7 @@ export default defineSchema({
   })
     .index("by_log", ["txHash", "logIndex"])
     .index("by_market", ["chain", "kind", "marketId"])
+    .index("by_market_name_at", ["chain", "kind", "marketId", "name", "at"])
     .index("by_user", ["user"])
     .index("by_name", ["name"]),
 

@@ -244,17 +244,21 @@ contract MimirV3SafetyTest {
 
     // ── Claim rules ─────────────────────────────────────────────────────────
 
-    function test_aPrivateClaimNeedsAnInviteKey() public {
+    function test_aPrivateClaimNeedsAWalletGrantEvenWithALegacyKey() public {
         vm.prank(creator);
         (bool noKey,) = address(mimir).call{value: STAKE}(_createCall(STAKE, "pool", 0, true, ""));
-        assert(!noKey);
+        assert(noKey); // private creation starts closed, including with an empty legacy key
 
         vm.prank(creator);
         (bool withKey, bytes memory ret) = address(mimir).call{value: STAKE}(_createCall(STAKE, "pool", 0, true, "s3cret"));
         assert(withKey);
         uint256 id = abi.decode(ret, (uint256));
 
-        assert(!_challenge(alice, id, STAKE)); // wrong (empty) key
+        assert(!_challenge(alice, id, STAKE));
+        address[] memory wallets = new address[](1);
+        wallets[0] = alice;
+        vm.prank(creator);
+        mimir.setInvited(id, wallets, true);
         vm.prank(alice);
         mimir.challengeClaim{value: STAKE}(id, STAKE, "s3cret", address(0));
     }

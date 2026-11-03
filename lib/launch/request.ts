@@ -6,7 +6,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { normalizeOwner, verifyOwnerSignature } from "@/lib/owner";
 import { internalSecret } from "@/lib/internal-secrets";
 import { readLimitedText } from "@/lib/server/body-limit";
-import { allowRequest } from "@/lib/server/rate-limit";
+import { insert } from "@/lib/server/store";
 import { isFreshLaunchSig, LAUNCH_HEADERS, LAUNCH_SIG_TTL_MS, launchMessage, type LaunchAction } from "./auth";
 
 export const fail = (status: number, error: string) => Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -22,11 +22,24 @@ export async function readSigned(req: Request, action: LaunchAction, agent: stri
   const raw = await readLimitedText(req, maxBytes);
   if (!raw.ok) return { ok: false, res: fail(raw.status, raw.status === 413 ? "Too large." : "Missing body.") };
   const bodySha256 = createHash("sha256").update(raw.value).digest("hex");
-  if (!(await verifyOwnerSignature({ address: owner, message: launchMessage({ action, owner, agent, bodySha256, signedAt }), signature }))) {
+  const message = launchMessage({ action, owner, agent, bodySha256, signedAt });
+  if (!(await verifyOwnerSignature({ address: owner, message, signature }))) {
     return { ok: false, res: fail(401, "The wallet signature does not match.") };
   }
-  // Once per signature: a captured request cannot be replayed inside its freshness window.
-  if (!(await allowRequest("launch-sig", signature, 1, 2 * LAUNCH_SIG_TTL_MS))) return { ok: false, res: fail(409, "That signature was already used. Sign again.") };
+  // Bind consumption to the verified authorization, not an encoding of its signature or a resetting time bucket.
+  // The store insert is atomic across web instances. An outage must never turn this into process-memory state.
+  if (!isFreshLaunchSig(signedAt)) return { ok: false, res: fail(401, "The signature expired. Sign again.") };
+  const authorization = createHash("sha256").update(message).digest("hex");
+  const expiresAt = signedAt + LAUNCH_SIG_TTL_MS;
+  try {
+    if (!(await insert("launch_authorizations", authorization, { expiresAt }, { at: expiresAt }))) {
+      return { ok: false, res: fail(409, "That signature was already used. Sign again.") };
+    }
+  } catch {
+    return { ok: false, res: fail(503, "Authorization storage is temporarily unavailable. Try again.") };
+  }
+  // A delayed database reply cannot authorize an action after the signature has expired. Keep the consumed row.
+  if (!isFreshLaunchSig(signedAt)) return { ok: false, res: fail(401, "The signature expired. Sign again.") };
   let body: unknown;
   try {
     body = JSON.parse(raw.value);

@@ -129,6 +129,8 @@ contract MimirPool {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
     address public oracle;
@@ -179,6 +181,7 @@ contract MimirPool {
     event FeeRecipientChanged(address indexed previous, address indexed next);
     event Paused(bool paused);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
 
@@ -294,6 +297,7 @@ contract MimirPool {
     function acceptOwnership() external {
         if (msg.sender != pendingOwner) revert NotPendingOwner();
         if (block.timestamp < pendingOwnerEta) revert Timelocked();
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -314,9 +318,21 @@ contract MimirPool {
         oracle = address(0);
     }
 
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        if (next != address(0) && next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -350,6 +366,7 @@ contract MimirPool {
     function executeOracle() external {
         if (pendingOracleEta == 0) revert NothingQueued();
         if (block.timestamp < pendingOracleEta) revert Timelocked();
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -373,6 +390,7 @@ contract MimirPool {
     function executeFeeRecipient() external {
         if (pendingFeeEta == 0) revert NothingQueued();
         if (block.timestamp < pendingFeeEta) revert Timelocked();
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -467,9 +485,10 @@ contract MimirPool {
         if (outcome < SIDE_A || outcome > UNRESOLVABLE) revert BadSide();
     }
 
-    /// When refundExpired opens: the grace counted from the deadline, or from the dispute.
+    /// When refundExpired opens: grace from the latest deadline, proposal or dispute.
     function _refundAt(Market storage m) internal view returns (uint256 start) {
         start = m.deadline;
+        if (m.proposedAt > start) start = m.proposedAt;
         if (m.disputedAt > start) start = m.disputedAt;
         start += RESOLUTION_GRACE_SECONDS;
     }
@@ -504,7 +523,7 @@ contract MimirPool {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
-        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0) revert NotParticipant();
+        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0 && msg.sender != auditAgent && msg.sender != arbiter) revert NotParticipant();
         if (msg.value != DISPUTE_BOND) revert WrongBond();
         m.state = ST_DISPUTED;
         m.disputer = msg.sender;
@@ -553,11 +572,12 @@ contract MimirPool {
     /// Escape hatch, by anyone once the grace has passed. A market the oracle never resolved is refunded in full;
     /// a dispute the arbiter never ruled on settles to the oracle's proposal and the bond is forfeited, so a cheap
     /// dispute cannot turn a loss into a free refund.
+    /// A paused undisputed proposal also refunds after its own full grace.
     function refundExpired(uint256 id) external nonReentrant {
         Market storage m = _markets[id];
         if (m.creator == address(0)) revert NoMarket();
         bool disputed = m.state == ST_DISPUTED;
-        if (!disputed && m.state != ST_OPEN) revert NotOpen();
+        if (!disputed && m.state != ST_OPEN && !(paused && m.state == ST_PROPOSED)) revert NotOpen();
         if (block.timestamp < _refundAt(m)) revert GraceNotOver();
         // A vetoed proposal (no disputer) or an emergency pause refunds instead of honouring the proposal.
         if (disputed && !paused && m.disputer != address(0)) {
