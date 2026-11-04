@@ -73,3 +73,14 @@ Fork coverage: one Safe signature rejected, two signatures set caps and pause/un
 5. Rebuild Vercel with matching mainnet public settings and the new Convex URL. Validate low-value live transactions, wait the full dispute window, verify payout, monitoring and admin dispute duty, then enable automation deliberately. Keep Arc disabled.
 
 Wallet dependencies were updated within wagmi 2 / ConnectKit compatibility; WalletConnect providers are deduplicated to 2.26.0. Reown's Zod dependency is scoped to 4.6.7 with message-schema compatibility tests. High findings fell from 19 to 2; critical findings remain zero. Moderate findings still require review. Existing contract/unit tests and fork checks are not an independent external security audit.
+
+## Deployed (2026-11-05)
+
+Live on mimirmarkets.xyz with Convex **groovy-marmot-393**. Contracts include the November 4 audit fixes and are Sourcify exact-match verified.
+
+- Safe `0x5b3Cd4D9E2ab1Cc1317bD274aa19ED92D60e12C1` (2/3, owner + arbiter + treasury).
+- MimirFees `0xED114f539384ec22c4FB8BDf440b027a63193Ae4`, MimirV3Erc20 `0x53e61F4A4651Ba2ac5DeCf243085c5b3Fae9aE68`, MimirPoolErc20 `0xA8f252C32C8FDdA55dB5Bb93CC4728009397B84d`, from block 53520470.
+- Audit agent `0x9935d7d3F0Dd8e8024d844e2d63Ae33C69B9BE69` set on both markets; caps 500/50 USDC; pause/unpause rehearsed through the Safe.
+- RPC: thirdweb client-id URL with `BASE_RPC_HEADERS={"Origin":"https://mimirmarkets.xyz"}`, public RPC as fallback.
+- Still off: market creator (`MIMIR_PAUSE_CREATE_MARKET`, `MARKET_CREATOR_DRY_RUN`), copy (`MIMIR_PAUSE_COPY`), council bets, Launch gates, Base paid agent calls (no mainnet `BASE_AGENT_PAY_ADDRESS`). The audit worker is not running yet.
+- Preflight passes except the known `@coinbase/cdp-sdk` zod advisory (wallet connector dependency, no upstream fix).
