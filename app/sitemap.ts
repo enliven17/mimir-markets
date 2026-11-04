@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const markets = await arcMarketList().catch(() => []);
   return [
     ...pages,
-    ...markets.map((m: { chain: "arc" | "base"; kind: "vs" | "pool"; marketId: number; createdAt: number; deadline: number }) => ({
+    ...markets.map((m: { chain: "arc" | "base" | "solana"; kind: "vs" | "pool"; marketId: number; createdAt: number; deadline: number }) => ({
       url: absolute(marketPath(m.chain, m.kind, m.marketId)),
       lastModified: new Date(Math.max(m.createdAt, Math.min(m.deadline, Date.now() / 1000)) * 1000),
       changeFrequency: "hourly" as const,

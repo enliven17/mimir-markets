@@ -9,7 +9,7 @@ import { marketPath } from "../chains/links";
 
 export interface ArcIndexMarket {
   /** Absent on rows indexed before Base: Arc. */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "solana";
   kind: "vs" | "pool";
   marketId: number;
   question: string;

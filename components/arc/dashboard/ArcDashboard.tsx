@@ -62,7 +62,7 @@ export default function ArcDashboard() {
   );
 }
 
-function Body({ address }: { account: ReturnType<typeof useArcAccount>; address: Address }) {
+function Body({ address }: { account: ReturnType<typeof useArcAccount>; address: string }) {
   const now = useNowSec(30_000);
   const positions = useQuery(api.arc.positionsOf, { user: address });
 
@@ -161,7 +161,7 @@ function ShareWin({ chain, kind, marketId, side, question, label }: { chain: Mar
 const CHAINS = MARKET_CHAINS.enabled;
 
 /** One chain's balance card: USDC (and ETH for gas on Base), plus payouts a contract parked there. */
-function ChainBalance({ chain, address }: { chain: MarketChainId; address: Address }) {
+function ChainBalance({ chain, address }: { chain: MarketChainId; address: string }) {
   const account = useArcAccount(chain);
   const cfg = account.chainConfig;
   const parked = useParked(chain, address);
@@ -192,11 +192,21 @@ function ChainBalance({ chain, address }: { chain: MarketChainId; address: Addre
           <p className="m-0 mt-2 text-[13px] text-muted">
             {cfg.gas.symbol === "ETH"
               ? `USDC in your wallet on ${cfg.label}. Gas is paid in ETH: ${account.gas === null ? "-" : `${(Number(account.gas) / 1e18).toFixed(5)} ETH`}${account.gas === 0n ? " (add a little ETH to stake here)" : ""}.`
-              : `USDC in your wallet on ${cfg.label}. Stakes and gas are paid from it in USDC.`}
+              : `Test USDC in your wallet and free program balance. Gas is paid in devnet SOL: ${account.gas === null ? "-" : (Number(account.gas) / 1e9).toFixed(5)} SOL.`}
           </p>
         </div>
         <WalletFunding chain={cfg} address={account.address} />
       </section>
+      {chain === "solana" && account.programBalance !== null && account.programBalance > 0n ? (
+        <section aria-label="Free program balance" className={`${SURFACE} grid gap-3 p-5`}>
+          <h2 className="m-0 text-[15px] text-cream">{usd(account.programBalance)} available in the program</h2>
+          <p className="m-0 text-[13px] text-muted">Withdraw your unused test USDC to your connected wallet. Open stakes remain in escrow until settlement.</p>
+          <button type="button" disabled={busy} onClick={() => void withdraw("vs")} className={`${BTN_SECONDARY} justify-self-start`}>
+            {busy ? "Confirm in your wallet…" : "Withdraw free balance"}
+          </button>
+          {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
+        </section>
+      ) : null}
       {parked.items.length > 0 ? (
         <section aria-label={`Parked payouts on ${cfg.label}`} className={`${SURFACE} grid gap-3 p-5`}>
           <h2 className="m-0 text-[15px] text-cream">Payouts waiting for you on {cfg.label}</h2>
@@ -217,16 +227,17 @@ function ChainBalance({ chain, address }: { chain: MarketChainId; address: Addre
 }
 
 /** Payouts a contract parked for this account (pendingWithdrawals) on one chain, both market contracts, index units. */
-function useParked(chain: MarketChainId, address: Address) {
+function useParked(chain: MarketChainId, address: string) {
   const [items, setItems] = useState<{ contract: Address; kind: "vs" | "pool"; amount: bigint }[]>([]);
   const reload = useCallback(async () => {
     const cfg = marketChain(chain);
+    if (chain === "solana") { setItems([]); return; }
     const contracts = ([["vs", cfg.contracts.mimirV3], ["pool", cfg.contracts.mimirPool]] as const).filter((c): c is readonly ["vs" | "pool", Address] => Boolean(c[1]));
     const client = chainPublicClient(cfg);
     const read = await Promise.all(
       contracts.map(([kind, c]) =>
         client
-          .readContract({ address: c, abi: PARKED_ABI, functionName: "pendingWithdrawals", args: [address] })
+          .readContract({ address: c, abi: PARKED_ABI, functionName: "pendingWithdrawals", args: [address as Address] })
           .then((amount) => ({ contract: c, kind, amount: toIndexUnits(cfg, amount) }))
           .catch(() => ({ contract: c, kind, amount: 0n })),
       ),

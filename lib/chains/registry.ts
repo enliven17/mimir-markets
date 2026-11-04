@@ -2,7 +2,7 @@
  * The market chains: every network Mimir runs markets on, with its own contracts and its own separate markets
  * (docs/CHAINS.md). Base is the primary network; Arc runs beside it until it is switched off by config.
  *
- *   id        "base" | "arc": the key stored with every indexed row (convex/schema.ts) and used in URLs
+ *   id        "base" | "arc" | "solana": the key stored with every indexed row (convex/schema.ts) and used in URLs
  *             (/arena/<chain>/<kind>/<id>)
  *   usdc      Arc: native USDC (18 dp, sent as msg.value, gas paid in it). Base: Circle's ERC-20 USDC (6 dp, pulled with
  *             transferFrom after an approve or an EIP-2612 permit; gas is ETH).
@@ -22,9 +22,9 @@
  */
 import { arcConfig, parseRpcUrls, type ArcConfig } from "../arc/config";
 
-export type MarketChainId = "arc" | "base";
+export type MarketChainId = "arc" | "base" | "solana";
 /** Base first: the primary network, listed first wherever chains are listed. */
-export const MARKET_CHAIN_IDS: readonly MarketChainId[] = ["base", "arc"];
+export const MARKET_CHAIN_IDS: readonly MarketChainId[] = ["solana"];
 export type ChainNetwork = "testnet" | "mainnet";
 
 export interface MarketChain {
@@ -41,13 +41,13 @@ export interface MarketChain {
   explorer: string;
   explorerName: string;
   /** What gas is paid in. */
-  gas: { symbol: "USDC" | "ETH"; decimals: 18 };
+  gas: { symbol: "USDC" | "ETH" | "SOL"; decimals: 18 | 9 };
   usdc: {
     /** native: msg.value (Arc). erc20: approve/permit + transferFrom (Base). */
-    kind: "native" | "erc20";
+    kind: "native" | "erc20" | "spl";
     /** On-chain decimals of the amounts the contracts take and emit. */
     decimals: 18 | 6;
-    address: `0x${string}`;
+    address: string;
     /** EIP-2612 permit (Circle FiatToken v2 on Base); the pool takes ...WithPermit calls. */
     permit: boolean;
   };
@@ -62,6 +62,8 @@ export interface MarketChain {
   };
   /** Both market contracts are configured and the chain is in the enabled list. */
   enabled: boolean;
+  /** Native Solana deployment; EVM contract fields are null. */
+  solana?: { programId: string; genesisHash: string };
 }
 
 /** Circle's USDC on Base (FiatToken v2: 6 dp, EIP-2612 permit, version "2"). */
@@ -187,17 +189,30 @@ function safeArc(env: RegistryEnv["arc"]): ArcConfig {
   }
 }
 
+
+/** This branch has a single native deployment, irrespective of legacy EVM env. */
+export function solanaMarketChain(): MarketChain {
+  const rpc = "https://api.devnet.solana.com";
+  return {
+    id: "solana", label: "Solana", name: "Solana Devnet", network: "testnet", chainId: 0,
+    rpcUrls: [rpc], rpcUrl: rpc, explorer: "https://explorer.solana.com", explorerName: "Solana Explorer",
+    gas: { symbol: "SOL", decimals: 9 },
+    usdc: { kind: "spl", decimals: 6, address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", permit: false },
+    contracts: { mimirV3: null, mimirPool: null, mimirFees: null, fromBlock: 0n, minStakeWei: 2n * 10n ** 18n },
+    solana: { programId: "EnLyMg9fBhgvKcWVAyD1YKv3i2BbLejfRFb5hEXur1WE", genesisHash: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG" },
+    enabled: true,
+  };
+}
+
 export function marketChains(env: RegistryEnv): MarketChains {
-  const listed = parseEnabledChains(env.marketChains);
+  const listed: MarketChainId[] = ["solana"];
   const chains: Record<MarketChainId, MarketChain> = {
+    solana: solanaMarketChain(),
     base: baseMarketChain(env.base, listed),
     arc: arcMarketChain(safeArc(env.arc), listed),
   };
   const enabled = MARKET_CHAIN_IDS.filter((id) => chains[id].enabled);
-  const wanted = env.defaultChain?.trim().toLowerCase();
-  const defaultChain: MarketChainId =
-    wanted === "arc" || wanted === "base" ? (enabled.includes(wanted) || !enabled.length ? wanted : enabled[0]) : (enabled[0] ?? "base");
-  return { chains, enabled, defaultChain };
+  return { chains, enabled, defaultChain: "solana" };
 }
 
 // Literal `process.env.NEXT_PUBLIC_*` reads: Next inlines only those into the browser bundle.
@@ -254,21 +269,24 @@ export function serverMarketChains(e: Record<string, string | undefined> = proce
   });
 }
 
-export const isMarketChainId = (v: unknown): v is MarketChainId => v === "arc" || v === "base";
+export const isMarketChainId = (v: unknown): v is MarketChainId => v === "solana";
 
 /** The chain's config from the public registry (browser and routes). */
 export const marketChain = (id: MarketChainId): MarketChain => MARKET_CHAINS.chains[id];
 
 /** Rows written before Base have no chain: they are Arc's. */
-export const chainOfRow = (row: { chain?: MarketChainId | null }): MarketChainId => row.chain ?? "arc";
+export const chainOfRow = (row: { chain?: MarketChainId | null }): MarketChainId => row.chain ?? "solana";
 
 /** The other chain, for "also on Base/Arc" links. */
 export const otherChain = (id: MarketChainId): MarketChainId => (id === "arc" ? "base" : "arc");
 
-export function explorerUrl(chain: MarketChain, kind: "tx" | "address", id: string): string {
-  return `${chain.explorer}/${kind}/${id}`;
+export function explorerUrl(chain: MarketChain, kind: "tx" | "address", id: string, layer?: "base" | "er"): string {
+  if (chain.id === "solana" && kind === "tx" && layer === "er") {
+    return `${chain.explorer}/tx/${encodeURIComponent(id)}?cluster=custom&customUrl=${encodeURIComponent("https://devnet-as.magicblock.app/")}`;
+  }
+  return `${chain.explorer}/${kind}/${encodeURIComponent(id)}${chain.id === "solana" ? "?cluster=devnet" : ""}`;
 }
 
 /** The market contract for a kind on a chain, or null when not configured. */
-export const marketContract = (chain: MarketChain, kind: "vs" | "pool"): `0x${string}` | null =>
-  kind === "vs" ? chain.contracts.mimirV3 : chain.contracts.mimirPool;
+export const marketContract = (chain: MarketChain, kind: "vs" | "pool"): string | null =>
+  chain.id === "solana" ? (kind === "vs" ? chain.solana!.programId : null) : kind === "vs" ? chain.contracts.mimirV3 : chain.contracts.mimirPool;

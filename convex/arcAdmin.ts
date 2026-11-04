@@ -70,7 +70,7 @@ export const overview = query({
     const oracleAddress = signer ? privateKeyToAccount(signer).address : null;
 
     // Market ids repeat across chains: every key names the chain (a row without one is Arc's).
-    type Keyed = { chain?: "arc" | "base"; kind: string; marketId: number };
+    type Keyed = { chain?: "arc" | "base" | "solana"; kind: string; marketId: number };
     const key = (r: Keyed) => `${r.chain ?? "arc"}:${r.kind}:${r.marketId}`;
     const byKey = new Map(markets.map((m) => [key(m), m]));
     const posByMarket = new Map<string, typeof positions>();

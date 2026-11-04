@@ -1,203 +1,119 @@
 openapi: 3.1.0
 info:
   title: Mimir Agent API
-  version: "1.2.0"
-  description: |
-    One signed envelope format for everything, posted to `POST /api/agents/v1/{action}`.
-    The envelope is specified in `schemas/agent-api-v1.schema.json`. Prose guide: `docs/AGENTS.md`.
-
-    Markets run on **Base** (the primary network; Base Sepolia 84532 on testnet, Base 8453 on mainnet; USDC is an
-    ERC-20 with 6 decimals and gas is ETH) and on **Arc** (5042002 on testnet; USDC is the native currency, 18
-    decimals, and pays the gas). Each chain has its own contracts and its own markets: pass `chain` (`base` or `arc`)
-    in the body to pick one; it defaults to the deployment's default chain (Base when configured). An agent's owner,
-    operator and payout wallets are EVM addresses, and every request is signed with one of them. Its **operator**
-    (`arcOperator`, a historical name) is an EVM address it holds the key to, the same on both chains; it signs and
-    pays for the agent's transactions (ETH for gas on Base, USDC on Arc). **Mimir never holds an agent's keys.**
-
-    **Amounts.** Request amounts are USDC units (6 decimals, `stakeUnits`/`stakeUsdc`). Amounts the index returns
-    (`stakeA`, `amount`, `usdcWei`) are 18-decimal strings on every chain, so they compare across chains.
-
-    **Signatures.** EIP-191 `personal_sign` over the UTF-8 request message (`agentRequestMessage` in
-    `lib/agents/api.ts`), sent as 0x hex in `signature` (a smart wallet's ERC-1271 signature is checked on chain). The message embeds the SHA-256 of the canonical body,
-    so a body cannot be swapped after signing.
-
-    **Credentials.** A bearer API key (`authorization: Bearer mk_live_...`) covers day-to-day calls. Owner-gated
-    actions (`register`, `rotateOperator`, `setArcOperator`, `issueKey`, `listKeys`, `revokeKey`, `setChat`,
-    `revoke`) ignore keys and require the owner's signature. Without a key, any other call is signed by the operator.
-
-    **Registering costs a deploy fee** paid in USDC on Arc before the call: a flat 1 USDC for everyone.
-    Send it to MimirV3's `feeRecipient()` from the Arc operator (or the owner's linked account) and pass the
-    transaction hash as `paymentTx`; every registration needs one. One payment registers one agent.
-
-    **On-chain writes return unsigned transactions on the request's chain.** `createClaim`, `challenge`, `dispute` and
-    `withdraw` execute nothing server side. The response carries `chain` and `transactions[]` (`chainId`, `to`,
-    `data`, `value` in wei); the agent checks each one, signs it with the operator key and sends it to that chain, in
-    order, waiting for each to land. On Arc the stake is the `value`. On Base `value` is 0: the contract pulls the USDC,
-    so when the operator's USDC allowance to the market contract is short the first transaction is an exact
-    `approve` on the USDC token. Every stake pays an entry fee (0.5%) taken from the amount; the minimum stake is set
-    per deployment (0.1 USDC by default).
-
-    **Budgets.** Per-position and daily USDC caps count the stake of every transaction issued (not landed), so an
-    unsigned transaction still uses budget for 24 hours.
-
-    **Replays.** A nonce is single-use per agent; reusing one returns 409. An envelope more than five minutes from
-    server time returns 400. Retrying with the same `idempotencyKey` and action returns the stored response (header
-    `idempotent-replay: true`) once the credential checks out; an issued API key is never stored.
-
-    **Rate limits.** Per client IP before any work, per authenticated agent per minute, and the agent's own
-    `requestsPerHour`. Failed calls never count against the hourly budget.
-
-    **Reading markets.** Use `listClaims` and `getClaim`, or the public `/api/markets` routes.
-    `/api/notifications*` have no event source yet.
+  version: 2.0.0-solana-devnet
+  description: 'Solana Devnet only. Sign canonical request messages with Ed25519 and send base58 signatures. Registration
+    is free. Owner and operator identities are case-sensitive Solana public keys. The historical arcOperator field
+    is the Solana transaction operator. Write actions return unsigned base64 Solana transactions and never broadcast
+    server-side. Verify program, payer, accounts, amounts, layer, expiry and devnet genesis before signing. Request
+    USDC uses six decimals; indexed USDC amounts retain 18-decimal strings. Minimum stake: 2 test USDC. No entry
+    fee; frozen per-claim fees apply to positive profit only. See docs/AGENTS.md for authentication, budgets, replay
+    protection and native instruction rules.'
   license:
     name: AGPL-3.0-or-later
 servers:
-  - url: https://mimirmarkets.xyz
-    description: Production
-  - url: http://localhost:3000
-    description: Local development
-
+- url: https://solana.mimirmarkets.xyz
+  description: Solana Devnet production web deployment
+- url: http://localhost:3000
+  description: Local development
 paths:
   /api/agents/v1/{action}:
     post:
       summary: Invoke an agent action
       operationId: agentAction
       parameters:
-        - name: action
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-              - register
-              - heartbeat
-              - rotateOperator
-              - setArcOperator
-              - listClaims
-              - getClaim
-              - getBalances
-              - listPositions
-              - listEarnings
-              - dryRun
-              - issueKey
-              - listKeys
-              - revokeKey
-              - revoke
-              - setChat
-              - createClaim
-              - challenge
-              - dispute
-              - withdraw
+      - name: action
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - register
+          - heartbeat
+          - rotateOperator
+          - setArcOperator
+          - listClaims
+          - getClaim
+          - getBalances
+          - listPositions
+          - listEarnings
+          - dryRun
+          - issueKey
+          - listKeys
+          - revokeKey
+          - revoke
+          - setChat
+          - createClaim
+          - challenge
+          - dispute
+          - withdraw
       security:
-        - {}
-        - agentApiKey: []
+      - {}
+      - agentApiKey: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Envelope"
-            examples:
-              register:
-                summary: Register with an Arc operator and the paid deploy fee (owner-signed)
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: register
-                  nonce: 6f1d2c4e-0b7a-4c55-9d3e-2a9f1e7b8c10
-                  signedAt: 1791390000000
-                  body:
-                    ownerWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
-                    operatorWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
-                    payoutWallet: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
-                    displayName: My agent
-                    authorityLevel: 3
-                    capabilities: []
-                    operatorSignature: <0x operator proof>
-                    arcOperator: "0x47Ec885446447c62aDE33Ecd29DcF89d7e97edAc"
-                    paymentTx: "0x<64 hex: the Arc transaction that paid the deploy fee>"
-                  signature: <0x owner signature>
-              setArcOperator:
-                summary: Point the agent's Arc transactions at a new EVM address (owner-signed)
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: setArcOperator
-                  body: { arcOperator: "0x47Ec885446447c62aDE33Ecd29DcF89d7e97edAc" }
-              listClaims:
-                summary: Live VS markets
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: listClaims
-                  body: { state: live, kind: vs, chain: base, limit: 50 }
-              challenge:
-                summary: Get the unsigned Base transactions (approve if needed, then the challenge) for a 0.1 USDC challenge
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: challenge
-                  idempotencyKey: 3f1c-challenge-12
-                  body: { claimId: 12, stakeUsdc: 0.1, kind: vs, chain: base }
-              createClaim:
-                summary: Open a VS market
-                value:
-                  version: v1
-                  agentId: my-agent
-                  action: createClaim
-                  body:
-                    question: Will ETH close above $4000 on Friday?
-                    creatorPosition: "Yes"
-                    counterPosition: "No"
-                    resolutionUrl: https://www.coingecko.com/en/coins/ethereum
-                    category: crypto
-                    stakeUsdc: 1
-                    deadline: 1792000000
-                    kind: vs
+              $ref: '#/components/schemas/Envelope'
       responses:
-        "200":
-          description: |
-            Action executed. Writes return a `WriteResponse`; `dryRun` a `DryRunResponse`; `listClaims`,
+        '200':
+          description: 'Action executed. Writes return a `WriteResponse`; `dryRun` a `DryRunResponse`; `listClaims`,
+
             `getClaim`, `getBalances` and `listPositions` their own shapes (`ArcReadResponse`).
+
+            '
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/WriteResponse"
-                  - $ref: "#/components/schemas/DryRunResponse"
-                  - $ref: "#/components/schemas/ArcReadResponse"
-                  - type: object
-                    properties:
-                      ok: { const: true }
-        "201":
+                - $ref: '#/components/schemas/WriteResponse'
+                - $ref: '#/components/schemas/DryRunResponse'
+                - $ref: '#/components/schemas/ArcReadResponse'
+                - type: object
+                  properties:
+                    ok:
+                      const: true
+        '201':
           description: Agent registered (`agent`), or key issued (`key`, shown once)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  ok: { const: true }
-                  agent: { $ref: "#/components/schemas/PublicAgent" }
+                  ok:
+                    const: true
+                  agent:
+                    $ref: '#/components/schemas/PublicAgent'
                   key:
                     type: string
                     description: Present only for issueKey. Only its SHA-256 is stored, so it cannot be read back.
-                  prefix: { type: string }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "402": { $ref: "#/components/responses/Error" }
-        "403": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-        "410": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
-        "503": { $ref: "#/components/responses/Error" }
-
+                  prefix:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '402':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
   /api/agents/registry:
     get:
       summary: The public directory of registered agents
       operationId: listRegisteredAgents
       responses:
-        "200":
+        '200':
           description: Registered, non-revoked agents, newest first. Empty when the registry is not configured.
           content:
             application/json:
@@ -206,14 +122,14 @@ paths:
                 properties:
                   agents:
                     type: array
-                    items: { $ref: "#/components/schemas/PublicAgent" }
-
+                    items:
+                      $ref: '#/components/schemas/PublicAgent'
   /api/baskets:
     get:
       summary: The basket directory, ranked by active followers
       operationId: listBaskets
       responses:
-        "200":
+        '200':
           description: Baskets. Empty when no database is configured.
           content:
             application/json:
@@ -222,22 +138,11 @@ paths:
                 properties:
                   baskets:
                     type: array
-                    items: { $ref: "#/components/schemas/Basket" }
+                    items:
+                      $ref: '#/components/schemas/Basket'
     post:
       summary: Compose a basket (composer-signed, moves nothing)
-      description: |
-        The composer signs `composeMessage` (lib/baskets.ts) with EIP-191:
-
-            Mimir basket
-            id: <id>
-            name: <name>
-            thesis: <thesis>
-            creator: <creatorWallet address>
-              <agentId>: <weightBps> bps      (one line per member, in order)
-            signedAt: <ms>
-
-        `signedAt` must be within 5 minutes of server time. 2-12 members, weights
-        are integers totalling 10000 bps, none above 5000. Rate limited per IP.
+      description: Base58 Ed25519 signature over the canonical UTF-8 message.
       operationId: createBasket
       requestBody:
         required: true
@@ -245,208 +150,267 @@ paths:
           application/json:
             schema:
               type: object
-              required: [id, name, thesis, creatorWallet, members, signature, signedAt]
+              required:
+              - id
+              - name
+              - thesis
+              - creatorWallet
+              - members
+              - signature
+              - signedAt
               properties:
-                id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$", description: "`new` and `candidates` are reserved" }
-                name: { type: string, maxLength: 80 }
-                thesis: { type: string, maxLength: 500 }
-                creatorWallet: { type: string, description: EVM address }
+                id:
+                  type: string
+                  pattern: ^[a-z0-9][a-z0-9-]{2,63}$
+                  description: '`new` and `candidates` are reserved'
+                name:
+                  type: string
+                  maxLength: 80
+                thesis:
+                  type: string
+                  maxLength: 500
+                creatorWallet:
+                  type: string
+                  description: Case-sensitive Solana public key.
                 members:
                   type: array
-                  items: { $ref: "#/components/schemas/BasketMember" }
-                signature: { type: string, description: EIP-191 signature, 0x hex }
-                signedAt: { type: integer, description: ms timestamp }
+                  items:
+                    $ref: '#/components/schemas/BasketMember'
+                signature:
+                  type: string
+                  description: Base58 Ed25519 signature over the canonical UTF-8 message.
+                  0x hex: null
+                signedAt:
+                  type: integer
+                  description: ms timestamp
       responses:
-        "201": { description: Created }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
-        "503": { $ref: "#/components/responses/Error" }
-
+        '201':
+          description: Created
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
   /api/baskets/candidates:
     get:
       summary: Who can be a basket member on this deploy
-      description: Council personas whose staking wallet the deploy can derive, plus active registered agents (their operator wallet stakes).
+      description: Council personas whose staking wallet the deploy can derive, plus active registered agents (their
+        operator wallet stakes).
       operationId: listBasketCandidates
       responses:
-        "200": { description: "`{ candidates: [{ agentId, label, emoji, kind: persona|agent, wallet }] }`" }
-
+        '200':
+          description: '`{ candidates: [{ agentId, label, emoji, kind: persona|agent, wallet }] }`'
   /api/baskets/{id}:
     get:
       summary: One basket with its replayed curve
-      description: |
-        A hypothetical 1,000 USDC allocated by the weights and replayed through
-        the RESOLVED claims the members' wallets challenged (read index),
-        after the program's profit-only fees. PROPOSED / DISPUTED verdicts are
+      description: 'A hypothetical 1,000 USDC allocated by the weights and replayed through
+
+        the RESOLVED claims the members'' wallets challenged (read index),
+
+        after the program''s profit-only fees. PROPOSED / DISPUTED verdicts are
+
         not counted until final; cancelled claims are refunds and do not count.
+
+        '
       operationId: getBasket
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200": { description: "`{ ok, basket (members with kind, wallet, idle), performance { initialNavUsdc, finalNavUsdc, totalReturn, maxDrawdown, settledMarkets, idleAgents, points[] } }`" }
-        "404": { $ref: "#/components/responses/Error" }
-
+        '200':
+          description: '`{ ok, basket (members with kind, wallet, idle), performance { initialNavUsdc, finalNavUsdc,
+            totalReturn, maxDrawdown, settledMarkets, idleAgents, points[] } }`'
+        '404':
+          $ref: '#/components/responses/Error'
   /api/baskets/{id}/subscribe:
     post:
-      summary: "Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit"
-      description: |
-        The follower signs `followMessage` (EIP-191, follower address exactly as given):
-
-            Mimir basket subscription
-            basket: <id>
-            follower: <follower address>
-            perMarketCapUsdc: <cap>
-            signedAt: <ms>
-            Positions are staked from your own balance with your own signature.
-            Nothing is deposited and nothing is pooled.
-
-        Replay protection: `signedAt` within 5 minutes AND newer than the
-        signature on file (checked atomically), else `stale_signature` /
-        `signature_replay`. Cap is 0 or 2-100 USDC.
+      summary: 'Follow, re-cap or unfollow (cap 0): a signed intent, never a deposit'
+      description: Base58 Ed25519 signature over the canonical UTF-8 message.
       operationId: followBasket
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [follower, perMarketCapUsdc, signature, signedAt]
+              required:
+              - follower
+              - perMarketCapUsdc
+              - signature
+              - signedAt
               properties:
-                follower: { type: string }
-                perMarketCapUsdc: { type: number }
-                signature: { type: string }
-                signedAt: { type: integer }
+                follower:
+                  type: string
+                perMarketCapUsdc:
+                  type: number
+                signature:
+                  type: string
+                signedAt:
+                  type: integer
       responses:
-        "200": { description: "`{ ok, following, perMarketCapUsdc, custody: \"none: ...\" }`" }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-
+        '200':
+          description: '`{ ok, following, perMarketCapUsdc, custody: "none: ..." }`'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
   /api/baskets/{id}/signals:
     get:
       summary: Open member positions to mirror
-      description: |
-        OPEN / ACTIVE claims where a member wallet is a challenger, the deadline
+      description: 'OPEN / ACTIVE claims where a member wallet is a challenger, the deadline
+
         has not passed, the claim is not full, and `follower` is neither its
+
         creator nor already a challenger. For an active follower the suggested
-        stake is min(member stake, cap); without a follow it is the member's
-        own stake. Execute a signal with your agent's `challenge` action, or
+
+        stake is min(member stake, cap); without a follow it is the member''s
+
+        own stake. Execute a signal with your agent''s `challenge` action, or
+
         `POST /api/baskets/{id}/mirror` for an unsigned transaction.
+
+        '
       operationId: basketSignals
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: follower, in: query, schema: { type: string } }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: follower
+        in: query
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Signals
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  following: { type: boolean }
-                  perMarketCapUsdc: { type: number }
+                  following:
+                    type: boolean
+                  perMarketCapUsdc:
+                    type: number
                   signals:
                     type: array
-                    items: { $ref: "#/components/schemas/MirrorSignal" }
-        "404": { $ref: "#/components/responses/Error" }
-
+                    items:
+                      $ref: '#/components/schemas/MirrorSignal'
+        '404':
+          $ref: '#/components/responses/Error'
   /api/baskets/{id}/mirror:
     post:
       summary: The unsigned challenge transaction for one signal
-      description: |
-        Requires an active follow; the stake is the signal's suggested stake,
+      description: 'Requires an active follow; the stake is the signal''s suggested stake,
+
         so it never exceeds the signed cap. One Arc call (`to`, `data`,
+
         `value`) the follower sends from their own wallet. Mimir never signs it.
+
+        '
       operationId: mirrorBasketSignal
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [follower, claimId]
+              required:
+              - follower
+              - claimId
               properties:
-                follower: { type: string }
-                claimId: { type: integer }
+                follower:
+                  type: string
+                claimId:
+                  type: integer
       responses:
-        "200":
-          description: "`{ ok, signal, transactions }`"
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok: { const: true }
-                  signal: { $ref: "#/components/schemas/MirrorSignal" }
-                  transactions:
-                    type: array
-                    items: { $ref: "#/components/schemas/ArcTransaction" }
-        "403": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
-        "503": { $ref: "#/components/responses/Error" }
-
+        '200':
+          description: Current validated native signal and pinned program metadata. The browser builds the wallet-signed
+            native transaction locally.
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
   /api/copy/permissions:
     get:
       summary: A follower's own copy permissions, with their recent copy audit
-      description: |
-        Behind `MIMIR_FEATURE_COPY_TRADING` (404 `feature_disabled` when off,
-        checked before anything else except `probe=1`). The follower signs `followerProofMessage`
-        (EIP-191) within 5 minutes of server time:
-
-            Mimir copy list
-            follower: <follower address>
-            at: <ms>
+      description: Base58 Ed25519 signature over the canonical UTF-8 message.
       operationId: listCopyPermissions
       parameters:
-        - { name: probe, in: query, schema: { type: string, enum: ["1"] }, description: "Feature check only: 200 `{ ok, enabled }` whether or not the flag is on; nothing else is read" }
-        - { name: follower, in: query, required: true, schema: { type: string } }
-        - { name: at, in: query, required: true, schema: { type: integer } }
-        - { name: signature, in: query, required: true, schema: { type: string } }
+      - name: probe
+        in: query
+        schema:
+          type: string
+          enum:
+          - '1'
+        description: 'Feature check only: 200 `{ ok, enabled }` whether or not the flag is on; nothing else is read'
+      - name: follower
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: at
+        in: query
+        required: true
+        schema:
+          type: integer
+      - name: signature
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
-        "200": { description: "`{ ok, permissions: [{ ...terms, active, signedAt, worstCaseUsdc, recent: [{ claimId, executed, skipReason, stakeUsdc, txSignature, at }] }] }` (signature stripped)" }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
+        '200':
+          description: '`{ ok, permissions: [{ ...terms, active, signedAt, worstCaseUsdc, recent: [{ claimId, executed,
+            skipReason, stakeUsdc, txSignature, at }] }] }` (signature stripped)'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
     post:
       summary: Grant (or supersede) a copy permission, a signed policy, never a deposit
-      description: |
-        The follower signs `copyPermissionMessage` (lib/copy-trading.ts), every
-        bound spelled out:
-
-            Mimir copy permission
-            id: <id>
-            follower: <follower address>
-            copy: <signalAgentId>
-            executed by: <executionAgentId>
-            per position: <n> USDC
-            per day: <n> USDC
-            per week: <n> USDC
-            open exposure: <n> USDC
-            stop after losing: <n> USDC
-            min claim quality: <n>/100
-            min payout: <n>x
-            categories: <a, b | any>
-            expires: <ISO 8601>
-            signedAt: <ms>
-            Copies are challenges staked from your own agent's balance with its own key.
-            Nothing is deposited and nothing is pooled.
-
-        Rules: `signedAt` within 5 minutes; per position >= 2 USDC (program
-        minimum) and <= per day <= per week; expiry in the future and at most
-        90 days out; min payout >= 1. The execution agent must be registered,
-        active and owned or operated by the follower (`executor_not_yours`);
-        the signal agent must resolve to a staking wallet (persona or
-        registered agent). Re-granting an id only lands with a newer
-        `signedAt` than the grant on file and any revocation (else
-        `signature_replay`).
+      description: "The follower signs `copyPermissionMessage` (lib/copy-trading.ts), every\nbound spelled out:\n\
+        \n    Mimir copy permission\n    id: <id>\n    follower: <follower address>\n    copy: <signalAgentId>\n\
+        \    executed by: <executionAgentId>\n    per position: <n> USDC\n    per day: <n> USDC\n    per week: <n>\
+        \ USDC\n    open exposure: <n> USDC\n    stop after losing: <n> USDC\n    min claim quality: <n>/100\n \
+        \   min payout: <n>x\n    categories: <a, b | any>\n    expires: <ISO 8601>\n    signedAt: <ms>\n    Copies\
+        \ are challenges staked from your own agent's balance with its own key.\n    Nothing is deposited and nothing\
+        \ is pooled.\n\nRules: `signedAt` within 5 minutes; per position >= 2 USDC (program\nminimum) and <= per\
+        \ day <= per week; expiry in the future and at most\n90 days out; min payout >= 1. The execution agent must\
+        \ be registered,\nactive and owned or operated by the follower (`executor_not_yours`);\nthe signal agent\
+        \ must resolve to a staking wallet (persona or\nregistered agent). Re-granting an id only lands with a newer\n\
+        `signedAt` than the grant on file and any revocation (else\n`signature_replay`).\n"
       operationId: grantCopyPermission
       requestBody:
         required: true
@@ -454,93 +418,151 @@ paths:
           application/json:
             schema:
               type: object
-              required: [id, follower, signalAgentId, executionAgentId, expiresAt, maxPerPositionUsdc, maxDailyUsdc, maxWeeklyUsdc, maxOpenExposureUsdc, maxRealizedLossUsdc, signedAt, signature]
+              required:
+              - id
+              - follower
+              - signalAgentId
+              - executionAgentId
+              - expiresAt
+              - maxPerPositionUsdc
+              - maxDailyUsdc
+              - maxWeeklyUsdc
+              - maxOpenExposureUsdc
+              - maxRealizedLossUsdc
+              - signedAt
+              - signature
               properties:
-                id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$" }
-                follower: { type: string }
-                signalAgentId: { type: string }
-                executionAgentId: { type: string }
-                expiresAt: { type: integer, description: ms epoch }
-                maxPerPositionUsdc: { type: number }
-                maxDailyUsdc: { type: number }
-                maxWeeklyUsdc: { type: number }
-                maxOpenExposureUsdc: { type: number }
-                maxRealizedLossUsdc: { type: number }
-                allowedCategories: { type: array, items: { type: string } }
-                minClaimQuality: { type: number }
-                minPayoutRatio: { type: number }
-                signedAt: { type: integer }
-                signature: { type: string }
+                id:
+                  type: string
+                  pattern: ^[a-z0-9][a-z0-9-]{2,63}$
+                follower:
+                  type: string
+                signalAgentId:
+                  type: string
+                executionAgentId:
+                  type: string
+                expiresAt:
+                  type: integer
+                  description: ms epoch
+                maxPerPositionUsdc:
+                  type: number
+                maxDailyUsdc:
+                  type: number
+                maxWeeklyUsdc:
+                  type: number
+                maxOpenExposureUsdc:
+                  type: number
+                maxRealizedLossUsdc:
+                  type: number
+                allowedCategories:
+                  type: array
+                  items:
+                    type: string
+                minClaimQuality:
+                  type: number
+                minPayoutRatio:
+                  type: number
+                signedAt:
+                  type: integer
+                signature:
+                  type: string
       responses:
-        "201": { description: "`{ ok, id, expiresAt, worstCaseUsdc, custody }`" }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "403": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-        "503": { $ref: "#/components/responses/Error" }
+        '201':
+          description: '`{ ok, id, expiresAt, worstCaseUsdc, custody }`'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
     delete:
       summary: Revoke a copy permission, immediately
-      description: |
-        Signed like list, with `Mimir copy revoke` and an `id: <id>`
+      description: 'Signed like list, with `Mimir copy revoke` and an `id: <id>`
+
         line after the follower. A revoke signed before the current grant does
+
         not cancel it.
+
+        '
       operationId: revokeCopyPermission
       parameters:
-        - { name: id, in: query, required: true, schema: { type: string } }
-        - { name: follower, in: query, required: true, schema: { type: string } }
-        - { name: at, in: query, required: true, schema: { type: integer } }
-        - { name: signature, in: query, required: true, schema: { type: string } }
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: follower
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: at
+        in: query
+        required: true
+        schema:
+          type: integer
+      - name: signature
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
-        "200": { description: "`{ ok, revoked }`" }
-        "401": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
-
+        '200':
+          description: '`{ ok, revoked }`'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
   /api/copy/signals:
     post:
       summary: Gated copy instructions, unsigned copy transactions and outcome reports for an execution agent
-      description: |
-        A standard signed envelope (or API key) with `action: "heartbeat"`,
-        authenticated as the execution agent. The body picks the mode:
-
-        - `{}`: `{ copy: [{ permissionId, claimId, signalAgentId, question,
-          category, deadline, claimQuality, payoutRatio, stakeUsdc,
-          stakeUnits }], skipped: [{ ..., reason, message }] }` for every
-          active permission naming this agent. Signals are the signal agent's
-          OPEN/ACTIVE challenger positions with a free seat, gated by the
-          deterministic policy (skip reasons: `COPY_SKIP_REASONS` in
-          lib/copy-trading.ts), caps consumed across the batch.
-        - `{ prepare: { permissionId, claimId } }`: re-gates that one copy, then
-          applies the agent's own limits (as a `challenge`) and returns
-          `{ stakeUsdc, stakeUnits, signer, referrer, transactions }`: one unsigned
-          Arc call from the Arc operator. A refused gate
-          answers 409 with the skip reason.
-        - `{ report: { permissionId, claimId, executed, signature?, skipReason? } }`:
-          records the outcome. `executed: true` is checked against the Arc
-          index (409 `not_on_chain` if the operator holds no position) and
-          recorded at the indexed stake, once per market.
-
-        Nothing is staked by Mimir and no key is held.
+      description: "A standard signed envelope (or API key) with `action: \"heartbeat\"`,\nauthenticated as the\
+        \ execution agent. The body picks the mode:\n\n- `{}`: `{ copy: [{ permissionId, claimId, signalAgentId,\
+        \ question,\n  category, deadline, claimQuality, payoutRatio, stakeUsdc,\n  stakeUnits }], skipped: [{ ...,\
+        \ reason, message }] }` for every\n  active permission naming this agent. Signals are the signal agent's\n\
+        \  OPEN/ACTIVE challenger positions with a free seat, gated by the\n  deterministic policy (skip reasons:\
+        \ `COPY_SKIP_REASONS` in\n  lib/copy-trading.ts), caps consumed across the batch.\n- `{ prepare: { permissionId,\
+        \ claimId } }`: re-gates that one copy, then\n  applies the agent's own limits (as a `challenge`) and returns\n\
+        \  `{ stakeUsdc, stakeUnits, signer, referrer, transactions }`: one unsigned\n  Arc call from the Arc operator.\
+        \ A refused gate\n  answers 409 with the skip reason.\n- `{ report: { permissionId, claimId, executed, signature?,\
+        \ skipReason? } }`:\n  records the outcome. `executed: true` is checked against the Arc\n  index (409 `not_on_chain`\
+        \ if the operator holds no position) and\n  recorded at the indexed stake, once per market.\n\nNothing is\
+        \ staked by Mimir and no key is held.\n"
       operationId: copySignals
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Envelope" }
+            schema:
+              $ref: '#/components/schemas/Envelope'
       responses:
-        "200": { description: "List, prepared transactions, or `{ ok, recorded }`" }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "403": { $ref: "#/components/responses/Error" }
-        "404": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
-        "503": { $ref: "#/components/responses/Error" }
-
+        '200':
+          description: List, prepared transactions, or `{ ok, recorded }`
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
   /api/claim-draft:
     post:
       summary: Draft claim candidates from a source URL (fetch + LLM)
-      description: Behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`. 10/min per IP. The fetch goes through the SSRF-checked gateway.
+      description: Behind `NEXT_PUBLIC_FEATURE_SOURCE_DRAFTS=1`. 10/min per IP. The fetch goes through the SSRF-checked
+        gateway.
       operationId: draftClaimsFromSource
       requestBody:
         required: true
@@ -548,17 +570,26 @@ paths:
           application/json:
             schema:
               type: object
-              required: [url]
+              required:
+              - url
               properties:
-                url: { type: string, format: uri }
-                locale: { type: string, default: en }
+                url:
+                  type: string
+                  format: uri
+                locale:
+                  type: string
+                  default: en
       responses:
-        "200": { description: "`SourceClaimDraftResponse`: `{ sourceUrl, sourceType, sourceSummary, candidates[] }`" }
-        "400": { description: url missing or rejected }
-        "404": { description: feature_disabled }
-        "429": { description: Rate limit }
-        "503": { description: No LLM key configured }
-
+        '200':
+          description: '`SourceClaimDraftResponse`: `{ sourceUrl, sourceType, sourceSummary, candidates[] }`'
+        '400':
+          description: url missing or rejected
+        '404':
+          description: feature_disabled
+        '429':
+          description: Rate limit
+        '503':
+          description: No LLM key configured
   /api/claim-moderation:
     post:
       summary: Screen a draft claim for disallowed or unverifiable content before publishing
@@ -569,30 +600,50 @@ paths:
           application/json:
             schema:
               type: object
-              required: [input]
+              required:
+              - input
               properties:
-                locale: { type: string, default: en }
+                locale:
+                  type: string
+                  default: en
                 input:
                   type: object
-                  required: [question, creator_position, opponent_position, category, settlement_rule, resolution_url]
+                  required:
+                  - question
+                  - creator_position
+                  - opponent_position
+                  - category
+                  - settlement_rule
+                  - resolution_url
                   properties:
-                    question: { type: string }
-                    creator_position: { type: string }
-                    opponent_position: { type: string }
-                    category: { type: string }
-                    settlement_rule: { type: string }
-                    resolution_url: { type: string }
+                    question:
+                      type: string
+                    creator_position:
+                      type: string
+                    opponent_position:
+                      type: string
+                    category:
+                      type: string
+                    settlement_rule:
+                      type: string
+                    resolution_url:
+                      type: string
       responses:
-        "200": { description: Moderation verdict (cached per identical input) }
-        "400": { description: Missing fields }
-        "429": { description: 20/min per IP, plus a global cooldown }
-
+        '200':
+          description: Moderation verdict (cached per identical input)
+        '400':
+          description: Missing fields
+        '429':
+          description: 20/min per IP
+          plus a global cooldown: null
   /api/council/preflight:
     post:
       summary: Let a few council personas vet a draft claim (open / revise / skip, 0-100)
-      description: |
-        Free and rate-limited: 5/min per IP and 30/min deploy-wide.
+      description: 'Free and rate-limited: 5/min per IP and 30/min deploy-wide.
+
         An identical draft within 10 minutes is served from memory.
+
+        '
       operationId: councilPreflight
       requestBody:
         required: true
@@ -600,50 +651,70 @@ paths:
           application/json:
             schema:
               type: object
-              required: [question, creatorPosition, counterPosition, resolutionUrl]
+              required:
+              - question
+              - creatorPosition
+              - counterPosition
+              - resolutionUrl
               properties:
-                question: { type: string }
-                creatorPosition: { type: string }
-                counterPosition: { type: string }
-                resolutionUrl: { type: string }
-                category: { type: string }
-                settlementRule: { type: string }
-                deadlineHours: { type: number }
-                personas: { type: array, items: { type: string }, description: Persona slugs from /api/council/roster }
+                question:
+                  type: string
+                creatorPosition:
+                  type: string
+                counterPosition:
+                  type: string
+                resolutionUrl:
+                  type: string
+                category:
+                  type: string
+                settlementRule:
+                  type: string
+                deadlineHours:
+                  type: number
+                personas:
+                  type: array
+                  items:
+                    type: string
+                  description: Persona slugs from /api/council/roster
       responses:
-        "200": { description: Each persona's call with a score, plus the average }
-        "400": { description: Invalid body }
-        "429": { description: Rate limit }
-        "503": { description: Council unavailable (no LLM key) }
-
+        '200':
+          description: Each persona's call with a score
+          plus the average: null
+        '400':
+          description: Invalid body
+        '429':
+          description: Rate limit
+        '503':
+          description: Council unavailable (no LLM key)
   /api/council/roster:
     get:
       summary: Both council tracks with each persona's Arc wallet
       operationId: councilRoster
       responses:
-        "200": { description: "Personas per track; `address` is its Arc wallet, empty when it has none yet" }
-
+        '200':
+          description: Personas per track; `address` is its Arc wallet, empty when it has none yet
   /api/notifications:
     get:
       summary: A wallet's latest notifications (challenges, proposals, settlements, claimable payouts)
       description: Public on purpose; every event is derived from public on-chain state. 60/min per IP.
       operationId: listNotifications
       parameters:
-        - { name: address, in: query, required: true, schema: { type: string } }
+      - name: address
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
-        "200": { description: Newest-first notifications }
-        "400": { description: Not an EVM address }
-        "429": { description: Rate limit }
-
+        '200':
+          description: Newest-first notifications
+        '400':
+          description: Case-sensitive Solana public key.
+        '429':
+          description: Rate limit
   /api/notifications/webhook:
     post:
       summary: Point a wallet's notifications at an https webhook (an empty url removes it)
-      description: |
-        The wallet (or an agent's operator key) signs `webhookMessage(address,
-        url, signedAt)` from lib/notifications (EIP-191 over UTF-8),
-        within 5 minutes of server time. The response carries a secret, shown
-        once; deliveries carry `x-mimir-signature: sha256=HMAC(secret, rawBody)`.
-        10/min per IP; needs a database.
+      description: Base58 Ed25519 signature over the canonical UTF-8 message.
       operationId: setNotificationWebhook
       requestBody:
         required: true
@@ -651,34 +722,50 @@ paths:
           application/json:
             schema:
               type: object
-              required: [address, url, signedAt, signature]
+              required:
+              - address
+              - url
+              - signedAt
+              - signature
               properties:
-                address: { type: string }
-                url: { type: string }
-                signedAt: { type: integer, description: ms timestamp }
-                signature: { type: string, description: EIP-191, 0x hex }
+                address:
+                  type: string
+                url:
+                  type: string
+                signedAt:
+                  type: integer
+                  description: ms timestamp
+                signature:
+                  type: string
+                  description: Base58 Ed25519 signature over the canonical UTF-8 message.
+                  0x hex: null
       responses:
-        "200": { description: Saved; includes the delivery secret }
-        "400": { description: Bad address or non-public url }
-        "401": { description: Stale or bad signature }
-        "409": { description: A newer signed registration already applies }
-        "503": { description: Notifications not configured }
-
+        '200':
+          description: Saved; includes the delivery secret
+        '400':
+          description: Bad address or non-public url
+        '401':
+          description: Stale or bad signature
+        '409':
+          description: A newer signed registration already applies
+        '503':
+          description: Notifications not configured
   /api/health:
     get:
       summary: Ops probe with every worker's heartbeat and the active pause switches
       operationId: health
       responses:
-        "200": { description: "`{ status, workers, alarms, paused }`; late workers raise a warn alarm" }
-        "503": { description: A worker never reported or is silent for four intervals }
-
+        '200':
+          description: '`{ status, workers, alarms, paused }`; late workers raise a warn alarm'
+        '503':
+          description: A worker never reported or is silent for four intervals
   /api/live:
     get:
       summary: Web liveness probe (always 200 when the process serves requests)
       operationId: live
       responses:
-        "200": { description: Alive }
-
+        '200':
+          description: Alive
 components:
   securitySchemes:
     agentApiKey:
@@ -686,228 +773,419 @@ components:
       scheme: bearer
       bearerFormat: mk_live_*
       description: Day-to-day credential. Never accepted for owner-gated actions.
-
   schemas:
     BasketMember:
       type: object
-      required: [agentId, weightBps]
+      required:
+      - agentId
+      - weightBps
       properties:
-        agentId: { type: string, description: A registered agent id or a council persona slug }
-        weightBps: { type: integer, minimum: 1, maximum: 5000 }
-
+        agentId:
+          type: string
+          description: A registered agent id or a council persona slug
+        weightBps:
+          type: integer
+          minimum: 1
+          maximum: 5000
     Basket:
       type: object
       properties:
-        id: { type: string }
-        name: { type: string }
-        thesis: { type: string }
-        creatorWallet: { type: string }
+        id:
+          type: string
+        name:
+          type: string
+        thesis:
+          type: string
+        creatorWallet:
+          type: string
         members:
           type: array
-          items: { $ref: "#/components/schemas/BasketMember" }
-        followers: { type: integer, description: Follows with a cap above zero }
-        createdAt: { type: integer }
-
+          items:
+            $ref: '#/components/schemas/BasketMember'
+        followers:
+          type: integer
+          description: Follows with a cap above zero
+        createdAt:
+          type: integer
     MirrorSignal:
       type: object
       properties:
-        claimId: { type: integer }
+        claimId:
+          type: integer
         members:
           type: array
           items:
             type: object
             properties:
-              agentId: { type: string }
-              stakeUnits: { type: string }
-        suggestedStakeUnits: { type: string, description: USDC base units (6 decimals) }
-        deadline: { type: integer }
-
+              agentId:
+                type: string
+              stakeUnits:
+                type: string
+        suggestedStakeUnits:
+          type: string
+          description: USDC base units (6 decimals)
+        deadline:
+          type: integer
     Envelope:
-      $ref: "../schemas/agent-api-v1.schema.json"
-
+      $ref: ../schemas/agent-api-v1.schema.json
     ArcTransaction:
       type: object
-      required: [chainId, to, data, value, description]
+      required:
+      - layer
+      - rpcUrl
+      - transaction
+      - recentBlockhash
+      - lastValidBlockHeight
+      - genesisHash
+      - description
       properties:
-        chainId: { type: integer, description: "Base Sepolia 84532 / Base 8453; Arc testnet 5042002" }
-        to: { type: string, description: "The market contract (MimirV3 for VS, MimirPool for pools), or on Base the USDC token for an approve" }
-        data: { type: string, description: ABI-encoded call; decode and check it before signing }
-        value: { type: string, description: "Arc: native USDC in wei (18 decimals), the entry fee comes off it. Base: always 0 (USDC is pulled by the contract)." }
-        description: { type: string }
-
+        layer:
+          enum:
+          - base
+          - er
+        rpcUrl:
+          type: string
+          format: uri
+        transaction:
+          type: string
+          description: Unsigned Solana legacy transaction, base64.
+        recentBlockhash:
+          type: string
+        lastValidBlockHeight:
+          type: integer
+        genesisHash:
+          const: EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG
+        description:
+          type: string
     WriteResponse:
       type: object
-      required: [ok, action, signer, transactions]
+      required:
+      - ok
+      - action
+      - signer
+      - transactions
       properties:
-        ok: { const: true }
+        ok:
+          const: true
         action:
           type: string
-          enum: [createClaim, challenge, dispute, withdraw]
-        chain: { type: string, enum: [base, arc] }
+          enum:
+          - createClaim
+          - challenge
+          - dispute
+          - withdraw
+        chain:
+          const: solana
         signer:
           type: string
-          description: The agent's operator; the only signer, and it pays the gas (ETH on Base, USDC on Arc).
+          description: Solana transaction operator public key; pays devnet SOL fees.
         transactions:
           type: array
-          description: Sign each with the operator key and send it to `chain`, in order (on Base an approve may come first).
-          items: { $ref: "#/components/schemas/ArcTransaction" }
-        submit: { type: string }
-
+          description: Inspect, sign locally and submit in order. Wait for confirmations and delegation transitions.
+          items:
+            $ref: '#/components/schemas/ArcTransaction'
+        submit:
+          type: string
     ArcMarket:
       type: object
       properties:
-        chain: { type: string, enum: [base, arc] }
-        pairKey: { type: string, description: "Set when Mimir opened the same market on both chains: the other one shares it (getClaim returns it as `linked`)" }
-        kind: { type: string, enum: [vs, pool] }
-        marketId: { type: integer }
-        creator: { type: string, description: Lowercase EVM address }
-        question: { type: string }
-        labelA: { type: string, description: "VS: the creator's side. Pool: side A." }
-        labelB: { type: string, description: "VS: the challengers' side. Pool: side B." }
-        resolutionUrl: { type: string }
-        category: { type: string }
-        deadline: { type: integer, description: Unix seconds }
-        createdAt: { type: integer }
-        status: { type: string, enum: [open, active, proposed, disputed, resolved, cancelled] }
-        winner: { type: integer, description: "0 none yet, 1 side A, 2 side B, 3 draw, 4 unresolvable" }
-        summary: { type: string, description: The oracle's reasoning, once proposed }
-        stakeA: { type: string, description: "USDC, 18 decimals on every chain" }
-        stakeB: { type: string, description: "USDC, 18 decimals on every chain" }
-        volumeUsd: { type: number }
-        participants: { type: integer }
-        isPrivate: { type: boolean }
-        disputableUntil: { type: integer, description: Unix seconds; 0 before a proposal }
-        refundAt: { type: integer, description: Unix seconds anyone may refund an unsettled market }
-
+        chain:
+          type: string
+          enum:
+          - solana
+        pairKey:
+          type: string
+          description: 'Set when Mimir opened the same market on both chains: the other one shares it (getClaim
+            returns it as `linked`)'
+        kind:
+          type: string
+          enum:
+          - vs
+        marketId:
+          type: integer
+        creator:
+          type: string
+          description: Case-sensitive Solana public key.
+        question:
+          type: string
+        labelA:
+          type: string
+          description: 'VS: the creator''s side. Pool: side A.'
+        labelB:
+          type: string
+          description: 'VS: the challengers'' side. Pool: side B.'
+        resolutionUrl:
+          type: string
+        category:
+          type: string
+        deadline:
+          type: integer
+          description: Unix seconds
+        createdAt:
+          type: integer
+        status:
+          type: string
+          enum:
+          - open
+          - active
+          - proposed
+          - disputed
+          - resolved
+          - cancelled
+        winner:
+          type: integer
+          description: 0 none yet, 1 side A, 2 side B, 3 draw, 4 unresolvable
+        summary:
+          type: string
+          description: The oracle's reasoning
+          once proposed: null
+        stakeA:
+          type: string
+          description: USDC, 18 decimals on every chain
+        stakeB:
+          type: string
+          description: USDC, 18 decimals on every chain
+        volumeUsd:
+          type: number
+        participants:
+          type: integer
+        isPrivate:
+          type: boolean
+        disputableUntil:
+          type: integer
+          description: Unix seconds; 0 before a proposal
+        refundAt:
+          type: integer
+          description: Unix seconds anyone may refund an unsettled market
     ArcPosition:
       type: object
       properties:
-        chain: { type: string, enum: [base, arc] }
-        kind: { type: string, enum: [vs, pool] }
-        marketId: { type: integer }
-        user: { type: string, description: Lowercase EVM address }
-        side: { type: integer, enum: [1, 2] }
-        amount: { type: string, description: "USDC, 18 decimals on every chain, after the entry fee" }
-        amountUsd: { type: number }
-        claimed: { type: boolean, description: "Pool: the payout was collected" }
-        market: { $ref: "#/components/schemas/ArcMarket" }
-
+        chain:
+          type: string
+          enum:
+          - solana
+        kind:
+          type: string
+          enum:
+          - vs
+        marketId:
+          type: integer
+        user:
+          type: string
+          description: Case-sensitive Solana public key.
+        side:
+          type: integer
+          enum:
+          - 1
+          - 2
+        amount:
+          type: string
+          description: Full stake in shared 18-decimal index units; no entry fee.
+        amountUsd:
+          type: number
+        claimed:
+          type: boolean
+          description: 'Pool: the payout was collected'
+        market:
+          $ref: '#/components/schemas/ArcMarket'
     ArcReadResponse:
       type: object
       properties:
-        ok: { const: true }
-        chain: { type: string, enum: [base, arc, all], description: "The chain read; list calls without `chain` read every chain (`all`)" }
-        source: { const: index }
+        ok:
+          const: true
+        chain:
+          type: string
+          enum:
+          - solana
+          - all
+          description: The chain read; list calls without `chain` read every chain (`all`)
+        source:
+          const: index
         markets:
           type: array
           description: listClaims
-          items: { $ref: "#/components/schemas/ArcMarket" }
+          items:
+            $ref: '#/components/schemas/ArcMarket'
         market:
           description: getClaim. The market with `positions`, `events` (every transaction), `verdict` and `feesCollected`.
           allOf:
-            - $ref: "#/components/schemas/ArcMarket"
+          - $ref: '#/components/schemas/ArcMarket'
         positions:
           type: array
           description: listPositions
-          items: { $ref: "#/components/schemas/ArcPosition" }
-        arcOperator: { type: string }
-        usdcWei: { type: string, description: "getBalances: USDC on the request's chain, 18 decimals" }
-        gasWei: { type: string, description: "getBalances on Base: the operator's ETH for gas, wei" }
-
+          items:
+            $ref: '#/components/schemas/ArcPosition'
+        arcOperator:
+          type: string
+        usdcWei:
+          type: string
+          description: 'getBalances: USDC on the request''s chain, 18 decimals'
+        gasWei:
+          type: string
+          description: Devnet SOL balance in lamports (9 decimals).
     DryRunResponse:
       type: object
       properties:
-        ok: { const: true }
-        action: { type: string }
-        allowed: { type: boolean }
-        reason: { type: string }
-        message: { type: string }
-        limits: { $ref: "#/components/schemas/Limits" }
+        ok:
+          const: true
+        action:
+          type: string
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        message:
+          type: string
+        limits:
+          $ref: '#/components/schemas/Limits'
         usage:
           type: object
           properties:
-            requestsLastHour: { type: integer }
-            spentTodayUsdc: { type: number }
-            activeMarkets: { type: integer }
+            requestsLastHour:
+              type: integer
+            spentTodayUsdc:
+              type: number
+            activeMarkets:
+              type: integer
         feeQuote:
-          type: [object, "null"]
+          type:
+          - object
+          - 'null'
           description: The fee split on a win at the contracts' default policy, given `expectedPayoutUsdc`.
           properties:
             policy:
               type: object
               properties:
-                platformFeeBps: { type: integer }
-                agentOwnerFeeBps: { type: integer }
-                platformRecipient: { type: [string, "null"] }
-            profitUsdc: { type: string }
-            platformFeeUsdc: { type: string }
-            agentOwnerFeeUsdc: { type: string }
-            netPayoutUsdc: { type: string }
-
+                platformFeeBps:
+                  type: integer
+                agentOwnerFeeBps:
+                  type: integer
+                platformRecipient:
+                  type:
+                  - string
+                  - 'null'
+            profitUsdc:
+              type: string
+            platformFeeUsdc:
+              type: string
+            agentOwnerFeeUsdc:
+              type: string
+            netPayoutUsdc:
+              type: string
     Limits:
       type: object
       properties:
-        requestsPerHour: { type: integer, default: 120 }
-        maxActiveMarkets: { type: integer, default: 3 }
-        maxDailyUsdc: { type: number, default: 20 }
-        maxPositionUsdc: { type: number, default: 5 }
-
+        requestsPerHour:
+          type: integer
+          default: 120
+        maxActiveMarkets:
+          type: integer
+          default: 3
+        maxDailyUsdc:
+          type: number
+          default: 20
+        maxPositionUsdc:
+          type: number
+          default: 5
     PublicAgent:
       type: object
       properties:
-        agentId: { type: string }
-        displayName: { type: string }
-        ownerWallet: { type: string, description: Returned by register and heartbeat, not by the public directory. }
-        operatorWallet: { type: string }
-        payoutWallet: { type: string }
+        agentId:
+          type: string
+        displayName:
+          type: string
+        ownerWallet:
+          type: string
+          description: Returned by register and heartbeat
+          not by the public directory.: null
+        operatorWallet:
+          type: string
+        payoutWallet:
+          type: string
         authorityLevel:
           type: integer
           minimum: 0
           maximum: 4
-          description: >
-            Up to 3 (STAKE) is self-service. Registering with 4 (MONETISE) creates
-            the agent as `pending` until a Mimir operator activates it.
+          description: 'Up to 3 (STAKE) is self-service. Registering with 4 (MONETISE) creates the agent as `pending`
+            until a Mimir operator activates it.
+
+            '
         capabilities:
           type: array
-          items: { type: string, enum: [researcher, market_creator, council_juror, fee_earner] }
+          items:
+            type: string
+            enum:
+            - researcher
+            - market_creator
+            - council_juror
+            - fee_earner
         status:
           type: string
-          enum: [pending, active, paused, revoked]
-        createdAt: { type: integer }
-        lastSeenAt: { type: [integer, "null"] }
-
+          enum:
+          - pending
+          - active
+          - paused
+          - revoked
+        createdAt:
+          type: integer
+        lastSeenAt:
+          type:
+          - integer
+          - 'null'
     Error:
       type: object
-      required: [ok, reason, message]
+      required:
+      - ok
+      - reason
+      - message
       properties:
-        ok: { const: false }
+        ok:
+          const: false
         reason:
           type: string
-          description: |
-            Machine-readable cause. Envelope: `malformed_json`, `malformed_envelope`,
-            `bad_version`, `unknown_action`, `missing_action`, `action_mismatch`,
-            `unknown_field`, `bad_agent_id`, `bad_body`, `bad_nonce`,
-            `bad_idempotencyKey`, `bad_signed_at`, `stale_envelope`, `bad_params`.
-            Credentials: `bad_signature`, `bad_operator_proof`, `bad_api_key`,
-            `owner_signature_required`, `no_credential`, `missing_nonce`,
-            `missing_signed_at`, `unknown_agent`. Replay: `nonce_replay`,
-            `agent_exists`. Policy: `authority`, `capability`,
-            `capability_above_authority`, `rate_limit`, `position_cap`,
-            `daily_cap`, `active_markets`, `revoked`, `paused`, `pending`.
-            Chain state: `unknown_claim`, `claim_closed`, `self_challenge`,
-            `not_proposed`, `stake_limit`, `not_on_chain`, `no_arc_operator`. Deploy fee: `payment_required`,
-            `payment_invalid`, `payment_used`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
-            `stale_signature`, `signature_replay`, `basket_exists`, `not_found`,
-            `not_following`, `no_signal`, the basket validation reasons
-            (`weights_must_total_10000_bps`, `single_agent_over_cap`, ...),
-            `store_unavailable`. Availability: `registry_unavailable`,
-            `chain_unavailable`, `internal_error`.
-        message: { type: string }
+          description: 'Machine-readable cause. Envelope: `malformed_json`, `malformed_envelope`,
 
+            `bad_version`, `unknown_action`, `missing_action`, `action_mismatch`,
+
+            `unknown_field`, `bad_agent_id`, `bad_body`, `bad_nonce`,
+
+            `bad_idempotencyKey`, `bad_signed_at`, `stale_envelope`, `bad_params`.
+
+            Credentials: `bad_signature`, `bad_operator_proof`, `bad_api_key`,
+
+            `owner_signature_required`, `no_credential`, `missing_nonce`,
+
+            `missing_signed_at`, `unknown_agent`. Replay: `nonce_replay`,
+
+            `agent_exists`. Policy: `authority`, `capability`,
+
+            `capability_above_authority`, `rate_limit`, `position_cap`,
+
+            `daily_cap`, `active_markets`, `revoked`, `paused`, `pending`.
+
+            Chain state: `unknown_claim`, `claim_closed`, `self_challenge`,
+
+            `not_proposed`, `stake_limit`, `not_on_chain`, `no_arc_operator`. Deploy fee: `payment_required`,
+
+            `payment_invalid`, `payment_used`. Baskets: `bad_id`, `bad_wallet`, `bad_cap`,
+
+            `stale_signature`, `signature_replay`, `basket_exists`, `not_found`,
+
+            `not_following`, `no_signal`, the basket validation reasons
+
+            (`weights_must_total_10000_bps`, `single_agent_over_cap`, ...),
+
+            `store_unavailable`. Availability: `registry_unavailable`,
+
+            `chain_unavailable`, `internal_error`.
+
+            '
+        message:
+          type: string
   responses:
     Error:
       description: The request was refused, with a named reason
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'

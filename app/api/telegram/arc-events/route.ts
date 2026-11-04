@@ -21,7 +21,7 @@ export const maxDuration = 60;
 interface ArcEvent {
   type: "new" | "proposed" | "resolved" | "cancelled";
   /** Absent from indexers older than Base: Arc. */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "solana";
   kind: "vs" | "pool";
   marketId: number;
   question: string;

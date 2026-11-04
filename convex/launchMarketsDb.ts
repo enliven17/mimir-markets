@@ -69,7 +69,7 @@ export const forCreate = internalQuery({
     const o = await opened(ctx, a._id, [a.arc?.address, a.base?.address], now);
     if (o.today >= perDay(a) || now - o.lastAt < SPACING_MS) return null;
     const { openUsdc } = await holdings(ctx, a);
-    const rules = (a.markets.rules ?? {}) as { categories?: string[]; chains?: Array<"arc" | "base"> };
+    const rules = (a.markets.rules ?? {}) as { categories?: string[]; chains?: Array<"arc" | "base" | "solana"> };
     return { slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, arc: a.arc, base: a.base ?? null, chains: rules.chains ?? [], categories: rules.categories ?? [], budgetUsdc: a.markets.budgetUsdc, openUsdc };
   },
 });
@@ -84,7 +84,7 @@ export const record = internalMutation({
     await ctx.db.insert("launchMarkets", { ...a, at: Date.now() });
     await ctx.db.insert("launchEvents", {
       agent: a.agent, at: Date.now(), kind: "market", chain: a.chain, tx: a.tx,
-      text: `opened a market on ${a.chain === "base" ? "Base" : "Arc"}: "${a.question.slice(0, 120)}" (${a.category}), staking ${a.seedUsdc} USDC on its side`.slice(0, 300),
+      text: `opened a market on ${a.chain === "solana" ? "Solana Devnet" : a.chain === "base" ? "Base" : "Arc"}: "${a.question.slice(0, 120)}" (${a.category}), staking ${a.seedUsdc} USDC on its side`.slice(0, 300),
     });
   },
 });

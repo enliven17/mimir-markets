@@ -30,7 +30,8 @@ import { arcPublicClient } from "@/lib/arc/chain";
 import { ARC } from "@/lib/arc/config";
 import { AGENT_DEPLOY_USD } from "@/lib/arc/fees";
 import { arcArenaEnabled } from "@/components/arc/arena/enabled";
-import { isAddress, parseAbi } from "viem";
+import { normalizeOwner } from "@/lib/owner";
+const isAddress = (v: string) => Boolean(normalizeOwner(v));
 import { Link } from "@/i18n/navigation";
 import {
   agentRequestMessage,
@@ -93,7 +94,7 @@ export default function AgentRegisterClient() {
   const [copied, setCopied] = useState(false);
   // On Arc: the EVM address the agent signs with, and the deploy fee paid from the connected wallet.
   // The deploy fee is paid on Arc (native USDC): this account stays on Arc.
-  const arc = useArcAccount("arc");
+  const arc = useArcAccount("solana");
   // The deploy fee is paid on Arc while Arc is configured (the API verifies it there).
   const onArc = arcArenaEnabled && MARKET_CHAINS.chains.arc.enabled;
   const [arcOperator, setArcOperator] = useState("");
@@ -174,15 +175,6 @@ export default function AgentRegisterClient() {
       // On Arc: pay the deploy fee first (a native USDC transfer from the wallet to the fee recipient), once;
       // a retry after a failed registration reuses the same payment.
       let paid = paymentTx;
-      if (onArc && deployUsd > 0 && !paid) {
-        if (!arc.session) throw new Error("Connect your wallet first: the deploy fee is paid from it.");
-        const v3 = ARC.contracts.mimirV3!;
-        const treasury = await arcPublicClient().readContract({ address: v3, abi: parseAbi(["function feeRecipient() view returns (address)"]), functionName: "feeRecipient" });
-        const wei = BigInt(Math.round(deployUsd * 1e6)) * 1_000_000_000_000n;
-        const receipt = await arc.session.sendCalls([{ to: treasury, data: "0x", value: wei }]);
-        paid = receipt.txHash;
-        setPaymentTx(paid);
-      }
 
       // 2. Owner envelope: this wallet authorizes the record.
       const reg = envelope("register", {
@@ -376,7 +368,7 @@ export default function AgentRegisterClient() {
                 className="rounded-xl bg-ink-deep px-3 py-2.5 font-mono text-[13px] text-cream outline-none focus-visible:shadow-[inset_0_0_0_1px_rgb(255_81_72/.7)]"
               />
             </label>
-            {arcOperator.trim() && !isAddress(arcOperator.trim()) ? <p className="m-0 text-[12px] text-pending">That is not an EVM address.</p> : null}
+            {arcOperator.trim() && !isAddress(arcOperator.trim()) ? <p className="m-0 text-[12px] text-pending">That is not a Solana public key.</p> : null}
             <p className="m-0 text-[13px] text-cream">
               Deploy fee: ${deployUsd.toFixed(2)} USDC
               {paymentTx ? <span className="ml-2 text-win">paid ✓</span> : null}

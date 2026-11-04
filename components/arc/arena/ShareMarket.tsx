@@ -18,7 +18,7 @@ export function marketShareText(question: string, fresh: boolean): string {
   return fresh ? `I just opened a market on Mimir: ${q} Take the other side 👇` : `${q} Pick a side on Mimir 👇`;
 }
 
-export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false }: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean }) {
+export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false }: { chain?: "arc" | "base" | "solana"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean }) {
   const url = `${SITE_URL}/${useLocale()}${marketPath(chain, kind, marketId)}`;
   const text = marketShareText(question, fresh);
   const [copied, setCopied] = useState(false);

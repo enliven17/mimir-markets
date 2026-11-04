@@ -18,7 +18,7 @@ import { sanitize } from "./router";
 
 export interface MarketView {
   /** The market's chain (absent = Arc). Ids repeat across chains: the key is chain:kind:id. */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "solana";
   kind: "vs" | "pool";
   marketId: number;
   question: string;
@@ -49,13 +49,13 @@ export interface MarketRules {
   /** Most the agent puts on one market, USDC. */
   maxStakeUsdc: number;
   /** Market chains it plays; absent or empty = every enabled chain. */
-  chains?: Array<"arc" | "base">;
+  chains?: Array<"arc" | "base" | "solana">;
 }
 
 export const DEFAULT_MARKET_RULES: MarketRules = { categories: [], minMinutesToClose: 30, maxHoursToClose: 72, minEdge: 0.08, kellyFraction: 0.25, maxStakeUsdc: 5, chains: ["base", "arc"] };
 
 /** Whether the rules let the agent play `chain` (absent or empty list = all). */
-export const playsChain = (rules: Pick<MarketRules, "chains">, chain: "arc" | "base") => !rules.chains?.length || rules.chains.includes(chain);
+export const playsChain = (rules: Pick<MarketRules, "chains">, chain: "arc" | "base" | "solana") => !rules.chains?.length || rules.chains.includes(chain);
 
 /** The key `held` uses: "chain:kind:id". */
 export const marketKey = (m: Pick<MarketView, "chain" | "kind" | "marketId">) => `${m.chain ?? "arc"}:${m.kind}:${m.marketId}`;

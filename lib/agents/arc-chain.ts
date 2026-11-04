@@ -1,3 +1,6 @@
+import { normalizeOwner } from "../owner";
+import { prepareNative } from "./native-chain";
+import type { WriteParams } from "./params";
 /**
  * The agent API on Mimir's market chains (Base, the default, and Arc). Writes come back as unsigned EVM transactions
  * for the agent's operator (an address it holds the key to; the same address on both chains) to sign and send itself:
@@ -8,7 +11,7 @@
  *   dispute      escalate a proposed result with the 2 USDC bond
  *   withdraw     pull a payout a contract parked for the operator (kind: "vs" default, or "pool")
  *
- * `chain` ("base" | "arc") picks the network; it defaults to the deployment's default chain (Base when configured).
+ * `chain` ("base" | "arc" | "solana") picks the network; it defaults to the deployment's default chain (Base when configured).
  * Arc: one transaction, the USDC as value (18-dp wei), gas in USDC. Base: the USDC is an ERC-20 (6 dp) pulled by the
  * contract, so an exact `approve` comes first whenever the operator's allowance is short; gas is ETH, so the operator
  * needs a little ETH on Base. Entry fees apply as for anyone (lib/arc/fees.ts).
@@ -58,9 +61,7 @@ function sideOf(body: Record<string, unknown>, fallback: 1 | 2): 1 | 2 {
   return s;
 }
 
-export function arcOperatorOf(value: unknown): Address | null {
-  return typeof value === "string" && isAddress(value.trim()) ? getAddress(value.trim()) : null;
-}
+export function arcOperatorOf(value: unknown): string | null { return normalizeOwner(value); }
 
 /** The parsed write (lib/agents/params.ts) as the market action it is; `body` carries kind, side and chain. */
 export function writeAction(write: { action: string; params: Record<string, unknown> }, body: Record<string, unknown>): MarketAction {
@@ -131,17 +132,14 @@ export function prepareArcWrite(
 }
 
 /** prepareArcWrite with the operator's live allowance read first (Base), so an approve is only sent when needed. */
-export async function prepareChainWrite(write: { action: string; params: Record<string, unknown> }, body: Record<string, unknown>, operator: Address) {
-  const chain = chainOf(body);
-  const action = writeAction(write, body);
-  const allowance = chain.usdc.kind === "erc20" && pullOf(action) > 0n ? await usdcAllowanceWei(chain, operator, actionContract(chain, action)) : 0n;
-  return prepareArcWrite(write, body, allowance);
+export async function prepareChainWrite(write: { action: string; params: Record<string, unknown> }, body: Record<string, unknown>, operator: string) {
+  return prepareNative(write as unknown as WriteParams, body, operator);
 }
 
 /** The operator's USDC on the chain (index units, 18 dp) and, on Base, its ETH for gas (wei). */
-export async function arcOperatorBalance(operator: Address, body: Record<string, unknown> = {}): Promise<{ chain: string; usdcWei: string; gasWei?: string }> {
+export async function arcOperatorBalance(operator: string, body: Record<string, unknown> = {}): Promise<{ chain: string; usdcWei: string; gasWei?: string }> {
   const chain = chainOf(body);
-  const [usdc, gas] = await Promise.all([usdcBalanceWei(chain, operator), chain.gas.symbol === "ETH" ? gasBalanceWei(chain, operator) : Promise.resolve(null)]);
+  const [usdc, gas] = await Promise.all([usdcBalanceWei(chain, operator), chain.gas.symbol !== "USDC" ? gasBalanceWei(chain, operator) : Promise.resolve(null)]);
   return { chain: chain.id, usdcWei: usdc.toString(), ...(gas !== null ? { gasWei: gas.toString() } : {}) };
 }
 
@@ -150,36 +148,12 @@ export async function arcOperatorBalance(operator: Address, body: Record<string,
  * prepared, so an agent gets the same plain reason the site shows instead of a bare revert. Throws a 409
  * AgentEnvelopeError("stake_limit"). Agents pay the standard entry fee (no holder ticket), so 50 bps is assumed.
  */
-export async function assertArcStakeAllowed(
-  write: { action: string; params: Record<string, unknown> },
-  body: Record<string, unknown>,
-  operator: Address,
-): Promise<void> {
-  if (write.action !== "challenge" && write.action !== "createClaim") return;
-  const chain = chainOf(body);
-  const kind = kindOf(body);
-  const gross = units6ToWei(write.params.stakeUnits as bigint);
-  const contract = kind === "vs" ? chain.contracts.mimirV3 : chain.contracts.mimirPool;
-  if (!contract) throw new AgentEnvelopeError(`${chain.label} contracts are not configured`, 503, "chain_unavailable");
-  const id = write.action === "challenge" ? Number(write.params.claimId) : 0;
-  const raw = await readStakeLimits(chainPublicClient(chain), contract, id);
-  // Caps are in the contract's own units (6 dp on Base): scale to index units like every amount here.
-  const limits = { ...raw, maxMarket: toIndexUnits(chain, raw.maxMarket), maxAccount: toIndexUnits(chain, raw.maxAccount) };
-  let total = 0n;
-  let mine = 0n;
-  if (write.action === "challenge") {
-    const m = (await arcMarketDetail(kind, id, chain.id).catch(() => null)) as { stakeA: string; stakeB: string } | null;
-    total = m ? BigInt(m.stakeA) + BigInt(m.stakeB) : 0n;
-    if (kind === "pool") {
-      const legs = (await arcPositions(operator).catch(() => [])) as Array<{ chain?: string; kind: string; marketId: number; amount: string }>;
-      mine = legs.filter((p) => (p.chain ?? "arc") === chain.id && p.kind === "pool" && p.marketId === id).reduce((a, p) => a + BigInt(p.amount), 0n);
-    }
-  } else limits.lockAt = 0;
-  const blocker = stakeLimitBlocker(limits, { kind, gross, entryBps: 50, mine, total, now: Math.floor(Date.now() / 1000) }, (wei) => `${Number(wei / 10n ** 12n) / 1e6} USDC`);
-  if (blocker) throw new AgentEnvelopeError(blocker, 409, "stake_limit");
+export async function assertArcStakeAllowed(_write: { action: string; params: Record<string, unknown> }, body: Record<string, unknown>, _operator: string): Promise<void> {
+  if (body.chain !== undefined && body.chain !== "solana") throw new AgentEnvelopeError("Solana devnet only", 400, "bad_chain");
+  if (body.kind !== undefined && body.kind !== "vs") throw new AgentEnvelopeError("Public VS markets only", 400, "bad_kind");
 }
 
-export async function arcOperatorPositions(operator: Address, body: Record<string, unknown> = {}) {
+export async function arcOperatorPositions(operator: string, body: Record<string, unknown> = {}) {
   const rows = (await arcPositions(operator)) as Array<{ chain?: string }>;
   const want = body.chain;
   return want === undefined ? rows : rows.filter((p) => (p.chain ?? "arc") === want);

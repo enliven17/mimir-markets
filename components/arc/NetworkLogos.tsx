@@ -5,10 +5,12 @@ import { MARKET_CHAINS } from "@/lib/chains/registry";
  * `base=false` suppresses Base without making a dormant Arc visible. White marks for the dark theme.
  */
 export function NetworkLogos({ className = "h-6", base = true }: { className?: string; base?: boolean }) {
+  const showSolana = MARKET_CHAINS.enabled.includes("solana");
   const showBase = base && MARKET_CHAINS.enabled.includes("base");
   const showArc = MARKET_CHAINS.enabled.includes("arc");
   return (
     <span className={`inline-flex items-center ${/\bgap-/.test(className) ? "" : "gap-4"} ${className}`}>
+      {showSolana ? <img src="/networks/solana.svg" alt="Solana" className="h-full w-auto" /> : null}
       {showBase ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVGs, no optimisation to gain */}
@@ -22,11 +24,11 @@ export function NetworkLogos({ className = "h-6", base = true }: { className?: s
   );
 }
 
-const CHAIN_ICON = { base: "/networks/base-icon.svg", arc: "/networks/arc-icon.svg" } as const;
-const CHAIN_LABEL = { base: "Base", arc: "Arc" } as const;
+const CHAIN_ICON = { solana: "/networks/solana-icon.svg", base: "/networks/base-icon.svg", arc: "/networks/arc-icon.svg" } as const;
+const CHAIN_LABEL = { solana: "Solana", base: "Base", arc: "Arc" } as const;
 
 /** A market's network: the chain's icon and name, small, for cards, feeds, the market page and positions. */
-export function ChainBadge({ chain, className = "", withLabel = true }: { chain: "base" | "arc"; className?: string; withLabel?: boolean }) {
+export function ChainBadge({ chain, className = "", withLabel = true }: { chain: "base" | "arc" | "solana"; className?: string; withLabel?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full bg-panel-raised px-2 py-0.5 text-[11px] text-muted ${className}`} title={`On ${CHAIN_LABEL[chain]}`}>
       {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVG */}
@@ -43,10 +45,10 @@ export function ChainPicker({
   onChange,
   hint,
 }: {
-  chains: readonly ("base" | "arc")[];
-  value: "base" | "arc";
-  onChange: (c: "base" | "arc") => void;
-  hint?: (c: "base" | "arc") => string;
+  chains: readonly ("base" | "arc" | "solana")[];
+  value: "base" | "arc" | "solana";
+  onChange: (c: "base" | "arc" | "solana") => void;
+  hint?: (c: "base" | "arc" | "solana") => string;
 }) {
   return (
     <div role="radiogroup" aria-label="Network" className="grid grid-cols-2 gap-2">

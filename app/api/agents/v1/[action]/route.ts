@@ -267,7 +267,7 @@ async function handleRegister(env: AgentEnvelope): Promise<Handled> {
   // paid on Arc in native USDC while Arc is configured (lib/server/agent-payment.ts).
   const arcOperator = env.body.arcOperator === undefined ? null : arcOperatorOf(env.body.arcOperator);
   if (env.body.arcOperator !== undefined && !arcOperator) {
-    throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
+    throw new AgentEnvelopeError("arcOperator must be a Solana public key", 400, "bad_wallets");
   }
   let payment: { hash: `0x${string}`; wei: bigint } | null = null;
   if (MARKET_CHAINS.chains.arc.enabled) {
@@ -315,7 +315,7 @@ async function activeMarketsOf(agent: AgentRecord): Promise<number> {
   if (!agent.arcOperator || !arcAgentsEnabled()) return 0;
   const operator = agent.arcOperator.toLowerCase();
   const live = await arcMarkets({ states: LIVE_STATES, limit: 10_000 }).catch(() => []);
-  return (live as Array<{ creator?: string }>).filter((m) => m.creator?.toLowerCase() === operator).length;
+  return (live as Array<{ creator?: string }>).filter((m) => m.creator === operator).length;
 }
 
 async function handleAuthenticated(env: AgentEnvelope, authorization: string | null): Promise<Handled> {
@@ -372,12 +372,13 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
     }
     if (!agent.arcOperator) {
       if (reservation !== null) await releaseStake(reservation, "no_arc_operator").catch(() => undefined);
-      throw new AgentEnvelopeError("set an operator first (setArcOperator): transactions are sent from it, on Base and Arc", 409, "no_arc_operator");
+      throw new AgentEnvelopeError("set an operator first (setArcOperator): transactions are sent from it, on Solana Devnet", 409, "no_arc_operator");
     }
+    const operator = agent.arcOperator;
     let arc;
     try {
-      await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
-      arc = await onChain(() => prepareChainWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body, agent.arcOperator as `0x${string}`));
+      await onChain(() => assertArcStakeAllowed(write as unknown as { action: string; params: Record<string, unknown> }, env.body, operator));
+      arc = await onChain(() => prepareChainWrite(write as unknown as { action: string; params: Record<string, unknown> }, env.body, operator));
     } catch (err) {
       if (reservation !== null) await releaseStake(reservation, "prepare_failed").catch(() => undefined);
       throw err;
@@ -391,10 +392,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
         chain: arc.chain,
         signer: agent.arcOperator,
         transactions: arc.transactions,
-        submit:
-          arc.chain === "base"
-            ? "Sign each transaction with the operator key and send it to Base, in order, waiting for each to land (an approve comes first when the USDC allowance is short). Gas is ETH on Base."
-            : "Sign each transaction with the operator key (value is native USDC in wei) and send it to Arc, in order.",
+        submit: "Sign the base64 transactions with the Solana operator key and submit them to the indicated devnet layer in order. Confirm each before continuing, and wait for any delegation to complete.",
       },
     };
   }
@@ -430,7 +428,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
 
     case "rotateOperator": {
       const next = normalizeWallet(env.body.operatorWallet);
-      if (!next) throw new AgentEnvelopeError("operatorWallet must be an EVM address", 400, "bad_wallets");
+      if (!next) throw new AgentEnvelopeError("operatorWallet must be a Solana public key", 400, "bad_wallets");
       const proofOk = await verifyWalletSignature({
         address: next,
         message: operatorProofMessage(agent.agentId, next),
@@ -448,7 +446,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
 
     case "setArcOperator": {
       const next = arcOperatorOf(env.body.arcOperator);
-      if (!next) throw new AgentEnvelopeError("arcOperator must be an EVM address", 400, "bad_wallets");
+      if (!next) throw new AgentEnvelopeError("arcOperator must be a Solana public key", 400, "bad_wallets");
       await setArcOperator(agent.agentId, next);
       return { status: 200, body: { ok: true, arcOperator: next } };
     }
@@ -553,7 +551,7 @@ async function handleAuthenticated(env: AgentEnvelope, authorization: string | n
           ok: true,
           payoutWallet: agent.payoutWallet,
           // The contracts pay a referrer's share straight to it at payout: nothing accrues here to claim.
-          note: "Referrer and copy fees are paid by the contracts (on Base and Arc) directly to the wallet named in the stake.",
+          note: "Referrer and copy fees are paid by the contracts (on Solana Devnet) directly to the wallet named in the stake.",
         },
       };
     }
@@ -567,10 +565,10 @@ function requireArc(): void {
   if (!arcAgentsEnabled()) throw new AgentEnvelopeError("markets are not configured on this deployment", 503, "chain_unavailable");
 }
 
-function requireArcOperator(agent: AgentRecord): `0x${string}` {
+function requireArcOperator(agent: AgentRecord): string {
   requireArc();
   if (!agent.arcOperator) throw new AgentEnvelopeError("set an Arc operator first (setArcOperator)", 409, "no_arc_operator");
-  return agent.arcOperator as `0x${string}`;
+  return agent.arcOperator;
 }
 
 function publicView(agent: AgentRecord) {

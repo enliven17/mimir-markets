@@ -156,7 +156,7 @@ export async function createWallets(names: string[], blockchain: string, prefix 
 /** Persona slug → its wallet on a chain, from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (JSON; lib/chains/house.ts). */
 export type CouncilWallets = Record<string, { id: string; address: `0x${string}` }>;
 
-export function councilWalletsFromEnv(chain: "arc" | "base" = "arc"): CouncilWallets {
+export function councilWalletsFromEnv(chain: "arc" | "base" | "solana" = "arc"): CouncilWallets {
   try {
     return JSON.parse(process.env[chain === "arc" ? "ARC_COUNCIL_WALLETS" : "BASE_COUNCIL_WALLETS"] ?? "{}") as CouncilWallets;
   } catch {

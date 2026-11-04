@@ -39,7 +39,7 @@ function toRecord(row: Record<string, unknown>): AgentRecord {
     agentId: String(row.agent_id),
     ownerWallet: String(row.owner_wallet),
     operatorWallet: String(row.operator_wallet),
-    arcOperator: typeof row.arc_operator === "string" && row.arc_operator ? (row.arc_operator as `0x${string}`) : null,
+    arcOperator: typeof row.arc_operator === "string" && row.arc_operator ? (row.arc_operator) : null,
     payoutWallet: String(row.payout_wallet),
     displayName: String(row.display_name ?? ""),
     authorityLevel: Number(row.authority_level ?? 0) as AuthorityLevel,
@@ -373,7 +373,7 @@ export async function setArcOperator(agentId: string, arcOperator: string, now =
 
 /** The agent whose Arc operator is `address` (any case), or null. */
 export async function agentByArcOperator(address: string): Promise<AgentRecord | null> {
-  const a = address.toLowerCase();
-  const row = (await allAgentRows()).find((r) => typeof r.arc_operator === "string" && r.arc_operator.toLowerCase() === a);
+  const a = address;
+  const row = (await allAgentRows()).find((r) => typeof r.arc_operator === "string" && r.arc_operator === a);
   return row ? toRecord(row) : null;
 }

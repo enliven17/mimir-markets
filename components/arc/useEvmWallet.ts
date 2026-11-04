@@ -27,7 +27,7 @@ export interface EvmBridge {
   disconnect(): Promise<void>;
 }
 
-export type EvmChainIntent = "arc" | "base";
+export type EvmChainIntent = "arc" | "base" | "solana";
 
 /** The live wagmi account: the same address on Arc and Base. */
 export interface EvmAccount {

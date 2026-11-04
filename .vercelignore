@@ -1,6 +1,7 @@
 # With this file present the Vercel CLI no longer reads .gitignore, so the secrets and build outputs it covers
 # are repeated here first.
 .env
+.env*
 .env*.local
 deploy/.env
 deploy/keystore/
@@ -34,6 +35,7 @@ artifacts
 /examples
 /tests
 /test-results
+/test-results-recheck
 /cli
 /scripts
 /MAINNET-TODO.md

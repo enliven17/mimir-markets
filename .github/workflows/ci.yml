@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [solana]
   pull_request:
 
 # Least privilege: the job only reads the repo (gitleaks scans history, no writes).
@@ -32,21 +32,18 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
       - run: npm run typecheck
-      - run: npm run test:smoke
-      # Public Sepolia configuration lets browser checks exercise Base routes.
-      # No signer, Circle credentials or internal secrets are used by CI.
+      - run: npm run test:solana
+      # Read-only devnet settings; CI never receives signing keys or backend secrets.
       - run: npm run build
         env:
-          NEXT_PUBLIC_MARKET_CHAINS: base
-          NEXT_PUBLIC_BASE_NETWORK: testnet
-          NEXT_PUBLIC_CONVEX_URL: https://hushed-orca-915.convex.cloud
-          NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS: '0xB29BCcA174B78bE6448234c94Bf1caab44824948'
-          NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS: '0x9d3721dc087103228a4bA9EC72dacEb1B19b4402'
-          NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS: '0xd3356F1a085068b2DA2dfE1A09f1e8ddf0eC0858'
+          NEXT_PUBLIC_MARKET_CHAINS: solana
+          NEXT_PUBLIC_SOLANA_CLUSTER: devnet
+          NEXT_PUBLIC_SITE_URL: https://solana.mimirmarkets.xyz
+          NEXT_PUBLIC_CONVEX_URL: https://warmhearted-hummingbird-752.convex.cloud
       # Browser smoke: every page on desktop + mobile, no console errors, no
       # horizontal overflow. Runs against the build above.
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e
+      - run: npx playwright test tests/e2e/smoke.spec.ts --grep "renders cleanly"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:

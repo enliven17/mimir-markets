@@ -7,7 +7,7 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimirmarkets.xyz").replace(/\/$/, "");
 
 export type BetKind = "vs" | "pool";
-export type BetChain = "arc" | "base";
+export type BetChain = "arc" | "base" | "solana";
 /** Bump when the card design changes, so X fetches the new image. */
 export const BET_CARD_VERSION = 1;
 

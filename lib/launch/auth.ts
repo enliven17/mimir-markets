@@ -14,7 +14,8 @@ export function launchMessage(a: { action: LaunchAction; owner: string; agent: s
     `agent: ${a.agent}`,
     `body: ${a.bodySha256}`,
     `signedAt: ${a.signedAt}`,
-    "Only sign this on mimirmarkets.xyz.",
+    "network: Solana Devnet",
+    "Only sign this on solana.mimirmarkets.xyz.",
   ].join("\n");
 }
 

@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   if (kind && kind !== "vs" && kind !== "pool") return NextResponse.json({ success: false, error: "kind must be vs or pool" }, { status: 400 });
   try {
     const now = Math.floor(Date.now() / 1000);
-    const rows = (await arcMarketList(kind as "vs" | "pool" | undefined, chain as "arc" | "base" | undefined)) as IndexedMarket[];
+    const rows = (await arcMarketList(kind as "vs" | "pool" | undefined, chain as "arc" | "base" | "solana" | undefined)) as IndexedMarket[];
     const markets = filterMarkets(rows.map((m) => toPublic(m, now)), state, now).slice(0, limit);
     return NextResponse.json({ success: true, data: { markets } }, { headers: { "cache-control": "public, s-maxage=10" } });
   } catch (err) {

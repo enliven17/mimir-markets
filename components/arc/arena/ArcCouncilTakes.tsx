@@ -129,7 +129,7 @@ export default function ArcCouncilTakes({ chain = "arc", kind, marketId, labelA,
             <span className="flex items-baseline justify-between gap-2 text-[13px]">
               <Who slug={t.slug} />
               {t.outcome === "staked" && t.txHash ? (
-                <a href={explorerUrl(marketChain(chain), "tx", t.txHash)} target="_blank" rel="noreferrer" className="flex-none font-mono text-[12px] text-coral hover:underline">
+                <a href={explorerUrl(marketChain(chain), "tx", t.txHash, t.txLayer)} target="_blank" rel="noreferrer" className="flex-none font-mono text-[12px] text-coral hover:underline">
                   tx <ExternalMark />
                 </a>
               ) : null}

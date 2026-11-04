@@ -13,6 +13,10 @@ export interface MarketDeployment {
 }
 
 export function marketDeployment(chain: MarketChain): MarketDeployment {
+  if (chain.id === "solana") return {
+    chain: "solana", chainId: 0, network: "devnet", v3: chain.solana!.programId,
+    pool: "", fees: "", usdc: chain.usdc.address, fromBlock: chain.solana!.genesisHash,
+  };
   if (!chain.contracts.mimirV3 || !chain.contracts.mimirPool || !chain.contracts.mimirFees) {
     throw new Error(`${chain.id}: all three market contracts must be configured`);
   }

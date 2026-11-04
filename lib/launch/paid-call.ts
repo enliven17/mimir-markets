@@ -15,8 +15,8 @@
  */
 import { getAddress, isAddress, keccak256, toHex, type Hash, type PublicClient } from "viem";
 
-export type PayChain = "arc" | "base";
-export const PAY_CHAINS: PayChain[] = ["arc", "base"];
+export type PayChain = "arc" | "base" | "solana";
+export const PAY_CHAINS: PayChain[] = ["solana"];
 export const PAY_HEADER = "x-mimir-payment";
 /** A payment older than this does not buy a call (an old funding transfer to the wallet is not a payment). */
 export const PAY_MAX_AGE_MS = 60 * 60_000;
@@ -72,6 +72,7 @@ export function quote(usd: number, w: Wallets, base: BaseQuote | null = null): O
   return PAY_CHAINS.filter((c) => w[c] && (c !== "base" || base)).map((chain) => {
     const units = priceUnits(usd);
     const o: Offer = { chain, asset: "USDC", amount: human(units, 6), units: units.toString(), decimals: 6, payTo: w[chain]! };
+    if (chain === "solana") return base ? { ...o, callId: base.callId, secret: base.secret } : o;
     if (chain !== "base") return o;
     return { ...o, payTo: base!.contract, agent: w.base!, callId: base!.callId, secret: base!.secret, ...(base!.dataSuffix ? { dataSuffix: base!.dataSuffix } : {}) };
   });
@@ -81,10 +82,11 @@ export const minUnits = (usd: number) => (priceUnits(usd) * SLACK_BPS) / 10_000n
 
 /** `<chain>:<tx>`, and on Base `base:<tx>:<secret>` (the quote's secret, 32 bytes hex). */
 export function parsePayment(raw: string | null): { chain: PayChain; tx: string; secret?: string } | null {
-  const m = /^(arc|base):([^\s:]+)(?::(\S+))?$/.exec(raw?.trim() ?? "");
+  const m = /^(solana):([^\s:]+):((?:0x)[0-9a-fA-F]{64})$/.exec(raw?.trim() ?? "");
   if (!m) return null;
   const chain = m[1] as PayChain;
   const tx = m[2];
+  if (chain === "solana") return /^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(tx) ? { chain, tx, secret: m[3].toLowerCase() } : null;
   if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) return null;
   if (chain !== "base") return m[3] === undefined ? { chain, tx: tx.toLowerCase() } : null;
   return m[3] && /^0x[0-9a-fA-F]{64}$/.test(m[3]) ? { chain, tx: tx.toLowerCase(), secret: m[3].toLowerCase() } : null;

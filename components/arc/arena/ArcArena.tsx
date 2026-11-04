@@ -123,7 +123,7 @@ export default function ArcArena() {
           </div>
         ) : null}
         <div aria-label="Market type" className="flex justify-center gap-1 text-[13px] sm:justify-start">
-          {(["all", "vs", "pool"] as const).map((k) => (
+          {(["all", "vs"] as const).map((k) => (
             <button
               key={k}
               aria-pressed={kind === k}

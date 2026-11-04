@@ -15,7 +15,7 @@ export async function copyArcStake(
   ctx: Pick<GenericActionCtx<GenericDataModel>, "runQuery" | "scheduler">,
   log: Log,
   copyKey: string,
-  market: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number },
+  market: { chain?: "arc" | "base" | "solana"; kind: "vs" | "pool"; marketId: number },
   side: number,
   agentTx: string,
 ): Promise<number> {

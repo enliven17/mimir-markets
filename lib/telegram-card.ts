@@ -28,7 +28,7 @@ export const CAPTION_MAX = 1024;
 export interface CardQuery {
   type: CardType;
   /** The market's chain ("chain" param; absent = Arc, every card URL from before Base). */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "solana";
   kind: CardKind;
   id: number;
   /** The side the recipient holds (won / lost cards mark it); 0 when not given. */
@@ -67,7 +67,7 @@ export function cardUrl(
   id: number,
   side?: number,
   origin = SITE_URL,
-  chain: "arc" | "base" = "arc",
+  chain: "arc" | "base" | "solana" = "arc",
 ): string {
   const q = new URLSearchParams({ kind, id: String(id) });
   if (side === 1 || side === 2) q.set("side", String(side));

@@ -1,13 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mimir.markets/schemas/agent-api-v1.schema.json",
+  "$id": "https://solana.mimirmarkets.xyz/schemas/agent-api-v1.schema.json",
   "title": "Mimir agent API request envelope (v1)",
   "description": "Every request to POST /api/agents/v1/{action} is this envelope. The body is canonicalized (object keys sorted, compact JSON) and hashed with SHA-256 (lowercase hex); that hash goes into the signed message, so the body cannot be changed after signing. The signed message is the lines 'Mimir Agent API request', 'version: v1', 'agent: <agentId>', 'action: <action>', 'idempotency: <idempotencyKey or empty>', 'nonce: <nonce or empty>', 'signedAt: <signedAt or 0>', 'bodyHash: <sha256 hex>' joined with \\n.",
   "type": "object",
-  "required": ["version", "agentId", "action"],
+  "required": [
+    "version",
+    "agentId",
+    "action"
+  ],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": "v1" },
+    "version": {
+      "const": "v1"
+    },
     "agentId": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
@@ -16,145 +22,374 @@
     "action": {
       "type": "string",
       "enum": [
-        "register", "heartbeat", "rotateOperator",
-        "listClaims", "getClaim", "getBalances", "listPositions", "listEarnings", "dryRun",
-        "issueKey", "listKeys", "revokeKey", "revoke", "setChat",
-        "createClaim", "challenge", "dispute", "withdraw"
+        "register",
+        "heartbeat",
+        "rotateOperator",
+        "listClaims",
+        "getClaim",
+        "getBalances",
+        "listPositions",
+        "listEarnings",
+        "dryRun",
+        "issueKey",
+        "listKeys",
+        "revokeKey",
+        "revoke",
+        "setChat",
+        "createClaim",
+        "challenge",
+        "dispute",
+        "withdraw",
+        "setArcOperator"
       ],
       "description": "Must match the action in the URL."
     },
     "idempotencyKey": {
-      "type": "string", "minLength": 1, "maxLength": 128,
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
       "description": "Safe to retry: the same key and action return the stored response instead of executing again. Replays are served only after the credential checks out."
     },
     "nonce": {
-      "type": "string", "minLength": 1, "maxLength": 128,
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
       "description": "Single use per agent. A replay is rejected with 409. Required for any signed request."
     },
     "signedAt": {
       "type": "integer",
       "description": "Milliseconds since epoch. Rejected with 400 when more than 5 minutes from server time, in either direction."
     },
-    "body": { "type": "object", "description": "Action payload. Defaults to an empty object.", "default": {} },
+    "body": {
+      "type": "object",
+      "description": "Action payload. Defaults to an empty object.",
+      "default": {}
+    },
     "signature": {
       "type": "string",
-      "pattern": "^0x[0-9a-fA-F]{130,20000}$",
-      "description": "EIP-191 personal_sign signature (0x hex) over the UTF-8 request message, by the owner (register and owner-gated actions) or the operator (any other call made without an API key). A smart wallet's ERC-1271 signature is checked on chain."
+      "pattern": "^[1-9A-HJ-NP-Za-km-z]{64,90}$",
+      "description": "Base58 encoding of a 64-byte Ed25519 signature over the UTF-8 canonical request message."
     }
   },
   "$defs": {
     "pubkey": {
       "type": "string",
-      "pattern": "^0x[0-9a-fA-F]{40}$",
-      "description": "An EVM address."
+      "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+      "description": "Case-sensitive Solana public key; decoding must produce exactly 32 bytes."
     },
     "registerBody": {
       "type": "object",
-      "required": ["ownerWallet", "operatorWallet", "operatorSignature"],
+      "required": [
+        "ownerWallet",
+        "operatorWallet",
+        "operatorSignature"
+      ],
       "properties": {
-        "ownerWallet": { "$ref": "#/$defs/pubkey", "description": "Cold key. The only party that can issue keys, rotate the operator or revoke the agent." },
-        "operatorWallet": { "$ref": "#/$defs/pubkey", "description": "Hot key that signs requests and transactions day to day. A compromise is a rotation, not a loss of the agent." },
-        "payoutWallet": { "$ref": "#/$defs/pubkey", "description": "Where referrer and copy fees go on MONETISE positions. Defaults to ownerWallet." },
-        "displayName": { "type": "string", "maxLength": 120 },
+        "ownerWallet": {
+          "$ref": "#/$defs/pubkey",
+          "description": "Cold key. The only party that can issue keys, rotate the operator or revoke the agent."
+        },
+        "operatorWallet": {
+          "$ref": "#/$defs/pubkey",
+          "description": "Hot key that signs requests and transactions day to day. A compromise is a rotation, not a loss of the agent."
+        },
+        "payoutWallet": {
+          "$ref": "#/$defs/pubkey",
+          "description": "Where referrer and copy fees go on MONETISE positions. Defaults to ownerWallet."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
         "authorityLevel": {
-          "type": "integer", "minimum": 0, "maximum": 4,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
           "description": "0 READ_ONLY, 1 PROPOSE, 2 CREATE, 3 STAKE, 4 MONETISE. Up to 3 is active at once; 4 is stored pending until activated."
         },
         "capabilities": {
           "type": "array",
-          "items": { "type": "string", "enum": ["researcher", "market_creator", "council_juror", "fee_earner"] },
+          "items": {
+            "type": "string",
+            "enum": [
+              "researcher",
+              "market_creator",
+              "council_juror",
+              "fee_earner"
+            ]
+          },
           "description": "Each capability has a minimum authority level (researcher 0, market_creator 2, council_juror 3, fee_earner 4). Requesting one above the chosen level is refused with 403 capability_above_authority."
         },
         "operatorSignature": {
           "type": "string",
-          "description": "Operator's EIP-191 signature over 'Mimir agent operator proof\\nagent: <id>\\noperator: <operator address>'."
+          "description": "Base58 Ed25519 signature over operatorProofMessage(agentId, operatorWallet)."
+        },
+        "arcOperator": {
+          "$ref": "#/$defs/pubkey",
+          "description": "Solana transaction operator; historical field name."
         }
       }
     },
     "dryRunBody": {
       "type": "object",
       "properties": {
-        "action": { "type": "string", "default": "challenge", "description": "The action to grade, e.g. challenge or createClaim." },
-        "stakeUsdc": { "type": "number", "minimum": 0, "description": "Ignored when params carries the stake." },
-        "expectedPayoutUsdc": { "type": "number", "minimum": 0, "description": "Payout if the position wins. Needed to quote the fee split." },
-        "params": { "type": "object", "description": "The body the real write would carry. When present the transaction is built and run through simulateTransaction (no signature)." }
+        "action": {
+          "type": "string",
+          "default": "challenge",
+          "description": "The action to grade, e.g. challenge or createClaim."
+        },
+        "stakeUsdc": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Ignored when params carries the stake."
+        },
+        "expectedPayoutUsdc": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Payout if the position wins. Needed to quote the fee split."
+        },
+        "params": {
+          "type": "object",
+          "description": "The body the real write would carry. When present the transaction is built and run through simulateTransaction (no signature)."
+        }
       }
     },
     "createClaimBody": {
       "type": "object",
-      "required": ["question", "creatorPosition", "counterPosition", "resolutionUrl", "stakeUsdc", "deadline"],
+      "required": [
+        "question",
+        "creatorPosition",
+        "counterPosition",
+        "resolutionUrl",
+        "stakeUsdc",
+        "deadline"
+      ],
       "properties": {
-        "question": { "type": "string", "description": "At most 200 UTF-8 bytes." },
-        "creatorPosition": { "type": "string", "description": "At most 100 UTF-8 bytes." },
-        "counterPosition": { "type": "string", "description": "At most 100 UTF-8 bytes." },
-        "resolutionUrl": { "type": "string", "format": "uri", "description": "https only, at most 200 bytes." },
-        "category": { "type": "string", "enum": ["sports", "weather", "crypto", "culture", "custom"], "default": "custom" },
-        "stakeUsdc": { "type": "number", "minimum": 2, "description": "Sent as native USDC by the Arc operator." },
-        "deadline": { "type": "integer", "description": "Unix seconds, 15 minutes to 90 days out." },
-        "maxChallengers": { "type": "integer", "minimum": 1, "maximum": 16, "default": 16 }
+        "question": {
+          "type": "string",
+          "description": "At most 200 UTF-8 bytes."
+        },
+        "creatorPosition": {
+          "type": "string",
+          "description": "At most 100 UTF-8 bytes."
+        },
+        "counterPosition": {
+          "type": "string",
+          "description": "At most 100 UTF-8 bytes."
+        },
+        "resolutionUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "https only, at most 200 bytes."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "sports",
+            "weather",
+            "crypto",
+            "culture",
+            "custom"
+          ],
+          "default": "custom"
+        },
+        "stakeUsdc": {
+          "type": "number",
+          "minimum": 2,
+          "description": "Test USDC, six decimals, used by the Solana transaction operator."
+        },
+        "deadline": {
+          "type": "integer",
+          "description": "Unix seconds, 15 minutes to 90 days out."
+        },
+        "maxChallengers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 16
+        },
+        "chain": {
+          "const": "solana"
+        },
+        "kind": {
+          "const": "vs"
+        }
       }
     },
     "challengeBody": {
       "type": "object",
-      "required": ["claimId", "stakeUsdc"],
+      "required": [
+        "claimId",
+        "stakeUsdc"
+      ],
       "properties": {
-        "claimId": { "type": ["integer", "string"] },
-        "stakeUsdc": { "type": "number", "minimum": 2, "description": "Sent as native USDC by the Arc operator." }
+        "claimId": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "stakeUsdc": {
+          "type": "number",
+          "minimum": 2,
+          "description": "Test USDC, six decimals, used by the Solana transaction operator."
+        },
+        "chain": {
+          "const": "solana"
+        },
+        "kind": {
+          "const": "vs"
+        }
       }
     },
     "claimBody": {
       "type": "object",
-      "required": ["claimId"],
-      "properties": { "claimId": { "type": ["integer", "string"] } }
+      "required": [
+        "claimId"
+      ],
+      "properties": {
+        "claimId": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      }
     },
     "amountBody": {
       "type": "object",
-      "required": ["amountUsdc"],
-      "properties": { "amountUsdc": { "type": "number", "exclusiveMinimum": 0 } }
+      "required": [
+        "amountUsdc"
+      ],
+      "properties": {
+        "amountUsdc": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
     },
     "listClaimsBody": {
       "type": "object",
       "properties": {
-        "state": { "type": "string", "enum": ["open", "active", "live", "proposed", "disputed", "resolved", "cancelled"] },
-        "category": { "type": "string" },
-        "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "active",
+            "live",
+            "proposed",
+            "disputed",
+            "resolved",
+            "cancelled"
+          ]
+        },
+        "category": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
       }
     },
     "issueKeyBody": {
       "type": "object",
-      "properties": { "label": { "type": "string", "maxLength": 120, "default": "default" } }
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 120,
+          "default": "default"
+        }
+      }
     },
     "revokeKeyBody": {
       "type": "object",
-      "required": ["prefix"],
-      "properties": { "prefix": { "type": "string", "description": "The displayable key prefix from listKeys. The full key is never stored." } }
+      "required": [
+        "prefix"
+      ],
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "The displayable key prefix from listKeys. The full key is never stored."
+        }
+      }
     },
     "rotateOperatorBody": {
       "type": "object",
-      "required": ["operatorWallet", "operatorSignature"],
+      "required": [
+        "operatorWallet",
+        "operatorSignature"
+      ],
       "properties": {
-        "operatorWallet": { "$ref": "#/$defs/pubkey" },
-        "operatorSignature": { "type": "string", "description": "The new operator's proof signature, as at registration." }
+        "operatorWallet": {
+          "$ref": "#/$defs/pubkey"
+        },
+        "operatorSignature": {
+          "type": "string",
+          "description": "The new operator's proof signature, as at registration."
+        }
       }
     },
     "preparedTransaction": {
       "type": "object",
-      "required": ["chainId", "to", "data", "value", "description"],
+      "required": [
+        "layer",
+        "rpcUrl",
+        "transaction",
+        "recentBlockhash",
+        "lastValidBlockHeight",
+        "genesisHash",
+        "description"
+      ],
       "properties": {
-        "chainId": { "type": "integer", "description": "Arc's chain id." },
-        "to": { "type": "string", "description": "The market contract." },
-        "data": { "type": "string", "description": "Calldata, 0x hex." },
-        "value": { "type": "string", "description": "Native USDC in wei (18 dp), decimal string." },
-        "description": { "type": "string" }
+        "layer": {
+          "enum": [
+            "base",
+            "er"
+          ]
+        },
+        "rpcUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "transaction": {
+          "type": "string",
+          "description": "Unsigned Solana legacy transaction, base64."
+        },
+        "recentBlockhash": {
+          "type": "string"
+        },
+        "lastValidBlockHeight": {
+          "type": "integer"
+        },
+        "genesisHash": {
+          "const": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     },
     "errorResponse": {
       "type": "object",
-      "required": ["ok", "reason", "message"],
+      "required": [
+        "ok",
+        "reason",
+        "message"
+      ],
       "properties": {
-        "ok": { "const": false },
-        "reason": { "type": "string", "description": "Machine-readable cause, e.g. bad_signature, nonce_replay, rate_limit, capability, authority, daily_cap, no_arc_operator." },
-        "message": { "type": "string" }
+        "ok": {
+          "const": false
+        },
+        "reason": {
+          "type": "string",
+          "description": "Machine-readable cause, e.g. bad_signature, nonce_replay, rate_limit, capability, authority, daily_cap, no_arc_operator."
+        },
+        "message": {
+          "type": "string"
+        }
       }
     }
   }

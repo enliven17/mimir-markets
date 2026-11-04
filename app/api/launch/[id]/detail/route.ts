@@ -16,7 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const council = COUNCIL_AGENTS[id];
   const agent = council ? null : await c.client.query(api.launch.detail, { secret: c.secret, slug: id });
   if (!council && !agent) return fail(404, "No such agent.");
-  const arcAddress = council?.arc ?? agent?.arc ?? null;
+  const arcAddress = council?.solana ?? agent?.solana ?? null;
   const arc = arcAddress ? await c.client.query(api.launch.arcRecord, { secret: c.secret, address: arcAddress }) : [];
   return Response.json({ agent, arc }, { headers: { "cache-control": "no-store" } });
 }

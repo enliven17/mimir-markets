@@ -11,7 +11,7 @@ import { checkKey } from "@/lib/launch/byok";
 import { CreateBody, create } from "@/lib/launch/flow";
 import { fail, launchCx, readSigned } from "@/lib/launch/request";
 import { ARC } from "@/lib/arc/config";
-import { createWallets } from "@/lib/server/circle-w3s";
+import { createHostedWallet } from "@/lib/solana/hosted-wallet";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export const maxDuration = 30;
 export async function GET(req: Request) {
   if (!(await allowRequest("launch-read", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const owner = normalizeOwner(new URL(req.url).searchParams.get("owner"));
-  if (!owner) return fail(400, "owner must be an EVM address");
+  if (!owner) return fail(400, "owner must be a Solana public key");
   const c = launchCx();
   if (!c) return fail(503, "Launch is not configured on this server.");
   return Response.json({ agents: await c.client.query(api.launch.byOwner, { owner }) }, { headers: { "cache-control": "no-store" } });
@@ -38,22 +38,10 @@ export async function POST(req: Request) {
   try {
     const r = await create(c, {
       checkKey: (p, k, m) => checkKey(p, k, m),
-      wallets: {
-        arc: MARKET_CHAINS.chains.arc.enabled ? async (slug) => {
-          const [w] = await createWallets([slug], ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET", "mimir-launch");
-          return { id: w.id, address: w.address };
-        } : undefined,
-        // Base markets on: its Base wallet too (BASE / BASE-SEPOLIA). It needs ETH for gas, sent by its owner or Mimir.
-        base: MARKET_CHAINS.chains.base.enabled
-          ? async (slug) => {
-              const [w] = await createWallets([slug], circleBlockchain("base", MARKET_CHAINS.chains.base.network), "mimir-launch");
-              return { id: w.id, address: w.address };
-            }
-          : undefined,
-      },
+      wallets: { solana: async () => createHostedWallet() },
     }, g.owner, parsed.data);
     if (!r.ok) return fail(r.status, r.error);
-    return Response.json({ id: r.id, arc: r.arc, base: r.base });
+    return Response.json({ id: r.id, solana: r.solana, arc: null, base: null });
   } catch (e) {
     console.error("[launch] create failed:", e);
     const msg = e instanceof Error ? e.message : "";

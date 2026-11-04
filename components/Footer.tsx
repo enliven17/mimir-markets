@@ -15,7 +15,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight } from "@/components/icons";
 import { Link, usePathname } from "@/i18n/navigation";
-import { chainPublicClient } from "@/lib/chains/client";
+import { createDevnetConnection } from "@/lib/solana/devnet-connection";
+import { SOLANA_RPC } from "@/lib/solana/config";
 import { MARKET_CHAINS, explorerUrl } from "@/lib/chains/registry";
 import { gsap, useGSAP } from "@/lib/motion";
 import dynamic from "next/dynamic";
@@ -30,16 +31,16 @@ import { ExternalMark } from "@/components/ExternalMark";
 const SplitReveal = dynamic(() => import("@/components/motion/SplitReveal"));
 
 const REPO_URL = "https://github.com/enliven17/mimir-markets";
-const OPENAPI_URL = `${REPO_URL}/blob/main/docs/openapi-agent-v1.yaml`;
+const OPENAPI_URL = `${REPO_URL}/blob/solana/docs/openapi-agent-v1.yaml`;
 const CCTP_URL = "https://developers.circle.com/cctp";
 // The VS market contract stands for "the program": every contract is listed on /docs.
 const primaryChain = MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain];
-const PROGRAM_ID = primaryChain.contracts.mimirV3 ?? "";
+const PROGRAM_ID = primaryChain.solana?.programId ?? "";
 const PROGRAM_SHORT = PROGRAM_ID ? `${PROGRAM_ID.slice(0, 6)}…${PROGRAM_ID.slice(-4)}` : "-";
 const PROGRAM_EXPLORER_URL = PROGRAM_ID ? explorerUrl(primaryChain, "address", PROGRAM_ID) : primaryChain.explorer;
 const MARK = "Mimir";
 const SLOT_POLL_MS = 8_000;
-const ARC_CLIENT = chainPublicClient(primaryChain);
+const ARC_CLIENT = createDevnetConnection(SOLANA_RPC);
 
 const groupItems = (key: string) => NAV_MORE_GROUPS.find((g) => g.key === key)?.items ?? [];
 
@@ -71,7 +72,7 @@ function useLiveSlot(target: React.RefObject<HTMLElement | null>): number | null
       // A background tab needs no live slot.
       !document.hidden &&
       ARC_CLIENT
-        .getBlockNumber()
+        .getSlot("confirmed")
         .then((b) => !cancelled && setSlot(Number(b)))
         .catch(() => undefined);
     void read();

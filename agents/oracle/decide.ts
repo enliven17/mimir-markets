@@ -412,7 +412,7 @@ export function houseHoldsPosition(
   ctx: Pick<DecideContext, "oracle" | "house">,
 ): boolean {
   return [claim.creator, ...claim.challengers.map((c) => c.addr)].some(
-    (addr) => addr.toLowerCase() === ctx.oracle.toLowerCase() || Boolean(ctx.house?.has(addr.toLowerCase())),
+    (addr) => (addr.startsWith("0x") ? addr.toLowerCase() : addr) === (ctx.oracle.startsWith("0x") ? ctx.oracle.toLowerCase() : ctx.oracle) || Boolean(ctx.house?.has(addr.startsWith("0x") ? addr.toLowerCase() : addr)),
   );
 }
 

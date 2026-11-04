@@ -204,7 +204,7 @@ export function setClaimInviteesCall(chain: MarketChain, marketId: number, accou
 /** An ERC-20 approve of exactly `wei` (index units) of the chain's USDC to `spender`. */
 export function approveCall(chain: MarketChain, spender: Address, wei: bigint): ArcCall {
   if (chain.usdc.kind !== "erc20") throw new Error(`${chain.label} USDC is native: nothing to approve`);
-  return { to: chain.usdc.address, data: encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [spender, toChainUnits(chain, wei)] }) };
+  return { to: chain.usdc.address as Address, data: encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [spender, toChainUnits(chain, wei)] }) };
 }
 
 /** True when the action pulls more USDC than the allowance covers (always false on Arc). */

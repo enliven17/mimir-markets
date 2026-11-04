@@ -1,6 +1,7 @@
 const createNextIntlPlugin = require("next-intl/plugin");
 const fs = require("node:fs");
 const path = require("node:path");
+require("./config/solana-devnet.cjs").assertDevnetEnv(process.env);
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 /**

@@ -66,7 +66,7 @@ export const createOne = internalAction({
       if (problem) return void (await say("hold", `drafted "${draft.question.slice(0, 90)}" but did not open it: ${problem}`));
 
       // Where it opens: every enabled chain its rules allow, where it has a wallet, the seed and gas.
-      const wallets: Record<MarketChainId, { walletId: string; address: string } | null> = { arc: a.arc, base: a.base };
+      const wallets: Partial<Record<MarketChainId, { walletId: string; address: string } | null>> = { arc: a.arc, base: a.base };
       const targets = [];
       let budgetLeft = a.budgetUsdc - a.openUsdc;
       for (const c of registry.enabled) {

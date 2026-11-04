@@ -23,6 +23,7 @@ archive/
 .env.test.local
 .env.production.local
 .env*.local
+.env.convex.*
 
 # ========================
 # Blockchain / Secrets
@@ -37,6 +38,7 @@ deploy/keystore/
 # Testing & coverage
 # ========================
 coverage/
+/test-results-recheck/
 .nyc_output/
 *.lcov
 __pycache__/

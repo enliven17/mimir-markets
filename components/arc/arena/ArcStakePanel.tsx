@@ -6,6 +6,7 @@
  * share. Pool: pick a side, shown as what it would return if it closed now.
  */
 import WalletFunding from "@/components/wallet/WalletFunding";
+import { solanaChallengeQuote } from "@/lib/solana/quote";
 import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal";
@@ -36,7 +37,7 @@ export default function ArcStakePanel({
   const { send, busy, error, last } = useArcSend(account);
   const cfg = account.chainConfig;
   const MIN_STAKE_WEI = cfg.contracts.minStakeWei;
-  const [amount, setAmount] = useState("1");
+  const [amount, setAmount] = useState("2");
   const [side, setSide] = useState<1 | 2>(m.kind === "vs" ? 2 : 1);
   // After a stake goes through: the share sheet (lib/bet-share.ts), with the side and amount just staked.
   const [shared, setShared] = useState<{ side: 1 | 2; amount: string } | null>(null);
@@ -45,10 +46,10 @@ export default function ArcStakePanel({
   // Launch caps, the early lock and the pause, read live from the contract (the index can lag a block or two).
   const [limits, setLimits] = useState<StakeLimits | null>(null);
   useEffect(() => {
-    if (!contract) return;
+    if (!contract || cfg.id === "solana") return;
     let live = true;
     // The contract's caps are in its own units (6 dp on Base): scale them to index units like everything else here.
-    readStakeLimits(chainPublicClient(cfg), contract, m.marketId).then(
+    readStakeLimits(chainPublicClient(cfg), contract as `0x${string}`, m.marketId).then(
       (l) => live && setLimits({ ...l, maxMarket: toIndexUnits(cfg, l.maxMarket), maxAccount: toIndexUnits(cfg, l.maxAccount) }),
       () => {},
     );
@@ -59,7 +60,7 @@ export default function ArcStakePanel({
   const stake = parseUsdc(amount);
   const a = BigInt(m.stakeA);
   const b = BigInt(m.stakeB);
-  const isCreator = account.address?.toLowerCase() === m.creator;
+  const isCreator = account.address === m.creator;
   const bps = account.entryBps;
   // The 5x cap counts net stakes; what you may send is a little more, the fee on top.
   const room = m.kind === "vs" ? floorToChain(cfg, maxGrossFor(vsRoom(a, b), bps)) : null;
@@ -67,7 +68,7 @@ export default function ArcStakePanel({
     stake === null
       ? null
       : m.kind === "vs"
-        ? vsChallengeQuote(a, b, stake, bps)
+        ? solanaChallengeQuote(m, stake, account.address)
         : side === 1
           ? poolQuote(a, b, stake, bps)
           : poolQuote(b, a, stake, bps);
@@ -75,6 +76,7 @@ export default function ArcStakePanel({
   let blocker: string | null = null;
   if (m.kind === "vs" && isCreator) blocker = "You created this market: challengers take the other side.";
   else if (m.kind === "vs" && mine.some((p) => p.side === 2)) blocker = "You already challenged this market.";
+  else if (m.participants - 1 >= (m.maxChallengers ?? 16)) blocker = "Every challenger seat is taken.";
   else if (room === 0n) blocker = "This market is full: challengers can stake at most 5× the creator's stake.";
   else if (stake === null) blocker = "Enter an amount in USDC.";
   else if (stake < MIN_STAKE_WEI) blocker = `The minimum stake is ${usd(MIN_STAKE_WEI)}.`;
@@ -85,7 +87,7 @@ export default function ArcStakePanel({
     blocker = stakeLimitBlocker(limits, { kind: m.kind, gross: stake, entryBps: bps, mine: mineNet, total: a + b, now }, usd);
   }
   if (!blocker && account.balance !== null && stake !== null && stake > account.balance) blocker = "not-enough";
-  if (!blocker && cfg.gas.symbol === "ETH" && account.gas === 0n) blocker = `Your wallet needs a little ETH on ${cfg.label} for gas.`;
+  if (!blocker && account.gas === 0n) blocker = `Your wallet needs a little SOL on Solana Devnet for gas.`;
 
   const onStake = async () => {
     if (!contract || stake === null || blocker) return;
@@ -134,7 +136,7 @@ export default function ArcStakePanel({
             <span className="text-muted">You risk</span>
             <span className="text-right text-cream">{usd(quote.risk)}</span>
             <span className="text-muted">
-              Fee {bps / 100}%
+              Fee on profit {(m.platformFeeBps ?? 50) / 100}%
             </span>
             <span className="text-right text-cream">{usdFine(quote.fee)}</span>
             <span className="text-muted">{quote.atMost ? "You win at most" : "Returns if it closed now"}</span>
@@ -145,7 +147,7 @@ export default function ArcStakePanel({
         <p className="m-0 text-[12px] text-dim">
           {cfg.gas.symbol === "ETH"
             ? `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas in ETH${account.gas === null ? "" : ` (${(Number(account.gas) / 1e18).toFixed(5)} ETH)`}`
-            : `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}
+            : `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in devnet SOL`}
         </p>
 
         {blocker === "not-enough" ? (
@@ -160,7 +162,7 @@ export default function ArcStakePanel({
         )}
         {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
         {last ? (
-          <a href={explorerUrl(cfg, "tx", last.txHash)} target="_blank" rel="noreferrer" className="text-[13px] text-coral hover:underline">
+          <a href={explorerUrl(cfg, "tx", last.txHash, last.layer)} target="_blank" rel="noreferrer" className="text-[13px] text-coral hover:underline">
             ✓ Staked, view on {cfg.explorerName}
           </a>
         ) : null}

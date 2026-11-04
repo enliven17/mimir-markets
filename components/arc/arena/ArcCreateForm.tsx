@@ -76,7 +76,7 @@ export default function ArcCreateForm() {
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState("crypto");
   const [deadline, setDeadline] = useState(() => localInput(Math.floor(Date.now() / 1000) + 86_400));
-  const [amount, setAmount] = useState("1");
+  const [amount, setAmount] = useState("2");
   const [side, setSide] = useState<1 | 2>(1);
   const [stage, setStage] = useState<string | null>(null);
   const [series, setSeries] = useState("");
@@ -101,7 +101,7 @@ export default function ArcCreateForm() {
     if (!Number.isFinite(deadlineSec) || deadlineSec < now + MIN_LEAD_SECONDS) return "Set the deadline at least 10 minutes from now.";
     if (stake === null || stake < MIN_STAKE_WEI) return `Stake at least ${usd(MIN_STAKE_WEI)}.`;
     if (account.balance !== null && stake > account.balance) return "not-enough";
-    if (cfg.gas.symbol === "ETH" && account.gas === 0n) return `Your wallet needs a little ETH on ${cfg.label} for gas.`;
+    if (account.gas === 0n) return `Your wallet needs a little SOL on Solana Devnet for gas.`;
     return null;
   }, [question, labelA, labelB, url, deadlineSec, stake, account.balance, account.gas, openedToday, MIN_STAKE_WEI, cfg]);
 
@@ -124,12 +124,16 @@ export default function ArcCreateForm() {
     });
     if (!r) return setStage(null);
     setStage("Opening the market page…");
-    const receipt = await chainPublicClient(cfg).getTransactionReceipt({ hash: r.txHash });
+    if (cfg.id === "solana") {
+      if (r.marketId !== undefined) router.push(`${marketPath(chain, kind, r.marketId)}?new=1`);
+      return;
+    }
+    const receipt = await chainPublicClient(cfg).getTransactionReceipt({ hash: r.txHash as `0x${string}` });
     const logs =
       kind === "vs"
         ? parseEventLogs({ abi: ARC_V3_ABI, logs: receipt.logs, eventName: "ClaimCreated" })
         : parseEventLogs({ abi: ARC_POOL_ABI, logs: receipt.logs, eventName: "MarketCreated" });
-    const id = logs.find((l) => l.address.toLowerCase() === contract.toLowerCase())?.args.id;
+    const id = logs.find((l) => l.address === contract.toLowerCase())?.args.id;
     if (id === undefined) return setStage(null);
     router.push(`${marketPath(chain, kind, Number(id))}?new=1`);
   };
@@ -161,13 +165,13 @@ export default function ArcCreateForm() {
         <details open={!!series} className="grid gap-3 rounded-xl bg-panel p-4"><summary className="cursor-pointer text-[14px] text-cream">Use a daily checkpoint template</summary>
           <div className="mt-3 grid gap-3"><label className="grid gap-1 text-[12px] text-muted">Series<select className={SELECT} value={series} onChange={(e) => setSeries(e.target.value)}><option value="">Choose a series</option>{MARKET_SERIES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
             <label className="grid gap-1 text-[12px] text-muted">USD threshold<input className={FIELD} type="number" min="0.000001" step="any" value={threshold} onChange={(e) => setThreshold(e.target.value)} /></label>
-            <button type="button" className="justify-self-start text-[13px] text-coral" disabled={!series || !(Number(threshold) > 0)} onClick={() => { const draft = seriesDraft(series, Number(threshold), Date.now()); if (!draft) return; setKind("pool"); setQuestion(draft.question); setLabelA(draft.labelA); setLabelB(draft.labelB); setUrl(draft.resolutionUrl); setCategory(draft.category); setDeadline(localInput(draft.deadline)); }}>Apply template · review before signing</button>
+            <button type="button" className="justify-self-start text-[13px] text-coral" disabled={!series || !(Number(threshold) > 0)} onClick={() => { const draft = seriesDraft(series, Number(threshold), Date.now()); if (!draft) return; setKind("vs"); setQuestion(draft.question); setLabelA(draft.labelA); setLabelB(draft.labelB); setUrl(draft.resolutionUrl); setCategory(draft.category); setDeadline(localInput(draft.deadline)); }}>Apply template · review before signing</button>
             <p className="m-0 text-[12px] text-muted">Side A wins if the two-source USD price is strictly above the threshold at the 12:00 UTC checkpoint. Equality belongs to Side B. Unavailable or conflicting evidence follows the market's refund/dispute process. Each occurrence requires a new signature and stake.</p>
             {duplicate ? <Link href={marketPath(chain, "pool", duplicate.marketId)} className="text-[13px] text-coral">An open checkpoint for this date already exists. Join it to keep liquidity together →</Link> : null}
           </div>
         </details>
         <div role="radiogroup" aria-label="Market type" className="grid grid-cols-2 gap-2">
-          {(["vs", "pool"] as const).map((k) => (
+          {(["vs"] as const).map((k) => (
             <button
               key={k}
               role="radio"
@@ -279,7 +283,7 @@ export default function ArcCreateForm() {
             <span className="text-right text-cream">{usdFine(entryFeeOf(stake, account.entryBps))}</span>
             {kind === "vs" ? (
               <>
-                <span className="text-muted">You win at most</span>
+                <span className="text-muted">Maximum return before profit fees</span>
                 <span className="text-right text-win">{usd(vsCreatorQuote(stake, account.entryBps).win)}</span>
               </>
             ) : (
@@ -292,8 +296,7 @@ export default function ArcCreateForm() {
         ) : null}
 
         <p className="m-0 text-[12px] leading-relaxed text-dim">
-          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to the winners' wallets on {cfg.label}. A
-          draw or an unresolvable market refunds everyone.
+          Your full stake enters escrow. Fees apply only to a winner's profit, using the policy frozen when the market opens. Betting closes {LOCK_SECONDS} s before the deadline. The oracle proposes a result from the source, anyone may dispute it, and payouts go to the winners' wallets on {cfg.label}. A draw or an unresolvable market refunds everyone's stake.
         </p>
 
         <AccountGate account={account}>

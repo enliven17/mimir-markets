@@ -28,7 +28,7 @@ export async function arcPositions(arcAccount: string) {
 export async function arcChallengedBy(wallets: string[], statuses: string[], limit: number) {
   const c = convex();
   if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  return c.query(api.arcViews.challengedBy, { wallets: wallets.map((w) => w.toLowerCase()), statuses, limit });
+  return c.query(api.arcViews.challengedBy, { wallets: wallets, statuses, limit });
 }
 
 /** The council's Arc wallets (slug → address), from the Convex view. */
@@ -36,7 +36,7 @@ export async function arcCouncilWallets(): Promise<Map<string, string>> {
   const c = convex();
   if (!c) return new Map();
   const rows = await c.query(api.arcViews.council, {});
-  return new Map(rows.map((r) => [r.slug, r.address.toLowerCase()]));
+  return new Map(rows.map((r) => [r.slug, r.address]));
 }
 
 export async function arcVolumeByUser(): Promise<Array<{ user: string; usdc: number }>> {
@@ -53,7 +53,7 @@ export async function arcMarketList(kind?: "vs" | "pool", chain?: MarketChainId)
 }
 
 /** One market with its positions, events, verdict and linked markets; chain defaults to Arc (older links). */
-export async function arcMarketDetail(kind: "vs" | "pool", marketId: number, chain: MarketChainId = "arc") {
+export async function arcMarketDetail(kind: "vs" | "pool", marketId: number, chain: MarketChainId = "solana") {
   const c = convex();
   if (!c) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return c.query(api.arc.market, { chain, kind, marketId });

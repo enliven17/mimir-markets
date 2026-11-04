@@ -97,7 +97,7 @@ export function LegStakeBox({ leg, now, inSheet = false }: { leg: Leg; now: numb
   const m = useQuery(api.arc.market, { chain: leg.chain, kind: leg.kind, marketId: leg.marketId });
   const account = useArcAccount(leg.chain);
   if (!m) return <p className="m-0 text-[13px] text-muted">{m === null ? "This leg is not indexed yet." : "Loading…"}</p>;
-  const me = account.address?.toLowerCase() ?? null;
+  const me = account.address ?? null;
   const mine = me ? m.positions.filter((p) => p.user === me) : [];
   const phase = arcPhase(m, now);
   return (

@@ -24,7 +24,7 @@ import FollowButton from "@/components/discovery/FollowButton";
 import PublicMarketRecord from "./PublicMarketRecord";
 
 type Council = CouncilAgent & { displayName: string; bio: string };
-type Bet = { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
+type Bet = { chain?: "arc" | "base" | "solana"; kind: "vs" | "pool"; marketId: number; label: string; question: string; usdc: number; outcome: "open" | "won" | "lost" | "refunded"; pnl: number };
 type Detail = {
   agent: null | { events: { at: number; kind: string; text: string; chain: string | null; tx: string | null }[] };
   arc: Bet[];
@@ -39,8 +39,8 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
   if (!council && !card) return <EmptyState>{t("notFound")}</EmptyState>;
 
   const a = council
-    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, token: council.token, arc: council.arc, base: council.base?.address ?? null, house: true }
-    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, token: card!.token, arc: card!.arc, base: card!.base, house: false };
+    ? { name: council.displayName, ticker: council.ticker, seed: slug, about: council.bio, token: null, solana: council.solana, arc: council.arc, base: council.base?.address ?? null, house: true }
+    : { name: card!.name, ticker: card!.ticker, seed: card!.avatarSeed, about: card!.thesis, token: null, solana: card!.solana, arc: card!.arc, base: card!.base, house: false };
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:gap-8">
@@ -60,10 +60,10 @@ export default function LaunchAgentView({ slug, council }: { slug: string; counc
       </header>
 
       <FollowButton target={`agent:${slug}`} label="Follow agent forecasts" />
-      <PublicMarketRecord address={a.base ?? a.arc} />
-      <WalletsBlock ticker={a.ticker} token={a.token} arc={a.arc} base={a.base} />
-      <TokenBlock slug={slug} ticker={a.ticker} owner={card?.owner ?? null} status={card?.status ?? "live"} token={a.token} />
-      {!a.house && card ? <OwnerControls slug={slug} owner={card.owner} status={card.status} arc={card.arc} base={card.base} /> : null}
+      <PublicMarketRecord address={a.solana} />
+      <WalletsBlock solana={a.solana} ticker={a.ticker} token={a.token} arc={a.arc} base={a.base} />
+
+      {!a.house && card ? <OwnerControls solana={card.solana} slug={slug} owner={card.owner} status={card.status} arc={card.arc} base={card.base} /> : null}
       <CopyPanel slug={slug} ticker={a.ticker} />
       <RecordSection slug={slug} />
     </div>

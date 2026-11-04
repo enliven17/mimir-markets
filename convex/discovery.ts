@@ -61,7 +61,7 @@ export const inbox = query({ args: { secret: v.string(), owner: v.string() }, ha
   }
   for (const f of follows) if (f.target.startsWith("market:")) {
     const parts = f.target.split(":");
-    const [chain, kind, id] = (parts.length === 4 ? parts.slice(1) : ["arc", ...parts.slice(1)]) as ["arc" | "base", "vs" | "pool", string];
+    const [chain, kind, id] = (parts.length === 4 ? parts.slice(1) : ["arc", ...parts.slice(1)]) as ["arc" | "base" | "solana", "vs" | "pool", string];
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", Number(id))).unique();
     if (m && !m.isPrivate && m.deadline * 1000 > Date.now() && m.deadline * 1000 - Date.now() < 3_600_000) items.push({ id: `closing:${f.target}`, text: `Closing within an hour: ${m.question}`, at: m.deadline * 1000 - 3_600_000, href: `/arena/${chain}/${kind}/${id}` });
   }

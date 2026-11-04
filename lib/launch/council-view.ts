@@ -4,6 +4,7 @@
  * wallet id) for staking on Base markets once they open, plus its token if it has one. Public data only. Isomorphic.
  */
 import data from "./council.json";
+import roster from "../../config/solana-roster.json";
 
 export type TokenChain = "arc" | "base";
 
@@ -19,6 +20,7 @@ export interface CouncilAgent {
   name: string;
   ticker: string;
   arc: string | null;
+  solana: string | null;
   /** Its Base wallet, once made: address and Circle wallet id (not staking yet). */
   base: { address: string; walletId: string } | null;
   token: AgentToken | null;
@@ -37,8 +39,8 @@ export const COUNCIL_AGENTS: Record<string, CouncilAgent> = Object.fromEntries(
   Object.entries(data as Record<string, Raw>).map(([slug, r]) => [
     slug,
     {
-      slug, name: r.name, ticker: r.ticker, arc: r.arc, base: (process.env.NEXT_PUBLIC_BASE_NETWORK ?? process.env.BASE_NETWORK) === "mainnet" ? r.base ?? null : r.baseTestnet ?? null,
-      token: r.token ? { chain: r.token.chain, address: r.token.address, splitter: r.token.splitter ?? null } : null,
+      slug, name: r.name, ticker: r.ticker, arc: null, base: null, solana: (roster.council as Record<string,string>)[slug] ?? null,
+      token: null,
     },
   ]),
 );

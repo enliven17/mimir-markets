@@ -58,7 +58,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
         const cfg = MARKET_CHAINS.chains[c];
         const [usdc, gas] = await Promise.all([
           usdcBalanceWei(cfg, address).then((w) => w / 1_000_000_000_000n).catch(() => null),
-          cfg.gas.symbol === "ETH" ? gasBalanceWei(cfg, address).catch(() => null) : Promise.resolve(null),
+          cfg.gas.symbol !== "USDC" ? gasBalanceWei(cfg, address).catch(() => null) : Promise.resolve(null),
         ]);
         return [c, { usdc, gas }] as const;
       }),
@@ -164,7 +164,7 @@ export default function WalletChip({ className = "" }: { className?: string }) {
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuId}
-        aria-label={t("chipAria", { address: shortAddress(address), wallet: networkName ?? "EVM" })}
+        aria-label={t("chipAria", { address: shortAddress(address), wallet: networkName ?? "Solana" })}
         // Enter / Space (detail 0) land on the first item, as a menu button should; a click keeps focus on the chip.
         onClick={(e) => (menuOpen ? close(false) : openMenu(e.detail === 0 ? 0 : null))}
         onKeyDown={onChipKey}
@@ -192,8 +192,8 @@ export default function WalletChip({ className = "" }: { className?: string }) {
                     <dt className="text-[11px] text-muted">{t("usdcOn", { network: MARKET_CHAINS.chains[c].label })}</dt>
                     <dd className="font-mono text-[14px] tabular-nums text-cream">
                       {b?.usdc == null ? "…" : formatUsdcUnitsBare(b.usdc)}
-                      {MARKET_CHAINS.chains[c].gas.symbol === "ETH" && b?.gas != null ? (
-                        <span className="ml-2 text-[11px] text-muted">{(Number(b.gas) / 1e18).toFixed(5)} ETH</span>
+                      {MARKET_CHAINS.chains[c].gas.symbol !== "USDC" && b?.gas != null ? (
+                        <span className="ml-2 text-[11px] text-muted">{(Number(b.gas) / 1e9).toFixed(5)} SOL</span>
                       ) : null}
                     </dd>
                   </div>

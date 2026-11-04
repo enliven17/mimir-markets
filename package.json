@@ -1,5 +1,5 @@
 {
-  "name": "mimir",
+  "name": "mimir-solana-devnet",
   "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -15,7 +15,9 @@
     "start": "next start",
     "start:web": "next start -p $PORT",
     "test:smoke": "node scripts/run-node-tests.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:solana": "tsx --env-file-if-exists=.env.local scripts/solana/check-devnet.ts",
+    "test:solana": "node --import tsx --test tests/node/solana-*.test.ts tests/node/verdict-bundle.test.ts tests/node/kelly.test.ts tests/node/prompt-safety.test.ts tests/node/research-ssrf.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -39,7 +41,15 @@
     "sonner": "^1.7.0",
     "tsx": "^4.19.0",
     "viem": "2.55.11",
-    "wagmi": "2.19.5"
+    "wagmi": "2.19.5",
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

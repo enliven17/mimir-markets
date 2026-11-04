@@ -14,7 +14,7 @@ export type MarketFilter = "live" | "closing" | "settled" | "all";
 
 export interface IndexedMarket {
   /** Absent on Arc rows indexed before Base. */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "solana";
   kind: MarketKind;
   marketId: number;
   creator: string;
@@ -35,7 +35,7 @@ export interface IndexedMarket {
 
 export interface PublicMarket {
   id: string;
-  chain: "arc" | "base";
+  chain: "arc" | "base" | "solana";
   kind: MarketKind;
   marketId: number;
   question: string;
@@ -124,9 +124,9 @@ export function oldCliGone(req: Request): Response | null {
  * "vs-12", "pool-3", "12" or "#12" (VS by default, Arc) → kind and id; "base-pool-3" names a Base market. Null when it
  * isn't one. `chain` is only set when the ref names one.
  */
-export function parseMarketRef(ref: string): { chain?: "arc" | "base"; kind: MarketKind; marketId: number } | null {
+export function parseMarketRef(ref: string): { chain?: "arc" | "base" | "solana"; kind: MarketKind; marketId: number } | null {
   const m = /^(?:(arc|base)[-:])?(?:(vs|pool)[-#:]?)?#?(\d{1,9})$/i.exec(ref.trim());
   if (!m) return null;
-  const chain = m[1]?.toLowerCase() as "arc" | "base" | undefined;
+  const chain = m[1]?.toLowerCase() as "arc" | "base" | "solana" | undefined;
   return { ...(chain ? { chain } : {}), kind: (m[2]?.toLowerCase() as MarketKind | undefined) ?? "vs", marketId: Number(m[3]) };
 }

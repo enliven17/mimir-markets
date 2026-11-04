@@ -1,3 +1,4 @@
+import roster from "../config/solana-roster.json";
 import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Read-only views for the market UI that span tables: the council roster (each persona's wallets, record and recent
 // stakes) and the oracle's totals. Wallet addresses come from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (public
@@ -17,11 +18,8 @@ export const council = query({
     await assertMarketDeployment(ctx);
     const out = [];
     const enabled = serverMarketChains().enabled;
-    const arc = enabled.includes("arc") ? councilWallets("arc") : {};
-    const base = enabled.includes("base") ? councilWallets("base") : {};
-    for (const slug of [...new Set([...Object.keys(arc), ...Object.keys(base)])]) {
-      const addresses = [base[slug]?.address, arc[slug]?.address].filter((a): a is `0x${string}` => Boolean(a)).map((a) => a.toLowerCase());
-      const address = addresses[0];
+    for (const [slug, address] of Object.entries(roster.council)) {
+      const addresses = [address];
       const positions = [];
       for (const a of new Set(addresses)) positions.push(...(await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a)).order("desc").take(300)));
       let won = 0;
@@ -29,7 +27,7 @@ export const council = query({
       let atRisk = 0n;
       const bets = [];
       for (const p of positions) {
-        const chain = p.chain ?? "arc";
+        const chain = p.chain ?? "solana";
         if (!enabled.includes(chain)) continue;
         const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
         if (!m) continue;
@@ -40,7 +38,7 @@ export const council = query({
         bets.push({ chain, kind: p.kind, marketId: p.marketId, amount: p.amount, question: m.question, createdAt: m.createdAt });
       }
       bets.sort((a, b) => b.createdAt - a.createdAt);
-      out.push({ slug, address, base: base[slug]?.address.toLowerCase() ?? null, stakes: positions.length, won, lost, atRisk: atRisk.toString(), recentBets: bets.slice(0, 5) });
+      out.push({ slug, address, base: null, solana: address, stakes: positions.length, won, lost, atRisk: atRisk.toString(), recentBets: bets.slice(0, 5) });
     }
     return out;
   },
@@ -52,12 +50,11 @@ export const oracle = query({
   handler: async (ctx) => {
     await assertMarketDeployment(ctx);
     // Only the public address leaves this function.
-    const key = oracleKey();
-    const address = key ? privateKeyToAccount(key).address : null;
+    const address = roster.creator;
     // Bounded count: past VERDICT_COUNT_CAP the page shows "N+".
     const enabled = serverMarketChains().enabled;
-    const verdicts = (await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP)).filter((r) => enabled.includes(r.chain ?? "arc"));
-    return { address, base: address, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
+    const verdicts = (await ctx.db.query("arcVerdicts").take(VERDICT_COUNT_CAP)).filter((r) => enabled.includes(r.chain ?? "solana"));
+    return { address, base: null, solana: address, verdicts: verdicts.length, capped: verdicts.length >= VERDICT_COUNT_CAP };
   },
 });
 
@@ -74,9 +71,9 @@ export const challengedBy = query({
     const seen = new Set<string>();
     const out = [];
     for (const w of wallets.slice(0, 50)) {
-      const legs = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w.toLowerCase())).order("desc").take(400);
+      const legs = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w)).order("desc").take(400);
       for (const leg of legs) {
-        const chain = leg.chain ?? "arc";
+        const chain = leg.chain ?? "solana";
         const key = `${chain}:${leg.marketId}`;
         if (leg.kind !== "vs" || leg.side !== 2 || seen.has(key)) continue;
         const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", "vs").eq("marketId", leg.marketId)).unique();
@@ -100,7 +97,7 @@ export const volumeByUser = query({
     // Money that came straight back scores nothing: cancelled markets, and settled ones that refunded everyone (a draw,
     // unresolvable, a one-sided pool), so opening and cancelling markets cannot farm points.
     const refunded = new Set<string>();
-    const key = (r: { chain?: string; kind: string; marketId: number }) => `${r.chain ?? "arc"}:${r.kind}:${r.marketId}`;
+    const key = (r: { chain?: string; kind: string; marketId: number }) => `${r.chain ?? "solana"}:${r.kind}:${r.marketId}`;
     for (const m of await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", "cancelled")).take(5000)) refunded.add(key(m));
     for (const m of await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", "resolved")).take(5000))
       if (m.winner !== 1 && m.winner !== 2) refunded.add(key(m));
@@ -124,17 +121,17 @@ export const stats = query({
   handler: async (ctx) => {
     await assertMarketDeployment(ctx);
     const enabled = serverMarketChains().enabled;
-    const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate && enabled.includes(m.chain ?? "arc"));
+    const rows = (await ctx.db.query("arcMarkets").order("desc").take(500)).filter((m) => !m.isPrivate && enabled.includes(m.chain ?? "solana"));
     const claims = [];
     let openPool = 0n;
     let resolved = 0;
     for (const m of rows) {
-      const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", m.chain ?? "arc").eq("kind", m.kind).eq("marketId", m.marketId)).order("desc").first();
+      const verdict = await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", m.chain ?? "solana").eq("kind", m.kind).eq("marketId", m.marketId)).order("desc").first();
       const state = STATE[m.status as keyof typeof STATE] ?? 0;
       if (state <= 1) openPool += BigInt(m.stakeA) + BigInt(m.stakeB);
       if (state === 2) resolved++;
       claims.push({
-        id: m.marketId, chain: m.chain ?? "arc", kind: m.kind, question: m.question, category: m.category,
+        id: m.marketId, chain: m.chain ?? "solana", kind: m.kind, question: m.question, category: m.category,
         creatorStake: usdcUnits(m.stakeA), totalChallengerStake: usdcUnits(m.stakeB),
         state, winnerSide: m.winner, confidence: verdict?.confidence ?? 0, createdAt: m.createdAt, deadline: m.deadline,
       });

@@ -18,6 +18,7 @@ type Status = {
   sub: null | {
     active: boolean;
     pausedReason: string | null;
+    solana?: null | { address: string; on: boolean; maxPerStakeUsdc: number; balanceUsdc: number | null; balanceSol: number | null };
     arc: null | { address: string; on: boolean; maxPerStakeUsdc: number; balanceUsdc: number | null };
     base?: null | { address: string; on: boolean; maxPerStakeUsdc: number; balanceUsdc: number | null; balanceEth: number | null };
   };
@@ -39,12 +40,12 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
     if (!res?.ok) return;
     const s = (await res.json()) as Status;
     setSt(s);
-    const w = s.sub?.base ?? s.sub?.arc;
+    const w = s.sub?.solana;
     if (w) setMaxStake(String(w.maxPerStakeUsdc));
   }, [owner, slug]);
   useEffect(() => void load(), [load]);
   useEffect(() => {
-    if (!owner || !st?.sub?.active || !((st.sub.arc?.balanceUsdc ?? 0) + (st.sub.base?.balanceUsdc ?? 0) > 0)) return;
+    if (!owner || !st?.sub?.active || !((st.sub.solana?.balanceUsdc ?? 0) > 0)) return;
     try { const key = `mimir.copy-funded:${owner}:${slug}`; if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); trackProductEvent("copy_funded", { mode: "live" }); } catch { /* Analytics never block copying. */ }
   }, [owner, slug, st]);
 
@@ -64,8 +65,8 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
   };
   const save = (active: boolean) =>
     act(async () => {
-      const cap = { on: active, maxPerStakeUsdc: Number(maxStake) || 0.1 };
-      const body = { active, ...(ENABLED.includes("arc") ? { arc: cap } : {}), ...(ENABLED.includes("base") ? { base: cap } : {}) };
+      const cap = { on: active, maxPerStakeUsdc: Number(maxStake) || 2 };
+      const body = { active, solana: cap };
       await signedPost(`/api/launch/${slug}/copy`, { owner, signMessage, action: "copy", agent: slug, body });
       if (active && !st.sub?.active) trackProductEvent("copy_started", { mode: "live" });
       return active ? "Copying. Fund your copy wallet below." : "Stopped: no new copies. Open stakes settle on their own.";
@@ -105,8 +106,8 @@ export default function CopyPanel({ slug, ticker }: { slug: string; ticker: stri
         ) : null}
       </div>
 
-      {(["base", "arc"] as const).map((c) => {
-        const w = c === "arc" ? sub?.arc : sub?.base;
+      {(["solana"] as const).map((c) => {
+        const w = sub?.solana;
         if (!w || !ENABLED.includes(c)) return null;
         return (
           <CopyWallet
@@ -136,7 +137,7 @@ function CopyWallet({
   onWithdraw,
 }: {
   chain: MarketChainId;
-  wallet: { address: string; balanceUsdc: number | null; balanceEth?: number | null };
+  wallet: { address: string; balanceUsdc: number | null; balanceEth?: number | null; balanceSol?: number | null };
   busy: boolean;
   onWithdraw: (n: number) => Promise<void>;
 }) {
@@ -149,12 +150,12 @@ function CopyWallet({
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[13px] text-cream">On {cfg.label}</span>
           <span className="font-mono text-[13px] tabular-nums text-cream">
-            {wallet.balanceUsdc?.toFixed(2) ?? "?"} USDC{cfg.gas.symbol === "ETH" ? ` · ${wallet.balanceEth?.toFixed(5) ?? "?"} ETH` : ""}
+            {wallet.balanceUsdc?.toFixed(2) ?? "?"} USDC · {wallet.balanceSol?.toFixed(5) ?? "?"} devnet SOL
           </span>
         </div>
         <p className="m-0 break-all font-mono text-[12px] leading-relaxed text-muted">{wallet.address}</p>
         <div className="flex items-center justify-between gap-2 text-[12px]">
-          <span className="text-dim">{cfg.gas.symbol === "ETH" ? `Send USDC and a little ETH (gas) on ${cfg.label}` : `Send USDC on ${cfg.label}`}</span>
+          <span className="text-dim">{cfg.gas.symbol === "ETH" ? `Send USDC and a little ETH (gas) on ${cfg.label}` : `Send test USDC and devnet SOL on ${cfg.label}`}</span>
           <span className="flex items-center gap-3">
             <button type="button" className="text-cream hover:text-coral" onClick={() => void navigator.clipboard?.writeText(wallet.address)}>
               Copy

@@ -1,42 +1,20 @@
 "use client";
-
-/**
- * The one place UI code reads the wallet: the connected EVM wallet (ConnectKit, components/arc/useEvmWallet.ts), on
- * Arc or Base. Its address is the user's identity everywhere on Mimir. `signMessage` is EIP-191 personal_sign and
- * returns the 0x signature lib/owner.ts verifies; null while nothing is connected.
- */
 import { useCallback } from "react";
-import type { Address, Hex } from "viem";
-
-import { connectEvm, disconnectEvm, evmNetworkName, signWithEvm, useEvmAccount, type EvmChainIntent } from "@/components/arc/useEvmWallet";
-
-export interface MimirWallet {
-  address: Address | null;
-  connected: boolean;
-  connecting: boolean;
-  /** The network picked when connecting, or of the last send. */
-  intent: EvmChainIntent | null;
-  networkName: string | null;
-  connect(intent?: EvmChainIntent): Promise<Address>;
-  disconnect(): Promise<void>;
-  signMessage: ((message: string) => Promise<Hex>) | null;
+import { useConnection, useWallet, type Wallet } from "@solana/wallet-adapter-react";
+import { WalletReadyState, type WalletName } from "@solana/wallet-adapter-base";
+import bs58 from "bs58";
+export { WalletReadyState };
+export type { WalletName };
+export type MimirWalletOption = Wallet;
+export function isReady(w: Wallet) { return w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable; }
+export function useMimirWallet() {
+  const w = useWallet();
+  const { connection } = useConnection();
+  const sign = useCallback(async (message: string) => {
+    if (!w.signMessage) throw new Error("This wallet does not support message signing.");
+    return bs58.encode(await w.signMessage(new TextEncoder().encode(message)));
+  }, [w.signMessage]);
+  return { ...w, connection, address: w.publicKey?.toBase58() ?? null, intent: "solana" as const,
+    networkName: "Solana Devnet", signMessage: w.publicKey && w.signMessage ? sign : null };
 }
-
-export function useMimirWallet(): MimirWallet {
-  const a = useEvmAccount();
-  const address = a.address;
-  const sign = useCallback((message: string) => {
-    if (!address) return Promise.reject(new Error("Connect your wallet first."));
-    return signWithEvm(address, message);
-  }, [address]);
-  return {
-    address,
-    connected: Boolean(address),
-    connecting: a.connecting,
-    intent: a.intent,
-    networkName: evmNetworkName(a.intent),
-    connect: connectEvm,
-    disconnect: disconnectEvm,
-    signMessage: address ? sign : null,
-  };
-}
+export function useMimirConnection() { return useConnection(); }

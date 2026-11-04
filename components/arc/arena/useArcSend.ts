@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
-import type { CallsReceipt } from "@/lib/arc/session";
+import type { SolanaReceipt as CallsReceipt } from "@/lib/solana/market-adapter";
 import type { MarketAction } from "@/lib/chains/calls";
 import type { MarketChain } from "@/lib/chains/registry";
 import { NoGasError } from "@/lib/chains/send";
@@ -26,7 +26,7 @@ export function describeSendError(err: unknown, chain: Pick<MarketChain, "label"
   if (/already challenged/.test(msg)) return "You already challenged this market.";
   if (/transfer amount exceeds (balance|allowance)|ERC20: insufficient/i.test(msg)) return `Not enough USDC on ${chain.label} for this.`;
   if (/insufficient funds/i.test(msg))
-    return chain.gas.symbol === "ETH" ? `Not enough ETH on ${chain.label} to pay the gas.` : `Not enough USDC on ${chain.label} for this and its gas.`;
+    return chain.gas.symbol === "SOL" ? "Not enough devnet SOL to pay network fees." : chain.gas.symbol === "ETH" ? `Not enough ETH on ${chain.label} to pay the gas.` : `Not enough USDC on ${chain.label} for this and its gas.`;
   if (/SubUnit|whole number of them/.test(msg)) return "USDC has 6 decimals: use at most 6 digits after the point.";
   return msg;
 }

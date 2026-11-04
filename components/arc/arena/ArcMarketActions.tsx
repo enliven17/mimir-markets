@@ -30,7 +30,7 @@ export default function ArcMarketActions({
   const { send, busy, error, last } = useArcSend(account);
   const cfg = account.chainConfig;
   const [confirming, setConfirming] = useState(false);
-  const me = account.address?.toLowerCase();
+  const me = account.address;
   const canCancel = m.kind === "vs" && m.status === "open" && me === m.creator;
   const canDispute = m.status === "proposed" && m.disputableUntil > now && mine.length > 0;
   if (!account.session || (!canCancel && !canDispute)) return null;
@@ -82,7 +82,7 @@ export default function ArcMarketActions({
       ) : null}
       {error ? <p className="m-0 text-[13px] text-danger">{error}</p> : null}
       {last ? (
-        <a href={explorerUrl(cfg, "tx", last.txHash)} target="_blank" rel="noreferrer" className="text-[13px] text-coral hover:underline">
+        <a href={explorerUrl(cfg, "tx", last.txHash, last.layer)} target="_blank" rel="noreferrer" className="text-[13px] text-coral hover:underline">
           ✓ Done, view on {cfg.explorerName}
         </a>
       ) : null}

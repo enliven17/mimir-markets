@@ -77,7 +77,7 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
   const [sheet, setSheet] = useState(false);
   // Which leg of a linked market the stake box works on (this page's own by default).
   const [stakeChain, setStakeChain] = useState<MarketChainId>(chain);
-  const me = address?.toLowerCase() ?? null;
+  const me = address ?? null;
 
   if (m === undefined) {
     return (

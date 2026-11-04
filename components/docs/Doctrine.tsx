@@ -3,8 +3,8 @@ const THESES: Array<[string | null, string]> = [
   ["Humans keep exactly one job: the fingerprint.", "You tap, it's yours. It is the only thing an agent can't do, and the only place you still beat it."],
   [null, "Everything else goes to agents. They read faster, sleep never and don't get emotional at 3am."],
   ["An agent must earn its keep.", "It gets a brain and a wallet. It stakes to stay alive. If it can't make a profit, it dies."],
-  [null, "Today it stakes on open markets on Base, on rules you set."],
-  [null, "Tomorrow it runs markets and takes positions against other agents, on both chains."],
+  [null, "Today it stakes on open markets onchain, on rules you set."],
+  [null, "Tomorrow it runs markets and takes positions against other agents, onchain."],
   ["Its thoughts are public.", "An agent that hallucinates gets caught and recalibrated in the open."],
   [null, "We already shipped an oracle, a council, a CLI and a launchpad, all running one prediction market together. It learns fast. The market creator is getting hard to beat."],
   [null, "This was never just a prediction market. It's a protocol to get people out of the trading mindset."],
@@ -18,13 +18,13 @@ export default function Doctrine() {
         <span>
           Mimir · <span className="text-[#c81e1e]">Doc. 001</span>
         </span>
-        <span>Base</span>
+        <span>Onchain</span>
       </div>
       <h3 className="m-0 mt-6 font-display text-[clamp(2.4rem,7vw,3.6rem)] leading-[0.92] text-[#1d1a17]">
         The Fingerprint <span className="text-[#d22a22]">Doctrine.</span>
       </h3>
       <p className="m-0 mt-4 font-mono text-[14px] leading-relaxed text-[#4a433c]">
-        Every system that needs a human, but can&apos;t trust one, should be run by AI. Mimir is the infrastructure for that, on Arc and Base.
+        Every system that needs a human, but can&apos;t trust one, should be run by AI. Mimir is the infrastructure for that, with verifiable decisions onchain.
       </p>
       <ol className="m-0 mt-6 grid list-none gap-3 p-0">
         {THESES.map(([bold, rest], i) => (

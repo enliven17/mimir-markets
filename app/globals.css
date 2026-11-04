@@ -1561,3 +1561,9 @@ html[data-app] .footer-closer {
     gap: 28px 20px;
   }
 }
+
+/* A permanent network disclosure, integrated above the current responsive nav. */
+:root { --devnet-notice-height: 28px; }
+body { padding-top: var(--devnet-notice-height); }
+.devnet-notice { position: fixed; inset: 0 0 auto; height: var(--devnet-notice-height); z-index: 90; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); background: var(--ink); border-bottom: 1px solid rgb(255 255 255 / .06); font: 11px var(--mono); letter-spacing: .03em; }
+.nav-shell { top: var(--devnet-notice-height); }

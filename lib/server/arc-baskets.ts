@@ -23,7 +23,7 @@ export async function resolveArcAgentWallets(agentIds: string[]): Promise<Map<st
   const missing = agentIds.filter((id) => !map.has(id));
   if (missing.length) {
     const rows = await store().getMany<{ agent_id: string; arc_operator: string | null; status: string }>("agent_registry", missing).catch(() => []);
-    for (const r of rows) if (r.status !== "revoked" && r.arc_operator) map.set(r.agent_id, r.arc_operator.toLowerCase());
+    for (const r of rows) if (r.status !== "revoked" && r.arc_operator) map.set(r.agent_id, r.arc_operator);
   }
   return map;
 }

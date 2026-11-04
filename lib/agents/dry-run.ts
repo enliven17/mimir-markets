@@ -7,7 +7,9 @@ import "server-only";
  * decision, the fee split it would pay, how much of its budget is left and,
  * for a write with params, whether the params validate, before it signs.
  */
-import { DEFAULT_FEE_POLICY, splitFees, type FeePolicy } from "@/lib/market-fees";
+import { splitFees, type FeePolicy } from "@/lib/solana/fees";
+import { Keypair } from "@solana/web3.js";
+import { MimirSolanaClient } from "@/lib/solana/client";
 
 import { isWriteAction } from "./api";
 import { parseWriteParams, stakeOf, unitsToUsdc, usdcToUnits } from "./params";
@@ -33,7 +35,11 @@ export interface DryRunResult {
   reason?: string;
   message?: string;
   limits: AgentRecord["limits"];
-  usage: { requestsLastHour: number; spentTodayUsdc: number; activeMarkets: number };
+  usage: {
+    requestsLastHour: number;
+    spentTodayUsdc: number;
+    activeMarkets: number;
+  };
   feeQuote: {
     policy: FeePolicy;
     profitUsdc: string;
@@ -45,16 +51,31 @@ export interface DryRunResult {
 
 const fmt = (units: bigint) => unitsToUsdc(units).toFixed(6);
 /** The contracts' default fee policy (lib/market-fees.ts). */
-export async function liveFeePolicy(): Promise<FeePolicy> {
-  return DEFAULT_FEE_POLICY;
+export async function liveFeePolicy(claimId?: bigint): Promise<FeePolicy> {
+  const client = new MimirSolanaClient(Keypair.generate());
+  const source =
+    claimId === undefined
+      ? await client.getConfig()
+      : await client.getClaim(claimId);
+  if (!source) throw new Error("Native fee policy unavailable");
+  return {
+    platformFeeBps: source.platformFeeBps,
+    agentOwnerFeeBps: source.agentFeeBps,
+    platformRecipient: source.feeRecipient.toBase58(),
+  };
 }
 
 export async function dryRun(input: DryRunInput): Promise<DryRunResult> {
   const { agent, action, expectedPayoutUsdc = 0, params } = input;
 
   // Params are validated exactly as the real call would validate them.
-  const parsed = params && isWriteAction(action) ? parseWriteParams(action, params) : null;
-  const stakeUnits = parsed ? stakeOf(parsed) : input.stakeUsdc ? usdcToUnits(input.stakeUsdc, "stakeUsdc") : 0n;
+  const parsed =
+    params && isWriteAction(action) ? parseWriteParams(action, params) : null;
+  const stakeUnits = parsed
+    ? stakeOf(parsed)
+    : input.stakeUsdc
+      ? usdcToUnits(input.stakeUsdc, "stakeUsdc")
+      : 0n;
 
   const decision = authorizeAction({
     agent,
@@ -67,12 +88,14 @@ export async function dryRun(input: DryRunInput): Promise<DryRunResult> {
 
   let feeQuote: DryRunResult["feeQuote"] = null;
   if (stakeUnits > 0n && expectedPayoutUsdc > 0) {
-    const policy = await liveFeePolicy();
+    const policy = await liveFeePolicy(
+      parsed && "claimId" in parsed.params ? parsed.params.claimId : undefined,
+    );
     const split = splitFees({
       gross: usdcToUnits(expectedPayoutUsdc, "expectedPayoutUsdc"),
       principal: stakeUnits,
       policy,
-      winner: agent.operatorWallet,
+      winner: agent.arcOperator ?? agent.operatorWallet,
       agentOwner: null,
     });
     feeQuote = {

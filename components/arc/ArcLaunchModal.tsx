@@ -15,7 +15,7 @@ import Modal from "@/components/ui/Modal";
 import { Link } from "@/i18n/navigation";
 import { NetworkLogos } from "./NetworkLogos";
 
-const KEY = "mimir:mainnet-live-seen";
+const KEY = "mimir:solana-devnet-live-seen";
 
 export default function ArcLaunchModal() {
   const t = useTranslations("arcLaunch");

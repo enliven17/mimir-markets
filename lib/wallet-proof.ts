@@ -32,12 +32,12 @@ export function formatProofHeader(signedAt: number, signature: string): string {
 export function parseProofHeader(
   value: string | null | undefined,
   now = Date.now(),
-): { signedAt: number; signature: `0x${string}` } | null {
+): { signedAt: number; signature: string } | null {
   // 65 bytes for a plain wallet; longer for a smart wallet (ERC-1271 / ERC-6492).
-  const m = /^(\d{12,14})\.(0x[0-9a-fA-F]{130,20000})$/.exec((value ?? "").trim());
+  const m = /^(\d{12,14})\.([1-9A-HJ-NP-Za-km-z]{64,90})$/.exec((value ?? "").trim());
   if (!m) return null;
   const signedAt = Number(m[1]);
   // A little clock skew into the future is fine; a lot is not.
   if (signedAt > now + 5 * 60_000 || now - signedAt > WALLET_PROOF_TTL_MS) return null;
-  return { signedAt, signature: m[2] as `0x${string}` };
+  return { signedAt, signature: m[2] };
 }

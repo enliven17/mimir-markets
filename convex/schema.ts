@@ -8,7 +8,7 @@ import { v } from "convex/values";
 // Amounts are 18-dp index-unit strings on every chain (lib/chains/amounts.ts: Base's 6-dp USDC is scaled by 1e12 on
 // the way in; 18 dp overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
-export const vChain = v.union(v.literal("arc"), v.literal("base"));
+export const vChain = v.union(v.literal("arc"), v.literal("base"), v.literal("solana"));
 /** Optional only so pre-Base rows validate until the backfill; every new row sets it. */
 const chain = v.optional(vChain);
 /**
@@ -16,7 +16,7 @@ const chain = v.optional(vChain);
  * creator fees accrue in) or Clanker v4 on Base. Recorded once the launch tx's receipt is checked (lib/launch/token.ts).
  */
 export const vAgentToken = v.object({
-  chain: v.union(v.literal("arc"), v.literal("base")),
+  chain: v.union(v.literal("arc"), v.literal("base"), v.literal("solana")),
   address: v.string(),
   splitter: v.optional(v.string()),
   launchTx: v.string(),
@@ -32,6 +32,7 @@ export const status = v.union(
 );
 
 export default defineSchema({
+  solanaWorkers: defineTable({ name: v.string(), token: v.string(), leaseUntil: v.number(), startedAt: v.number(), finishedAt: v.number(), status: v.string(), note: v.string() }).index("by_name", ["name"]),
   marketDeployments: defineTable({
     chain: vChain, chainId: v.number(), network: v.string(), v3: v.string(), pool: v.string(),
     fees: v.string(), usdc: v.string(), fromBlock: v.string(), boundAt: v.number(),
@@ -69,6 +70,11 @@ export default defineSchema({
     /** Linked markets (lib/chains/linked.ts): the same question opened by Mimir's agents on several chains share this. */
     pairKey: v.optional(v.string()),
     updatedBlock: v.number(),
+    /** Frozen native program terms, used for exact quotes and seat limits. */
+    platformFeeBps: v.optional(v.number()),
+    agentFeeBps: v.optional(v.number()),
+    feeRecipient: v.optional(v.string()),
+    maxChallengers: v.optional(v.number()),
   })
     .index("by_market", ["chain", "kind", "marketId"])
     .index("by_pair", ["pairKey"])
@@ -94,6 +100,7 @@ export default defineSchema({
     .index("by_position", ["chain", "kind", "marketId", "user", "side"]),
 
   arcEvents: defineTable({
+    layer: v.optional(v.union(v.literal("base"), v.literal("er"))),
     chain,
     kind,
     marketId: v.number(),
@@ -206,6 +213,7 @@ export default defineSchema({
 
   /** Council persona decisions on Arc markets (convex/arcCouncil.ts); `until` (ms) is when the persona may look again. */
   arcCouncilDecisions: defineTable({
+    txLayer: v.optional(v.union(v.literal("base"), v.literal("er"))),
     slug: v.string(),
     chain,
     kind,
@@ -312,6 +320,7 @@ export default defineSchema({
       /** Opening its own markets (lib/launch/agent-markets.ts): off unless the owner turns it on; gas from its Arc wallet. */
       create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })),
     }),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string(), sealed: v.string() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /**
      * Its Base wallet (Circle, blockchain BASE / BASE-SEPOLIA): stakes on Base markets. Pays gas in ETH, which the owner
@@ -340,7 +349,7 @@ export default defineSchema({
     at: v.number(),
     kind: v.string(),
     text: v.string(),
-    chain: v.optional(v.union(v.literal("arc"), v.literal("base"))),
+    chain: v.optional(v.union(v.literal("arc"), v.literal("base"), v.literal("solana"))),
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 
@@ -398,6 +407,7 @@ export default defineSchema({
   launchCopies: defineTable({
     agent: v.string(),
     follower: v.string(),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string(), sealed: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),
     /** The follower's Base copy wallet: copies of the leader's Base stakes go from here (ETH for gas, USDC). */
     base: v.optional(v.object({ walletId: v.string(), address: v.string(), maxPerStakeUsdc: v.number(), on: v.boolean() })),

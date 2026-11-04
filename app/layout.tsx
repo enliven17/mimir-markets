@@ -3,7 +3,7 @@ import type { Viewport } from "next";
 import { headers } from "next/headers";
 import { fontVariables } from "@/lib/fonts";
 import MotionProvider from "@/components/motion/MotionProvider";
-import EvmConnectHost from "@/components/arc/EvmConnectHost";
+import SolanaWalletProviders from "@/lib/solana/wallet-providers";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -41,9 +41,10 @@ export default async function RootLayout({
       </head>
       <body>
         <div className="wall" aria-hidden />
+        <SolanaWalletProviders>
         <MotionProvider>
           {children}
-          <EvmConnectHost />
+          <div className="devnet-notice" role="status">Solana Devnet <span aria-hidden>·</span> Test assets only</div>
           <Toaster
             position="bottom-center"
             toastOptions={{
@@ -58,6 +59,7 @@ export default async function RootLayout({
             }}
           />
         </MotionProvider>
+        </SolanaWalletProviders>
         {/* /_vercel/insights only exists on Vercel; elsewhere (Railway, CI) the script 404s. */}
         {process.env.VERCEL === "1" && <Analytics />}
       </body>

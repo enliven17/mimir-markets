@@ -104,7 +104,7 @@ export default function ArcActivity({ m, events, verdict }: { m: ArcMarket; even
         {events.map((e) => (
           <li key={e._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b border-line py-2.5 text-[13px] last:border-0">
             <span className="truncate text-cream">{label(m, e)}</span>
-            <a href={chainExplorerUrl(marketChain(m.chain ?? "arc"), "tx", e.txHash)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
+            <a href={chainExplorerUrl(marketChain(m.chain ?? "solana"), "tx", e.txHash, e.layer)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-coral hover:underline">
               {short(e.txHash)} <ExternalMark />
             </a>
             <span className="truncate text-[12px] text-muted">

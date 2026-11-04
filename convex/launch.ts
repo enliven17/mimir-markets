@@ -20,10 +20,10 @@ const vBrain = v.union(
   v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
 );
 
-const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "arc" | "base"; tx?: string } = {}) =>
+const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "arc" | "base" | "solana"; tx?: string } = {}) =>
   ctx.db.insert("launchEvents", { agent, at: Date.now(), kind, text: text.slice(0, 300), ...extra });
 
-const tokenWhere = (chain: "arc" | "base") => (chain === "arc" ? "Argus (Arc)" : "Clanker (Base)");
+const tokenWhere = (chain: "arc" | "base" | "solana") => (chain === "arc" ? "Argus (Arc)" : "Clanker (Base)");
 
 /** A new agent is live at once: creating one is free, staking waits for its owner's USDC in its Arc wallet. */
 export const create = mutation({
@@ -31,6 +31,7 @@ export const create = mutation({
     secret: v.string(), slug: v.string(), uid: v.string(), owner: v.string(), name: v.string(), ticker: v.string(), avatarSeed: v.string(), thesis: v.string(),
     brain: vBrain,
     markets: v.object({ enabled: v.boolean(), rules: v.any(), budgetUsdc: v.number(), create: v.optional(v.object({ enabled: v.boolean(), perDay: v.number() })) }),
+    solana: v.optional(v.object({ walletId: v.string(), address: v.string(), sealed: v.string() })),
     arc: v.optional(v.object({ walletId: v.string(), address: v.string() })),
     /** Its Base wallet (Circle), when Base markets are enabled; else made on first use (setBaseWallet). */
     base: v.optional(v.object({ walletId: v.string(), address: v.string() })),
@@ -38,7 +39,7 @@ export const create = mutation({
   handler: async (ctx, { secret, ...a }) => {
     await assertMarketDeployment(ctx);
     allowed(secret);
-    if (!a.arc && !a.base) throw new Error("An agent needs a wallet on an enabled network.");
+    if (!a.solana && !a.arc && !a.base) throw new Error("An agent needs a wallet on an enabled network.");
     // Never a persona's or a house name (lib/launch/copy-key.ts), checked again here and for every suffixed try.
     if (reservedLaunchSlug(a.slug)) return { ok: false as const, reason: "reserved" as const };
     // Tickers may repeat; the slug in the URL stays unique: odin, odin-2, ...
@@ -48,9 +49,9 @@ export const create = mutation({
       slug = `${a.slug}-${n}`;
     }
     const id = await ctx.db.insert("launchAgents", { ...a, slug, status: "live", createdAt: Date.now() });
-    await log(ctx, id, "rules", a.base
+    await log(ctx, id, "rules", a.solana ? "created: send test USDC and devnet SOL to its Solana wallet to start staking" : a.base
       ? "created: send USDC to its Base wallet (plus a little ETH for gas) or to its Arc wallet, and it starts staking"
-      : "created: send USDC to its Arc wallet and it starts staking", { chain: a.base ? "base" : "arc" });
+      : "created: send USDC to its Arc wallet and it starts staking", { chain: a.solana ? "solana" : a.base ? "base" : "arc" });
     return { ok: true as const, slug };
   },
 });
@@ -63,7 +64,7 @@ export const forOwner = query({
     allowed(secret);
     const a = await bySlug(ctx, slug);
     return a && {
-      owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, uid: a.uid, arc: a.arc, base: a.base ?? null, token: a.token ?? null,
+      owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, status: a.status, uid: a.uid, solana: a.solana ? { walletId: a.solana.walletId, address: a.solana.address } : null, arc: a.arc, base: a.base ?? null, token: a.token ?? null,
     };
   },
 });
@@ -119,7 +120,7 @@ const publicView = (a: Doc<"launchAgents">) => ({
   slug: a.slug, owner: a.owner, name: a.name, ticker: a.ticker, avatarSeed: a.avatarSeed, thesis: a.thesis, status: a.status,
   brain: a.brain.kind === "byok" ? { kind: "byok" as const, provider: a.brain.provider, last4: a.brain.last4, model: a.brain.model } : a.brain,
   markets: { enabled: a.markets.enabled, budgetUsdc: a.markets.budgetUsdc, create: a.markets.create?.enabled ?? false },
-  arc: a.arc?.address ?? null, base: a.base?.address ?? null, createdAt: a.createdAt,
+  solana: a.solana?.address ?? null, arc: a.arc?.address ?? null, base: a.base?.address ?? null, createdAt: a.createdAt,
   token: a.token ? { chain: a.token.chain, address: a.token.address, splitter: a.token.splitter ?? null, launchTx: a.token.launchTx } : null,
 });
 export type PublicAgent = ReturnType<typeof publicView>;
@@ -180,10 +181,10 @@ export const setBaseWallet = internalMutation({
 export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents">): Promise<{ held: string[]; openUsdc: number }> {
   const recorded = await ctx.db.query("launchStakes").withIndex("by_agent", (q) => q.eq("agent", a._id)).collect();
   const out = new Map<string, number>();
-  const wallets = [...new Set([a.arc?.address, a.base?.address].filter((w): w is string => Boolean(w)).map((w) => w.toLowerCase()))];
+  const wallets = [...new Set([a.solana?.address, a.arc?.address, a.base?.address].filter((w): w is string => Boolean(w)))];
   for (const w of wallets) {
     for (const p of await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", w)).collect()) {
-      const k = `${p.chain ?? "arc"}:${p.kind}:${p.marketId}`;
+      const k = `${p.chain ?? "solana"}:${p.kind}:${p.marketId}`;
       out.set(k, (out.get(k) ?? 0) + Number(BigInt(p.amount)) / 1e18);
     }
   }
@@ -193,7 +194,7 @@ export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents
   }
   let openUsdc = 0;
   for (const [key, usdc] of out) {
-    const [chain, kind, id] = key.split(":") as ["arc" | "base", "vs" | "pool", string];
+    const [chain, kind, id] = key.split(":") as ["arc" | "base" | "solana", "vs" | "pool", string];
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", Number(id))).unique();
     if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
   }
@@ -209,11 +210,11 @@ export const claimMarketAgents = internalMutation({
   handler: async (ctx, { now, everyMs, max }) => {
     await assertMarketDeployment(ctx);
     const live = await ctx.db.query("launchAgents").withIndex("by_status", (q) => q.eq("status", "live")).take(500);
-    const due = live.filter((a) => a.markets.enabled && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
+    const due = live.filter((a) => (a.markets.enabled || a.markets.create?.enabled) && (a.lastTickAt ?? 0) <= now - everyMs).sort((a, b) => (a.lastTickAt ?? 0) - (b.lastTickAt ?? 0)).slice(0, max);
     for (const a of due) await ctx.db.patch(a._id, { lastTickAt: now });
     return Promise.all(due.map(async (a) => {
       const { held, openUsdc } = await holdings(ctx, a);
-      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, arc: a.arc, base: a.base ?? null, held, openUsdc };
+      return { id: a._id, slug: a.slug, uid: a.uid, thesis: a.thesis, brain: a.brain, markets: a.markets, solana: a.solana ?? null, owner: a.owner, arc: a.arc, base: a.base ?? null, held, openUsdc };
     }));
   },
 });
@@ -262,7 +263,7 @@ export const publicMarketRecord = query({
     const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", address.toLowerCase())).take(301);
     const records = [];
     for (const p of rows.slice(0, 300)) {
-      const chain = p.chain ?? "arc";
+      const chain = p.chain ?? "solana";
       const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
       if (!m || m.isPrivate) continue;
       const outcome = m.status === "cancelled" || (m.status === "resolved" && m.winner > 2) ? "refunded" : m.status !== "resolved" ? "open" : m.winner === p.side ? "won" : "lost";
@@ -281,11 +282,11 @@ export const arcRecord = query({
   handler: async (ctx, { secret, address }) => {
     await assertMarketDeployment(ctx);
     allowed(secret);
-    const user = address.toLowerCase();
+    const user = address;
     const positions = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user)).order("desc").take(300);
     const bets = [];
     for (const p of positions) {
-      const chain = p.chain ?? "arc";
+      const chain = p.chain ?? "solana";
       const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", p.kind).eq("marketId", p.marketId)).unique();
       if (!m) continue;
       const usdc = Number(BigInt(p.amount)) / 1e18;

@@ -8,7 +8,7 @@
 /** The standard entry fee in basis points (MimirFees' default rate). */
 export const ENTRY_FEE_BPS = 50;
 /** Agent deploy price in USDC. */
-export const AGENT_DEPLOY_USD = 1;
+export const AGENT_DEPLOY_USD = 0;
 /** Copy stakes: share of the profit to the basket creator, and to Mimir. */
 export const REFERRER_FEE_BPS = 100;
 export const COPY_FEE_BPS = 100;

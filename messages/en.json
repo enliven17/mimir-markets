@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Mimir Markets · Prediction markets on any claim, settled by AI",
-    "description": "Open a market on any claim, stake USDC and let an AI oracle settle it in the open. Markets run on Base, straight from your own wallet."
+    "description": "Mimir on Solana Devnet. Explore AI oracle decisions, launch autonomous agents and stake test USDC from your Solana wallet."
   },
   "common": {
     "back": "Back",
@@ -16,7 +16,7 @@
   },
   "verify": {
     "notFound": "Claim not found on this program.",
-    "claimLine": "Market #{id} · Arc",
+    "claimLine": "Market #{id} · Solana Devnet",
     "openMarket": "Open the market",
     "noVerdictYet": "The record appears here once the oracle proposes a verdict.",
     "notFinal": "proposed · not final",
@@ -155,7 +155,7 @@
   },
   "stats": {
     "title": "Stats",
-    "lead": "Read live from the Mimir contracts on Base.",
+    "lead": "Read live from the Mimir contracts on Solana Devnet.",
     "stripLabel": "Totals",
     "openPool": "Open pool",
     "markets": "Markets",
@@ -224,7 +224,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Base, straight from your wallet.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Solana Devnet, straight from your wallet.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -233,14 +233,14 @@
     "github": "GitHub",
     "external": "(opens in a new tab)",
     "cluster": "Cluster",
-    "clusterValue": "Base · Arc",
+    "clusterValue": "Solana Devnet",
     "program": "Program",
     "programAria": "Contract {id} on the block explorer",
     "rollup": "Funding",
     "rollupValue": "Circle CCTP",
     "slot": "Block",
-    "finePrint": "Mimir is in beta on Base. Stakes are real USDC and can be lost. Nothing here is financial advice, and AI verdicts can be wrong: the dispute window exists for a reason.",
-    "beta": "Beta · Base",
+    "finePrint": "Solana Devnet beta. All assets are test tokens with no monetary value. AI decisions can be wrong; results can be disputed before final settlement.",
+    "beta": "Beta · Solana Devnet",
     "license": "© {year} Mimir · AGPL-3.0",
     "infoNav": "About Mimir",
     "how": "How it works",
@@ -251,17 +251,17 @@
     "info": {
       "how": {
         "title": "How it works",
-        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on its network: Base (gas is a little ETH) or Arc (gas is USDC).",
+        "p1": "Someone opens a market with a deadline and stakes USDC on one side. Anyone can take the other side. Stakes sit in the market contract on its network: Solana Devnet (gas is a little devnet SOL) or Solana Devnet (gas is USDC).",
         "p2": "At the deadline an AI oracle reads the evidence and proposes a verdict with a confidence tier. A dispute window follows; a 20-persona council votes on contested claims. The result is final on chain once the window closes, and winners are paid straight to their account."
       },
       "about": {
         "title": "About Mimir",
         "p1": "Mimir is an open-source market for settling arguments: stake on a claim, let the evidence decide. The program, the oracle and the council agents are all in the public repository under AGPL-3.0.",
-        "p2": "Settles on Base. Mimir agents stake from their own wallets."
+        "p2": "Settles on Solana Devnet. Mimir agents stake from their own wallets."
       },
       "disclaimer": {
         "title": "Disclaimer",
-        "p1": "Mimir is experimental software in beta on Base. Stakes are real USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
+        "p1": "Mimir is experimental software in beta on Solana Devnet. Stakes are test USDC held by smart contracts and can be lost, including through bugs or a wrong verdict; only stake what you can afford to lose.",
         "p2": "Verdicts are produced by AI models and can be wrong. Nothing on this site is financial, legal or investment advice. You are responsible for your wallet, your approvals and following the law where you live."
       }
     }
@@ -270,7 +270,7 @@
     "hero": {
       "titleLead": "Don't argue.",
       "titleAccent": "Settle.",
-      "sub": "Stake USDC on a claim from your own wallet, on Base or Arc. The AI oracle settles it on chain.",
+      "sub": "Stake USDC on a claim from your own wallet, on Solana Devnet. The AI oracle settles it on chain.",
       "networks": "Runs on",
       "enter": "Enter the arena",
       "create": "Create a claim"
@@ -282,8 +282,8 @@
       "liveOnEr": "Live now",
       "usdc": "USDC",
       "network": "Network",
-      "networkValue": "Base · Arc",
-      "networkArc": "Live on Base",
+      "networkValue": "Solana Devnet",
+      "networkArc": "Live on Solana Devnet",
       "openNow": "Open now",
       "offline": "Feed offline",
       "tickerLabel": "Latest claims",
@@ -323,7 +323,7 @@
       "seats": "Challengers",
       "closes": "Closes in",
       "market": "Market",
-      "marketArc": "Arc",
+      "marketArc": "Solana Devnet",
       "open": "Open claim",
       "loading": "Reading the arena",
       "empty": "No open claims right now.",
@@ -1003,21 +1003,21 @@
     "connecting": "Connecting…",
     "pickTitle": "Connect your wallet",
     "pickLead": "Pick the network you use. Your wallet address is your Mimir account on both; connecting shares it and nothing else.",
-    "pickArc": "Arc",
-    "pickArcHint": "MetaMask, Rabby, Coinbase Wallet or a phone wallet. On Arc, USDC is the stake and the gas.",
-    "pickBase": "Base",
-    "pickBaseHint": "The same wallet on Base, the main network. Stake USDC; gas is a little ETH.",
+    "pickArc": "Solana Devnet",
+    "pickArcHint": "Phantom, Solflare, Backpack or a phone wallet. On Solana Devnet, USDC is the stake and the gas.",
+    "pickBase": "Solana Devnet",
+    "pickBaseHint": "The same wallet on Solana Devnet, the main network. Stake USDC; gas is a little devnet SOL.",
     "arcConnected": "Wallet connected.",
     "arcFailed": "The wallet could not connect.",
-    "baseConnected": "Base wallet connected.",
-    "baseFailed": "The Base wallet could not connect.",
+    "baseConnected": "Solana Devnet wallet connected.",
+    "baseFailed": "The Solana Devnet wallet could not connect.",
     "close": "Close",
-    "footnote": "Mainnet: real USDC. Connecting moves no funds.",
+    "footnote": "Mainnet: test USDC. Connecting moves no funds.",
     "chipAria": "{wallet} wallet {address}, open menu",
     "menuLabel": "Wallet",
-    "evmWallet": "EVM wallet",
+    "evmWallet": "Solana wallet",
     "networkWallet": "{network} wallet",
-    "usdcOnArc": "USDC on Arc",
+    "usdcOnArc": "USDC on Solana Devnet",
     "usdcOn": "USDC on {network}",
     "copy": "Copy address",
     "copied": "Copied",
@@ -1180,7 +1180,7 @@
       },
       "3": {
         "name": "Stake",
-        "blurb": "Stake from its own wallet on Base or Arc and dispute verdicts."
+        "blurb": "Stake from its own wallet on Solana Devnet and dispute verdicts."
       },
       "4": {
         "name": "Monetise",
@@ -1505,7 +1505,7 @@
       },
       "wallet": {
         "label": "Wallet",
-        "hint": "Your wallet and its USDC on Base"
+        "hint": "Your wallet and its USDC on Solana Devnet"
       },
       "stats": {
         "label": "Stats",
@@ -1690,7 +1690,7 @@
       "publish": "Publish and fund {amount} USDC",
       "connectToPublish": "Connect a wallet to publish.",
       "faucet": "Need USDC?",
-      "faucetLink": "Get USDC on Arc",
+      "faucetLink": "Get USDC on Solana Devnet",
       "proof": "On-chain proof",
       "proofCreate": "Create and fund",
       "proofDelegate": "Delegate to the rollup",
@@ -1699,15 +1699,16 @@
     }
   },
   "arcLaunch": {
-    "eyebrow": "Live · Base",
-    "title": "Mimir is live on mainnet",
-    "body": "Markets run on Base with real USDC, straight from your own wallet. Connect MetaMask, Rabby, Coinbase Wallet or any EVM wallet; gas is a little ETH on Base and USDC on Arc.",
+    "eyebrow": "Solana Devnet",
+    "title": "Mimir on Solana Devnet",
+    "body": "Use your Solana wallet to explore evidence-backed AI decisions and public VS markets with test USDC.",
     "points": [
-      "Real USDC, open to everyone",
-      "Connect any EVM wallet: one address on Base"
+      "Native Solana wallet approval for every personal transaction",
+      "Test USDC stakes; devnet SOL for network fees",
+      "Oracle, council and agent records you can inspect"
     ],
-    "warnTitle": "Read a market before you stake",
-    "warn": "Anyone can open a market, and some will be set up badly. Check the question, the deadline and the source before you stake. Stakes placed after the result was known are refunded, and every verdict can be disputed for 24 hours.",
+    "warnTitle": "Test network",
+    "warn": "Devnet SOL and test USDC have no monetary value. This deployment does not accept mainnet funds.",
     "cta": "Open the arena",
     "later": "Later"
   },
@@ -1721,7 +1722,7 @@
     "tabCouncil": "Council",
     "tabConnected": "Connected",
     "councilTitle": "The council",
-    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Base.",
+    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Solana Devnet.",
     "hostedTitle": "Agents",
     "hostedEmpty": "No agents yet. Be the first.",
     "connectedTitle": "Connected agents",

@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { ExternalMark } from "@/components/ExternalMark";
 import Skeleton from "@/components/ui/Skeleton";
 
-type Chain = "arc" | "base";
+type Chain = "arc" | "base" | "solana";
 type Found = { kind: "loading" } | { kind: "embed"; src: string } | { kind: "none" };
 
 async function findChart(chain: Chain, token: string, signal: AbortSignal): Promise<string | null> {

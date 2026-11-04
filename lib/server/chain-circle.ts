@@ -35,7 +35,7 @@ export async function ensureCircleAllowance(chain: MarketChain, w: { walletId: s
   if (allowance >= wei) return null;
   return executeContract({
     walletId: w.walletId,
-    contractAddress: chain.usdc.address,
+    contractAddress: chain.usdc.address as Address,
     abiFunctionSignature: "approve(address,uint256)",
     abiParameters: [spender, toChainUnits(chain, wei)],
   });

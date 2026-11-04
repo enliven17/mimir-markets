@@ -4,7 +4,7 @@
  */
 import type { MarketChainId } from "./registry";
 
-export const marketPath = (chain: MarketChainId | null | undefined, kind: "vs" | "pool", id: number | string) => `/arena/${chain ?? "arc"}/${kind}/${id}`;
+export const marketPath = (chain: MarketChainId | null | undefined, kind: "vs" | "pool", id: number | string) => `/arena/${chain ?? "solana"}/${kind}/${id}`;
 
 /** "base-pool-3" / "pool-3" (Arc, the older form) for share links and cards. */
 export const marketRef = (chain: MarketChainId | null | undefined, kind: "vs" | "pool", id: number) => `${chain && chain !== "arc" ? `${chain}-` : ""}${kind}-${id}`;

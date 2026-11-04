@@ -40,6 +40,13 @@ import type * as launchMarketsDb from "../launchMarketsDb.js";
 import type * as launchMigrate from "../launchMigrate.js";
 import type * as marketDeployment from "../marketDeployment.js";
 import type * as marketDeploymentGuard from "../marketDeploymentGuard.js";
+import type * as solanaAgentsDb from "../solanaAgentsDb.js";
+import type * as solanaAutomation from "../solanaAutomation.js";
+import type * as solanaCopy from "../solanaCopy.js";
+import type * as solanaCopyDb from "../solanaCopyDb.js";
+import type * as solanaDb from "../solanaDb.js";
+import type * as solanaLaunch from "../solanaLaunch.js";
+import type * as solanaWorkers from "../solanaWorkers.js";
 
 import type {
   ApiFromModules,
@@ -80,6 +87,13 @@ declare const fullApi: ApiFromModules<{
   launchMigrate: typeof launchMigrate;
   marketDeployment: typeof marketDeployment;
   marketDeploymentGuard: typeof marketDeploymentGuard;
+  solanaAgentsDb: typeof solanaAgentsDb;
+  solanaAutomation: typeof solanaAutomation;
+  solanaCopy: typeof solanaCopy;
+  solanaCopyDb: typeof solanaCopyDb;
+  solanaDb: typeof solanaDb;
+  solanaLaunch: typeof solanaLaunch;
+  solanaWorkers: typeof solanaWorkers;
 }>;
 
 /**

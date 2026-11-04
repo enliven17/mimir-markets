@@ -12,17 +12,17 @@ import { serverMarketChains } from "../lib/chains/registry";
 // The market index of every chain (convex/arcSync.ts writes it). Every market is keyed (chain, kind, marketId); public
 // queries take `chain` optionally and default to "arc", so links and clients from before Base keep working.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
-type Chain = "arc" | "base";
+type Chain = "arc" | "base" | "solana";
 const chainArg = v.optional(vChain);
 /** A row without a chain is Arc's (written before Base). */
-const chainOf = (r: { chain?: Chain }): Chain => r.chain ?? "arc";
+const chainOf = (r: { chain?: Chain }): Chain => r.chain ?? "solana";
 
 export const cursor = internalQuery({
   args: { name: v.optional(v.string()) },
   handler: async (ctx, { name }) =>
     {
     await assertMarketDeployment(ctx);
-    return (await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name ?? "arc")).unique())?.block ?? null;
+    return (await ctx.db.query("arcCursor").withIndex("by_name", (q) => q.eq("name", name ?? "solana")).unique())?.block ?? null;
   },
 });
 
@@ -65,7 +65,7 @@ export const apply = internalMutation({
         .query("arcPositions")
         .withIndex("by_position", (q) => q.eq("chain", p.chain).eq("kind", p.kind).eq("marketId", p.marketId).eq("user", p.user).eq("side", p.side))
         .unique();
-      if (row) await ctx.db.patch(row._id, { amount: p.amount, amountUsd: p.amountUsd });
+      if (row) await ctx.db.patch(row._id, { amount: p.amount, amountUsd: p.amountUsd, ...(p.claimed === undefined ? {} : { claimed: p.claimed }) });
       else await ctx.db.insert("arcPositions", p);
     }
     for (const m of markets) {
@@ -125,7 +125,7 @@ export const markets = query({
 
 export const market = query({
   args: { chain: chainArg, kind, marketId: v.number() },
-  handler: async (ctx, { chain: c = "arc", kind, marketId }) => {
+  handler: async (ctx, { chain: c = "solana", kind, marketId }) => {
     await assertMarketDeployment(ctx);
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).unique();
     if (!m) return null;
@@ -147,7 +147,7 @@ export const positionsOf = query({
   args: { user: v.string() },
   handler: async (ctx, { user }) => {
     await assertMarketDeployment(ctx);
-    const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user.toLowerCase())).order("desc").take(500);
+    const rows = await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", user)).order("desc").take(500);
     return Promise.all(
       rows.map(async (p) => ({
         ...p,
@@ -166,7 +166,7 @@ export const positionsOf = query({
 const POKE_GAP_MS = 5_000;
 export const poke = mutation({
   args: { chain: chainArg },
-  handler: async (ctx, { chain: c = "arc" }) => {
+  handler: async (ctx, { chain: c = "solana" }) => {
     await assertMarketDeployment(ctx);
     const now = Date.now();
     const name = `${c}-poke`;
@@ -174,7 +174,8 @@ export const poke = mutation({
     if (last && now - last.at < POKE_GAP_MS) return;
     if (last) await ctx.db.patch(last._id, { at: now });
     else await ctx.db.insert("arcHeartbeats", { name, at: now });
-    await ctx.scheduler.runAfter(0, internal.arcSync.sync, { chain: c });
+    if (c !== "solana") throw new Error("Solana devnet only");
+    await ctx.scheduler.runAfter(0, internal.solanaWorkers.sync, {});
   },
 });
 
@@ -327,7 +328,7 @@ export const pairHouseHeld = internalQuery({
   args: { pairKey: v.string(), house: v.array(v.string()) },
   handler: async (ctx, { pairKey, house }) => {
     await assertMarketDeployment(ctx);
-    const ours = new Set(house.map((a) => a.toLowerCase()));
+    const ours = new Set(house);
     for (const leg of await ctx.db.query("arcMarkets").withIndex("by_pair", (q) => q.eq("pairKey", pairKey)).take(10)) {
       if (ours.has(leg.creator)) return true;
       const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("chain", chainOf(leg)).eq("kind", leg.kind).eq("marketId", leg.marketId)).take(500);
@@ -340,7 +341,7 @@ export const pairHouseHeld = internalQuery({
 /** The oracle's audit bundle for a market: what anyone can hash to check the on-chain evidenceHash. */
 export const verdict = query({
   args: { chain: chainArg, kind, marketId: v.number() },
-  handler: async (ctx, { chain: c = "arc", kind, marketId }) =>
+  handler: async (ctx, { chain: c = "solana", kind, marketId }) =>
     {
     await assertMarketDeployment(ctx);
     return (await ctx.db.query("arcVerdicts").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).order("desc").first()) ?? null;
@@ -349,7 +350,7 @@ export const verdict = query({
 
 export const marketWithPositions = internalQuery({
   args: { chain: chainArg, kind, marketId: v.number() },
-  handler: async (ctx, { chain: c = "arc", kind, marketId }) => {
+  handler: async (ctx, { chain: c = "solana", kind, marketId }) => {
     await assertMarketDeployment(ctx);
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).unique();
     if (!m) return null;
@@ -362,7 +363,7 @@ export const marketWithPositions = internalQuery({
 const STAKE_EVENTS = new Set(["ClaimCreated", "ClaimChallenged", "MarketCreated", "Staked"]);
 export const stakeTimes = internalQuery({
   args: { chain: chainArg, kind, marketId: v.number() },
-  handler: async (ctx, { chain: c = "arc", kind, marketId }) =>
+  handler: async (ctx, { chain: c = "solana", kind, marketId }) =>
     {
     await assertMarketDeployment(ctx);
     return (await ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).take(2000))
@@ -391,7 +392,7 @@ export const openedToday = query({
   handler: async (ctx, { creator }) => {
     await assertMarketDeployment(ctx);
     const since = Math.floor(Date.now() / 1000) - 86_400;
-    const rows = await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(50);
+    const rows = await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator)).order("desc").take(50);
     return rows.filter((m) => m.createdAt >= since).length;
   },
 });
@@ -402,7 +403,7 @@ export const marketsBy = internalQuery({
   handler: async (ctx, { creator, chain: c }) =>
     {
     await assertMarketDeployment(ctx);
-    return (await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator.toLowerCase())).order("desc").take(2000))
+    return (await ctx.db.query("arcMarkets").withIndex("by_creator", (q) => q.eq("creator", creator)).order("desc").take(2000))
       .filter((m) => !c || chainOf(m) === c)
       .map((m) => ({ ...m, chain: chainOf(m) }));
   },

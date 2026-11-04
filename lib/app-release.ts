@@ -5,7 +5,7 @@
  */
 export const APP_RELEASE = {
   packageId: "xyz.mimirmarkets.app",
-  versionCode: 10,
+  versionCode: 0,
   versionName: "2.4.0",
   /** Served from /public, so the download is the site's own. */
   apkPath: "/app/mimir.apk",
@@ -15,4 +15,4 @@ export const APP_RELEASE = {
 
 /** The APK launches the site with ?app=<versionCode>, so the site knows it runs inside the app and which build. */
 export const APP_VERSION_PARAM = "app";
-export const appReleased = () => APP_RELEASE.versionCode > 0;
+export const appReleased = () => Number(APP_RELEASE.versionCode) > 0;

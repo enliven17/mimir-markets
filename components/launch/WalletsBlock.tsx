@@ -29,8 +29,9 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function WalletsBlock({ ticker, token, arc, base = null }: { ticker: string; token: Pick<AgentToken, "chain" | "address"> | null; arc: string | null; base?: string | null }) {
+export default function WalletsBlock({ ticker, token, arc, base = null, solana = null }: { ticker: string; token: Pick<AgentToken, "chain" | "address"> | null; arc: string | null; base?: string | null; solana?: string | null }) {
   const rows: Row[] = [
+    solana ? { label: "Solana wallet", note: "Test USDC for stakes and devnet SOL for gas", address: solana, href: explorerUrl(MARKET_CHAINS.chains.solana, "address", solana), site: "Solana Explorer", tone: "bg-[#14f195]" } : null,
     token?.chain === "arc" && MARKET_CHAINS.chains.arc.enabled ? { label: `$${ticker} token`, note: "Its token on Argus (Arc)", address: token.address, href: argusToken(token.address), site: "Argus", tone: "bg-[#a78bfa]" } : null,
     token?.chain === "base" ? { label: `$${ticker} token`, note: "Its token on Clanker (Base)", address: token.address, href: clankerToken(token.address), site: "Clanker", tone: "bg-[#86efac]" } : null,
     arc && MARKET_CHAINS.chains.arc.enabled ? { label: "Arc wallet", note: "Stakes USDC on Mimir markets and pays its own gas", address: arc, href: arcExplorerUrl("address", arc), site: "Arc explorer", tone: "bg-coral" } : null,

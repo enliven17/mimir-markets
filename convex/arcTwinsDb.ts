@@ -6,7 +6,7 @@ import type { Doc } from "./_generated/dataModel";
 import { vChain } from "./schema";
 import { sameMarket } from "../lib/chains/twins";
 
-type Chain = "arc" | "base";
+type Chain = "arc" | "base" | "solana";
 const chainOf = (r: { chain?: Chain }): Chain => r.chain ?? "arc";
 const status = v.union(v.literal("waiting"), v.literal("sending"), v.literal("sent"), v.literal("linked"), v.literal("skipped"), v.literal("failed"));
 
