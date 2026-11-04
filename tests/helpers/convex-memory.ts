@@ -13,8 +13,8 @@ export function memoryBackend() {
       const filters: ((r: any) => boolean)[] = []; let direction = 1, sort = "_creationTime";
       const q: any = {};
       for (const [name, compare] of Object.entries({ eq: (a: any, b: any) => a === b, gt: (a: number, b: number) => a > b, gte: (a: number, b: number) => a >= b, lt: (a: number, b: number) => a < b, lte: (a: number, b: number) => a <= b })) q[name] = (key: string, value: any) => { filters.push((r) => compare(r[key], value)); return q; };
-      const result = () => [...rows.values()].filter((r) => r._id.startsWith(`${table}_`) && filters.every((f) => f(r))).sort((a, b) => direction * (a[sort] - b[sort]));
-      const chain: any = { withIndex(index: string, fn?: (q: any) => void) { if (index === "by_at") sort = "at"; if (index === "by_deadline") sort = "deadline"; fn?.(q); return chain; }, order(order: string) { direction = order === "desc" ? -1 : 1; return chain; }, async unique() { const found = result(); assert.ok(found.length < 2); return structuredClone(found[0] ?? null); }, async first() { return structuredClone(result()[0] ?? null); }, async take(n: number) { return structuredClone(result().slice(0, n)); }, async collect() { return structuredClone(result()); } };
+      const result = () => [...rows.values()].filter((r) => r._id.startsWith(`${table}_`) && filters.every((f) => f(r))).sort((a, b) => direction * ((a[sort] ?? -Infinity) - (b[sort] ?? -Infinity)));
+      const chain: any = { withIndex(index: string, fn?: (q: any) => void) { if (index === "by_at" || index === "by_market_name_at") sort = "at"; if (index === "by_deadline") sort = "deadline"; fn?.(q); return chain; }, order(order: string) { direction = order === "desc" ? -1 : 1; return chain; }, async unique() { const found = result(); assert.ok(found.length < 2); return structuredClone(found[0] ?? null); }, async first() { return structuredClone(result()[0] ?? null); }, async take(n: number) { return structuredClone(result().slice(0, n)); }, async collect() { return structuredClone(result()); } };
       return chain;
     },
   };

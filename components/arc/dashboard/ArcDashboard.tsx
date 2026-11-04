@@ -28,22 +28,27 @@ import { arcPhase, BTN_PRIMARY, BTN_SECONDARY, KIND_LABEL, PHASE_DOT, PHASE_LABE
 import { useArcAccount } from "../arena/useArcAccount";
 import { useArcSend } from "../arena/useArcSend";
 import { ExternalMark } from "@/components/ExternalMark";
+import { settlementFunding } from "@/lib/late-stakes";
 import { SITE_URL } from "@/lib/site";
 
 const PARKED_ABI = parseAbi(["function pendingWithdrawals(address) view returns (uint256)", "function withdraw()"]);
 
-type Result = "open" | "won" | "lost" | "refunded" | "settling";
+type Result = "open" | "won" | "lost" | "refunded" | "settling" | "partial";
 
 function resultOf(m: ArcMarket, side: number, now: number): Result {
   const phase = arcPhase(m, now);
   if (phase === "cancelled") return "refunded";
   if (phase !== "resolved") return phase === "open" ? "open" : "settling";
+  if (m.winner !== 1 && m.winner !== 2) return "refunded";
+  const funding = settlementFunding(m);
+  if (funding === "refund") return "refunded";
+  if (funding === "partial") return "partial";
   if (m.winner === side) return "won";
   return m.winner === 1 || m.winner === 2 ? "lost" : "refunded";
 }
 
-const RESULT_LABEL: Record<Result, string> = { open: "Open", settling: "Settling", won: "Won", lost: "Lost", refunded: "Refunded" };
-const RESULT_TONE: Record<Result, string> = { open: "text-cream", settling: "text-pending", won: "text-win", lost: "text-danger", refunded: "text-muted" };
+const RESULT_LABEL: Record<Result, string> = { partial: "Settled · late refunds", open: "Open", settling: "Settling", won: "Won", lost: "Lost", refunded: "Refunded" };
+const RESULT_TONE: Record<Result, string> = { partial: "text-muted", open: "text-cream", settling: "text-pending", won: "text-win", lost: "text-danger", refunded: "text-muted" };
 
 export default function ArcDashboard() {
   const account = useArcAccount(MARKET_CHAINS.defaultChain);
@@ -92,7 +97,7 @@ function Body({ address }: { account: ReturnType<typeof useArcAccount>; address:
           </h2>
           {rows.length ? (
             <p className="m-0 text-[13px] text-muted">
-              {won} won · {lost} lost · {usd(atRisk)} at risk
+              {won} won · {lost} lost · {rows.filter(r => r.result === "partial").length ? `${rows.filter(r => r.result === "partial").length} with partial refunds · ` : ""}{usd(atRisk)} at risk
             </p>
           ) : null}
         </div>

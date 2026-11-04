@@ -58,6 +58,7 @@ export const APP_STORE_TABLES = new Set([
   "copy_locks",
   "copy_permissions",
   "copy_reservations",
+  "launch_authorizations",
   "rate_limits",
   "telegram_chats",
   "wallet_relay",
@@ -70,6 +71,7 @@ export const PRUNABLE_TABLES = new Set([
   "agent_api_responses",
   "agent_request_audit",
   "copy_reservations",
+  "launch_authorizations",
   "rate_limits",
   "wallet_relay",
 ]);

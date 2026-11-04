@@ -91,7 +91,7 @@ contract MimirV3SafetyTest {
     function _resolve(uint256 id, uint8 side) internal {
         vm.warp(block.timestamp + GAP + 1);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "because", 90, bytes32(uint256(1)), 0);
     }
 
     // ── Escape hatch ────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ contract MimirV3SafetyTest {
         // Encoded before the prank: reading SIDE_CHALLENGERS() is itself a call
         // and would consume it.
         bytes memory resolve = abi.encodeWithSelector(
-            MimirV3.resolveClaim.selector, id, mimir.SIDE_CHALLENGERS(), "because", uint8(90), bytes32(uint256(1))
+            MimirV3.resolveClaimWithCutoff.selector, id, mimir.SIDE_CHALLENGERS(), "because", uint8(90), bytes32(uint256(1)), uint256(0)
         );
         vm.prank(oracle);
         (bool settled,) = address(mimir).call{gas: 1_000_000}(resolve);
@@ -229,7 +229,7 @@ contract MimirV3SafetyTest {
         vm.warp(block.timestamp + GAP + 1);
         vm.prank(oracle);
         (bool settled,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveClaim.selector, id, mimir.SIDE_CREATOR(), "x", uint8(90), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveClaimWithCutoff.selector, id, mimir.SIDE_CREATOR(), "x", uint8(90), bytes32(0), uint256(0))
         );
         assert(!settled);
         vm.prank(platform);
@@ -238,23 +238,27 @@ contract MimirV3SafetyTest {
         mimir.setPaused(false);
         uint8 side = mimir.SIDE_CREATOR();
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "because", 90, bytes32(uint256(1)), 0);
         assert(_create(STAKE, "pool", 0) > id);
     }
 
     // ── Claim rules ─────────────────────────────────────────────────────────
 
-    function test_aPrivateClaimNeedsAnInviteKey() public {
+    function test_aPrivateClaimNeedsAWalletGrantEvenWithALegacyKey() public {
         vm.prank(creator);
         (bool noKey,) = address(mimir).call{value: STAKE}(_createCall(STAKE, "pool", 0, true, ""));
-        assert(!noKey);
+        assert(noKey); // private creation starts closed, including with an empty legacy key
 
         vm.prank(creator);
         (bool withKey, bytes memory ret) = address(mimir).call{value: STAKE}(_createCall(STAKE, "pool", 0, true, "s3cret"));
         assert(withKey);
         uint256 id = abi.decode(ret, (uint256));
 
-        assert(!_challenge(alice, id, STAKE)); // wrong (empty) key
+        assert(!_challenge(alice, id, STAKE));
+        address[] memory wallets = new address[](1);
+        wallets[0] = alice;
+        vm.prank(creator);
+        mimir.setInvited(id, wallets, true);
         vm.prank(alice);
         mimir.challengeClaim{value: STAKE}(id, STAKE, "s3cret", address(0));
     }

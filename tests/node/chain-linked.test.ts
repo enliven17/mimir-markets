@@ -82,3 +82,10 @@ test("council: one take per linked pair, copied to a leg without one", () => {
   // Both have it: nothing to do.
   assert.deepEqual(takeReuse(legs, () => true).missing, []);
 });
+
+
+test("linked reuse strips a leg's eligibility witnesses and reseals for the next leg", () => {
+  const r = reuseDecision(verdict({ chain: "base", side: 1, decided: 1, summary: "A won. Late deposits refunded.", decidedSummary: "A won.", bundle: JSON.stringify({ v: 1, lateDepositPolicy: { cutoff: 80, lateStakes: [{ user: "bob", at: 100 }] } }) }));
+  assert.equal(r.side, 1);assert.equal(r.summary, "A won.");assert.equal(r.evidenceHash, null);
+  assert.deepEqual(JSON.parse(r.bundle), { v: 1 });
+});

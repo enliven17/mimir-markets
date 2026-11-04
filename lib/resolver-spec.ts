@@ -6,9 +6,9 @@
  *   resolver: {"kind":"price","symbol":"BTC","op":">","threshold":100000}
  *   resolver: {"kind":"json","url":"https://…","path":"data.items[0].score","op":">=","value":3}
  *
- * which says, in terms code can check, what makes the claim's YES side true.
- * The oracle evaluates it before asking any model; the LLM is only the
- * fallback when the resolver cannot reach a determinate answer.
+ * Price rules that match the written question may be evaluated before a
+ * model is asked. Generic JSON rules remain parseable metadata, but cannot
+ * authorize settlement: a trusted field need not answer the question.
  *
  * Markets have no settlement-rule field on chain, so the spec rides in the
  * resolution URL's fragment, which is stored on chain with the claim (so
@@ -21,7 +21,7 @@
  * (json specs read the resolution URL itself). `resolverSpecFor` accepts either
  * form, fragment first.
  *
- * Pure: no network. The oracle supplies the price readings or fetched JSON.
+ * Pure: no network. The oracle supplies the price readings.
  */
 import { freshReadings, MAX_SOURCE_SPREAD, priceCheckTarget, type PriceReading } from "./price-consensus";
 
@@ -294,15 +294,9 @@ export function resolverSpecFor(c: { resolutionUrl: string; settlementRule?: str
 }
 
 /**
- * Hosts whose JSON a json spec may settle from. Anyone can write a json spec
- * into their own claim's URL, so on any other host the creator would decide
- * the outcome by editing their own file: there the spec is ignored and the
- * claim takes the normal (LLM, capped) path. ESPN only, and only for a game
- * ESPN reports completed (evaluateJsonSpec). Not Polymarket Gamma: a json
- * spec on any Gamma query would skip the market binding checks
- * (agents/oracle/polymarket.ts). Not CoinGecko: a "live" price read at
- * settlement time is not the price at the deadline; prices settle only
- * through a price spec.
+ * Legacy JSON source classification, retained for metadata compatibility.
+ * It is not settlement authorization: effectiveResolverSpec rejects generic
+ * JSON even on these hosts because the predicate is not bound to the question.
  */
 export const JSON_RESOLVER_HOSTS: ReadonlySet<string> = new Set([ESPN_HOST]);
 
@@ -330,14 +324,14 @@ export function priceSpecMatchesQuestion(spec: Extract<ResolverSpec, { kind: "pr
 }
 
 /**
- * The spec the oracle actually honours: json specs on trusted hosts only,
- * price specs only when they match the question. Null: settle as if the
- * claim carried no spec.
+ * Only matching price specs authorize structured settlement. Generic JSON
+ * predicates cannot bypass evaluation of the original question, regardless
+ * of host or parser representation. Null: use the existing oracle process.
  */
-export function effectiveResolverSpec(c: { question: string; resolutionUrl: string; settlementRule?: string | null }): ResolverSpec | null {
+export function effectiveResolverSpec(c: { question: string; resolutionUrl: string; settlementRule?: string | null }): Extract<ResolverSpec, { kind: "price" }> | null {
   const spec = resolverSpecFor(c);
   if (!spec) return null;
-  if (spec.kind === "json") return isTrustedJsonSpec(spec) ? spec : null;
+  if (spec.kind === "json") return null;
   return priceSpecMatchesQuestion(spec, c.question) ? spec : null;
 }
 

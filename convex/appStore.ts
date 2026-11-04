@@ -213,6 +213,9 @@ export const sweep = internalMutation({
       ["agent_api_responses", now - 2 * 86_400_000],
       ["copy_reservations", now - 86_400_000],
       ["admin_nonces", now - 86_400_000],
+      // `at` is signature expiry, not consumption time. Retain an extra day for cross-service clock skew;
+      // expired records can be deleted, but a live authorization must never become usable again.
+      ["launch_authorizations", now - 86_400_000],
     ];
     let removed = 0;
     for (const [t, before] of cutoffs) {

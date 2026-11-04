@@ -99,7 +99,7 @@ contract SecurityFixesTest is Base {
     function _settleV3(MimirV3 m, uint256 id, uint8 side) internal {
         vm.warp(T0 + GAP + 1);
         vm.prank(oracle);
-        m.resolveClaim(id, side, "settled", 90, bytes32(uint256(7)));
+        m.resolveClaimWithCutoff(id, side, "settled", 90, bytes32(uint256(7)), 0);
         vm.warp(T0 + GAP + 1 + WINDOW);
         m.finalizeResolution(id);
     }
@@ -149,7 +149,7 @@ contract SecurityFixesTest is Base {
     function test_fixedOddsPayAtMostTenTimes() public {
         _claim(mimir, ONE, "fixed", 100_000, T0 + GAP);
         vm.prank(creator);
-        vm.expectRevert(bytes("Mimir: payout too high"));
+        vm.expectRevert(MimirV3.PayoutTooHigh.selector);
         mimir.createClaim{value: ONE}(
             "Will it?", "yes", "no", "https://example.com", T0 + GAP, ONE,
             "custom", 0, "binary", "fixed", 100_001, "", "rule", 0, false, "", address(0)
@@ -160,7 +160,7 @@ contract SecurityFixesTest is Base {
         _claim(mimir, ONE, "pool", 0, T0 + 365 days);
         uint256 far = T0 + 365 days + 1;
         vm.prank(creator);
-        vm.expectRevert(bytes("Mimir: deadline too far"));
+        vm.expectRevert(MimirV3.DeadlineTooFar.selector);
         mimir.createClaim{value: ONE}(
             "Will it?", "yes", "no", "https://example.com", far, ONE,
             "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
@@ -171,21 +171,21 @@ contract SecurityFixesTest is Base {
         uint256 parent = _claim(mimir, ONE, "pool", 0, T0 + GAP);
         uint256 far = T0 + 365 days + 1;
         vm.prank(creator);
-        vm.expectRevert(bytes("Mimir: deadline too far"));
+        vm.expectRevert(MimirV3.DeadlineTooFar.selector);
         mimir.createRematch{value: ONE}(parent, far, ONE, "");
     }
 
     function test_anEntryFeeAboveOnePercentIsRefused() public {
         MimirV3 m = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(new FlatFees(101))), WINDOW, 1e16);
         vm.prank(creator);
-        vm.expectRevert(bytes("Mimir: entry fee too high"));
+        vm.expectRevert(MimirV3.EntryFeeTooHigh.selector);
         m.createClaim{value: ONE}(
             "Will it?", "yes", "no", "https://example.com", T0 + GAP, ONE,
             "custom", 0, "binary", "pool", 0, "", "rule", 0, false, "", address(0)
         );
     }
 
-    function test_theInviteKeyIsCheckedBeforeTheFeeContract() public {
+    function test_theWalletGrantIsCheckedBeforeTheFeeContract() public {
         SwitchFees sw = new SwitchFees();
         MimirV3 m = new MimirV3(address(this), address(this), oracle, platform, IMimirFees(address(sw)), WINDOW, 1e16);
         vm.prank(creator);
@@ -195,7 +195,7 @@ contract SecurityFixesTest is Base {
         );
         sw.arm();
         vm.prank(alice);
-        vm.expectRevert(bytes("Mimir: invalid invite key"));
+        vm.expectRevert(MimirV3.NotInvited.selector);
         m.challengeClaim{value: ONE}(id, ONE, "wrong", address(0));
     }
 
@@ -223,7 +223,7 @@ contract SecurityFixesTest is Base {
         vm.warp(T0 + GAP + 1);
         uint8 side = mimir.SIDE_CHALLENGERS();
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "settled", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, side, "settled", 90, bytes32(uint256(7)), 0);
         vm.warp(T0 + GAP + 1 + WINDOW);
         uint256 g = gasleft();
         mimir.finalizeResolution(id);

@@ -108,6 +108,7 @@ const deploy = async (name, args) => {
 const fees = await deploy('MimirFees', [owner, feeSigner])
 const v3 = await deploy('MimirV3', [owner, arbiter, oracle, feeTo, fees.contractAddress, window, parseEther(minStake)])
 const pool = await deploy('MimirPool', [owner, arbiter, oracle, feeTo, fees.contractAddress, window, parseEther(minStake)])
+console.log('Audit role starts disabled. After installing the printed deployment config, run npm run audit-agent -- --print-setup with AUDIT_AGENT_ADDRESS; the owner must execute those setup calls before launch.')
 
 console.log(`\nNEXT_PUBLIC_MIMIR_FEES_ADDRESS=${fees.contractAddress}
 NEXT_PUBLIC_MIMIR_V3_ADDRESS=${v3.contractAddress}

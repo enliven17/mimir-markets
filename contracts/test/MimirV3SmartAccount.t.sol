@@ -101,7 +101,7 @@ contract MimirV3SmartAccountTest {
     function _propose(uint256 id, uint8 side) internal {
         vm.warp(DEADLINE + 1);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "proposed", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "proposed", 90, bytes32(uint256(1)), 0);
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
@@ -152,7 +152,7 @@ contract MimirV3SmartAccountTest {
         taker.execute(address(mimir), bond, abi.encodeWithSelector(MimirV3.disputeResolution.selector, id));
         assert(_state(id) == mimir.ST_DISPUTED());
 
-        mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(2)));
+        mimir.resolveDisputeWithCutoff(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(2)), 0);
         // 100 - stake - bond + winnings + bond back.
         assert(address(taker).balance == 100 * ONE - STAKE + _netWin());
         assert(address(maker).balance == 98 * ONE);

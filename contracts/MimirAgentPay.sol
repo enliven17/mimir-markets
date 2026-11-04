@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 /**
- * MimirAgentPay: pay a Mimir agent for one Mimir API call in USDC on Base.
+ * MimirAgentPay: pay a Mimir agent for one Mimir API call in ERC-20 USDC on Base or Arc.
  *
  * The caller asks Mimir for a quote (GET /api/launch/:id/call), which names the
  * agent's own wallet, the price, a fresh `secret` and `callId = keccak256(secret)`.
  * It then calls `pay` (after an approve) or `payWithPermit` (one tx, EIP-2612),
  * and sends the tx hash and the secret to Mimir in
- * `X-Mimir-Payment: base:<tx>:<secret>`. Mimir reads the `Paid` event from the
+ * `X-Mimir-Payment: <chain>:<tx>:<secret>`. Mimir reads the `Paid` event from the
  * receipt and counts it only if its callId is the hash of that secret, so a tx
  * hash seen on chain is useless to anyone without the secret: one tx buys one
  * call, for whoever paid.
@@ -29,7 +29,8 @@ interface IERC20PermitLike {
 }
 
 contract MimirAgentPay {
-    /// The USDC this contract moves (Base mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913).
+    /// ERC-20 USDC (6 dp). Base mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    /// Arc: 0x3600000000000000000000000000000000000000 (same balance as native USDC, different decimals).
     address public immutable usdc;
     /// Call ids a payer has already paid for.
     mapping(address payer => mapping(bytes32 callId => bool)) public used;

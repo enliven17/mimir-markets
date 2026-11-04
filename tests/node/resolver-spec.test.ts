@@ -71,7 +71,7 @@ test("numeric json comparisons need a number: 'pending' is not 'No'", () => {
   assert.ok(ok.determined && ok.conditionMet);
 });
 
-test("json specs are honoured only on allowlisted API hosts", async () => {
+test("JSON host validation does not authorize a generic JSON settlement", async () => {
   const { effectiveResolverSpec, isTrustedJsonSpec } = await import("../../lib/resolver-spec");
   const j = (url: string) => ({ kind: "json" as const, url, path: "a", op: "==" as const, value: true });
   assert.equal(isTrustedJsonSpec(j("https://site.api.espn.com/apis/x")), true);
@@ -82,7 +82,24 @@ test("json specs are honoured only on allowlisted API hosts", async () => {
   assert.equal(isTrustedJsonSpec(j("https://site.api.espn.com.attacker.io/x")), false);
   assert.equal(isTrustedJsonSpec(j("https://site.api.espn.com:8443/x")), false);
   assert.equal(effectiveResolverSpec({ question: "Did it happen?", resolutionUrl: "https://attacker.example/x.json#mimir=json:eq:true:won" }), null);
-  assert.equal(effectiveResolverSpec({ question: "Final?", resolutionUrl: "https://site.api.espn.com/x#mimir=json:eq:true:won" })?.kind, "json");
+  assert.equal(effectiveResolverSpec({ question: "Final?", resolutionUrl: "https://site.api.espn.com/x#mimir=json:eq:true:won" }), null);
+});
+
+test("generic JSON cannot decide a question through fragments or legacy rule lines", async () => {
+  const { effectiveResolverSpec, resolverSpecFor } = await import("../../lib/resolver-spec");
+  const resolutionUrl = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401234567";
+  const question = "Will the final combined score exceed 250?";
+  const spec = { kind: "json", url: resolutionUrl, path: "header.competitions[0].status.type.completed", op: "==", value: true } as const;
+  const claims = [
+    { question, resolutionUrl: `${resolutionUrl}#mimir=json:eq:true:${spec.path}` },
+    { question, resolutionUrl, settlementRule: resolverLine(spec) },
+    // A rejected JSON fragment must not expose a second resolver in a legacy line.
+    { question: "Will BTC close above $100k?", resolutionUrl: `${resolutionUrl}#mimir=json:eq:true:${spec.path}`, settlementRule: 'resolver: {"kind":"price","symbol":"BTC","op":">","threshold":100000}' },
+  ];
+  for (const claim of claims) {
+    assert.equal(resolverSpecFor(claim)?.kind, "json", "legacy metadata stays parseable");
+    assert.equal(effectiveResolverSpec(claim), null, "only evidence/agent paths may answer the original question");
+  }
 });
 
 test("a price spec is ignored unless it matches the question", async () => {

@@ -155,7 +155,7 @@ Signed reads (same envelope, no transactions):
 A market has `chain`, `kind`, `marketId`, `creator`, `question`, `labelA` / `labelB` (VS: the creator's side / the
 challengers'; pool: side A / B), `resolutionUrl`, `category`, `deadline`, `createdAt`, `status`, `winner` (0 none
 yet, 1 A, 2 B, 3 draw, 4 unresolvable), `summary`, `stakeA` and `stakeB` (18-decimal strings on every chain; Base's 6-dp USDC is scaled up), `volumeUsd`, `participants`,
-`disputableUntil`, `refundAt`. A position has `chain`, `kind`, `marketId`, `user`, `side`, `amount` (18 decimals, after the entry fee)
+`disputableUntil`, `refundAt`, and optional `settlementCutoff`, `eligibleA` / `eligibleB`. The latter show the cutoff and competing totals; raw stake totals stay historical. A position has `chain`, `kind`, `marketId`, `user`, `side`, `amount` (18 decimals, after the entry fee)
 and `amountUsd`.
 
 `listEarnings` names the payout wallet: on both chains the contracts pay referrer and copy fees straight to it at payout.
@@ -164,7 +164,8 @@ and `amountUsd`.
 
 1. Open or challenge. The stake less the entry fee is the position.
 2. After the deadline the oracle proposes a result. During the dispute window (1 hour on testnet) any participant can
-   `dispute` with the 2 USDC bond; the bond comes back if the arbiter changes the result.
+   `dispute` with the 2 USDC bond; the bond comes back if the arbiter changes the result or eligibility cutoff.
+   Late deposits (at/after the proposed event cutoff) refund their net principal only; earlier valid deposits still compete. Entry fees remain charged. See [the deposit policy](releases/late-deposit-refunds-2026-11-04.md).
 3. When the window closes the result is final. VS winners are paid to the operator directly; pool winners are paid by
    the backend. A payout the contract could not push is parked: pull it with `withdraw`.
 4. A draw or an unresolvable question refunds every stake; entry fees are kept. With no result seven days after the

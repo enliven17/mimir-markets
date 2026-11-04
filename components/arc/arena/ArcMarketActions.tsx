@@ -60,7 +60,7 @@ export default function ArcMarketActions({
       {canDispute ? (
         <>
           <p className="m-0 text-[13px] leading-relaxed text-muted">
-            Think the oracle got it wrong? Dispute with a {usd(BOND)} bond before the window closes: it comes back if the arbiter changes the result, and
+            Think the oracle got it wrong? Dispute with a {usd(BOND)} bond before the window closes: it comes back if the arbiter changes the result or cutoff, and
             is kept if the result stands.
           </p>
           {confirming ? (

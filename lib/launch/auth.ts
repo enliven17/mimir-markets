@@ -18,7 +18,7 @@ export function launchMessage(a: { action: LaunchAction; owner: string; agent: s
   ].join("\n");
 }
 
-/** Up to 5 minutes old, and at most a minute of clock skew ahead. Each signature is also accepted once (request.ts). */
+/** Up to 5 minutes old, and at most a minute of clock skew ahead. Each signed authorization is accepted once (request.ts). */
 export const isFreshLaunchSig = (signedAt: number, now = Date.now()) =>
   Number.isSafeInteger(signedAt) && signedAt <= now + 60_000 && now - signedAt <= LAUNCH_SIG_TTL_MS;
 

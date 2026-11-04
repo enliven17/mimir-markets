@@ -144,3 +144,11 @@ test("winner card: 'Called it', the winning side marked as the sharer's", () => 
   assert.equal(c.sides[1].tag, "My side");
   assert.match(c.detail, /Bills win.*won/);
 });
+
+
+test("late refunded deposits do not get personal victory cards", () => {
+  const e = { type: "resolved" as const, winner: 1, stakeA: "12", stakeB: "10", settlementCutoff: 80, eligibleA: "10", eligibleB: "10" };
+  assert.equal(cardTypeFor(e, 1), "share");assert.equal(cardTypeFor(e, 2), "share");
+  assert.equal(cardTypeFor({ ...e, eligibleA: "0" }, 1), "refunded");
+  assert.equal(cardTypeFor({ ...e, eligibleA: "12" }, 1), "won");
+});

@@ -15,6 +15,9 @@
  *   - role "oracle" reads ORACLE_GEMINI_API_KEY / ORACLE_ANTHROPIC_API_KEY; on
  *     mainnet ONLY those (no shared-key fallback, so a flood of web calls can
  *     never stall settlement); off mainnet it may fall back to the shared keys.
+ *   - role "audit" uses only AUDIT_GEMINI_API_KEY / AUDIT_ANTHROPIC_API_KEY,
+ *     with no shared/proposer fallback on either network. Other roles cannot
+ *     consume dedicated audit credentials. Run this worker separately.
  *   - every other role ("council", "web", the default) never reads an oracle
  *     key, even when the same key is also set as a shared one.
  *
@@ -37,7 +40,7 @@ const IS_MAINNET = ARC.network === "mainnet";
 export type LLMProvider = "gemini" | "anthropic" | "groq" | "openrouter";
 
 /** Who is calling: decides which keys a call may spend. */
-export type LLMRole = "oracle" | "council" | "web";
+export type LLMRole = "oracle" | "council" | "web" | "audit";
 
 export const ORACLE_GEMINI_KEY_ENV = "ORACLE_GEMINI_API_KEY";
 export const ORACLE_ANTHROPIC_KEY_ENV = "ORACLE_ANTHROPIC_API_KEY";
@@ -173,17 +176,22 @@ const isOracleEnv = (name: string | undefined): boolean => Boolean(name?.toUpper
  */
 export function geminiKeysFor(opts: ScopeOpts = {}): string[] {
   const scope = scopeOf(opts);
+  const auditKeys = new Set(splitList(envKey("AUDIT_GEMINI_API_KEY")));
+  if (scope.role === "audit") {
+    const otherKeys = new Set(splitList(envKey(ORACLE_GEMINI_KEY_ENV), process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS, process.env.COUNCIL_GEMINI_API_KEY));
+    return [...auditKeys].filter(k => !otherKeys.has(k));
+  }
   if (scope.role === "oracle") {
     const own = envKey(scope.keyEnv ?? ORACLE_GEMINI_KEY_ENV);
-    return scope.mainnet ? splitList(own) : splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
+    return (scope.mainnet ? splitList(own) : splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS)).filter(k => !auditKeys.has(k));
   }
   // ORACLE_GEMINI_API_KEY may hold a list; every key in it is the oracle's.
   const oracleKeys = new Set(splitList(envKey(ORACLE_GEMINI_KEY_ENV)));
   const own = scope.keyEnv && !isOracleEnv(scope.keyEnv) ? envKey(scope.keyEnv) : "";
   const keys = splitList(own, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEYS);
-  const others = keys.filter((k) => !oracleKeys.has(k));
+  const others = keys.filter((k) => !oracleKeys.has(k) && !auditKeys.has(k));
   // Settlement quota comes first everywhere; off mainnet the oracle key is shared only when it is the only key.
-  return scope.mainnet || others.length > 0 ? others : keys;
+  return scope.mainnet || others.length > 0 ? others : keys.filter(k => !auditKeys.has(k));
 }
 
 /** The Anthropic key a call may use (same rules as Gemini); "" when none. */
@@ -191,8 +199,10 @@ export function anthropicKeyFor(opts: ScopeOpts = {}): string {
   const scope = scopeOf(opts);
   const own = envKey(ORACLE_ANTHROPIC_KEY_ENV);
   const shared = envKey("ANTHROPIC_API_KEY");
-  if (scope.role === "oracle") return own || (scope.mainnet ? "" : shared);
-  return shared && shared !== own ? shared : "";
+  const audit = envKey("AUDIT_ANTHROPIC_API_KEY");
+  if (scope.role === "audit") return audit && audit !== own && audit !== shared ? audit : "";
+  if (scope.role === "oracle") return own && own !== audit ? own : (scope.mainnet || shared === audit ? "" : shared);
+  return shared && shared !== own && shared !== audit ? shared : "";
 }
 
 function geminiModelPool(): string[] {
@@ -355,6 +365,7 @@ export function providerChain(opts: ChainOpts = {}): LLMProvider[] {
       : [...(primary ? [primary] : []), "groq", "anthropic", "gemini", "openrouter"];
   return order.filter((p, i) => {
     if (order.indexOf(p) !== i || !hasKey(p, scope)) return false;
+    if (scope.role === "audit" && p !== "gemini" && p !== "anthropic") return false;
     if (opts.noFreeRouter && p === "openrouter" && (DEFAULT_OPENROUTER_MODEL === "openrouter/free" || DEFAULT_OPENROUTER_MODEL.endsWith(":free"))) return false;
     if (opts.settlement) {
       if (p === "gemini") return geminiModelsFor(undefined, true).length > 0;

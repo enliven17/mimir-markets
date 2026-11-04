@@ -110,7 +110,7 @@ contract MimirV3ReviewTest {
         vm.warp(block.timestamp + GAP + 1);
         uint8 creatorSide = mimir.SIDE_CREATOR();
         vm.prank(oracle);
-        mimir.resolveClaim(id, creatorSide, "proposed", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, creatorSide, "proposed", 90, bytes32(uint256(7)), 0);
         uint256 bond = mimir.MIN_STAKE();
         d.dispute{value: bond}(bond);
 
@@ -118,7 +118,7 @@ contract MimirV3ReviewTest {
         // its winnings and its bond, and tries to re-enter refundExpired.
         // (After the grace the ruling itself is refused: finding #2.)
         vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS() - 1);
-        mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)));
+        mimir.resolveDisputeWithCutoff(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)), 0);
 
         (, bool called, uint8 seenState, bool reentered, bool stoppedByLock) = d.seen();
         assert(called);
@@ -146,7 +146,7 @@ contract MimirV3ReviewTest {
 
         vm.warp(block.timestamp + GAP + mimir.RESOLUTION_GRACE_SECONDS());
         bytes memory verdict = abi.encodeWithSelector(
-            MimirV3.resolveClaim.selector, id, mimir.SIDE_CREATOR(), "late", uint8(90), bytes32(uint256(1))
+            MimirV3.resolveClaimWithCutoff.selector, id, mimir.SIDE_CREATOR(), "late", uint8(90), bytes32(uint256(1)), uint256(0)
         );
         vm.prank(oracle);
         (bool ok, bytes memory ret) = address(mimir).call(verdict);
@@ -167,7 +167,7 @@ contract MimirV3ReviewTest {
         vm.warp(block.timestamp + GAP + mimir.RESOLUTION_GRACE_SECONDS() - 1);
         uint8 side = mimir.SIDE_CREATOR();
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "on time", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "on time", 90, bytes32(uint256(1)), 0);
         assert(_state(id) == mimir.ST_PROPOSED());
     }
 
@@ -178,14 +178,14 @@ contract MimirV3ReviewTest {
         vm.warp(block.timestamp + GAP + 1);
         uint8 creatorSide = mimir.SIDE_CREATOR();
         vm.prank(oracle);
-        mimir.resolveClaim(id, creatorSide, "proposed", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, creatorSide, "proposed", 90, bytes32(uint256(7)), 0);
         uint256 bond = mimir.MIN_STAKE();
         vm.prank(alice);
         mimir.disputeResolution{value: bond}(id);
 
         vm.warp(block.timestamp + mimir.RESOLUTION_GRACE_SECONDS());
         (bool ok, bytes memory ret) = address(mimir).call(abi.encodeWithSelector(
-            MimirV3.resolveDispute.selector, id, mimir.SIDE_CHALLENGERS(), "late", uint8(100), bytes32(0)
+            MimirV3.resolveDisputeWithCutoff.selector, id, mimir.SIDE_CHALLENGERS(), "late", uint8(100), bytes32(0), uint256(0)
         ));
         assert(!ok);
         assert(keccak256(ret) == keccak256(abi.encodeWithSelector(MimirV3.GraceOver.selector)));
@@ -237,7 +237,7 @@ contract MimirV3ReviewTest {
         vm.warp(block.timestamp + GAP + 1);
         uint8 creatorSide = mimir.SIDE_CREATOR();
         vm.prank(oracle);
-        mimir.resolveClaim(id, creatorSide, "creator wins", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, creatorSide, "creator wins", 90, bytes32(uint256(7)), 0);
 
         // Alice lost. She disputes and the arbiter never rules.
         uint256 bond = mimir.MIN_STAKE();

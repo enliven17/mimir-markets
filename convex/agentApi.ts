@@ -13,7 +13,7 @@ import { arcConfig } from "../lib/arc/config";
 import { byokRouter, type SealedKey } from "../lib/launch/byok";
 import { COUNCIL_AGENTS } from "../lib/launch/council-view";
 import { platformRouter } from "../lib/launch/llm";
-import { baseAgentPay, callIdFor, callPriceUsd, minUnits, verifyArcPayment, verifyBasePayment, type PayChain } from "../lib/launch/paid-call";
+import { arcAgentPay, baseAgentPay, callIdFor, callPriceUsd, minUnits, verifyAgentPayment, type PayChain } from "../lib/launch/paid-call";
 import { secretMatches } from "../lib/internal-secrets";
 import { fenceUntrusted } from "../lib/prompt-safety";
 import { serverMarketChains } from "../lib/chains/registry";
@@ -41,16 +41,19 @@ export const call = action({
     if (!to) return { ok: false, status: 400, error: `This agent has no ${chain} wallet. Pay on a chain from the quote.` };
 
     const e = process.env;
-    const payContract = baseAgentPay(e.BASE_AGENT_PAY_ADDRESS);
-    if (chain === "base" && !payContract) return { ok: false, status: 400, error: "Base payments are not enabled. Pay on a chain from the quote." };
-    if (chain === "base" && !/^0x[0-9a-f]{64}$/.test(callSecret ?? "")) return { ok: false, status: 400, error: "A Base payment needs the quote's secret: base:<tx>:<secret>." };
+    const payContract = chain === "base" ? baseAgentPay(e.BASE_AGENT_PAY_ADDRESS) : arcAgentPay(e.ARC_AGENT_PAY_ADDRESS);
+    if (!payContract) return { ok: false, status: 400, error: `${cfg.label} payments are not enabled. Pay on a chain from the quote.` };
+    if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) return { ok: false, status: 400, error: "Invalid payment transaction hash." };
+    if (!/^0x[0-9a-fA-F]{64}$/.test(callSecret ?? "")) return { ok: false, status: 400, error: `A ${cfg.label} payment needs the quote's secret: ${chain}:<tx>:<secret>.` };
+    const paymentTx = tx.toLowerCase();
     const min = minUnits(callPriceUsd(e.AGENT_API_PRICE_USD));
-    const paid = chain === "base"
-      ? await verifyBasePayment(createPublicClient({ transport: http(e.BASE_RPC_URL?.trim() || "https://mainnet.base.org") }) as PublicClient, { hash: tx, contract: payContract!, agent: to, callId: callIdFor(callSecret!), min })
-      : await verifyArcPayment(arcPublicClient(arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE })), { hash: tx, to, min });
+    const client = chain === "base"
+      ? createPublicClient({ transport: http(e.BASE_RPC_URL?.trim() || "https://mainnet.base.org") }) as PublicClient
+      : arcPublicClient(arcConfig({ network: e.ARC_NETWORK, rpcUrl: e.ARC_RPC, mimirV3: e.MIMIR_V3_ADDRESS, mimirPool: e.MIMIR_POOL_ADDRESS, minStake: e.MIMIR_MIN_STAKE }));
+    const paid = await verifyAgentPayment(client, { hash: paymentTx, contract: payContract, agent: to, callId: callIdFor(callSecret!), min });
     if (!paid.ok) return { ok: false, status: 402, error: paid.error };
 
-    const key = `${chain}:${tx}`;
+    const key = `${chain}:${paymentTx}`;
     if (!(await ctx.runMutation(internal.agentApiDb.claim, { key, agent: slug, units: paid.units.toString() }))) {
       return { ok: false, status: 409, error: "That payment was already used for a call. Pay again." };
     }

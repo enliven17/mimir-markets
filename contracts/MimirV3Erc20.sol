@@ -190,6 +190,47 @@ contract MimirV3Erc20 {
     // claimId * MAX_CHALLENGERS + index → address / net stake / referrer
     mapping(uint256 => address) public challengerAddresses;
     mapping(uint256 => uint256) public challengerStakes;
+    mapping(uint256 => uint256) private _challengedAt;
+    /// 0 includes every deposit; otherwise only deposits strictly before the cutoff compete.
+    mapping(uint256 => uint256) public settlementCutoff;
+    event SettlementCutoffSet(uint256 indexed id, uint256 cutoff);
+    error BadCutoff();
+    error AlreadyChallenged();
+    error ChallengeWindowClosed();
+    error CreatorHasInsufficientLiquidity();
+    error DeadlineInPast();
+    error DeadlineTooFar();
+    error DisputeWindowClosed();
+    error DisputeWindowOpen();
+    error EmptyQuestion();
+    error EntryFeeTooHigh();
+    error FeeClaimFailed();
+    error Full();
+    error InvalidVerdict();
+    error IsPaused();
+    error NoFees();
+    error NotAParticipant();
+    error NotActive();
+    error NotCreator();
+    error NotDisputed();
+    error NotOpen();
+    error NotOracle();
+    error NotOwner();
+    error NotPendingOwner();
+    error NotYetExpired();
+    error NothingQueued();
+    error NothingToDispute();
+    error NothingToWithdraw();
+    error OracleGraceNotOver();
+    error PayoutTooHigh();
+    error SelfChallenge();
+    error StakeTooSmall();
+    error Timelocked();
+    error WithdrawFailed();
+    error ZeroOracle();
+    error ZeroOwner();
+    error ZeroRecipient();
+
     mapping(uint256 => address) public challengerReferrer;
     // Prevents double-entry per claim
     mapping(uint256 => mapping(address => bool)) public hasChallenged;
@@ -217,6 +258,8 @@ contract MimirV3Erc20 {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
     uint256 public pendingOwnerEta;
@@ -287,6 +330,7 @@ contract MimirV3Erc20 {
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
 
@@ -331,15 +375,15 @@ contract MimirV3Erc20 {
     }
 
     function _checkOwner() private view {
-        require(msg.sender == owner, "Mimir: not owner");
+        if (msg.sender != owner) revert NotOwner();
     }
 
     function _checkOracle() private view {
-        require(msg.sender == oracle, "Mimir: not oracle");
+        if (msg.sender != oracle) revert NotOracle();
     }
 
     function _checkNotPaused() private view {
-        require(!paused, "Mimir: paused");
+        if (paused) revert IsPaused();
     }
 
     /// Every entry point that can move value takes the lock (kept from the native version; USDC has no hooks).
@@ -396,7 +440,7 @@ contract MimirV3Erc20 {
     /// compromised owner key cannot make itself the settler and resolve open
     /// markets before anyone notices.
     function queueOracle(address _oracle) external onlyOwner {
-        require(_oracle != address(0), "Mimir: zero oracle");
+        if (_oracle == address(0)) revert ZeroOracle();
         if (_oracle == owner || _oracle == arbiter || _oracle == feeRecipient) revert RoleCollision();
         pendingOracle = _oracle;
         pendingOracleEta = block.timestamp + ORACLE_TIMELOCK_SECONDS;
@@ -411,9 +455,21 @@ contract MimirV3Erc20 {
     }
 
     /// The arbiter is the owner's choice (often the same multisig), never the oracle.
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        if (next != address(0) && next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -426,7 +482,7 @@ contract MimirV3Erc20 {
     }
 
     function cancelOracle() external onlyOwner {
-        require(pendingOracleEta != 0, "Mimir: nothing queued");
+        if (pendingOracleEta == 0) revert NothingQueued();
         emit OracleChangeCancelled(pendingOracle);
         pendingOracle = address(0);
         pendingOracleEta = 0;
@@ -434,8 +490,9 @@ contract MimirV3Erc20 {
 
     /// Permissionless once the timelock has elapsed, like executeFeeRecipient.
     function executeOracle() external {
-        require(pendingOracleEta != 0, "Mimir: nothing queued");
-        require(block.timestamp >= pendingOracleEta, "Mimir: timelocked");
+        if (pendingOracleEta == 0) revert NothingQueued();
+        if (block.timestamp < pendingOracleEta) revert Timelocked();
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -445,22 +502,23 @@ contract MimirV3Erc20 {
     /// Step one of two: the new owner must accept, so a typo cannot brick admin,
     /// and cannot accept before OWNERSHIP_TIMELOCK_SECONDS. Queuing again restarts the clock.
     function transferOwnership(address _owner) external onlyOwner {
-        require(_owner != address(0), "Mimir: zero owner");
+        if (_owner == address(0)) revert ZeroOwner();
         pendingOwner = _owner;
         pendingOwnerEta = block.timestamp + OWNERSHIP_TIMELOCK_SECONDS;
         emit OwnershipTransferStarted(owner, _owner);
     }
 
     function cancelOwnershipTransfer() external onlyOwner {
-        require(pendingOwnerEta != 0, "Mimir: nothing queued");
+        if (pendingOwnerEta == 0) revert NothingQueued();
         emit OwnershipTransferCancelled(pendingOwner);
         pendingOwner = address(0);
         pendingOwnerEta = 0;
     }
 
     function acceptOwnership() external {
-        require(msg.sender == pendingOwner, "Mimir: not pending owner");
-        require(block.timestamp >= pendingOwnerEta, "Mimir: timelocked");
+        if (msg.sender != pendingOwner) revert NotPendingOwner();
+        if (block.timestamp < pendingOwnerEta) revert Timelocked();
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -474,14 +532,14 @@ contract MimirV3Erc20 {
 
     // ── Fee recipient (timelocked) ────────────────────────────────────────────
     function queueFeeRecipient(address next) external onlyOwner {
-        require(next != address(0), "Mimir: zero recipient");
+        if (next == address(0)) revert ZeroRecipient();
         pendingFeeRecipient = next;
         pendingFeeRecipientEta = block.timestamp + FEE_TIMELOCK_SECONDS;
         emit FeeRecipientQueued(next, pendingFeeRecipientEta);
     }
 
     function cancelFeeRecipient() external onlyOwner {
-        require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
+        if (pendingFeeRecipientEta == 0) revert NothingQueued();
         emit FeeRecipientCancelled(pendingFeeRecipient);
         pendingFeeRecipient = address(0);
         pendingFeeRecipientEta = 0;
@@ -489,8 +547,9 @@ contract MimirV3Erc20 {
 
     /// Permissionless once due: the owner cannot queue a change and then quietly withhold it.
     function executeFeeRecipient() external {
-        require(pendingFeeRecipientEta != 0, "Mimir: nothing queued");
-        require(block.timestamp >= pendingFeeRecipientEta, "Mimir: timelocked");
+        if (pendingFeeRecipientEta == 0) revert NothingQueued();
+        if (block.timestamp < pendingFeeRecipientEta) revert Timelocked();
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -507,7 +566,7 @@ contract MimirV3Erc20 {
     function _takeEntry(uint256 claimId, uint256 amount) internal returns (uint256 net) {
         _pull(amount);
         uint256 bps = fees.entryBps(msg.sender);
-        require(bps <= MAX_ENTRY_BPS, "Mimir: entry fee too high");
+        if (bps > MAX_ENTRY_BPS) revert EntryFeeTooHigh();
         uint256 fee = (amount * bps) / 10_000;
         if (fee != 0) {
             _accrue(claimId, feeRecipient, fee);
@@ -615,15 +674,15 @@ contract MimirV3Erc20 {
     /// Pull a parked payout to another address. A USDC-blacklisted recipient
     /// can never receive at its own address, so without this it stays stuck.
     function withdrawTo(address to) external {
-        require(to != address(0), "Mimir: zero recipient");
+        if (to == address(0)) revert ZeroRecipient();
         _withdrawTo(to);
     }
 
     function _withdrawTo(address to) internal nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];
-        require(amount > 0, "Mimir: nothing to withdraw");
+        if (amount <= 0) revert NothingToWithdraw();
         pendingWithdrawals[msg.sender] = 0; // effects before interaction (reentrancy-safe)
-        require(_trySend(to, amount), "Mimir: withdraw failed");
+        if (!(_trySend(to, amount))) revert WithdrawFailed();
         emit Withdrawal(msg.sender, to, amount);
     }
 
@@ -634,16 +693,16 @@ contract MimirV3Erc20 {
 
     /// Claim to another address: a blocklisted fee recipient could never be paid otherwise.
     function claimFeesTo(address to) external {
-        require(to != address(0), "Mimir: zero recipient");
+        if (to == address(0)) revert ZeroRecipient();
         _claimFeesTo(to);
     }
 
     function _claimFeesTo(address to) internal nonReentrant {
         uint256 amount = accruedFees[msg.sender];
-        require(amount > 0, "Mimir: no fees");
+        if (amount <= 0) revert NoFees();
         accruedFees[msg.sender] = 0;
         lifetimeFeesClaimed += amount;
-        require(_trySend(to, amount), "Mimir: fee claim failed");
+        if (!(_trySend(to, amount))) revert FeeClaimFailed();
         emit FeeClaimed(msg.sender, to, amount);
     }
 
@@ -711,10 +770,10 @@ contract MimirV3Erc20 {
     }
 
     function _createClaim(CreateArgs memory a) internal returns (uint256 id) {
-        require(a.stakeAmount >= MIN_STAKE, "Mimir: stake too small");
-        require(a.deadline > block.timestamp, "Mimir: deadline in past");
-        require(a.deadline <= block.timestamp + MAX_DEADLINE_AHEAD, "Mimir: deadline too far");
-        require(bytes(a.question).length > 0, "Mimir: empty question");
+        if (a.stakeAmount < MIN_STAKE) revert StakeTooSmall();
+        if (a.deadline <= block.timestamp) revert DeadlineInPast();
+        if (a.deadline > block.timestamp + MAX_DEADLINE_AHEAD) revert DeadlineTooFar();
+        if (bytes(a.question).length <= 0) revert EmptyQuestion();
         // Private claims start closed; only explicit wallet grants enable entry.
 
         // Normalise odds params
@@ -722,7 +781,7 @@ contract MimirV3Erc20 {
         uint256 payoutBps = isFixed
             ? (a.challengerPayoutBps >= 10_000 ? a.challengerPayoutBps : DEFAULT_PAYOUT_BPS)
             : 0;
-        require(payoutBps <= MAX_PAYOUT_BPS, "Mimir: payout too high");
+        if (payoutBps > MAX_PAYOUT_BPS) revert PayoutTooHigh();
 
         uint256 maxCh = (a.maxChallengers == 0 || a.maxChallengers > MAX_CHALLENGERS)
             ? MAX_CHALLENGERS
@@ -832,17 +891,14 @@ contract MimirV3Erc20 {
     function _challenge(uint256 claimId, uint256 stakeAmount, address referrer) private {
         Claim storage claim = claims[claimId];
         if (claim.creator == address(0)) revert ClaimNotFound();
-        require(claim.state == ST_OPEN || claim.state == ST_ACTIVE, "Mimir: not open");
-        require(msg.sender != claim.creator, "Mimir: self-challenge");
-        require(!hasChallenged[claimId][msg.sender], "Mimir: already challenged");
-        require(claim.challengerCount < claim.maxChallengers, "Mimir: full");
-        require(stakeAmount >= MIN_STAKE, "Mimir: stake too small");
+        if (!(claim.state == ST_OPEN || claim.state == ST_ACTIVE)) revert NotOpen();
+        if (msg.sender == claim.creator) revert SelfChallenge();
+        if (hasChallenged[claimId][msg.sender]) revert AlreadyChallenged();
+        if (claim.challengerCount >= claim.maxChallengers) revert Full();
+        if (stakeAmount < MIN_STAKE) revert StakeTooSmall();
         // Anti-sniping: challenges must arrive at least CHALLENGE_LOCK_SECONDS
         // before the deadline so the outcome isn't observable yet.
-        require(
-            block.timestamp + CHALLENGE_LOCK_SECONDS <= claim.deadline,
-            "Mimir: challenge window closed"
-        );
+        if (block.timestamp + CHALLENGE_LOCK_SECONDS > claim.deadline) revert ChallengeWindowClosed();
         uint256 lock = lockAt[claimId];
         if (lock != 0 && block.timestamp >= lock) revert Locked();
         // Public calldata cannot confer authority: authorize the caller's wallet
@@ -856,7 +912,7 @@ contract MimirV3Erc20 {
             uint256 gross   = _grossPayout(net, claim.challengerPayoutBps);
             uint256 profit  = gross > net ? gross - net : 0;
             uint256 avail   = claim.creatorStake - claim.reservedCreatorLiability;
-            require(avail >= profit, "Mimir: creator has insufficient liquidity");
+            if (avail < profit) revert CreatorHasInsufficientLiquidity();
             claim.reservedCreatorLiability += profit;
         } else if (claim.totalChallengerStake + net > claim.creatorStake * MAX_POOL_MULTIPLE) {
             revert PoolFull();
@@ -865,6 +921,7 @@ contract MimirV3Erc20 {
         uint256 key = _chKey(claimId, claim.challengerCount);
         challengerAddresses[key]          = msg.sender;
         challengerStakes[key]             = net;
+        _challengedAt[key] = block.timestamp;
         hasChallenged[claimId][msg.sender] = true;
 
         if (referrer != address(0)) {
@@ -894,25 +951,20 @@ contract MimirV3Erc20 {
     }
 
     // ── Write: resolve (oracle only) ──────────────────────────────────────────
-    function resolveClaim(
-        uint256 claimId,
-        uint8   winnerSide,
-        string  calldata summary,
-        uint8   confidence,
-        bytes32 evidenceHash  // keccak256 of evidence text — verifiable on-chain
-    ) external onlyOracle whenNotPaused nonReentrant {
+    function _setCutoff(uint256 id, uint256 cutoff) internal {
+        if (cutoff > block.timestamp) revert BadCutoff();
+        settlementCutoff[id] = cutoff;
+        emit SettlementCutoffSet(id, cutoff);
+    }
+
+    function resolveClaimWithCutoff(uint256 claimId, uint8 winnerSide, string calldata summary, uint8 confidence, bytes32 evidenceHash, uint256 cutoff) external onlyOracle whenNotPaused nonReentrant {
         Claim storage claim = claims[claimId];
         if (claim.creator == address(0)) revert ClaimNotFound();
-        require(claim.state == ST_ACTIVE, "Mimir: not active");
-        require(block.timestamp >= claim.deadline, "Mimir: not yet expired");
+        if (claim.state != ST_ACTIVE) revert NotActive();
+        if (block.timestamp < claim.deadline) revert NotYetExpired();
         if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
-        require(
-            winnerSide == SIDE_CREATOR ||
-            winnerSide == SIDE_CHALLENGERS ||
-            winnerSide == SIDE_DRAW ||
-            winnerSide == SIDE_UNRESOLVABLE,
-            "Mimir: invalid verdict"
-        );
+        if (winnerSide < SIDE_CREATOR || winnerSide > SIDE_UNRESOLVABLE) revert InvalidVerdict();
+        _setCutoff(claimId, cutoff);
         if (disputeWindow == 0) {
             _settle(claimId, winnerSide, summary, confidence, evidenceHash);
             return;
@@ -946,9 +998,9 @@ contract MimirV3Erc20 {
     function _dispute(uint256 claimId) private {
         Claim storage claim = claims[claimId];
         Proposal storage p = proposals[claimId];
-        require(claim.state == ST_PROPOSED, "Mimir: nothing to dispute");
-        require(block.timestamp < p.proposedAt + disputeWindow, "Mimir: dispute window closed");
-        require(msg.sender == claim.creator || hasChallenged[claimId][msg.sender], "Mimir: not a participant");
+        if (claim.state != ST_PROPOSED) revert NothingToDispute();
+        if (block.timestamp >= p.proposedAt + disputeWindow) revert DisputeWindowClosed();
+        if (!(msg.sender == claim.creator || hasChallenged[claimId][msg.sender] || msg.sender == auditAgent || msg.sender == arbiter)) revert NotAParticipant();
         // The bond is not a position: no entry fee.
         _pull(DISPUTE_BOND);
         claim.state  = ST_DISPUTED;
@@ -972,25 +1024,20 @@ contract MimirV3Erc20 {
     /// Anyone can settle an undisputed proposal once its window has closed.
     function finalizeResolution(uint256 claimId) external whenNotPaused nonReentrant {
         Proposal storage p = proposals[claimId];
-        require(claims[claimId].state == ST_PROPOSED, "Mimir: not proposed");
-        require(block.timestamp >= p.proposedAt + disputeWindow, "Mimir: dispute window open");
+        if (claims[claimId].state != ST_PROPOSED) revert NotProposed();
+        if (block.timestamp < p.proposedAt + disputeWindow) revert DisputeWindowOpen();
         _settle(claimId, p.winnerSide, p.summary, p.confidence, p.evidenceHash);
     }
 
     /// The arbiter's final word on a disputed claim.
-    function resolveDispute(
-        uint256 claimId,
-        uint8   winnerSide,
-        string  calldata summary,
-        uint8   confidence,
-        bytes32 evidenceHash
-    ) external whenNotPaused nonReentrant {
+    function resolveDisputeWithCutoff(uint256 claimId, uint8 winnerSide, string calldata summary, uint8 confidence, bytes32 evidenceHash, uint256 cutoff) external whenNotPaused nonReentrant {
         if (msg.sender != arbiter) revert NotArbiter();
         Proposal storage p = proposals[claimId];
-        require(claims[claimId].state == ST_DISPUTED, "Mimir: not disputed");
+        if (claims[claimId].state != ST_DISPUTED) revert NotDisputed();
         if (block.timestamp >= _refundAt(claimId)) revert GraceOver();
-        require(winnerSide >= SIDE_CREATOR && winnerSide <= SIDE_UNRESOLVABLE, "Mimir: invalid verdict");
-        bool disputerRight = winnerSide != p.winnerSide;
+        if (winnerSide < SIDE_CREATOR || winnerSide > SIDE_UNRESOLVABLE) revert InvalidVerdict();
+        bool disputerRight = winnerSide != p.winnerSide || cutoff != settlementCutoff[claimId];
+        _setCutoff(claimId, cutoff);
         emit DisputeResolved(claimId, winnerSide, disputerRight);
         // Settle first: the claim is RESOLVED before any value leaves, bond included.
         _settle(claimId, winnerSide, summary, confidence, evidenceHash);
@@ -1027,8 +1074,8 @@ contract MimirV3Erc20 {
         Claim storage claim = claims[claimId];
         if (claim.creator == address(0)) revert ClaimNotFound();
         bool disputed = claim.state == ST_DISPUTED;
-        require(disputed || claim.state == ST_ACTIVE || (paused && claim.state == ST_PROPOSED), "Mimir: not active");
-        require(block.timestamp >= _refundAt(claimId), "Mimir: oracle grace not over");
+        if (!(disputed || claim.state == ST_ACTIVE || (paused && claim.state == ST_PROPOSED))) revert NotActive();
+        if (block.timestamp < _refundAt(claimId)) revert OracleGraceNotOver();
         Proposal storage p = proposals[claimId];
         if (disputed && !paused && p.disputer != address(0)) {
             emit DisputeResolved(claimId, p.winnerSide, false);
@@ -1056,6 +1103,19 @@ contract MimirV3Erc20 {
         start += RESOLUTION_GRACE_SECONDS;
     }
 
+    function eligibleTotals(uint256 id) public view returns (uint256, uint256) {
+        Claim storage c = claims[id];
+        uint256 cutoff = settlementCutoff[id];
+        if (cutoff == 0) return (c.creatorStake, c.totalChallengerStake);
+        if (c.createdAt >= cutoff) return (0, 0);
+        uint256 b;
+        for (uint256 i; i < c.challengerCount; i++) {
+            uint256 key = _chKey(id, i);
+            if (_challengedAt[key] < cutoff) b += challengerStakes[key];
+        }
+        return (c.creatorStake, b);
+    }
+
     function _settle(
         uint256 claimId,
         uint8   winnerSide,
@@ -1071,88 +1131,65 @@ contract MimirV3Erc20 {
         claim.evidenceHash      = evidenceHash;
         totalResolved++;
 
-        uint256 totalPaid;
-        uint256 totalFees;
+        (uint256 totalPaid, uint256 totalFees) = _distribute(claimId, winnerSide);
+        emit ClaimResolved(claimId, winnerSide, summary, confidence, evidenceHash);
+        emit MarketSettled(claimId, totalPaid, totalFees);
+    }
 
-        if (winnerSide == SIDE_CREATOR) {
-            (uint256 paid, uint256 taken) = _payWinner(
-                claimId,
-                claim.creator,
-                claim.creatorStake + claim.totalChallengerStake,
-                claim.creatorStake,
-                claimReferrer[claimId]
-            );
-            totalPaid += paid;
-            totalFees += taken;
-            wins[claim.creator]++;
-            for (uint256 i = 0; i < claim.challengerCount; i++) {
-                losses[challengerAddresses[_chKey(claimId, i)]]++;
-            }
+    /// Distribute only eligible risk; late principal uses the same refund/parked-payout path as a draw.
+    function _distribute(uint256 id, uint8 outcome) internal returns (uint256 totalPaid, uint256 totalFees) {
+        Claim storage c = claims[id];
+        (, uint256 eligible) = eligibleTotals(id);
+        // A late creator also gives zero eligible challenger liquidity.
+        if (eligible == 0) outcome = SIDE_UNRESOLVABLE;
+        uint256 cutoff = settlementCutoff[id];
+        uint256 remainder = c.creatorStake;
+        uint256 atRisk = eligible * MAX_POOL_MULTIPLE;
+        if (atRisk > remainder) atRisk = remainder;
+        bool fixedOdds = _strEq(c.oddsMode, "fixed");
+        if (outcome == SIDE_CREATOR) {
+            (totalPaid, totalFees) = _payWinner(id, c.creator, remainder + eligible, remainder, claimReferrer[id]);
+            remainder = 0;
+            wins[c.creator]++;
+        } else if (outcome == SIDE_CHALLENGERS) losses[c.creator]++;
 
-        } else if (winnerSide == SIDE_CHALLENGERS) {
-            bool isFixed      = _strEq(claim.oddsMode, "fixed");
-            uint256 remainder = claim.creatorStake;
-            // Pool odds: the creator risks at most MAX_POOL_MULTIPLE times what the
-            // challengers staked, the mirror of their cap. A dust challenger wins a
-            // matching slice, not the creator's whole stake; the rest goes back.
-            uint256 atRisk = claim.totalChallengerStake * MAX_POOL_MULTIPLE;
-            if (atRisk > claim.creatorStake) atRisk = claim.creatorStake;
-
-            for (uint256 i = 0; i < claim.challengerCount; i++) {
-                uint256 key      = _chKey(claimId, i);
-                address ch       = challengerAddresses[key];
-                uint256 chStake  = challengerStakes[key];
+        for (uint256 i; i < c.challengerCount; i++) {
+            uint256 key = _chKey(id, i);
+            address ch = challengerAddresses[key];
+            uint256 stake = challengerStakes[key];
+            bool early = cutoff == 0 || _challengedAt[key] < cutoff;
+            if (early && outcome == SIDE_CREATOR) losses[ch]++;
+            else if (early && outcome == SIDE_CHALLENGERS) {
                 uint256 payout;
-
-                if (isFixed) {
-                    payout = _grossPayout(chStake, claim.challengerPayoutBps);
-                    uint256 profit = payout > chStake ? payout - chStake : 0;
-                    remainder = remainder > profit ? remainder - profit : 0;
+                if (fixedOdds) {
+                    payout = _grossPayout(stake, c.challengerPayoutBps);
+                    uint256 profit = payout > stake ? payout - stake : 0;
+                    // Admission reserved every fixed profit; excluding late positions can only reduce it.
+                    remainder -= profit;
                 } else {
-                    // Pool: proportional share of the creator's stake at risk;
-                    // what the shares leave (the cap, rounding dust) is returned below.
-                    uint256 share = (chStake * atRisk) / claim.totalChallengerStake;
+                    uint256 share = stake * atRisk / eligible;
                     remainder -= share;
-                    payout = chStake + share;
+                    payout = stake + share;
                 }
-
-                (uint256 paid, uint256 taken) = _payWinner(
-                    claimId, ch, payout, chStake, challengerReferrer[key]
-                );
+                (uint256 paid, uint256 taken) = _payWinner(id, ch, payout, stake, challengerReferrer[key]);
                 totalPaid += paid;
                 totalFees += taken;
                 wins[ch]++;
-            }
-
-            losses[claim.creator]++;
-            if (remainder > 0) {
-                // Unspent creator liquidity, returned at cost: not a profit, not fee'd.
-                _transfer(claim.creator, remainder);
-                totalPaid += remainder;
-            }
-
-        } else {
-            // Draw / unresolvable: every net stake back, nothing more taken
-            // (the entry fee was earned when the position was opened).
-            _transfer(claim.creator, claim.creatorStake);
-            totalPaid += claim.creatorStake;
-            for (uint256 i = 0; i < claim.challengerCount; i++) {
-                uint256 key = _chKey(claimId, i);
-                _transfer(challengerAddresses[key], challengerStakes[key]);
-                totalPaid += challengerStakes[key];
+            } else {
+                _transfer(ch, stake);
+                totalPaid += stake;
             }
         }
-
-        emit ClaimResolved(claimId, winnerSide, summary, confidence, evidenceHash);
-        emit MarketSettled(claimId, totalPaid, totalFees);
+        _transfer(c.creator, remainder);
+        totalPaid += remainder;
     }
 
     // ── Write: cancel ─────────────────────────────────────────────────────────
     function cancelClaim(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         if (claim.creator == address(0)) revert ClaimNotFound();
-        require(msg.sender == claim.creator, "Mimir: not creator");
-        require(claim.state == ST_OPEN, "Mimir: not open");
+        if (msg.sender != claim.creator) revert NotCreator();
+        if (claim.state != ST_OPEN) revert NotOpen();
 
         claim.state = ST_CANCELLED;
         _transfer(claim.creator, claim.creatorStake);

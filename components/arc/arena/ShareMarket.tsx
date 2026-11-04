@@ -13,14 +13,15 @@ import { marketPath } from "@/lib/chains/links";
 
 const PILL = "press inline-flex items-center gap-1.5 rounded-full bg-panel-raised px-3.5 py-2 text-[13px] text-cream hover:bg-panel";
 
-export function marketShareText(question: string, fresh: boolean): string {
+export function marketShareText(question: string, fresh: boolean, isPrivate = false): string {
   const q = question.length > 180 ? `${question.slice(0, 177)}…` : question;
+  if (isPrivate) return `Private claim on Mimir: ${q} Approved wallets only.`;
   return fresh ? `I just opened a market on Mimir: ${q} Take the other side 👇` : `${q} Pick a side on Mimir 👇`;
 }
 
-export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false }: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean }) {
+export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false, isPrivate = false }: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean; isPrivate?: boolean }) {
   const url = `${SITE_URL}/${useLocale()}${marketPath(chain, kind, marketId)}`;
-  const text = marketShareText(question, fresh);
+  const text = marketShareText(question, fresh, isPrivate);
   const [copied, setCopied] = useState(false);
   const [native, setNative] = useState(false);
   useEffect(() => setNative(typeof navigator !== "undefined" && typeof navigator.share === "function"), []);
@@ -54,8 +55,8 @@ export default function ShareMarket({ chain = "arc", kind, marketId, question, f
   return (
     <section aria-label="Share your market" className="grid gap-3 rounded-2xl bg-panel p-4 shadow-[inset_0_0_0_1px_rgb(255_81_72/.45)] sm:p-5">
       <div className="grid gap-1">
-        <h2 className="m-0 text-[16px] text-cream">Your market is live. Bring the other side.</h2>
-        <p className="m-0 text-[13px] text-muted">Share the link: it opens with this market&apos;s card, and anyone with the link can take a side.</p>
+        <h2 className="m-0 text-[16px] text-cream">{isPrivate ? "Your private claim is created." : "Your market is live. Bring the other side."}</h2>
+        <p className="m-0 text-[13px] text-muted">{isPrivate ? "Only approved wallets can join. Approve your friends' wallets on this page, then share the link with them." : <>Share the link: it opens with this market&apos;s card, and anyone with the link can take a side.</>}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">{links}</div>
     </section>

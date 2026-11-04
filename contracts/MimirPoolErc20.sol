@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {StakeHistory} from "./StakeHistory.sol";
+
 /// The entry-fee rate per account (contracts/MimirFees.sol).
 interface IMimirFees {
     function entryBps(address account) external view returns (uint16);
@@ -151,6 +153,13 @@ contract MimirPoolErc20 {
         string  summary;
     }
 
+    /// 0 includes all deposits; otherwise only deposits strictly before this time compete.
+    /// Set atomically with the proposed verdict; only an arbiter ruling can change it.
+    mapping(uint256 => uint256) public settlementCutoff;
+    mapping(uint256 => mapping(address => StakeHistory.Checkpoint[])) private _history;
+    event SettlementCutoffSet(uint256 indexed id, uint256 cutoff);
+    error BadCutoff();
+
     mapping(uint256 => Market) internal _markets;
     mapping(uint256 => mapping(address => uint256)) public stakeA;
     mapping(uint256 => mapping(address => uint256)) public stakeB;
@@ -172,6 +181,8 @@ contract MimirPoolErc20 {
     address public owner;
     /// Rules disputed and vetoed proposals. Set by the owner; never the oracle.
     address public arbiter;
+    /// Owner-appointed independent reviewer; zero disables its extra dispute right.
+    address public auditAgent;
     address public pendingOwner;
     uint256 public pendingOwnerEta;
     address public oracle;
@@ -224,6 +235,7 @@ contract MimirPoolErc20 {
     event FeeRecipientChanged(address indexed previous, address indexed next);
     event Paused(bool paused);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
 
@@ -342,6 +354,7 @@ contract MimirPoolErc20 {
     function acceptOwnership() external {
         if (msg.sender != pendingOwner) revert NotPendingOwner();
         if (block.timestamp < pendingOwnerEta) revert Timelocked();
+        _checkAuditCollision(msg.sender);
         emit OwnershipTransferred(owner, msg.sender);
         owner = msg.sender;
         pendingOwner = address(0);
@@ -362,9 +375,21 @@ contract MimirPoolErc20 {
         oracle = address(0);
     }
 
+    /// Only grants bonded dispute admission. No settlement or administration authority.
+    function setAuditAgent(address next) external onlyOwner {
+        if (next != address(0) && (next == owner || next == arbiter || next == oracle || next == feeRecipient)) revert RoleCollision();
+        emit AuditAgentChanged(auditAgent, next);
+        auditAgent = next;
+    }
+
+    function _checkAuditCollision(address next) internal view {
+        if (next != address(0) && next == auditAgent) revert RoleCollision();
+    }
+
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
     }
@@ -398,6 +423,7 @@ contract MimirPoolErc20 {
     function executeOracle() external {
         if (pendingOracleEta == 0) revert NothingQueued();
         if (block.timestamp < pendingOracleEta) revert Timelocked();
+        _checkAuditCollision(pendingOracle);
         emit OracleChanged(oracle, pendingOracle);
         oracle = pendingOracle;
         pendingOracle = address(0);
@@ -421,6 +447,7 @@ contract MimirPoolErc20 {
     function executeFeeRecipient() external {
         if (pendingFeeEta == 0) revert NothingQueued();
         if (block.timestamp < pendingFeeEta) revert Timelocked();
+        _checkAuditCollision(pendingFeeRecipient);
         emit FeeRecipientChanged(feeRecipient, pendingFeeRecipient);
         feeRecipient = pendingFeeRecipient;
         pendingFeeRecipient = address(0);
@@ -556,6 +583,8 @@ contract MimirPoolErc20 {
         if ((maxAccountStake != 0 && mine > maxAccountStake) || (maxMarketStake != 0 && m.totalA + m.totalB > maxMarketStake)) {
             revert CapExceeded();
         }
+        StakeHistory.record(_history[id][address(0)], StakeHistory.Amounts(m.totalA, m.totalB, 0, 0));
+        StakeHistory.record(_history[id][msg.sender], StakeHistory.Amounts(stakeA[id][msg.sender], stakeB[id][msg.sender], copyA[id][msg.sender], copyB[id][msg.sender]));
         emit Staked(id, msg.sender, side, net);
     }
 
@@ -580,10 +609,20 @@ contract MimirPoolErc20 {
 
     /// The oracle's verdict: final at once with no dispute window, else a proposal.
     function resolve(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash)
-        external
-        whenNotPaused
-        nonReentrant
-    {
+        external whenNotPaused nonReentrant
+    { _resolve(id, outcome, summary, evidenceHash, 0); }
+
+    function resolveWithCutoff(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash, uint256 cutoff)
+        external whenNotPaused nonReentrant
+    { _resolve(id, outcome, summary, evidenceHash, cutoff); }
+
+    function _setCutoff(uint256 id, uint256 cutoff) internal {
+        if (cutoff > block.timestamp) revert BadCutoff();
+        settlementCutoff[id] = cutoff;
+        emit SettlementCutoffSet(id, cutoff);
+    }
+
+    function _resolve(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash, uint256 cutoff) internal {
         if (msg.sender != oracle) revert NotOracle();
         Market storage m = _markets[id];
         if (m.creator == address(0)) revert NoMarket();
@@ -591,6 +630,7 @@ contract MimirPoolErc20 {
         if (block.timestamp < m.deadline) revert NotExpired();
         if (block.timestamp >= _refundAt(m)) revert GraceOver();
         _validOutcome(outcome);
+        _setCutoff(id, cutoff);
         if (disputeWindow == 0) {
             _settle(id, m, outcome, summary, evidenceHash);
             return;
@@ -618,7 +658,7 @@ contract MimirPoolErc20 {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
-        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0) revert NotParticipant();
+        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0 && msg.sender != auditAgent && msg.sender != arbiter) revert NotParticipant();
         _pull(DISPUTE_BOND);
         m.state = ST_DISPUTED;
         m.disputer = msg.sender;
@@ -648,16 +688,21 @@ contract MimirPoolErc20 {
 
     /// The arbiter's final word on a disputed market.
     function resolveDispute(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash)
-        external
-        whenNotPaused
-        nonReentrant
-    {
+        external whenNotPaused nonReentrant
+    { _resolveDispute(id, outcome, summary, evidenceHash, settlementCutoff[id]); }
+
+    function resolveDisputeWithCutoff(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash, uint256 cutoff)
+        external whenNotPaused nonReentrant
+    { _resolveDispute(id, outcome, summary, evidenceHash, cutoff); }
+
+    function _resolveDispute(uint256 id, uint8 outcome, string calldata summary, bytes32 evidenceHash, uint256 cutoff) internal {
         if (msg.sender != arbiter) revert NotArbiter();
         Market storage m = _markets[id];
         if (m.state != ST_DISPUTED) revert NotDisputed();
         if (block.timestamp >= _refundAt(m)) revert GraceOver();
         _validOutcome(outcome);
-        bool disputerRight = outcome != m.proposed;
+        bool disputerRight = outcome != m.proposed || cutoff != settlementCutoff[id];
+        _setCutoff(id, cutoff);
         emit DisputeResolved(id, outcome, disputerRight);
         // Settled before the bond moves.
         _settle(id, m, outcome, summary, evidenceHash);
@@ -716,26 +761,37 @@ contract MimirPoolErc20 {
     /// hedger never pays a copy fee on their own money), counted only on the
     /// copied part of the winning stake.
     function _owed(uint256 id, Market storage m, address user) internal view returns (uint256 gross, uint256 feeBase) {
-        uint256 a = stakeA[id][user];
-        uint256 b = stakeB[id][user];
-        uint8 o = m.outcome;
-        bool contested = m.totalA != 0 && m.totalB != 0;
-        uint256 win;
-        uint256 lose;
-        uint256 copied;
-        uint256 profit;
-        if (contested && o == SIDE_A) {
-            (win, lose, copied) = (a, b, copyA[id][user]);
-            profit = (a * m.totalB) / m.totalA;
-        } else if (contested && o == SIDE_B) {
-            (win, lose, copied) = (b, a, copyB[id][user]);
-            profit = (b * m.totalA) / m.totalB;
-        } else {
-            return (a + b, 0);
-        }
-        if (win == 0) return (0, 0);
-        gross = win + profit;
+        uint256 raw = stakeA[id][user] + stakeB[id][user];
+        if (m.outcome >= DRAW) return (raw, 0);
+        StakeHistory.Amounts memory totals = StakeHistory.before(_history[id][address(0)], settlementCutoff[id]);
+        StakeHistory.Amounts memory mine = StakeHistory.before(_history[id][user], settlementCutoff[id]);
+        if (totals.a == 0 || totals.b == 0) return (raw, 0);
+        uint256 late = raw - mine.a - mine.b;
+        (uint256 win, uint256 lose, uint256 copied, uint256 opposite, uint256 winners) = m.outcome == SIDE_A
+            ? (mine.a, mine.b, mine.copiedA, totals.b, totals.a)
+            : (mine.b, mine.a, mine.copiedB, totals.a, totals.b);
+        if (win == 0) return (late, 0);
+        uint256 profit = win * opposite / winners;
+        gross = late + win + profit;
         if (profit > lose && copied != 0) feeBase = ((profit - lose) * copied) / win;
+    }
+
+    /// Eligible totals and a user's eligible net stakes, without rewriting deposit history.
+    function eligibleStakeOf(uint256 id, address user) external view returns (uint256 a, uint256 b) {
+        StakeHistory.Amounts memory mine = StakeHistory.before(_history[id][user], settlementCutoff[id]);
+        return (mine.a, mine.b);
+    }
+    function eligibleTotals(uint256 id) external view returns (uint256 a, uint256 b) {
+        StakeHistory.Amounts memory totals = StakeHistory.before(_history[id][address(0)], settlementCutoff[id]);
+        return (totals.a, totals.b);
+    }
+
+    function _winnerPayout(uint256 id, Market storage m, address user) internal view returns (bool) {
+        if (m.outcome >= DRAW) return false;
+        StakeHistory.Amounts memory totals = StakeHistory.before(_history[id][address(0)], settlementCutoff[id]);
+        if (totals.a == 0 || totals.b == 0) return false;
+        StakeHistory.Amounts memory mine = StakeHistory.before(_history[id][user], settlementCutoff[id]);
+        return m.outcome == SIDE_A ? mine.a != 0 : mine.b != 0;
     }
 
     /// Copy-trade fees on the copied net profit (`_owed`): (to the referrer, to the platform).
@@ -758,7 +814,7 @@ contract MimirPoolErc20 {
         Market storage m = _markets[id];
         if (m.state != ST_RESOLVED || m.creator == address(0)) revert NotResolved();
         // Paused: refunds (an empty side, a draw, unresolvable) still go out; a winner waits for the unpause.
-        if (paused && m.totalA != 0 && m.totalB != 0 && m.outcome < DRAW) revert IsPaused();
+        if (paused && _winnerPayout(id, m, user)) revert IsPaused();
         if (claimed[id][user]) revert AlreadyClaimed();
         (uint256 gross, uint256 feeBase) = _owed(id, m, user);
         if (gross == 0) revert NothingToClaim();

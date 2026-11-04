@@ -34,6 +34,7 @@ import { arcPhase, KIND_LABEL, PHASE_DOT, PHASE_LABEL, shareA, Split, usd, usdFi
 import { useArcAccount } from "./useArcAccount";
 import SettlementTimeline from "./SettlementTimeline";
 import FollowButton from "@/components/discovery/FollowButton";
+import PrivateClaimAccess from "./PrivateClaimAccess";
 
 /** Anyone writes this URL on-chain: link it only when it is http(s), never javascript: or data:. */
 function safeHref(url: string): string | null {
@@ -123,6 +124,7 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             <span className="rounded-full bg-panel-raised px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-coral">{KIND_LABEL[kind]}</span>
             <span className="font-mono text-dim">#{m.marketId}</span>
             <span>· {m.category}</span>
+            {m.isPrivate ? <span className="text-pending">Private · approved wallets only</span> : null}
             <span className="ml-auto flex items-center gap-2">
               <span aria-hidden className={`h-[6px] w-[6px] rounded-full ${PHASE_DOT[phase]}`} />
               {PHASE_LABEL[phase]}
@@ -131,10 +133,11 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
           </p>
           <h1 className="m-0 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.05] text-cream [text-wrap:pretty]">{m.question}</h1>
           {legs.length > 1 ? <LegsCompare legs={legs} current={chain} picked={stakeChain} onPick={setStakeChain} labelA={m.labelA} labelB={m.labelB} now={now} /> : null}
-          {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} />}
+          {fresh ? null : <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} isPrivate={m.isPrivate} />}
         </header>
 
-        {fresh ? <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} fresh /> : null}
+        <PrivateClaimAccess m={m} account={account} />
+        {fresh ? <ShareMarket chain={chain} kind={kind} marketId={m.marketId} question={m.question} fresh isPrivate={m.isPrivate} /> : null}
 
         <section aria-label="Sides" className={`${SURFACE} grid gap-4 p-5`}>
           <div className="grid grid-cols-2 gap-3">
@@ -173,12 +176,16 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
           </p>
           {m.status === "resolved" || m.summary ? (
             <p className="m-0 rounded-xl bg-panel p-4 text-[14px] leading-relaxed text-cream">
-              <span className="text-win">{m.winner ? `${sideName(m.winner)} won. ` : ""}</span>
+              <span className="text-win">{m.winner ? `${sideName(m.winner)}${(m.winner === 1 || m.winner === 2) && m.settlementCutoff && (m.eligibleA === "0" || m.eligibleB === "0") ? " was correct; all net stakes return because there was no eligible opposition" : " won"}. ` : ""}</span>
               {m.summary}
             </p>
           ) : null}
         </section>
 
+        {Boolean(m.settlementCutoff) ? <p className="m-0 rounded-xl bg-panel p-4 text-[13px] leading-relaxed text-muted">
+          Settlement cutoff: {new Date(m.settlementCutoff! * 1000).toLocaleString("en-US")}. Deposits at or after this time receive only their net principal back; earlier deposits compete for winnings. Entry fees remain charged.
+          {m.eligibleA !== undefined && m.eligibleB !== undefined ? <> Eligible stakes: {m.labelA} {usd(m.eligibleA)} · {m.labelB} {usd(m.eligibleB)}. The totals above show all deposits.</> : null}
+        </p> : null}
         <FollowButton target={chain === "arc" ? `market:${kind}:${marketId}` : `market:${chain}:${kind}:${marketId}`} label="Follow market updates" />
         <SettlementTimeline market={m} events={m.events} now={now} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>

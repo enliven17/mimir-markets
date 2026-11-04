@@ -7,6 +7,7 @@
  *   cancelled  the creator cancelled → the creator's linked chats
  * Participants are the wallets themselves: a chat follows the EVM wallet it linked. Auth: the events secret (MIMIR_EVENTS_SECRET) as a bearer token.
  */
+import { settlementFunding } from "@/lib/late-stakes";
 import { secretMatches } from "@/lib/internal-secrets";
 import { NextResponse } from "next/server";
 
@@ -28,6 +29,10 @@ interface ArcEvent {
   labelA: string;
   labelB: string;
   stakeA: string;
+  stakeB?: string;
+  settlementCutoff?: number;
+  eligibleA?: string;
+  eligibleB?: string;
   deadline: number;
   winner: number;
   summary: string;
@@ -45,8 +50,11 @@ const sideName = (e: ArcEvent, s: number) => (s === 1 ? e.labelA : s === 2 ? e.l
 function personalText(e: ArcEvent, side: number): { text: string; pref: AlertPref } | null {
   const q = esc(e.question.slice(0, 140));
   if (e.type === "resolved") {
-    const head =
-      e.winner !== 1 && e.winner !== 2 ? "↩️ <b>Refunded</b>: no winner, every stake is returned." : e.winner === side ? "🏆 <b>You won</b>" : "❌ <b>You lost</b>";
+    const funding = settlementFunding({ ...e, stakeB: e.stakeB ?? "0" });
+    const head = e.winner !== 1 && e.winner !== 2 ? "↩️ <b>Refunded</b>: no winner, every net stake is returned."
+      : funding === "refund" ? "↩️ <b>Refunded</b>: no eligible opposition, all net stakes return."
+      : funding === "partial" ? "<b>Market settled</b>: late deposits return without profit; earlier deposits settle on the result. View the market for eligibility."
+      : e.winner === side ? "🏆 <b>You won</b>" : "❌ <b>You lost</b>";
     return { text: [head, q, e.summary ? `\n<i>${esc(e.summary.slice(0, 300))}</i>` : ""].join("\n").trim(), pref: "alert_results" };
   }
   if (e.type === "proposed") {

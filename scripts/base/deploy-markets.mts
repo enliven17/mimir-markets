@@ -180,6 +180,7 @@ const deploy = async (name: string, args: unknown[]) => {
 const fees = await deploy("MimirFees", [owner, feeSigner]);
 const v3 = await deploy("MimirV3Erc20", [owner, arbiter, oracle, feeTo, fees.address, window, minStake, usdc]);
 const pool = await deploy("MimirPoolErc20", [owner, arbiter, oracle, feeTo, fees.address, window, minStake, usdc]);
+console.log("Audit role starts disabled. After installing the printed deployment config, run npm run audit-agent -- --print-setup with AUDIT_AGENT_ADDRESS; the owner must execute those setup calls before launch.");
 
 // Read back what the market contracts were built with.
 for (const c of [v3, pool]) {

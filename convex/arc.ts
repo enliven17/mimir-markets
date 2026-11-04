@@ -187,10 +187,11 @@ const SPAM_UNCONTESTED_PER_CREATOR = 3;
 
 /** Everything the oracle may do right now on one chain, from the index. `now` in unix seconds. Every read is bounded. */
 export const oracleWork = internalQuery({
-  args: { chain: vChain, now: v.number() },
-  handler: async (ctx, { chain: c, now }) => {
+  args: { chain: vChain, now: v.number(), vsPaused: v.optional(v.boolean()), poolPaused: v.optional(v.boolean()) },
+  handler: async (ctx, { chain: c, now, vsPaused = false, poolPaused = false }) => {
     await assertMarketDeployment(ctx);
     type M = Doc<"arcMarkets">;
+    const paused = (m: M) => m.kind === "vs" ? vsPaused : poolPaused;
     // Past their deadline, by state: VS needs a challenger to be decided ("active"); a pool is decided once open.
     const due = async (st: M["status"]) =>
       (await ctx.db.query("arcMarkets").withIndex("by_status_deadline", (q) => q.eq("status", st).lte("deadline", now)).take(SCAN)).filter((m) => chainOf(m) === c);
@@ -237,8 +238,8 @@ export const oracleWork = internalQuery({
       now,
     ).map(({ pot: _pot, ...m }) => m as M);
 
-    const finalize = proposed.filter((m) => m.disputableUntil > 0 && m.disputableUntil <= now);
-    const refund = [...undecided.filter((m) => !spam.has(m._id)), ...disputed].filter((m) => m.refundAt <= now).slice(0, 50);
+    const finalize = proposed.filter((m) => !paused(m) && m.disputableUntil > 0 && m.disputableUntil <= now);
+    const refund = [...undecided.filter((m) => !spam.has(m._id)), ...disputed, ...proposed.filter(paused)].filter((m) => m.refundAt <= now).slice(0, 50);
 
     // Pool payouts still owed: settled in the last 30 days (older ones anyone can claim themselves).
     const since = now - 30 * 86_400;
@@ -249,15 +250,39 @@ export const oracleWork = internalQuery({
     const pay: Array<{ marketId: number; users: string[] }> = [];
     for (const m of [...(await settledPools("resolved")), ...(await settledPools("cancelled"))]) {
       const contested = BigInt(m.stakeA) > 0n && BigInt(m.stakeB) > 0n;
+      // Refunds remain payable during an emergency pause; contested winner payouts do not.
+      if (poolPaused && !m.settlementCutoff && contested && (m.winner === 1 || m.winner === 2)) continue;
       const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", "pool").eq("marketId", m.marketId)).take(500);
       // Winners only on a contested A/B outcome (losers have nothing to claim); everyone on a refund.
-      const owed = legs.filter((p) => !p.claimed && (!contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
+      const owed = legs.filter((p) => !p.claimed && (p.payoutRetryAfter ?? 0) <= now && (p.zeroPayoutBlock ?? -1) < m.updatedBlock && (Boolean(m.settlementCutoff) || !contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
       const users = [...new Set(owed.map((p) => p.user))];
       if (users.length) pay.push({ marketId: m.marketId, users });
       if (pay.length >= 50) break;
     }
     const pick = ({ kind, marketId }: { kind: "vs" | "pool"; marketId: number }) => ({ chain: c, kind, marketId });
     return { decide, finalize: finalize.slice(0, 50).map(pick), refund: refund.map(pick), pay };
+  },
+});
+
+/** An internal worker acknowledgement, never a payment or a claim. A newer market snapshot makes it retryable. */
+export const recordZeroPoolPayout = internalMutation({
+  args: { chain: vChain, marketId: v.number(), user: v.string(), block: v.number(), outcome: v.number(), cutoff: v.number() },
+  handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
+    const m = await ctx.db.query("arcMarkets").withIndex("by_market", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId)).unique();
+    if (!m || m.status !== "resolved" || m.updatedBlock > a.block || m.winner !== a.outcome || (m.settlementCutoff ?? 0) !== a.cutoff) return;
+    const legs = await ctx.db.query("arcPositions").withIndex("by_position", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId).eq("user", a.user.toLowerCase())).collect();
+    for (const p of legs) if (p.user === a.user.toLowerCase() && !p.claimed) await ctx.db.patch(p._id, { zeroPayoutBlock: a.block });
+  },
+});
+
+/** Back off a failed automatic push without blocking other users/markets. Manual claims are unaffected. */
+export const deferPoolPayout = internalMutation({
+  args: { chain: vChain, marketId: v.number(), user: v.string() },
+  handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
+    const legs = await ctx.db.query("arcPositions").withIndex("by_position", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId).eq("user", a.user.toLowerCase())).collect();
+    for (const p of legs) if (p.user === a.user.toLowerCase() && !p.claimed) await ctx.db.patch(p._id, { payoutRetryAfter: Math.floor(Date.now() / 1000) + 600 });
   },
 });
 
@@ -358,15 +383,25 @@ export const marketWithPositions = internalQuery({
   },
 });
 
-/** When each stake on a market landed (the opening stake included), for the late-stake rule (lib/late-stakes.ts). */
-const STAKE_EVENTS = new Set(["ClaimCreated", "ClaimChallenged", "MarketCreated", "Staked"]);
+/** Latest timestamp for each stake-event type, including opening stakes. If ANY stake is late, one of these is late.
+ * At most eight indexed reads cover the entire history and reject missing legacy timestamps.
+ * These are witnesses, not a complete list or count of late stakes. */
+const STAKE_EVENTS = ["ClaimCreated", "ClaimChallenged", "MarketCreated", "Staked"] as const;
 export const stakeTimes = internalQuery({
   args: { chain: chainArg, kind, marketId: v.number() },
   handler: async (ctx, { chain: c = "arc", kind, marketId }) =>
     {
     await assertMarketDeployment(ctx);
-    return (await ctx.db.query("arcEvents").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId)).take(2000))
-      .filter((e) => STAKE_EVENTS.has(e.name) && e.at !== undefined)
+    const latest = await Promise.all(STAKE_EVENTS.map(async name => {
+      const events = () => ctx.db.query("arcEvents")
+        .withIndex("by_market_name_at", q => q.eq("chain", c).eq("kind", kind).eq("marketId", marketId).eq("name", name));
+      // Missing optional fields sort before numbers in a Convex index. Do not treat unknown timing as safe.
+      const [first, last] = await Promise.all([events().first(), events().order("desc").first()]);
+      if (first && first.at === undefined) throw Error("Stake history has missing block timestamps; backfill before settlement");
+      return last;
+    }));
+    return latest
+      .filter((e): e is NonNullable<typeof e> => e !== null && e.at !== undefined)
       .map((e) => ({ at: e.at as number, user: e.user }));
   },
 });

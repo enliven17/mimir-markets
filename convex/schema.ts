@@ -60,10 +60,14 @@ export default defineSchema({
     isPrivate: v.boolean(),
     /** Unix seconds the proposed result can be disputed until; 0 = no proposal yet. */
     disputableUntil: v.number(),
-    /** Unix seconds refundExpired opens (7 days after the deadline, or after a dispute). */
+    /** Unix seconds refundExpired opens (7 days after the latest deadline, proposal or dispute). */
     refundAt: v.number(),
     /** Early close (setLockAt, LockSet): no new stakes from this unix second; 0 or absent = the usual lock. */
     lockAt: v.optional(v.number()),
+    /** Strict settlement eligibility boundary (0 includes all deposits). Historical totals stay unchanged. */
+    settlementCutoff: v.optional(v.number()),
+    eligibleA: v.optional(v.string()),
+    eligibleB: v.optional(v.string()),
     /** Disputed by the owner's veto (ResolutionDisputed with a zero disputer), not a participant's bond. */
     vetoed: v.optional(v.boolean()),
     /** Linked markets (lib/chains/linked.ts): the same question opened by Mimir's agents on several chains share this. */
@@ -88,6 +92,9 @@ export default defineSchema({
     amountUsd: v.number(),
     /** Pool: the payout was collected (a Claimed event). VS pays at settlement, so it stays unset. */
     claimed: v.optional(v.boolean()),
+    /** Worker observed zero claimable on a resolved pool at this chain block; newer snapshots recheck it. */
+    zeroPayoutBlock: v.optional(v.number()),
+    payoutRetryAfter: v.optional(v.number()),
   })
     .index("by_market", ["chain", "kind", "marketId"])
     .index("by_user", ["user"])
@@ -110,6 +117,7 @@ export default defineSchema({
   })
     .index("by_log", ["txHash", "logIndex"])
     .index("by_market", ["chain", "kind", "marketId"])
+    .index("by_market_name_at", ["chain", "kind", "marketId", "name", "at"])
     .index("by_user", ["user"])
     .index("by_name", ["name"]),
 
