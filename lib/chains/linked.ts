@@ -92,8 +92,9 @@ export function reuseDecision(v: LinkedVerdict): { side: number; confidence: num
   let overridden = false;
   try {
     const b = JSON.parse(v.bundle) as Record<string, unknown> | null;
-    if (b && typeof b === "object" && "lateStakeRefund" in b) {
+    if (b && typeof b === "object" && ("lateStakeRefund" in b || "lateDepositPolicy" in b)) {
       delete b.lateStakeRefund;
+      delete b.lateDepositPolicy;
       bundle = JSON.stringify(b);
       overridden = true;
     }

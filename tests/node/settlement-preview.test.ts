@@ -55,3 +55,9 @@ test("trusted JSON metadata shows original-question evidence evaluation before s
     assert.doesNotMatch(preview.steps.join("\n"), /No AI model|YES if it is/);
   }
 });
+
+
+test("late deposit refunds do not label a winning market as fully refunded", () => {
+  assert.equal(confidenceTier(1, 95, "[RESOLVER] Yes. Late deposits refunded."), "deterministic");
+  assert.equal(confidenceTier(2, 95, "No. Late deposits refunded."), "firm");
+});

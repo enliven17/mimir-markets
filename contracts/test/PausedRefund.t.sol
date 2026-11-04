@@ -50,7 +50,7 @@ contract PausedRefundTest {
         require(_challenge(ALICE, id, ""));
         vm.warp(PROPOSED);
         vm.prank(ORACLE);
-        vs.resolveClaim(id, 1, "proposal", 95, bytes32(0));
+        vs.resolveClaimWithCutoff(id, 1, "proposal", 95, bytes32(0), 0);
         vm.warp(PROPOSED + 1 days);
         vs.setPaused(true);
         vm.warp(PROPOSED + 7 days);
@@ -88,7 +88,7 @@ contract PausedRefundTest {
         uint256 late = DEADLINE + 6 days;
         vm.warp(late);
         vm.prank(ORACLE);
-        vs.resolveClaim(id, 1, "late", 95, bytes32(0));
+        vs.resolveClaimWithCutoff(id, 1, "late", 95, bytes32(0), 0);
         vs.setPaused(true);
         vm.warp(late + 7 days - 1);
         (bool early,) = address(vs).call(abi.encodeCall(MimirV3.refundExpired, (id)));

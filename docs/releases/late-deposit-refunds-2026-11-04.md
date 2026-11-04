@@ -1,0 +1,31 @@
+# Refund late deposits without cancelling valid bets
+
+This source change supersedes the whole-market late-stake policy. It requires fresh native and ERC20 VS/pool deployments: the contracts are not upgradeable and older contracts did not record the necessary deposit history. There is no current deployment for this work. Install the matching contracts, backend, index/schema and auditor together with a fresh deployment binding/from-block; do not reuse pre-change proposals, linked decision caches or old contract histories.
+
+## Settlement
+
+The oracle proposes an outcome and a `settlementCutoff` atomically. Only deposits with a block timestamp **strictly before** the cutoff compete. Deposits exactly at the cutoff are late. The cutoff follows the existing policy: scheduled events use their start time, a by-date occurrence uses when it happened, and a price checkpoint uses its measurement time. ESPN start times come from the event source; other times come from the existing evidence/model evaluation. `0` means the evidence established no exclusion time. Invalid, noninteger or future times defer the worker rather than silently omitting the check.
+
+Contracts determine the amounts from on-chain history, never from the indexer's bounded event witnesses. Pools keep cumulative global/user net A/B and copied-stake checkpoints, coalesce equal timestamps and binary-search the cutoff. VS records one timestamp per challenger and uses the existing creator timestamp, with at most 100 challengers. Raw deposits, caps and historical stake getters remain unchanged. `eligibleTotals(id)` and pool `eligibleStakeOf(id,user)` expose competing balances separately.
+
+Example, before fees: Alice stakes $10 on A and Bob stakes $10 on B before the cutoff. Bob adds $2 on B afterwards. If A wins, Alice receives $20 and Bob receives only the late $2; Bob's earlier $10 still loses. If Bob's only deposit was the late $2, both receive their own principal because there is no eligible opposing stake.
+
+Late principal is returned without profit and cannot fund somebody else's prize. It does not count as a win/loss or consume fixed-odds creator liability at settlement. Copy fees use eligible winning/copied/losing stakes only; a late losing hedge cannot reduce fees on an earlier copied win. Entry fees remain earned, as on existing refunds. If the creator of a VS claim was already late, all positions refund. Draw, unresolvable, veto/pause and grace-refund rules otherwise retain their existing behavior.
+
+## Proposals and disputes
+
+The oracle worker uses `resolveClaimWithCutoff(id,side,summary,confidence,evidenceHash,cutoff)` for VS and `resolveWithCutoff(id,side,summary,evidenceHash,cutoff)` for pools. The evidence bundle seals the cutoff and policy alongside the answer. Finalization and an unanswered ordinary bonded dispute use that same cutoff. VS removes the older five-argument `resolveClaim` entry point to stay within EIP-170. VS callers must use `resolveClaimWithCutoff`, supplying `0` explicitly when no exclusion time is established. Pool retains its old authorized `resolve` method with no exclusion (`0`); the worker always uses the cutoff method and never falls back on errors. Existing tests of ordinary VS settlement now supply an explicit zero cutoff.
+
+Bettors, the designated audit agent and the arbiter retain their dispute rights. Only the arbiter rules. It can use `resolveDisputeWithCutoff` (the existing VS/pool ruling arguments plus a final `uint256 cutoff`) to correct either the winner or cutoff. Correcting either returns the bond. Cutoff differences on a matching draw do not trigger an audit challenge because everyone is refunded regardless. VS also removes the old five-argument ruling entry point for deployability: the arbiter uses `resolveDisputeWithCutoff` and supplies the existing on-chain cutoff when only changing the answer. The pool's old ruling method retains its proposed cutoff. No outcome or cutoff can be changed after resolution. `SettlementCutoffSet(id,cutoff)` records each proposal/ruling update without changing the old tuple/event signatures.
+
+The independent audit worker reads the cutoff directly from the contract, includes it in proposal identity, and independently evaluates both the answer and eligibility time from fresh evidence. A firm disagreement about either can trigger its existing bonded dispute. Missing/invalid cutoff analysis stays retryable. Agent review is still fallible: wrong or unavailable evidence, missed challenge windows, or an arbiter that does not act can leave a wrong proposal in effect. This change does not make the contract independently verify external events.
+
+Aggregated portfolio positions are labelled “Settled · late refunds” when some deposits were excluded, rather than claiming every wallet on the correct side won. The market page shows the result, cutoff and eligible totals. With no eligible opposition it explains that all net stakes return. Ordinary markets with no excluded deposits retain their win/loss labels.
+
+## Payouts and pause
+
+VS pushes principal refunds and valid winnings through its existing bounded transfer/parked-withdrawal path. Pool `claimable`/`claimFor` combine each user's late principal with their eligible payout and retain the one-claim guard. The worker includes late losing users in autopay, checks the contract's claimable amount, then simulates before sending. Zero-owed users are acknowledged only after a same-block resolved-state/payout recheck; a newer index snapshot makes that acknowledgement retryable. Failed pushes back off for ten minutes, and each tick checks at most 100 payouts so unpayable users cannot monopolize the queue. As before, any user may claim a pool payout directly without the worker.
+
+Pure refunds remain claimable while paused. A pool user with eligible winnings and a late refund receives a combined claim and waits until unpause; no separate early partial withdrawal is introduced. Failed recipient transfers retain the existing pending-withdrawal protection.
+
+VS uses custom errors for several existing failure conditions to keep the enlarged runtime below EIP-170. The validation conditions and successful flows are preserved; clients must decode current ABI errors instead of depending on old revert strings.

@@ -99,7 +99,7 @@ waiting on a game means the other waits too, instead of asking the model again);
 any leg (its own draft, a twin's seed, a council stake), the pair's decision is held to the house bar (firm verdicts
 only), whichever leg it is made on. This means a user pool with a house twin settles at 80%+ confidence or refunds.
 What stays per leg is what depends on its own stakes: an uncontested pool refunds, stakes placed after the outcome was
-known refund. A mainnet market never reuses a decision made for a testnet one.
+known refund only those deposits; eligible earlier stakes still settle. A mainnet market never reuses a decision made for a testnet one.
 
 **One council take per pair.** The council writes one take for a linked pair (one model call) and stores it on every
 leg; a leg that appears later gets a copy (`arcCouncilDb.copyTake`). The daily take cap counts against the person who
@@ -159,7 +159,7 @@ Both market contracts share the lifecycle:
 1. **Open and stake** until 60 seconds before the deadline (`CHALLENGE_LOCK_SECONDS`).
 2. **Propose:** after the deadline the oracle proposes a result with a confidence and an evidence hash.
 3. **Dispute window:** `disputeWindow` set at deploy (1 hour on testnet, at most 7 days, never 0 on mainnet). A
-   participant disputes with `DISPUTE_BOND` = 2 USDC; the arbiter rules. The bond comes back if the result changes
+   participant disputes with `DISPUTE_BOND` = 2 USDC; the arbiter rules. The bond comes back if the result or eligibility cutoff changes
    and goes to the fee recipient if it stands.
 4. **Finalize:** winners are paid (VS pushes payouts; a push that fails is parked for `withdraw()`).
 5. **Escape hatch:** 7 days after the deadline (`RESOLUTION_GRACE_SECONDS`) anyone can call `refundExpired`. An
@@ -169,6 +169,8 @@ Both market contracts share the lifecycle:
 Other limits: `minStake` is an immutable deploy parameter (0.01–100 USDC; **0.1 USDC** on testnet, `ARC_MIN_STAKE`
 in `scripts/arc/deploy.mjs`), at most 100 challengers, deadline at most a year out, fixed payout at most 10×. Owner,
 oracle and fee-recipient changes go through 2-day timelocks. Native USDC only.
+
+Late deposits are handled separately: the oracle proposes a strict eligibility cutoff with the result, the contracts refund net deposits at/after it, and earlier valid stakes still settle. No late principal enters prizes or copy fees. See [the cutoff APIs, accounting and rollout](releases/late-deposit-refunds-2026-11-04.md). The independent auditor reviews both the answer and cutoff; an arbiter can correct either.
 
 ## Fees
 

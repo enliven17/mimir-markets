@@ -126,7 +126,7 @@ contract MimirV3Erc20Test {
     function _resolve(uint256 id, uint8 side) internal {
         vm.warp(AFTER);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "because", 90, bytes32(uint256(1)), 0);
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
@@ -401,14 +401,14 @@ contract MimirV3Erc20Test {
 
     function test_aRightDisputeReturnsTheBond() public {
         uint256 id = _disputed();
-        mimir.resolveDispute(id, CHALLENGERS, "arbiter", 80, bytes32(uint256(2)));
+        mimir.resolveDisputeWithCutoff(id, CHALLENGERS, "arbiter", 80, bytes32(uint256(2)), 0);
         assert(_bal(alice) == 1_010 * ONE); // stake + win + bond
         assert(mimir.accruedFees(platform) == 0);
     }
 
     function test_aWrongDisputeForfeitsTheBond() public {
         uint256 id = _disputed();
-        mimir.resolveDispute(id, CREATOR, "upheld", 80, bytes32(uint256(1)));
+        mimir.resolveDisputeWithCutoff(id, CREATOR, "upheld", 80, bytes32(uint256(1)), 0);
         assert(mimir.accruedFees(platform) == 2 * ONE);
         assert(_bal(creator) == 1_010 * ONE);
         _solvent();
@@ -417,7 +417,7 @@ contract MimirV3Erc20Test {
     function test_aBlacklistedDisputerGetsTheBondParked() public {
         uint256 id = _disputed();
         usdc.blacklist(alice, true);
-        mimir.resolveDispute(id, CHALLENGERS, "arbiter", 80, bytes32(uint256(2)));
+        mimir.resolveDisputeWithCutoff(id, CHALLENGERS, "arbiter", 80, bytes32(uint256(2)), 0);
         assert(mimir.pendingWithdrawals(alice) == 2 * STAKE + 2 * ONE);
         _solvent();
     }
@@ -454,7 +454,7 @@ contract MimirV3Erc20Test {
         // The oracle can no longer rule.
         vm.prank(oracle);
         (bool late,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3Erc20.resolveClaim.selector, id, CREATOR, "x", uint8(1), bytes32(0))
+            abi.encodeWithSelector(MimirV3Erc20.resolveClaimWithCutoff.selector, id, CREATOR, "x", uint8(1), bytes32(0), uint256(0))
         );
         assert(!late);
     }
@@ -611,7 +611,7 @@ contract MimirV3Erc20Test {
         uint256 proposedAt = DEADLINE + 6 days;
         vm.warp(proposedAt);
         vm.prank(oracle);
-        mimir.resolveClaim(id, CREATOR, "late proposal", 90, bytes32(0));
+        mimir.resolveClaimWithCutoff(id, CREATOR, "late proposal", 90, bytes32(0), 0);
         mimir.setPaused(true);
         vm.warp(proposedAt + 7 days - 1);
         (bool early,) = address(mimir).call(abi.encodeCall(MimirV3Erc20.refundExpired, (id)));
@@ -677,7 +677,7 @@ contract MimirV3Erc20Test {
         vm.warp(AFTER);
         vm.prank(oracle);
         (bool settle,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3Erc20.resolveClaim.selector, id, CREATOR, "x", uint8(1), bytes32(0))
+            abi.encodeWithSelector(MimirV3Erc20.resolveClaimWithCutoff.selector, id, CREATOR, "x", uint8(1), bytes32(0), uint256(0))
         );
         assert(!create && !settle);
 

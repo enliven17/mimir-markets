@@ -82,7 +82,7 @@ export function settlementPreview(c: PreviewInput): SettlementPreview {
  * `side` is the numeric winner (or proposed) side: 3 draw and 4 unresolvable refund.
  */
 export function confidenceTier(side: number | undefined, confidence: number | undefined, summary: string): ConfidenceTier {
-  if (side === 3 || side === 4 || /refunded/i.test(summary)) return "refunded";
+  if (side === 3 || side === 4 || ((side !== 1 && side !== 2) && /refunded/i.test(summary))) return "refunded";
   if (summary.startsWith("[RESOLVER]")) return "deterministic";
   if (/\[CONTESTED\]/.test(summary) || (confidence ?? 0) < 80) return "contested";
   return "firm";

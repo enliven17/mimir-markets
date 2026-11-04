@@ -208,8 +208,7 @@ export default function ArcCreateForm() {
           </p>
           <p className="m-0 text-[13px] leading-relaxed text-muted">
             Name the exact event, the date, what counts as a win for each side and a source that will show the result. The oracle settles only what is
-            written: a vague question, a wrong deadline or a source without the answer gets the market refunded, and stakes placed after the result was
-            known are never paid.
+            written. Ambiguous or unavailable results may be refunded. Deposits placed at or after the event cutoff get their net stake back without profit; earlier stakes still settle. Entry fees stay charged. The result and cutoff can be disputed.
           </p>
         </div>
 
@@ -264,7 +263,7 @@ export default function ArcCreateForm() {
               <span aria-hidden className="font-bold text-coral">!</span>
               <span>
                 Set the deadline <strong className="font-medium">before the game starts</strong> (kickoff, tip-off, first pitch). Betting closes at the
-                deadline; any stake placed after the start is a late stake, and the market is refunded instead of paid.
+                deadline; deposits at or after the start are refunded without profit. Earlier deposits settle on the result.
               </span>
             </span>
           ) : (

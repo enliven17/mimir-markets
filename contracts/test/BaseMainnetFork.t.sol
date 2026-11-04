@@ -128,7 +128,7 @@ contract BaseMainnetForkTest {
         vm.prank(bob); require(usdc.approve(address(vsMarket), 1e6));
         vm.prank(bob); vsMarket.challengeClaim(id, 1e6, "", address(0));
         vm.warp(deadline + 1);
-        vm.prank(oracle); vsMarket.resolveClaim(id, 2, "fork result", 90, bytes32(uint256(1)));
+        vm.prank(oracle); vsMarket.resolveClaimWithCutoff(id, 2, "fork result", 90, bytes32(uint256(1)), 0);
         uint256 before = usdc.balanceOf(bob);
         vm.warp(deadline + 1 days + 1); vsMarket.finalizeResolution(id);
         require(usdc.balanceOf(bob) > before, "VS winner paid in real USDC");
@@ -163,7 +163,7 @@ contract BaseMainnetForkTest {
         (MimirV3Erc20 vsMarket, uint256 id) = _vsPosition(false);
         vm.prank(bob); vsMarket.challengeClaim(id, 1e6, "", address(0));
         vm.warp(deadline + 1);
-        vm.prank(oracle); vsMarket.resolveClaim(id, 1, "proposed", 90, bytes32(0));
+        vm.prank(oracle); vsMarket.resolveClaimWithCutoff(id, 1, "proposed", 90, bytes32(0), 0);
         vm.prank(address(safe)); vsMarket.setPaused(true);
         vm.warp(deadline + 1 + 7 days);
         vsMarket.refundExpired(id);

@@ -50,7 +50,7 @@ contract MimirV3DisputeTest {
     function _propose(uint256 id, uint8 side) internal {
         vm.warp(block.timestamp + GAP + 1);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "proposed", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, side, "proposed", 90, bytes32(uint256(7)), 0);
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
@@ -104,7 +104,7 @@ contract MimirV3DisputeTest {
         (bool fin,) = address(mimir).call(abi.encodeWithSelector(MimirV3.finalizeResolution.selector, id));
         assert(!fin);
 
-        mimir.resolveDispute(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)));
+        mimir.resolveDisputeWithCutoff(id, mimir.SIDE_CHALLENGERS(), "arbiter", 100, bytes32(uint256(8)), 0);
         assert(_state(id) == mimir.ST_RESOLVED());
         // Alice got her bond back and won the whole pot (no fee on winnings).
         assert(alice.balance - aliceBefore == 2 * STAKE);
@@ -118,7 +118,7 @@ contract MimirV3DisputeTest {
         mimir.disputeResolution{value: bond}(id);
 
         uint256 feesBefore = mimir.accruedFees(platform);
-        mimir.resolveDispute(id, mimir.SIDE_CREATOR(), "upheld", 95, bytes32(uint256(7)));
+        mimir.resolveDisputeWithCutoff(id, mimir.SIDE_CREATOR(), "upheld", 95, bytes32(uint256(7)), 0);
         assert(mimir.accruedFees(platform) - feesBefore >= bond);
         assert(address(mimir).balance == mimir.lifetimeFeesAccrued());
     }
@@ -132,7 +132,7 @@ contract MimirV3DisputeTest {
 
         vm.prank(oracle);
         (bool ok,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveDispute.selector, id, uint8(2), "x", uint8(1), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveDisputeWithCutoff.selector, id, uint8(2), "x", uint8(1), bytes32(0), uint256(0))
         );
         assert(!ok);
     }

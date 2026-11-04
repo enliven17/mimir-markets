@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { oracleWork } from "../../convex/arc";
+import { oracleWork, recordZeroPoolPayout, deferPoolPayout } from "../../convex/arc";
 import { memoryBackend } from "../helpers/convex-memory";
 import { settlementTiming } from "../../lib/chains/settlement-timing";
 
@@ -10,7 +10,7 @@ const proposedAt = deadline + grace - 100;
 const refundAt = proposedAt + grace;
 const row = (kind: "vs" | "pool", marketId: number, extra = {}) => ({
   chain: "arc", kind, marketId, creator: "creator", status: "proposed", deadline,
-  createdAt: deadline - 1000, stakeA: "10", stakeB: "10", winner: 0,
+  updatedBlock: 10, createdAt: deadline - 1000, stakeA: "10", stakeB: "10", winner: 0,
   disputableUntil: proposedAt + 60, refundAt, ...extra,
 });
 
@@ -48,4 +48,57 @@ test("paused pools still offer refunds for payment, but hold contested winners",
   assert.deepEqual(work.pay.map((p: any) => p.marketId).sort(), [1, 3]);
   const unpaused = await backend.run(oracleWork, { chain: "arc", now: refundAt });
   assert.deepEqual(unpaused.pay.map((p: any) => p.marketId).sort(), [1, 2, 3]);
+});
+
+
+test("late losing deposits are offered for autopay, including during pause; claimed users stay excluded", async () => {
+  const backend = memoryBackend();
+  await backend.db.insert("arcMarkets", row("pool", 4, { status: "resolved", winner: 1, settlementCutoff: deadline - 100 }));
+  for (const [user, side, claimed] of [["winner", 1, false], ["loser-with-late-deposit", 2, false], ["already-paid", 2, true]]) {
+    await backend.db.insert("arcPositions", { chain: "arc", kind: "pool", marketId: 4, user, side, claimed });
+  }
+  for (const poolPaused of [false, true]) {
+    const work = await backend.run(oracleWork, { chain: "arc", now: refundAt, poolPaused });
+    assert.deepEqual(work.pay, [{ marketId: 4, users: ["winner", "loser-with-late-deposit"] }]);
+    // On-chain claimable/simulation excludes zero payouts and holds mixed winning payouts while paused.
+  }
+});
+
+
+test("zero-owed users cannot starve older winners and a newer snapshot invalidates a zero acknowledgement", async () => {
+  const backend = memoryBackend();
+  for (let id = 1; id <= 51; id++) {
+    await backend.db.insert("arcMarkets", row("pool", id, { status: "resolved", winner: 1, settlementCutoff: deadline - 100, deadline: deadline + id }));
+    await backend.db.insert("arcPositions", { chain: "arc", kind: "pool", marketId: id, user: id === 1 ? "unpaid-winner" : "early-loser", side: id === 1 ? 1 : 2 });
+  }
+  const run = () => backend.run(oracleWork, { chain: "arc", now: refundAt });
+  assert.equal((await run()).pay.some((p: any) => p.marketId === 1), false);
+  for (let id = 2; id <= 51; id++) await backend.run(recordZeroPoolPayout, { chain: "arc", marketId: id, user: "early-loser", block: 11, outcome: 1, cutoff: deadline - 100 });
+  assert.deepEqual((await run()).pay, [{ marketId: 1, users: ["unpaid-winner"] }]);
+  const m = (await backend.db.query("arcMarkets").collect()).find((m: any) => m.marketId === 51);
+  await backend.db.patch(m._id, { updatedBlock: 12 });
+  assert.equal((await run()).pay.some((p: any) => p.marketId === 51), true);
+});
+
+test("zero acknowledgement rejects stale or mismatched settlement snapshots", async () => {
+  const backend = memoryBackend();
+  await backend.db.insert("arcMarkets", row("pool", 1, { status: "resolved", winner: 1, settlementCutoff: 80 }));
+  const id = await backend.db.insert("arcPositions", { chain: "arc", kind: "pool", marketId: 1, user: "alice", side: 2 });
+  const a = { chain: "arc", marketId: 1, user: "alice", block: 11, outcome: 1, cutoff: 80 };
+  for (const extra of [{ block: 9 }, { outcome: 2 }, { cutoff: 81 }]) {
+    await backend.run(recordZeroPoolPayout, { ...a, ...extra });
+    assert.equal((await backend.db.get(id)).zeroPayoutBlock, undefined);
+  }
+});
+
+test("failed or paused positive payouts back off without blocking other markets", async () => {
+  const backend = memoryBackend();const now = Math.floor(Date.now() / 1000);
+  for (const marketId of [1, 2]) {
+    await backend.db.insert("arcMarkets", row("pool", marketId, { status: "resolved", winner: 1, settlementCutoff: 80, deadline: now - 10 }));
+    await backend.db.insert("arcPositions", { chain: "arc", kind: "pool", marketId, user: `user${marketId}`, side: 1 });
+  }
+  await backend.run(deferPoolPayout, { chain: "arc", marketId: 2, user: "user2" });
+  const run = (at: number) => backend.run(oracleWork, { chain: "arc", now: at, poolPaused: true });
+  assert.deepEqual((await run(now)).pay, [{ marketId: 1, users: ["user1"] }]);
+  assert.equal((await run(now + 601)).pay.length, 2);
 });

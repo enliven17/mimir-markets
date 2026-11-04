@@ -251,16 +251,38 @@ export const oracleWork = internalQuery({
     for (const m of [...(await settledPools("resolved")), ...(await settledPools("cancelled"))]) {
       const contested = BigInt(m.stakeA) > 0n && BigInt(m.stakeB) > 0n;
       // Refunds remain payable during an emergency pause; contested winner payouts do not.
-      if (poolPaused && contested && (m.winner === 1 || m.winner === 2)) continue;
+      if (poolPaused && !m.settlementCutoff && contested && (m.winner === 1 || m.winner === 2)) continue;
       const legs = await ctx.db.query("arcPositions").withIndex("by_market", (q) => q.eq("chain", c).eq("kind", "pool").eq("marketId", m.marketId)).take(500);
       // Winners only on a contested A/B outcome (losers have nothing to claim); everyone on a refund.
-      const owed = legs.filter((p) => !p.claimed && (!contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
+      const owed = legs.filter((p) => !p.claimed && (p.payoutRetryAfter ?? 0) <= now && (p.zeroPayoutBlock ?? -1) < m.updatedBlock && (Boolean(m.settlementCutoff) || !contested || (m.winner !== 1 && m.winner !== 2) || p.side === m.winner));
       const users = [...new Set(owed.map((p) => p.user))];
       if (users.length) pay.push({ marketId: m.marketId, users });
       if (pay.length >= 50) break;
     }
     const pick = ({ kind, marketId }: { kind: "vs" | "pool"; marketId: number }) => ({ chain: c, kind, marketId });
     return { decide, finalize: finalize.slice(0, 50).map(pick), refund: refund.map(pick), pay };
+  },
+});
+
+/** An internal worker acknowledgement, never a payment or a claim. A newer market snapshot makes it retryable. */
+export const recordZeroPoolPayout = internalMutation({
+  args: { chain: vChain, marketId: v.number(), user: v.string(), block: v.number(), outcome: v.number(), cutoff: v.number() },
+  handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
+    const m = await ctx.db.query("arcMarkets").withIndex("by_market", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId)).unique();
+    if (!m || m.status !== "resolved" || m.updatedBlock > a.block || m.winner !== a.outcome || (m.settlementCutoff ?? 0) !== a.cutoff) return;
+    const legs = await ctx.db.query("arcPositions").withIndex("by_position", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId).eq("user", a.user.toLowerCase())).collect();
+    for (const p of legs) if (p.user === a.user.toLowerCase() && !p.claimed) await ctx.db.patch(p._id, { zeroPayoutBlock: a.block });
+  },
+});
+
+/** Back off a failed automatic push without blocking other users/markets. Manual claims are unaffected. */
+export const deferPoolPayout = internalMutation({
+  args: { chain: vChain, marketId: v.number(), user: v.string() },
+  handler: async (ctx, a) => {
+    await assertMarketDeployment(ctx);
+    const legs = await ctx.db.query("arcPositions").withIndex("by_position", q => q.eq("chain", a.chain).eq("kind", "pool").eq("marketId", a.marketId).eq("user", a.user.toLowerCase())).collect();
+    for (const p of legs) if (p.user === a.user.toLowerCase() && !p.claimed) await ctx.db.patch(p._id, { payoutRetryAfter: Math.floor(Date.now() / 1000) + 600 });
   },
 });
 

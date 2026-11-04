@@ -83,7 +83,7 @@ contract PrivateClaimTest {
         require(!_challenge(BOB, id, "public challenge calldata"));
         vm.warp(PROPOSED);
         vm.prank(ORACLE);
-        vs.resolveClaim(id, 2, "challengers win", 95, bytes32(0));
+        vs.resolveClaimWithCutoff(id, 2, "challengers win", 95, bytes32(0), 0);
         vm.warp(PROPOSED + 1 days);
         vs.finalizeResolution(id);
         require(ALICE.balance == 1_010e18); // a grant is entry authority, never payout authority

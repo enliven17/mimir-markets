@@ -46,11 +46,12 @@ test("proposal reads are authoritative and bind the configured chain, contract a
     if (r.functionName === "getClaim") return [other, proposal.question, "Yes", "No", proposal.resolutionUrl, 10n, 10n, 0n, 99n, 4, 0, "", 0, "sports", 0n, 1n, 1n, hash];
     if (r.functionName === "proposals") return [1, 95, 100n, 0n, other, 0n, hash, "proposal"];
     if (r.functionName === "disputeWindow") return 3600n;
+    if (r.functionName === "settlementCutoff") return 80n;
     throw Error("unexpected read");
   } } as unknown as PublicClient;
   const p = await loadAuditProposal(cfg, client, "vs", "7");
-  assert.equal(p.disputableUntil, 3700);assert.equal(p.live, true);assert.equal(p.question, proposal.question);assert.equal(p.contract, account);assert.equal(p.now, 200);
-  assert.deepEqual(reads.sort(), ["disputeWindow", "getClaim", "proposals"].sort());
+  assert.equal(p.cutoff, 80);assert.equal(p.disputableUntil, 3700);assert.equal(p.live, true);assert.equal(p.question, proposal.question);assert.equal(p.contract, account);assert.equal(p.now, 200);
+  assert.deepEqual(reads.sort(), ["disputeWindow", "getClaim", "proposals", "settlementCutoff"].sort());
   await assert.rejects(loadAuditProposal(cfg, { ...client, getChainId: async () => 1 } as PublicClient, "vs", "7"), /chain/i);
 });
 
@@ -182,4 +183,25 @@ test("audit transaction signing retains the local account instead of switching t
   const job: AuditJob = { proposal: { ...proposal, chainId: cfg.chainId, contract: account }, status: "pending" };
   const io = auditIO(cfg, pub, wallet, signer.address, "challenge", job, async () => {});
   assert.equal(await io.submit(), hash);
+});
+
+
+test("auditor binds the cutoff and challenges an incorrect cutoff even on the same winning side", async () => {
+  const p = { ...proposal, cutoff: 80 };
+  assert.notEqual(proposalKey(p), proposalKey({ ...p, cutoff: 81 }));
+  assert.equal(auditAction(p, { ...review, side: p.side, cutoff: 80 }), "agree");
+  assert.equal(auditAction(p, { ...review, side: p.side, cutoff: 81 }), "challenge");
+  for (const cutoff of [undefined, NaN, Infinity, -1, 201]) assert.equal(auditAction(p, { ...review, cutoff }), "retry");
+  const evidence = { text: "Event started at 1970-01-01T00:01:20Z. Final total 235.", fetcher: "direct" };
+  const result = await reviewProposal(p, { fetch: async () => evidence, llm: async () => ({ text: JSON.stringify({ verdict: "CHALLENGERS_WIN", confidence: 95, explanation: "235 is below 250", knownAt: "1970-01-01T00:01:20Z" }), provider: "audit", model: "fixture" }) });
+  assert.equal(result?.cutoff, 80);
+  assert.equal(await reviewProposal(p, { fetch: async () => evidence, llm: async () => ({ text: JSON.stringify({ verdict: "CHALLENGERS_WIN", confidence: 95, explanation: "235 is below 250" }), provider: "audit", model: "fixture" }) }), null);
+});
+
+
+test("a matching DRAW does not spend a bond on an irrelevant cutoff", async () => {
+  const p = { ...proposal, side: 3, cutoff: 0 };
+  assert.equal(auditAction(p, { ...review, side: 3, cutoff: 80 }), "agree");
+  const result = await reviewProposal(p, { fetch: async () => ({ text: "Final: draw.", fetcher: "fixture" }), llm: async () => ({ text: JSON.stringify({ verdict: "DRAW", confidence: 95, explanation: "Tied final result" }), provider: "audit", model: "fixture" }) });
+  assert.equal(result?.cutoff, 0);assert.equal(auditAction(p, result!), "agree");
 });

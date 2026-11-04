@@ -25,13 +25,13 @@ export function auditDisputeCall(cfg: MarketChain, kind: "vs" | "pool", marketId
 export async function loadAuditProposal(cfg: MarketChain, pub: PublicClient, kind: "vs" | "pool", marketId: string): Promise<AuditProposal> {
   if (await pub.getChainId() !== cfg.chainId) throw Error("Audit RPC chain does not match configuration");
   const address = contractOf(cfg, kind), args = [idOf(marketId)] as const;
-  const [block, window] = await Promise.all([pub.getBlock(), pub.readContract({ address, abi: V3_ABI, functionName: "disputeWindow" })]);
+  const [block, window, cutoff] = await Promise.all([pub.getBlock(), pub.readContract({ address, abi: V3_ABI, functionName: "disputeWindow" }), pub.readContract({ address, abi: V3_ABI, functionName: "settlementCutoff", args })]);
   if (kind === "vs") {
     const [m, p] = await Promise.all([pub.readContract({ address, abi: V3_ABI, functionName: "getClaim", args }), pub.readContract({ address, abi: V3_ABI, functionName: "proposals", args })]);
-    return { chainId: cfg.chainId, contract: address, kind, marketId, proposedAt: Number(p[2]), disputableUntil: Number(p[2] + window), now: Number(block.timestamp), live: m[9] === 4, side: p[0], evidenceHash: p[6], question: m[1], labelA: m[2], labelB: m[3], resolutionUrl: m[4], category: m[13], deadline: Number(m[8]), createdAt: Number(m[16]), summary: p[7] };
+    return { chainId: cfg.chainId, contract: address, kind, marketId, cutoff: Number(cutoff), proposedAt: Number(p[2]), disputableUntil: Number(p[2] + window), now: Number(block.timestamp), live: m[9] === 4, side: p[0], evidenceHash: p[6], question: m[1], labelA: m[2], labelB: m[3], resolutionUrl: m[4], category: m[13], deadline: Number(m[8]), createdAt: Number(m[16]), summary: p[7] };
   }
   const [m, p, text] = await Promise.all([pub.readContract({ address, abi: POOL_ABI, functionName: "getMarket", args }), pub.readContract({ address, abi: POOL_ABI, functionName: "getProposal", args }), pub.readContract({ address, abi: POOL_ABI, functionName: "getMarketText", args })]);
-  return { chainId: cfg.chainId, contract: address, kind, marketId, proposedAt: Number(p[1]), disputableUntil: Number(p[1] + window), now: Number(block.timestamp), live: m[3] === 1, side: p[0], evidenceHash: p[5], question: text[0], labelA: text[1], labelB: text[2], resolutionUrl: text[3], category: text[4], deadline: Number(m[1]), createdAt: Number(m[2]), summary: text[5] };
+  return { chainId: cfg.chainId, contract: address, kind, marketId, cutoff: Number(cutoff), proposedAt: Number(p[1]), disputableUntil: Number(p[1] + window), now: Number(block.timestamp), live: m[3] === 1, side: p[0], evidenceHash: p[5], question: text[0], labelA: text[1], labelB: text[2], resolutionUrl: text[3], category: text[4], deadline: Number(m[1]), createdAt: Number(m[2]), summary: text[5] };
 }
 
 export async function readAuditRoles(pub: PublicClient, address: Address): Promise<AuditRoles> {

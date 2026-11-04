@@ -24,8 +24,7 @@ export default function MarketCaution() {
         className="pointer-events-none invisible absolute right-0 top-[calc(100%+8px)] z-30 w-[min(300px,80vw)] rounded-xl bg-panel-raised p-3 text-left text-[12.5px] normal-case leading-relaxed tracking-normal text-muted opacity-0 shadow-[0_12px_32px_rgb(0_0_0/.45),inset_0_0_0_1px_rgb(255_81_72/.35)] transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
       >
         <strong className="mb-1 block text-[13px] font-medium text-cream">Read this market before you stake</strong>
-        Anyone can open a market. Check the question, the deadline and the resolution source. A market whose deadline let
-        people stake after the result was known is refunded, and AI verdicts can be disputed for 24 hours.
+        Anyone can open a market. Check the question, the deadline and the resolution source. Deposits placed at or after the event cutoff are refunded without profit; earlier stakes still settle. Entry fees stay charged. The result and cutoff can be disputed during the dispute window.
       </span>
     </span>
   );

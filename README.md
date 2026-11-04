@@ -29,7 +29,7 @@ The current rollout at [mimirmarkets.xyz](https://mimirmarkets.xyz) uses **Base 
 2. **Stake:** every position pays a 0.5% entry fee. Minimum 0.1 USDC.
    Betting closes 60 seconds before the deadline.
 3. **Settle:** the oracle proposes a result. During the dispute window any participant can dispute with a 2 USDC
-   bond. Then the result is final and winners are paid. Draws and unresolvable questions refund everyone; seven days
+   bond. Late deposits receive their net principal back; earlier valid stakes still settle. Then the result is final and winners are paid. Draws and unresolvable questions refund everyone; seven days
    after the deadline anyone can refund a market that never settled.
 
 The full picture: [docs/how-mimir-works.md](docs/how-mimir-works.md). Every doc: [docs/README.md](docs/README.md).

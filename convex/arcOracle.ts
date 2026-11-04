@@ -27,7 +27,7 @@ import type { Doc } from "./_generated/dataModel";
 import { decide, fetchEvidence, type SettlementDecision } from "../agents/oracle/decide";
 import { outcomeKnownAt } from "../agents/oracle/evaluate";
 import { espnResult } from "../lib/espn";
-import { lateStakes, lateStakeSummary } from "../lib/late-stakes";
+import { lateStakes, lateStakeSummary, settlementCutoff } from "../lib/late-stakes";
 import { sealBundle, type VerdictBundle } from "../lib/verdict-bundle";
 import type { OnchainClaim } from "../lib/market-claim";
 import { chainTransport, viemChainOf } from "../lib/chains/client";
@@ -36,15 +36,17 @@ import { reuseDecision, siblingDecision } from "../lib/chains/linked";
 import { serverMarketChains, type MarketChain } from "../lib/chains/registry";
 
 const V3 = parseAbi([
-  "function resolveClaim(uint256 claimId, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash)",
+  "function resolveClaimWithCutoff(uint256 claimId, uint8 winnerSide, string summary, uint8 confidence, bytes32 evidenceHash, uint256 cutoff)",
   "function finalizeResolution(uint256 claimId)",
   "function refundExpired(uint256 claimId)",
   "function paused() view returns (bool)",
 ]);
 const POOL = parseAbi([
-  "function resolve(uint256 id, uint8 outcome, string summary, bytes32 evidenceHash)",
+  "function resolveWithCutoff(uint256 id, uint8 outcome, string summary, bytes32 evidenceHash, uint256 cutoff)",
   "function finalize(uint256 id)",
   "function refundExpired(uint256 id)",
+  "function getMarket(uint256) view returns (address creator, uint256 deadline, uint256 createdAt, uint8 state, uint8 outcome, uint256 totalA, uint256 totalB)",
+  "function settlementCutoff(uint256) view returns (uint256)",
   "function claimable(uint256 id, address user) view returns (uint256 payout, uint256 fee)",
   "function claimFor(uint256 id, address user)",
   "function paused() view returns (bool)",
@@ -162,7 +164,7 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
         // so markets nobody took the other side of cost the backend nothing to close.
         if (m.kind === "pool" && (BigInt(m.stakeA) === 0n || BigInt(m.stakeB) === 0n)) {
           const summary = "Only one side was staked, so every stake is refunded.";
-          const tx = await write(s, { address: s.mimirPool, abi: POOL, functionName: "resolve", args: [BigInt(m.marketId), SIDE.DRAW, summary, ZERO_HASH] });
+          const tx = await write(s, { address: s.mimirPool, abi: POOL, functionName: "resolveWithCutoff", args: [BigInt(m.marketId), SIDE.DRAW, summary, ZERO_HASH, 0n] });
           await ctx.runMutation(internal.arc.saveVerdict, { chain: c, kind: m.kind, marketId: m.marketId, side: SIDE.DRAW, confidence: 100, summary, evidenceHash: ZERO_HASH, bundle: "{}", txHash: tx, ...(m.pairKey ? { pairKey: m.pairKey } : {}) });
           console.log(`${tag}: uncontested, refund proposed ${tx}`);
           changed = true;
@@ -231,7 +233,8 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
         }
         const decided = side;
         const decidedSummary = summary;
-        // A winner only if nobody staked once the outcome was known (lib/late-stakes.ts); else everyone is refunded.
+        // Commit eligibility with the verdict. On-chain deposit histories determine refund amounts.
+        let cutoff = 0;
         if (side === SIDE.CREATOR_WINS || side === SIDE.CHALLENGERS_WIN) {
           // An ESPN game was known from kickoff (lib/espn.ts); anything else asks the model.
           const espn = await espnResult(m.resolutionUrl);
@@ -239,19 +242,17 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
             espn && Number.isFinite(espn.startAt)
               ? espn.startAt
               : await outcomeKnownAt({ question: m.question, resolutionUrl: m.resolutionUrl, deadline: m.deadline }, (await fetchEvidence(m.resolutionUrl)).text);
+          cutoff = settlementCutoff(knownAt, now);
           const late = lateStakes(knownAt, await ctx.runQuery(internal.arc.stakeTimes, { chain: c, kind: m.kind, marketId: m.marketId }));
-          if (knownAt !== null && late.length) {
-            side = SIDE.UNRESOLVABLE;
-            summary = lateStakeSummary(knownAt, late, true);
-            bundle = { ...(bundle as object), lateStakeRefund: { knownAt, lateStakes: late, witnessesOnly: true, overriddenVerdict: verdictName } };
-            hash = toHex(sealBundle(bundle as VerdictBundle).bytes);
-            console.log(`${tag}: at least ${late.length} late stake(s) after ${knownAt}, refund instead of ${verdictName}`);
-          }
+          if (late.length) summary = `${summary} ${lateStakeSummary(cutoff, late, true)}`;
+          bundle = { ...(bundle as object), lateDepositPolicy: { cutoff, comparison: "deposit.at < cutoff", lateStakes: late, witnessesOnly: true, decidedVerdict: verdictName } };
+          hash = toHex(sealBundle(bundle as VerdictBundle).bytes);
         }
+
         const tx =
           m.kind === "vs"
-            ? await write(s, { address: s.mimirV3, abi: V3, functionName: "resolveClaim", args: [BigInt(m.marketId), side, summary, confidence, hash] })
-            : await write(s, { address: s.mimirPool, abi: POOL, functionName: "resolve", args: [BigInt(m.marketId), side, summary, hash] });
+            ? await write(s, { address: s.mimirV3, abi: V3, functionName: "resolveClaimWithCutoff", args: [BigInt(m.marketId), side, summary, confidence, hash, BigInt(cutoff)] })
+            : await write(s, { address: s.mimirPool, abi: POOL, functionName: "resolveWithCutoff", args: [BigInt(m.marketId), side, summary, hash, BigInt(cutoff)] });
         await ctx.runMutation(internal.arc.saveVerdict, {
           chain: c,
           kind: m.kind,
@@ -296,16 +297,30 @@ async function settleChain(ctx: ActionCtx, s: Setup, chains: Record<MarketChain[
       }
     }
 
-    for (const p of work.pay) {
+    let payoutChecks = 0;
+    payouts: for (const p of work.pay) {
       for (const user of p.users) {
+        if (payoutChecks++ >= 100) break payouts;
         try {
           const [payout] = await s.pub.readContract({ address: s.mimirPool, abi: POOL, functionName: "claimable", args: [BigInt(p.marketId), user as Hex] });
-          if (payout === 0n) continue;
+          if (payout === 0n) {
+            // claimable also returns zero before resolution. Confirm final state and the zero payout
+            // at one block before recording progress, so a stale RPC cannot discard a future winner.
+            const blockNumber = await s.pub.getBlockNumber();
+            const [market, cutoff, [confirmed]] = await Promise.all([
+              s.pub.readContract({ address: s.mimirPool, abi: POOL, functionName: "getMarket", args: [BigInt(p.marketId)], blockNumber }),
+              s.pub.readContract({ address: s.mimirPool, abi: POOL, functionName: "settlementCutoff", args: [BigInt(p.marketId)], blockNumber }),
+              s.pub.readContract({ address: s.mimirPool, abi: POOL, functionName: "claimable", args: [BigInt(p.marketId), user as Hex], blockNumber }),
+            ]);
+            if (market[3] === 3 && confirmed === 0n) await ctx.runMutation(internal.arc.recordZeroPoolPayout, { chain: c, marketId: p.marketId, user, block: Number(blockNumber), outcome: market[4], cutoff: Number(cutoff) });
+            continue;
+          }
           const tx = await write(s, { address: s.mimirPool, abi: POOL, functionName: "claimFor", args: [BigInt(p.marketId), user] });
           console.log(`[oracle] ${c} pool #${p.marketId}: paid ${user} ${tx}`);
           changed = true;
         } catch (err) {
           console.warn(`[oracle] ${c} pay pool #${p.marketId} ${user}: ${errText(err)}`);
+          await ctx.runMutation(internal.arc.deferPoolPayout, { chain: c, marketId: p.marketId, user });
         }
       }
     }

@@ -42,7 +42,7 @@ action. Ordinary request-rate limits remain independent and unchanged; they no l
   `AUDIT_MODE=challenge` to submit bonded disputes. Only the arbiter rules; ordinary unanswered disputes retain the
   original proposal after timeout. There is no automated arbiter worker in this release.
 
-The whole-market late-stake refund policy is intentionally unchanged and remains under product discussion. Price
+The former whole-market late-stake policy is superseded by [deposit-only refunds](late-deposit-refunds-2026-11-04.md). Price
 negation and qualified sports questions still depend on the user's selected independent auditor/arbiter mitigation;
 their original automatic resolver shortcuts were not changed by this release.
 

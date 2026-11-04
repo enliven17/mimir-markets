@@ -91,6 +91,8 @@ try {
     need(await read("MIN_STAKE") === cfg.contracts.minStakeWei / 10n ** 12n, `Minimum stake mismatch at ${address}`);
     need(await read("maxMarketStake") === marketCap && await read("maxAccountStake") === accountCap, `Execute reviewed Safe caps at ${address}`);
     need(await read("paused") === false, `${address} is paused`);
+    const cutoff = await client.readContract({ address, abi: parseAbi(["function settlementCutoff(uint256) view returns (uint256)"]), functionName: "settlementCutoff", args: [0n] }).catch(() => null);
+    need(cutoff === 0n, `Deploy the audited deposit-only refund contracts at ${address}`);
     const registeredAudit = await client.readContract({ address, abi: parseAbi(["function auditAgent() view returns (address)"]), functionName: "auditAgent" }).catch(() => null);
     need(Boolean(auditor) && registeredAudit?.toLowerCase() === auditor?.toLowerCase() && registeredAudit !== zeroAddress, `Install the reviewed audit-agent role at ${address}`);
     // Legacy Base VS has the same create/challenge selectors but unsafe bearer

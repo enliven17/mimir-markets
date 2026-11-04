@@ -63,7 +63,7 @@ contract MimirMinStakeTest {
         uint256 id = _create(MIN);
         require(id == 1, "created");
         vm.prank(creator);
-        vm.expectRevert(bytes("Mimir: stake too small"));
+        vm.expectRevert(MimirV3.StakeTooSmall.selector);
         mimir.createClaim{value: MIN - 1}(
             "Will it?", "yes", "no", "https://example.com", block.timestamp + GAP, MIN - 1, "custom", 0, "binary",
             "pool", 0, "", "", 0, false, "", address(0)
@@ -80,7 +80,7 @@ contract MimirMinStakeTest {
         vm.warp(block.timestamp + GAP);
         uint256 before = alice.balance;
         vm.prank(oracle);
-        mimir.resolveClaim(id, 2, "challengers win", 90, bytes32(0));
+        mimir.resolveClaimWithCutoff(id, 2, "challengers win", 90, bytes32(0), 0);
         // The winner gets both net stakes back, no fee on winnings.
         require(alice.balance - before == 2 * net, "challenger paid both stakes");
         require(address(mimir).balance == mimir.accruedFees(platform), "only the entry fees stay behind");
@@ -99,9 +99,9 @@ contract MimirMinStakeTest {
         windowed.challengeClaim{value: MIN}(id, MIN, "", address(0));
         vm.warp(block.timestamp + GAP);
         vm.prank(oracle);
-        windowed.resolveClaim(id, 1, "creator wins", 90, bytes32(0));
+        windowed.resolveClaimWithCutoff(id, 1, "creator wins", 90, bytes32(0), 0);
         vm.prank(alice);
-        vm.expectRevert(bytes("Mimir: wrong USDC value"));
+        vm.expectRevert(MimirV3.WrongUsdcValue.selector);
         windowed.disputeResolution{value: MIN}(id);
         vm.prank(alice);
         windowed.disputeResolution{value: 2e18}(id);

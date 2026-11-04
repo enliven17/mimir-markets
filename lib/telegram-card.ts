@@ -3,6 +3,7 @@
  * Pure (no rendering, no I/O) so it is testable; app/api/telegram/card/[type]/route.tsx draws it with next/og and
  * lib/server/telegram.ts sends it with sendPhoto, the text as the caption.
  */
+import { settlementFunding } from "./late-stakes";
 import { SITE_URL } from "./site";
 
 // "share" is the link preview of a market page (X, Telegram, WhatsApp…): the market as it stands right now.
@@ -78,13 +79,18 @@ export function cardUrl(
 
 /** The card a personal Arc event gets: the market's new state, from this holder's point of view. */
 export function cardTypeFor(
-  e: { type: "new" | "proposed" | "resolved" | "cancelled"; winner: number },
+  e: { type: "new" | "proposed" | "resolved" | "cancelled"; winner: number; stakeA?: string; stakeB?: string; settlementCutoff?: number; eligibleA?: string; eligibleB?: string },
   side: number,
 ): CardType {
   if (e.type === "new") return "new";
   if (e.type === "proposed") return "proposed";
   if (e.type === "cancelled") return "cancelled";
   if (e.winner !== 1 && e.winner !== 2) return "refunded";
+  if (e.stakeA !== undefined && e.stakeB !== undefined) {
+    const funding = settlementFunding({ ...e, stakeA: e.stakeA, stakeB: e.stakeB });
+    if (funding === "refund") return "refunded";
+    if (funding === "partial") return "share";
+  }
   return e.winner === side ? "won" : "lost";
 }
 

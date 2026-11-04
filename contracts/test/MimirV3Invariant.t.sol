@@ -197,7 +197,7 @@ contract Handler {
         (address[] memory who, uint256[] memory stake, uint256[] memory before) = _participants(id);
         vm.prank(oracle);
         (bool ok,) = address(m).call(abi.encodeWithSelector(
-            MimirV3.resolveClaim.selector, id, side, "v", uint8(90), bytes32(0)
+            MimirV3.resolveClaimWithCutoff.selector, id, side, "v", uint8(90), bytes32(0), uint256(0)
         ));
         // With a dispute window this only proposes; settled means window 0.
         if (ok && _state(id) == m.ST_RESOLVED()) _checkPrincipal(id, who, stake, before);
@@ -229,7 +229,7 @@ contract Handler {
         (address[] memory who, uint256[] memory stake, uint256[] memory before) = _participants(id);
         vm.prank(owner);
         (bool ok,) = address(m).call(abi.encodeWithSelector(
-            MimirV3.resolveDispute.selector, id, uint8(1 + (sideSeed % 4)), "a", uint8(100), bytes32(0)
+            MimirV3.resolveDisputeWithCutoff.selector, id, uint8(1 + (sideSeed % 4)), "a", uint8(100), bytes32(0), uint256(0)
         ));
         if (ok) _checkPrincipal(id, who, stake, before);
     }

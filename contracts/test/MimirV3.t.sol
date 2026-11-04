@@ -84,7 +84,7 @@ contract MimirV3Test {
     function _settle(uint256 id, uint8 side) internal {
         vm.warp(block.timestamp + DEADLINE_GAP + 1);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "because", 90, bytes32(uint256(1)));
+        mimir.resolveClaimWithCutoff(id, side, "because", 90, bytes32(uint256(1)), 0);
     }
 
     // ── Entry fee ───────────────────────────────────────────────────────────
@@ -332,7 +332,7 @@ contract MimirV3Test {
         _challenge(challenger, id, STAKE, address(0));
         vm.warp(block.timestamp + DEADLINE_GAP + 1);
         (bool ok,) = address(mimir).call(
-            abi.encodeWithSignature("resolveClaim(uint256,uint8,string,uint8,bytes32)", id, uint8(1), "x", uint8(90), bytes32(0))
+            abi.encodeWithSignature("resolveClaimWithCutoff(uint256,uint8,string,uint8,bytes32,uint256)", id, uint8(1), "x", uint8(90), bytes32(0), uint256(0))
         );
         assert(!ok);
     }

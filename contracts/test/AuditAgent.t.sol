@@ -78,7 +78,7 @@ contract AuditAgentTest {
     }
     function _resolve(uint256 c, uint256 id, address who, uint8 side) internal returns (bool ok) {
         bytes memory data = c % 2 == 0
-            ? abi.encodeWithSignature("resolveDispute(uint256,uint8,string,uint8,bytes32)", id, side, "review", 95, bytes32(0))
+            ? abi.encodeWithSignature("resolveDisputeWithCutoff(uint256,uint8,string,uint8,bytes32,uint256)", id, side, "review", 95, bytes32(0), uint256(0))
             : abi.encodeWithSignature("resolveDispute(uint256,uint8,string,bytes32)", id, side, "review", bytes32(0));
         (ok,) = _call(c, who, data, 0);
     }
@@ -101,7 +101,7 @@ contract AuditAgentTest {
         }
         vm.warp(PROPOSED);
         for (uint256 c; c < 4; c++) {
-            bytes memory data = c % 2 == 0 ? abi.encodeCall(MimirV3.resolveClaim, (ids[c], 1, "proposal", 95, bytes32(0))) : abi.encodeCall(MimirPool.resolve, (ids[c], 1, "proposal", bytes32(0)));
+            bytes memory data = c % 2 == 0 ? abi.encodeCall(MimirV3.resolveClaimWithCutoff, (ids[c], 1, "proposal", 95, bytes32(0), 0)) : abi.encodeCall(MimirPool.resolve, (ids[c], 1, "proposal", bytes32(0)));
             _must(c, ORACLE, data, 0);
         }
     }

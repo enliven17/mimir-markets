@@ -176,12 +176,16 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
           </p>
           {m.status === "resolved" || m.summary ? (
             <p className="m-0 rounded-xl bg-panel p-4 text-[14px] leading-relaxed text-cream">
-              <span className="text-win">{m.winner ? `${sideName(m.winner)} won. ` : ""}</span>
+              <span className="text-win">{m.winner ? `${sideName(m.winner)}${(m.winner === 1 || m.winner === 2) && m.settlementCutoff && (m.eligibleA === "0" || m.eligibleB === "0") ? " was correct; all net stakes return because there was no eligible opposition" : " won"}. ` : ""}</span>
               {m.summary}
             </p>
           ) : null}
         </section>
 
+        {Boolean(m.settlementCutoff) ? <p className="m-0 rounded-xl bg-panel p-4 text-[13px] leading-relaxed text-muted">
+          Settlement cutoff: {new Date(m.settlementCutoff! * 1000).toLocaleString("en-US")}. Deposits at or after this time receive only their net principal back; earlier deposits compete for winnings. Entry fees remain charged.
+          {m.eligibleA !== undefined && m.eligibleB !== undefined ? <> Eligible stakes: {m.labelA} {usd(m.eligibleA)} · {m.labelB} {usd(m.eligibleB)}. The totals above show all deposits.</> : null}
+        </p> : null}
         <FollowButton target={chain === "arc" ? `market:${kind}:${marketId}` : `market:${chain}:${kind}:${marketId}`} label="Follow market updates" />
         <SettlementTimeline market={m} events={m.events} now={now} />
         <section aria-label="Who is in" className={`${SURFACE} grid gap-3 p-5`}>

@@ -83,7 +83,7 @@ contract MimirV3HardeningTest {
     function _propose(uint256 id, uint8 side) internal {
         vm.warp(block.timestamp + GAP + 1);
         vm.prank(oracle);
-        mimir.resolveClaim(id, side, "proposed", 90, bytes32(uint256(7)));
+        mimir.resolveClaimWithCutoff(id, side, "proposed", 90, bytes32(uint256(7)), 0);
     }
 
     function _state(uint256 id) internal view returns (uint8 state) {
@@ -122,13 +122,13 @@ contract MimirV3HardeningTest {
 
         vm.prank(owner);
         (bool byOwner,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveDispute.selector, id, uint8(2), "x", uint8(90), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveDisputeWithCutoff.selector, id, uint8(2), "x", uint8(90), bytes32(0), uint256(0))
         );
         assert(!byOwner);
 
         uint8 side = mimir.SIDE_CHALLENGERS();
         vm.prank(arbiter);
-        mimir.resolveDispute(id, side, "arbiter", 90, bytes32(0));
+        mimir.resolveDisputeWithCutoff(id, side, "arbiter", 90, bytes32(0), 0);
         assert(_state(id) == mimir.ST_RESOLVED());
     }
 
@@ -155,7 +155,7 @@ contract MimirV3HardeningTest {
         vm.warp(block.timestamp + GAP + 1);
         vm.prank(oracle);
         (bool resolved,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveClaim.selector, id, uint8(1), "x", uint8(90), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveClaimWithCutoff.selector, id, uint8(1), "x", uint8(90), bytes32(0), uint256(0))
         );
         assert(!resolved);
 
@@ -190,11 +190,11 @@ contract MimirV3HardeningTest {
 
         vm.prank(oracle);
         (bool proposed,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveClaim.selector, b, uint8(1), "x", uint8(90), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveClaimWithCutoff.selector, b, uint8(1), "x", uint8(90), bytes32(0), uint256(0))
         );
         vm.prank(arbiter);
         (bool ruled,) = address(mimir).call(
-            abi.encodeWithSelector(MimirV3.resolveDispute.selector, a, uint8(1), "x", uint8(90), bytes32(0))
+            abi.encodeWithSelector(MimirV3.resolveDisputeWithCutoff.selector, a, uint8(1), "x", uint8(90), bytes32(0), uint256(0))
         );
         assert(!proposed && !ruled);
     }
@@ -264,7 +264,7 @@ contract MimirV3HardeningTest {
 
         uint8 side = mimir.SIDE_CHALLENGERS();
         vm.prank(arbiter);
-        mimir.resolveDispute(id, side, "vetoed", 90, bytes32(0));
+        mimir.resolveDisputeWithCutoff(id, side, "vetoed", 90, bytes32(0), 0);
         assert(_winner(id) == mimir.SIDE_CHALLENGERS());
     }
 

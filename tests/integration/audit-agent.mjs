@@ -59,7 +59,7 @@ async function exercise(id, native) {
     await write(creator, pool, "createMarket", [question, "Yes", "No", source, "sports", BigInt(deadline), 1, zeroAddress, ...(!native ? [10n * unit] : [])], native ? 10n * unit : 0n);
     await write(bettor, pool, "stake", [1n, 2, zeroAddress, ...(!native ? [10n * unit] : [])], native ? 10n * unit : 0n);
     await pub.request({ method: "evm_setNextBlockTimestamp", params: [deadline + 1] });await pub.request({ method: "evm_mine", params: [] });
-    await write(oracle, vs, "resolveClaim", [1n, 1, "wrong Yes proposal", 95, `0x${"0".repeat(64)}`]);
+    await write(oracle, vs, "resolveClaimWithCutoff", [1n, 1, "wrong Yes proposal", 95, `0x${"0".repeat(64)}`, 0n]);
     await write(oracle, pool, "resolve", [1n, 1, "wrong Yes proposal", `0x${"0".repeat(64)}`]);
     const cfg = marketChains({ arc: { mimirV3: vs.address, mimirPool: pool.address }, base: { mimirV3: vs.address, mimirPool: pool.address, usdc: token?.address } }).chains[native ? "arc" : "base"];
     cfg.contracts.fromBlock = vs.block;
@@ -69,7 +69,7 @@ async function exercise(id, native) {
     for (const job of Object.values(state.jobs)) {
       const contract = job.proposal.kind === "vs" ? vs : pool;
       const io = auditIO(cfg, pub, wallet(auditor), auditor.address, "observe", job, save);
-      io.review = p => reviewProposal(p, { fetch: async () => ({ text: "Final: Team A 120, Team B 115. Combined score 235.", fetcher: "fixture", url: "https://example.com/game" }), llm: async () => ({ text: JSON.stringify({ verdict: "CHALLENGERS_WIN", confidence: 96, explanation: "235 is below 250." }), provider: "fixture", model: "independent" }) });
+      io.review = p => reviewProposal(p, { fetch: async () => ({ text: "Final: Team A 120, Team B 115. Combined score 235.", fetcher: "fixture", url: "https://example.com/game" }), llm: async () => ({ text: JSON.stringify({ verdict: "CHALLENGERS_WIN", confidence: 96, explanation: "235 is below 250.", knownAt: "" }), provider: "fixture", model: "independent" }) });
       const beforeNonce = await pub.getTransactionCount({ address: auditor.address });
       await processAuditProposal(job, io);assert.equal(job.status, "observed");
       assert.equal(await pub.getTransactionCount({ address: auditor.address }), beforeNonce, "observe mode signed a transaction");
@@ -85,7 +85,7 @@ async function exercise(id, native) {
       if (job.proposal.kind === "vs") {
         assert.equal(await read(vs, "hasChallenged", [1n, auditor.address]), false);
         assert.equal(await read(vs, "invited", [1n, auditor.address]), false);
-        await write(arbiter, vs, "resolveDispute", [1n, 2, "correct No outcome", 96, `0x${"2".repeat(64)}`]);
+        await write(arbiter, vs, "resolveDisputeWithCutoff", [1n, 2, "correct No outcome", 96, `0x${"2".repeat(64)}`, 0n]);
       } else await write(arbiter, pool, "resolveDispute", [1n, 2, "correct No outcome", `0x${"2".repeat(64)}`]);
       const after = token ? await read(token, "balanceOf", [auditor.address]) : await pub.getBalance({ address: auditor.address });
       assert.equal(after, token ? before : before - rc.gasUsed * rc.effectiveGasPrice, "correct dispute did not recover its bond");
