@@ -4,6 +4,7 @@ import { callLLMWithMeta, extractJson, type CallLLMOptions } from "../../lib/llm
 import { fetchEvidence } from "../../lib/server/evidence-fetcher";
 import { INJECTION_GUARD, fenceUntrusted } from "../../lib/prompt-safety";
 import { stripResolverFragment } from "../../lib/resolver-spec";
+import { auditOpenAIConfig, callAuditOpenAI } from "./openai-compat";
 
 export interface AuditProposal {
   chainId: number; contract: Address; kind: "vs" | "pool"; marketId: string;
@@ -70,7 +71,7 @@ ${fenceUntrusted("claim", `Question: ${p.question}\nSide A (creator): ${p.labelA
 ${fenceUntrusted("fresh-evidence", evidence.text.slice(0, 12_000))}
 Independently determine the deposit eligibility cutoff as well. For a scheduled game, match, race, election or show, use its START time (not the final whistle). For "X by date", use when X happened. For a price/number at a set time, use that time. Return an empty knownAt only when the evidence cannot establish a time. Confidence must cover both the answer and the cutoff. Never invent a timestamp.
 Return only JSON: {"knownAt":"ISO-8601 UTC time or empty string","verdict":"CREATOR_WINS"|"CHALLENGERS_WIN"|"DRAW"|"UNRESOLVABLE","confidence":0-100,"explanation":"specific evidence and reasoning"}. Use confidence >=90 only for a clear evidence-backed result. Missing or ambiguous evidence is UNRESOLVABLE, not a guess.`;
-    const answer = await (deps.llm ?? callLLMWithMeta)(prompt, { role: "audit", settlement: true, noFreeRouter: true, maxTokens: 1024, temperature: 0, jsonOnly: true, model: process.env.AUDIT_LLM_MODEL?.trim() || undefined });
+    const answer = await (deps.llm ?? (auditOpenAIConfig() ? callAuditOpenAI : callLLMWithMeta))(prompt, { role: "audit", settlement: true, noFreeRouter: true, maxTokens: 1024, temperature: 0, jsonOnly: true, model: process.env.AUDIT_LLM_MODEL?.trim() || undefined });
     const raw = JSON.parse(extractJson(answer.text) ?? "null");
     const side = ({ CREATOR_WINS: 1, CHALLENGERS_WIN: 2, DRAW: 3, UNRESOLVABLE: 4 } as Record<string, number>)[raw?.verdict];
     if (!side || typeof raw.confidence !== "number" || !Number.isFinite(raw.confidence) || raw.confidence < 0 || raw.confidence > 100 || typeof raw.explanation !== "string") return null;

@@ -11,6 +11,7 @@ import { AUDIT_ROLE_ABI, auditIO, readAuditRoles } from "./chain";
 import { assertAuditRoles, processAuditProposal, proposalKey, auditQueue, isAuditReceiptJob, type AuditJob } from "./review";
 import { discoverAuditJobs } from "./discover";
 import { lockAuditState, readAuditState, saveAuditState } from "./state";
+import { auditOpenAIConfig } from "./openai-compat";
 
 async function main() {
   if (process.argv.includes("--help")) {
@@ -32,7 +33,7 @@ async function main() {
   const mode = process.env.AUDIT_MODE?.trim() || "observe";
   if (mode !== "observe" && mode !== "challenge") throw Error("AUDIT_MODE must be observe or challenge");
   if (mode === "challenge" && !account) throw Error("AUDIT_AGENT_KEY required for challenge mode");
-  if (providerChain({ role: "audit", settlement: true, noFreeRouter: true }).length === 0) throw Error("No dedicated audit model credentials/allowed model; proposer/shared keys are never used");
+  if (!auditOpenAIConfig() && providerChain({ role: "audit", settlement: true, noFreeRouter: true }).length === 0) throw Error("No dedicated audit model credentials/allowed model; proposer/shared keys are never used");
   const statePath = process.env.AUDIT_STATE_FILE?.trim();
   if (!statePath) throw Error("Set a private AUDIT_STATE_FILE path");
   if (configs.some(c => c.contracts.fromBlock <= 0n)) throw Error("Set each deployment's FROM_BLOCK before running the auditor");
