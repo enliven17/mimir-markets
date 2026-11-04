@@ -174,10 +174,23 @@ const deploy = async (name: string, args: unknown[]) => {
   const rc = await pub.waitForTransactionReceipt({ hash });
   if (rc.status !== "success" || !rc.contractAddress) throw new Error(`${name} deploy failed ${hash}`);
   console.log(`  ${name} ${rc.contractAddress} block ${rc.blockNumber} (${Number(rc.gasUsed * rc.effectiveGasPrice) / 1e18} ETH)`);
+  // Public RPCs load-balance across nodes; the next deploy's estimate must not land on one without this code.
+  for (let i = 0; !(await pub.getCode({ address: rc.contractAddress })); i++) {
+    if (i > 30) throw new Error(`${name} code not visible at ${rc.contractAddress}`);
+    await new Promise((r) => setTimeout(r, 2000));
+  }
   return { address: getAddress(rc.contractAddress), block: rc.blockNumber, abi: a.abi };
 };
 
-const fees = await deploy("MimirFees", [owner, feeSigner]);
+// BASE_FEES_ADDRESS resumes a run that stopped after MimirFees (checked against the expected roles).
+const reuseFees = e.BASE_FEES_ADDRESS?.trim();
+const fees = reuseFees
+  ? { address: getAddress(reuseFees), block: 0n, abi: art("MimirFees").abi }
+  : await deploy("MimirFees", [owner, feeSigner]);
+if (reuseFees) {
+  const [o, s] = await Promise.all((["owner", "signer"] as const).map((fn) => pub.readContract({ address: fees.address, abi: fees.abi, functionName: fn })));
+  if (getAddress(o as string) !== owner || getAddress(s as string) !== feeSigner) throw new Error(`BASE_FEES_ADDRESS ${fees.address} has other roles`);
+}
 const v3 = await deploy("MimirV3Erc20", [owner, arbiter, oracle, feeTo, fees.address, window, minStake, usdc]);
 const pool = await deploy("MimirPoolErc20", [owner, arbiter, oracle, feeTo, fees.address, window, minStake, usdc]);
 console.log("Audit role starts disabled. After installing the printed deployment config, run npm run audit-agent -- --print-setup with AUDIT_AGENT_ADDRESS; the owner must execute those setup calls before launch.");
@@ -201,7 +214,7 @@ NEXT_PUBLIC_MIMIR_BASE_FEES_ADDRESS=${fees.address}
 NEXT_PUBLIC_MIMIR_BASE_V3_ADDRESS=${v3.address}
 NEXT_PUBLIC_MIMIR_BASE_POOL_ADDRESS=${pool.address}
 NEXT_PUBLIC_MIMIR_BASE_USDC_ADDRESS=${usdc}
-NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK=${fees.block}
+NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK=${fees.block || v3.block}
 NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE=${minStakeText}
 
 # Backend (npx convex env set …): serverMarketChains in lib/chains/registry.ts
@@ -210,7 +223,7 @@ MIMIR_BASE_FEES_ADDRESS=${fees.address}
 MIMIR_BASE_V3_ADDRESS=${v3.address}
 MIMIR_BASE_POOL_ADDRESS=${pool.address}
 MIMIR_BASE_USDC_ADDRESS=${usdc}
-MIMIR_BASE_FROM_BLOCK=${fees.block}
+MIMIR_BASE_FROM_BLOCK=${fees.block || v3.block}
 MIMIR_BASE_MIN_STAKE=${minStakeText}
 # BASE_RPC=<a provider URL>
 # ORACLE_KEY=<the key of ${oracle}>: the one oracle key, the same on Base and Arc (no BASE_ORACLE_KEY). Fund ${oracle} with ETH on Base.`);
