@@ -21,7 +21,9 @@ export async function discoverAuditJobs(cfg: MarketChain, pub: PublicClient, sta
     const overlap = next > 64n ? next - 64n : 0n;
     const fromBlock = overlap > cfg.contracts.fromBlock ? overlap : cfg.contracts.fromBlock;
     if (fromBlock > head.number) throw Error("Audit checkpoint is ahead of this chain; verify RPC/reorg before resuming");
-    const toBlock = fromBlock + 1999n < head.number ? fromBlock + 1999n : head.number;
+    // Same spans as the indexer (convex/arcSync.ts CHUNK): public Base RPCs cap eth_getLogs at 200 blocks.
+    const span = cfg.id === "base" ? 199n : 249n;
+    const toBlock = fromBlock + span < head.number ? fromBlock + span : head.number;
     const logs = await pub.getContractEvents({ address, abi: kind === "vs" ? V3_ABI : POOL_ABI, eventName: "ResolutionProposed", fromBlock, toBlock });
     for (const log of logs) {
       if (!log.blockHash || log.logIndex === null || log.args.id === undefined || log.args.disputableUntil === undefined) throw Error("Incomplete audit proposal log");

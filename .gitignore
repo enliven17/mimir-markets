@@ -142,3 +142,4 @@ brand/source/pitch-img/
 brand/source/networks/*
 !brand/source/networks/arc.svg
 brand/source/fonts/Geist-Variable.woff2
+.env.audit
