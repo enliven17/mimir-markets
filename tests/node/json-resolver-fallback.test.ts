@@ -42,7 +42,7 @@ test("a creator's JSON predicate cannot short-circuit original-question agent ev
     const repo = resolve(import.meta.dirname, "../..");
     await build({ entryPoints: [resolve(repo, "agents/oracle/decide.ts")], outfile, bundle: true, platform: "node", format: "esm", define: { "process.env.ORACLE_LLM_THROTTLE_MS": '"0"' }, plugins: [{ name: "remote-boundaries", setup(b) {
       b.onResolve({ filter: /llm$|evidence-fetcher$|research\/gateway$/ }, args => {
-        const path = resolve(args.resolveDir, args.path).slice(repo.length + 1);
+        const path = resolve(args.resolveDir, args.path).slice(repo.length + 1).replaceAll("\\", "/");
         if (path in remote) return { path, namespace: "fixture" };
       });
       b.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: remote[args.path as keyof typeof remote], loader: "js" }));

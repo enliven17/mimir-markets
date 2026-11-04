@@ -44,7 +44,7 @@ test("paid API routes enforce private redemption on Arc and retain Base behavior
     const out = join(temp, "api.mjs");
     await build({ stdin: { contents: `export {GET,POST} from './app/api/launch/[id]/call/route';export {call} from './convex/agentApi';export {claim,release,done} from './convex/agentApiDb';export {memoryBackend} from './tests/helpers/convex-memory';`, resolveDir: root, loader: "ts" }, outfile: out, bundle: true, platform: "node", format: "esm", tsconfig: join(root, "tsconfig.json"), plugins: [{ name: "remote-boundaries", setup(b) {
       b.onResolve({ filter: /.*/ }, a => {
-        const key = a.path === "viem" ? "viem" : a.path.startsWith("@/") ? a.path.slice(2) : resolve(a.resolveDir, a.path).slice(root.length + 1);
+        const key = a.path === "viem" ? "viem" : a.path.startsWith("@/") ? a.path.slice(2) : resolve(a.resolveDir, a.path).slice(root.length + 1).replaceAll("\\", "/");
         if (key in remotes) return { path: key, namespace: "fixture" };
       });
       b.onLoad({ filter: /.*/, namespace: "fixture" }, a => ({ contents: remotes[a.path], loader: "js", resolveDir: root }));

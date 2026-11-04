@@ -11,7 +11,7 @@ test("audit checkpoints bind deployment and reject corrupted state rather than s
     const state = await readAuditState(path, "base-contract-auditor");
     state.cursors.base = "123";await saveAuditState(path, state);
     assert.equal((await readAuditState(path, "base-contract-auditor")).cursors.base, "123");
-    assert.equal((await stat(path)).mode & 0o777, 0o600);
+    if (process.platform !== "win32") assert.equal((await stat(path)).mode & 0o777, 0o600);
     await assert.rejects(readAuditState(path, "arc-another-contract"), /deployment/i);
     await writeFile(path, "{broken");await assert.rejects(readAuditState(path, "base-contract-auditor"));
   } finally { await rm(root, { recursive: true, force: true }); }
