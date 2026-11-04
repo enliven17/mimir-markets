@@ -84,3 +84,4 @@ Live on mimirmarkets.xyz with Convex **groovy-marmot-393**. Contracts include th
 - RPC: thirdweb client-id URL with `BASE_RPC_HEADERS={"Origin":"https://mimirmarkets.xyz"}`, public RPC as fallback.
 - Still off: market creator (`MIMIR_PAUSE_CREATE_MARKET`, `MARKET_CREATOR_DRY_RUN`), copy (`MIMIR_PAUSE_COPY`), council bets, Launch gates, Base paid agent calls (no mainnet `BASE_AGENT_PAY_ADDRESS`). The audit worker is not running yet.
 - Preflight passes except the known `@coinbase/cdp-sdk` zod advisory (wallet connector dependency, no upstream fix).
+- 2026-11-05 later: creator, copy, council bets, Launch (Arc/Solana/Robinhood/Base, fees, agent markets) and paid calls turned on, mirroring the previous live config. MimirAgentPay `0x6EBe690261946d915880c295A30Cd711BFE1F1f5` (Sourcify verified). Audit worker uses DeepSeek through Token Harbor (`AUDIT_OPENAI_*`).
