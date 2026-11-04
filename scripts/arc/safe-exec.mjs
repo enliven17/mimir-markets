@@ -17,7 +17,7 @@ const value = BigInt(e.VALUE ?? '0')
 let data = e.DATA ?? '0x'
 if (e.FN) {
   const item = parseAbiItem(`function ${e.FN}`)
-  const args = JSON.parse(e.ARGS ?? '[]').map((a) => (typeof a === 'string' && /^\d/.test(a) ? BigInt(Number(a).toLocaleString('fullwide', { useGrouping: false })) : a))
+  const args = JSON.parse(e.ARGS ?? '[]').map((a) => (typeof a === 'string' && /^\d[\d.e]*$/.test(a) ? BigInt(Number(a).toLocaleString('fullwide', { useGrouping: false })) : a))
   data = encodeFunctionData({ abi: [item], functionName: item.name, args })
 }
 const signers = (e.SIGNER_KEYS ?? '').split(',').map((k) => k.trim()).filter(Boolean).map((k) => privateKeyToAccount(k))
@@ -32,7 +32,9 @@ const abi = parseAbi([
   'function getOwners() view returns (address[])',
   'function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) payable returns (bool)',
 ])
-const [nonce, threshold, owners] = await Promise.all(['nonce', 'getThreshold', 'getOwners'].map((f) => pub.readContract({ address: safe, abi, functionName: f })))
+const [readNonce, threshold, owners] = await Promise.all(['nonce', 'getThreshold', 'getOwners'].map((f) => pub.readContract({ address: safe, abi, functionName: f })))
+// SAFE_NONCE: load-balanced public RPCs can return a stale nonce right after the previous execution (GS026).
+const nonce = e.SAFE_NONCE ? BigInt(e.SAFE_NONCE) : readNonce
 for (const s of signers) if (!owners.includes(s.address)) throw new Error(`${s.address} is not an owner of ${safe}`)
 
 const tx = { to, value, data, operation: 0, safeTxGas: 0n, baseGas: 0n, gasPrice: 0n, gasToken: zeroAddress, refundReceiver: zeroAddress, nonce }
