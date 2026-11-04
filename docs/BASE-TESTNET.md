@@ -60,3 +60,12 @@ To re-enable Arc, first verify its network, RPC, contracts, oracle role and fund
 The newer deployment guard requires a binding for every enabled chain. Keep archived Arc mainnet dormant in this Sepolia backend. Reactivate Arc mainnet in the isolated Base mainnet backend instead, using the binding/reindex steps in [BASE-MAINNET.md](BASE-MAINNET.md). Do not use testnet adoption to relabel Arc mainnet history.
 
 Deploy fresh Base mainnet contracts after testnet acceptance. Use the strict role checks, Safe owner/arbiter, distinct oracle and signer, at least a one-day dispute window, mainnet USDC, and reviewed caps. Switch the site, Convex contracts, first block, RPC, Circle credentials and wallets together. Testnet balances and history must never be interpreted as mainnet funds.
+
+## Audited contracts with audit agent (2026-11-04)
+
+Fresh Base Sepolia deployment of the audit-fix contracts (deposit-only refunds, `auditAgent`), dispute window 900 s. Not wired to the testnet site; its Convex binding stays on the contracts above.
+
+- MimirFees `0x48ecdFDfcDa265Fcf44256e75a42eA7ba3e2531D`, MimirV3Erc20 `0x271f12D1A98f18f9b74d0ce14932454a8a5ded8b`, MimirPoolErc20 `0xf2236633b595BCD4bE49dB0Cc16eb118E059aB0C`, from block 54520313.
+- Audit agent `0x385dEBaC2170E1bD840324cb7eF882976319Ed9c` (testnet only).
+- Audit e2e: oracle proposed the wrong side on pool 1, the worker (challenge mode) disputed with a 2 USDC bond (`0x49e7fa8a3136daac1db3bce8a4ed24951db5a86ee734c6fd91f64d12a820201d`), the arbiter ruled for side A and the bond returned (`0xb6349347af51f32cc912af383c3ca1a3b810802445eb89ba42992fa9897aa2bf`).
+- Smoke: permit stake, VS create/cancel, pool 2 propose/finalize/claim (`0xd7d7de5d4d807e8d13f6d2c2e9ac406c8fd4b01c0b6824c65fe4cc16ff13f5cd`).

@@ -67,7 +67,7 @@ while ((await pub.getBlock()).timestamp <= deadline) await new Promise((r) => se
 const proposed = await write("oracle proposes", oracleWallet, pool, poolAbi, "resolve", [poolId, 1, "Base Sepolia integration test passed", keccak256(toHex("Base Sepolia smoke test"))]);
 const proposedBlock = await pub.getBlock({blockNumber:proposed.blockNumber});
 const disputeWindow = await pub.readContract({address:pool,abi:poolAbi,functionName:"disputeWindow"}) as bigint;
-assert.ok(disputeWindow <= 300n, "Smoke test only waits up to five minutes for a testnet dispute window");
+assert.ok(disputeWindow <= 1800n, "Smoke test only waits up to thirty minutes for a testnet dispute window");
 while ((await pub.getBlock()).timestamp <= proposedBlock.timestamp + disputeWindow) await new Promise((r) => setTimeout(r, 5000));
 await write("finalize pool", ownerWallet, pool, poolAbi, "finalize", [poolId]);
 const before = await balance(owner.address);
