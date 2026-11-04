@@ -41,7 +41,7 @@ try {
 } catch { failures.push("Invalid Base mainnet wallet configuration"); }
 need(BigInt(e.BASE_DISPUTE_WINDOW ?? "0") >= 86400n, "Dispute window must be at least 24 hours");
 need(e.BASE_RPC_URL && !/mainnet\.base\.org/.test(e.BASE_RPC_URL), "Configure a dedicated production RPC");
-const client = createPublicClient({ chain: base, transport: http(e.BASE_RPC_URL || base.rpcUrls.default.http[0], { timeout: 10_000, retryCount: 0 }) });
+const client = createPublicClient({ chain: base, transport: http(e.BASE_RPC_URL || base.rpcUrls.default.http[0], { timeout: 10_000, retryCount: 0, fetchOptions: e.BASE_RPC_HEADERS ? { headers: JSON.parse(e.BASE_RPC_HEADERS) } : undefined }) });
 const roles = ["BASE_OWNER", "BASE_ARBITER", "BASE_FEE_RECIPIENT", "ORACLE_ADDRESS", "BASE_FEE_SIGNER", "AUDIT_AGENT_ADDRESS"] as const;
 const addresses: Partial<Record<typeof roles[number], Address>> = {};
 for (const name of roles) {
