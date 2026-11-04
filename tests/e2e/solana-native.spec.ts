@@ -11,6 +11,21 @@ import {
   type AgentEnvelope,
 } from "../../lib/agents/api";
 
+test("public market API lists and reads native VS records", async ({ request }) => {
+  const response = await request.get("/api/markets?chain=solana&kind=vs&limit=1");
+  expect(response.status(), await response.text()).toBe(200);
+  const listed = await response.json();
+  expect(listed.success).toBe(true);
+  const market = listed.data.markets[0];
+  expect(market.chain).toBe("solana");
+  expect(market.kind).toBe("vs");
+  const detail = await request.get(`/api/markets/vs/${market.marketId}`);
+  expect(detail.status(), await detail.text()).toBe(200);
+  expect((await detail.json()).data.market.chain).toBe("solana");
+  expect((await request.get("/api/markets?chain=base")).status()).toBe(400);
+  expect((await request.get("/api/markets?kind=pool")).status()).toBe(400);
+});
+
 const signature = (key: Keypair, message: string) =>
   bs58.encode(
     nacl.sign.detached(new TextEncoder().encode(message), key.secretKey),

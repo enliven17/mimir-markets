@@ -14,10 +14,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
   if (!(await allowRequest("markets", clientIp(req), 60, 60_000))) return tooManyRequests(60);
   const { kind, id } = await params;
   const marketId = Number(id);
-  const chain = new URL(req.url).searchParams.get("chain") ?? "arc";
-  if (chain !== "arc" && chain !== "base") return NextResponse.json({ success: false, error: "chain must be arc or base" }, { status: 400 });
-  if ((kind !== "vs" && kind !== "pool") || !Number.isInteger(marketId) || marketId < 0) {
-    return NextResponse.json({ success: false, error: "use /api/markets/vs/<id> or /api/markets/pool/<id>" }, { status: 400 });
+  const chain = new URL(req.url).searchParams.get("chain") ?? "solana";
+  if (chain !== "solana") return NextResponse.json({ success: false, error: "chain must be solana" }, { status: 400 });
+  if (kind !== "vs" || !Number.isInteger(marketId) || marketId < 1) {
+    return NextResponse.json({ success: false, error: "use /api/markets/vs/<id>" }, { status: 400 });
   }
   try {
     const m = await arcMarketDetail(kind, marketId, chain);

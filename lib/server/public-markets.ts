@@ -72,7 +72,7 @@ export function phaseOf(m: Pick<IndexedMarket, "status" | "deadline">, now: numb
 export function toPublic(m: IndexedMarket, now: number): PublicMarket {
   const phase = phaseOf(m, now);
   const settled = phase === "resolved" || phase === "cancelled";
-  const chain = m.chain ?? "arc";
+  const chain = m.chain ?? "solana";
   return {
     id: marketRef(chain, m.kind, m.marketId),
     chain,
