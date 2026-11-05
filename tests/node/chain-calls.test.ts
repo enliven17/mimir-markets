@@ -179,3 +179,28 @@ test("send on Base: VS approves then calls; no ETH stops before the wallet opens
   assert.equal(a.sent[0][0].value, 2n * USDC);
   assert.equal(decodeFunctionData({ abi: ARC_V3_ABI, data: actionCall(arc, stakeVs).data }).functionName, "challengeClaim");
 });
+
+test("send on Base: a stale permit nonce after our own permit is bumped, and a reverting permit tx never opens the wallet", async () => {
+  const owner = A(77);
+  const nonces: bigint[] = [];
+  const wallet = (sent: unknown[]) => ({ address: owner, sendCalls: async (calls: unknown[]) => { sent.push(calls); return { txHash: "0x01" as Hex, txHashes: ["0x01" as Hex] }; } });
+  const sign = async (typed: { message: { nonce: bigint } }) => { nonces.push(typed.message.nonce); return `0x${"1".repeat(64)}${"2".repeat(64)}1b` as Hex; };
+  const deps = { allowance: async () => 0n, permitInfo, signTypedData: sign as never, simulate: async () => {}, sleep: async () => {} };
+  const sent: unknown[] = [];
+  await sendMarketAction(base, wallet(sent), stakePool, deps);
+  await sendMarketAction(base, wallet(sent), stakePool, deps); // the RPC still says nonce 0
+  assert.deepEqual(nonces, [0n, 1n]);
+
+  let tries = 0;
+  const failing = { ...deps, simulate: async () => { tries++; throw new Error("TransferFailed()"); } };
+  const none: unknown[] = [];
+  await assert.rejects(sendMarketAction(base, wallet(none), stakePool, failing), /TransferFailed/);
+  assert.equal(tries, 3);
+  assert.equal(none.length, 0, "the wallet never saw a transaction bound to revert");
+
+  let once = 0;
+  const flaky = { ...deps, simulate: async () => { if (once++ === 0) throw new Error("lagging node"); } };
+  const ok: unknown[] = [];
+  assert.equal((await sendMarketAction(base, wallet(ok), stakePool, flaky)).path, "permit");
+  assert.equal(ok.length, 1);
+});

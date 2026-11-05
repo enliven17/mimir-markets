@@ -24,6 +24,7 @@ export function describeSendError(err: unknown, chain: Pick<MarketChain, "label"
   if (/PoolFull/.test(msg)) return "This market is full: challengers can stake at most 5× the creator's stake.";
   if (/NotInvited/.test(msg)) return "The creator has not approved this wallet to join this private claim.";
   if (/BadInvite/.test(msg)) return "Only the creator can change approvals for valid participant wallets on an open private claim.";
+  if (/TransferFailed/.test(msg)) return "Your last transaction is still settling. Wait a few seconds, then try again.";
   if (/BettingClosed|challenge window closed/.test(msg)) return "Staking has closed on this market.";
   if (/already challenged/.test(msg)) return "You already challenged this market.";
   if (/transfer amount exceeds (balance|allowance)|ERC20: insufficient/i.test(msg)) return `Not enough USDC on ${chain.label} for this.`;
@@ -32,6 +33,9 @@ export function describeSendError(err: unknown, chain: Pick<MarketChain, "label"
   if (/SubUnit|whole number of them/.test(msg)) return "USDC has 6 decimals: use at most 6 digits after the point.";
   return msg;
 }
+
+/** One wallet request at a time across every panel on the page (the stake box is mounted twice: sheet and sidebar). */
+let sending = false;
 
 export function useArcSend(account: ReturnType<typeof useArcAccount>) {
   const poke = useMutation(api.arc.poke);
@@ -42,7 +46,8 @@ export function useArcSend(account: ReturnType<typeof useArcAccount>) {
 
   const send = useCallback(
     async (action: MarketAction): Promise<CallsReceipt | null> => {
-      if (!session) return null;
+      if (!session || sending) return null;
+      sending = true;
       setBusy(true);
       setError(null);
       try {
@@ -56,6 +61,7 @@ export function useArcSend(account: ReturnType<typeof useArcAccount>) {
         setError(describeSendError(err, chainConfig));
         return null;
       } finally {
+        sending = false;
         setBusy(false);
       }
     },

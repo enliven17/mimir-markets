@@ -13,7 +13,7 @@
 import type { Address, Hex } from "viem";
 
 import type { ArcSession, CallsReceipt } from "../arc/session";
-import { actionCall, actionCalls, actionContract, needsApproval, permitCapable, permitTypedData, pullOf, splitSignature, type MarketAction } from "./calls";
+import { actionCall, actionCalls, actionContract, needsApproval, permitCapable, permitTypedData, pullOf, splitSignature, type MarketAction, type PermitSig } from "./calls";
 import type { MarketChain } from "./registry";
 
 export interface MarketSendDeps {
@@ -27,7 +27,17 @@ export interface MarketSendDeps {
   signTypedData?(typed: ReturnType<typeof permitTypedData>): Promise<Hex>;
   /** Unix seconds (permit deadline). */
   now?(): number;
+  /** eth_call of the permit transaction from the owner; throws when it would revert. Absent = no pre-check. */
+  simulate?(call: { from: Address; to: Address; data: Hex }): Promise<void>;
+  /** Waits between pre-check attempts (tests pass a no-op). */
+  sleep?(ms: number): Promise<void>;
 }
+
+/**
+ * Permit nonces this page already consumed, per chain and owner. Right after a permit transaction a load-balanced RPC
+ * can still return the old nonce; signing with it makes a second wallet request that is bound to fail.
+ */
+const usedPermitNonce = new Map<string, bigint>();
 
 export type SendPath = "native" | "allowance" | "permit" | "approve";
 
@@ -64,19 +74,34 @@ export async function sendMarketAction(
   if (!needsApproval(chain, action, allowance)) return { ...(await session.sendCalls([actionCall(chain, action)])), path: "allowance" };
 
   if (permitCapable(chain, action) && deps.signTypedData && deps.permitInfo) {
-    let permit: Parameters<typeof actionCall>[2] | null = null;
+    let permit: (PermitSig & { nonce: bigint }) | null = null;
     try {
       const info = await deps.permitInfo(owner);
+      const seen = usedPermitNonce.get(`${chain.chainId}:${owner.toLowerCase()}`);
+      if (seen !== undefined && seen > info.nonce) info.nonce = seen;
       const deadline = BigInt((deps.now?.() ?? Math.floor(Date.now() / 1000)) + PERMIT_TTL_S);
       const sig = await deps.signTypedData(
         permitTypedData(chain, { owner, spender, valueWei: pullOf(action), nonce: info.nonce, deadline, tokenName: info.name, tokenVersion: info.version }),
       );
-      permit = { deadline, ...splitSignature(sig) };
+      permit = { deadline, ...splitSignature(sig), nonce: info.nonce };
     } catch (err) {
       if (isUserRejection(err)) throw err;
       permit = null; // no typed-data signing here: approve + call instead
     }
-    if (permit) return { ...(await session.sendCalls([actionCall(chain, action, permit)])), path: "permit" };
+    if (permit) {
+      const call = actionCall(chain, action, permit);
+      // Never open the wallet on a transaction that would revert: a lagging RPC gets a few seconds to catch up.
+      if (deps.simulate) {
+        const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+        for (let attempt = 1; ; attempt++) {
+          try { await deps.simulate({ from: owner, to: call.to, data: call.data }); break; }
+          catch (err) { if (attempt >= 3) throw err; await sleep(1500); }
+        }
+      }
+      const sent = await session.sendCalls([call]);
+      usedPermitNonce.set(`${chain.chainId}:${owner.toLowerCase()}`, permit.nonce + 1n);
+      return { ...sent, path: "permit" };
+    }
   }
   return { ...(await session.sendCalls(actionCalls(chain, action, allowance))), path: "approve" };
 }

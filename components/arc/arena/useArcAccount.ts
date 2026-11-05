@@ -81,6 +81,7 @@ export function useArcAccount(chain: MarketChainId = MARKET_CHAINS.defaultChain)
         gasBalance: cfg.gas.symbol === "ETH" ? (owner) => gasBalanceWei(cfg, owner) : undefined,
         permitInfo: (owner) => permitInfo(chain, owner),
         signTypedData: (typed) => signTypedDataWithEvm(chain, address, typed as never),
+        simulate: async ({ from, to, data }) => { await chainPublicClient(cfg).call({ account: from, to, data }); },
       });
     },
     [session, address, cfg, chain],
