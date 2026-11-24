@@ -145,7 +145,7 @@ contract MimirFees {
     }
 
     /// The account's entry fee in basis points right now.
-    function entryBps(address account) external view returns (uint16) {
+    function entryBps(address account) external view virtual returns (uint16) {
         Ticket memory t = tickets[account];
         if (t.expires <= block.timestamp || t.epoch != signerEpoch) return BASE_BPS;
         return t.tier == 2 ? WHALE_BPS : t.tier == 1 ? HOLDER_BPS : BASE_BPS;

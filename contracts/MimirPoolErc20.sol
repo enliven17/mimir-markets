@@ -10,6 +10,7 @@ interface IMimirFees {
 
 /// The slice of USDC (Circle FiatToken v2) the ERC-20 ports use.
 interface IUsdc {
+    function decimals() external view returns (uint8);
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -107,12 +108,12 @@ contract MimirPoolErc20 {
     uint8 public constant DRAW         = 3;
     uint8 public constant UNRESOLVABLE = 4;
 
-    /// Smallest stake (gross, USDC, 6 decimals), fixed at deploy (0.01 to 100 USDC).
+    /// Smallest stake (gross, USDC, 6 or 18 decimals), fixed at deploy (0.01 to 100 USDC).
     uint256 public immutable MIN_STAKE;
-    uint256 public constant MIN_STAKE_FLOOR = 1e4;
-    uint256 public constant MIN_STAKE_CEILING = 100e6;
+    uint256 public immutable MIN_STAKE_FLOOR;
+    uint256 public immutable MIN_STAKE_CEILING;
     /// The dispute bond (2 USDC), independent of the stake minimum so disputes stay costly to spam.
-    uint256 public constant DISPUTE_BOND = 2e6;
+    uint256 public immutable DISPUTE_BOND;
     /// No new stakes in the final LOCK_SECONDS before the deadline (anti-sniping).
     uint256 public constant LOCK_SECONDS = 60;
     /// A market may close at most a year out; entry fees above 1% are refused whatever the fee contract answers.
@@ -241,6 +242,7 @@ contract MimirPoolErc20 {
 
     // ── Errors ────────────────────────────────────────────────────────────────
     error BadMinStake();
+    error BadUsdcDecimals();
     error EntryFeeTooHigh();
     error NotOwner();
     error NotOracle();
@@ -314,13 +316,21 @@ contract MimirPoolErc20 {
             revert ZeroAddress();
         }
         if (_oracle == _owner || _oracle == _arbiter || _oracle == _feeRecipient) revert RoleCollision();
-        if (_minStake < MIN_STAKE_FLOOR || _minStake > MIN_STAKE_CEILING) revert BadMinStake();
-        MIN_STAKE = _minStake;
         if (address(_fees).code.length == 0 || address(_usdc).code.length == 0) revert NoCode();
+        uint8 dec = _usdc.decimals();
+        if (dec != 6 && dec != 18) revert BadUsdcDecimals();
+        uint256 unit = dec == 18 ? 1e18 : 1e6;
+        uint256 floor = unit / 100;
+        uint256 ceiling = 100 * unit;
+        if (_minStake < floor || _minStake > ceiling) revert BadMinStake();
+        MIN_STAKE_FLOOR = floor;
+        MIN_STAKE_CEILING = ceiling;
+        DISPUTE_BOND = 2 * unit;
+        MIN_STAKE = _minStake;
         usdc = _usdc;
         if (_disputeWindow > MAX_DISPUTE_WINDOW) revert DisputeWindowTooLong();
-        // Base Sepolia (84532) and a local chain may test short windows; anywhere else a day at least.
-        if (block.chainid != 84532 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
+        // Base Sepolia (84532), BSC Testnet (97) and a local chain may test short windows; anywhere else a day at least.
+        if (block.chainid != 84532 && block.chainid != 97 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
             revert WindowTooShort();
         }
         disputeWindow = _disputeWindow;

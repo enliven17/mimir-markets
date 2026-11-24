@@ -8,6 +8,7 @@ interface IMimirFees {
 
 /// The slice of USDC (Circle FiatToken v2) the ERC-20 ports use.
 interface IUsdc {
+    function decimals() external view returns (uint8);
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -109,12 +110,12 @@ contract MimirV3Erc20 {
     /// Pool odds: the challengers' total stake may not exceed this multiple of
     /// the creator's stake, so each challenger's upside stays meaningful.
     uint256 public constant MAX_POOL_MULTIPLE      = 5;
-    /// Smallest stake (gross, USDC, 6 decimals) that opens or joins a claim, fixed at deploy (0.01 to 100 USDC).
+    /// Smallest stake (gross, USDC, 6 or 18 decimals) that opens or joins a claim, fixed at deploy (0.01 to 100 USDC).
     uint256 public immutable MIN_STAKE;
-    uint256 public constant MIN_STAKE_FLOOR = 1e4;
-    uint256 public constant MIN_STAKE_CEILING = 100e6;
+    uint256 public immutable MIN_STAKE_FLOOR;
+    uint256 public immutable MIN_STAKE_CEILING;
     /// What a dispute costs, apart from the stake minimum: cheap bets must not make disputes cheap to spam.
-    uint256 public constant DISPUTE_BOND = 2e6;
+    uint256 public immutable DISPUTE_BOND;
     uint256 public constant DEFAULT_PAYOUT_BPS     = 20_000;    // 2x
     /// Fixed odds pay at most 10x: beyond it a challenge overflows the liability math and blocks the claim.
     uint256 public constant MAX_PAYOUT_BPS         = 100_000;
@@ -413,14 +414,22 @@ contract MimirV3Erc20 {
             revert ZeroAddress();
         }
         if (_oracle == _owner || _oracle == _arbiter || _oracle == _feeRecipient) revert RoleCollision();
-        require(_minStake >= MIN_STAKE_FLOOR && _minStake <= MIN_STAKE_CEILING, "Mimir: min stake out of range");
-        MIN_STAKE = _minStake;
         require(address(_fees).code.length > 0, "Mimir: fees has no code");
         require(address(_usdc).code.length > 0, "Mimir: usdc has no code");
+        uint8 dec = _usdc.decimals();
+        require(dec == 6 || dec == 18, "Mimir: bad usdc decimals");
+        uint256 unit = dec == 18 ? 1e18 : 1e6;
+        uint256 floor = unit / 100;
+        uint256 ceiling = 100 * unit;
+        require(_minStake >= floor && _minStake <= ceiling, "Mimir: min stake out of range");
+        MIN_STAKE_FLOOR = floor;
+        MIN_STAKE_CEILING = ceiling;
+        DISPUTE_BOND = 2 * unit;
+        MIN_STAKE = _minStake;
         usdc = _usdc;
         require(_disputeWindow <= MAX_DISPUTE_WINDOW, "Mimir: dispute window too long");
-        // Base Sepolia (84532) and a local chain may test short windows; anywhere else a day at least.
-        if (block.chainid != 84532 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
+        // Base Sepolia (84532), BSC Testnet (97) and a local chain may test short windows; anywhere else a day at least.
+        if (block.chainid != 84532 && block.chainid != 97 && block.chainid != 31337 && _disputeWindow < MIN_LIVE_DISPUTE_WINDOW) {
             revert WindowTooShort();
         }
         disputeWindow = _disputeWindow;
