@@ -1,32 +1,43 @@
-import { MARKET_CHAINS } from "@/lib/chains/registry";
+import { MARKET_CHAINS, type MarketChainId } from "@/lib/chains/registry";
 
 /**
- * Official wordmarks of enabled market chains. Base first; Arc returns automatically when re-enabled.
- * `base=false` suppresses Base without making a dormant Arc visible. White marks for the dark theme.
+ * Official wordmarks of enabled market chains. White marks for the dark theme.
  */
 export function NetworkLogos({ className = "h-6", base = true }: { className?: string; base?: boolean }) {
+  const showBsc = MARKET_CHAINS.enabled.includes("bsc");
   const showBase = base && MARKET_CHAINS.enabled.includes("base");
   const showArc = MARKET_CHAINS.enabled.includes("arc");
+  const shown = [
+    ...(showBsc ? [{ id: "bsc", src: "/networks/bsc.svg", alt: "BNB Chain", cls: "h-[90%] w-auto" }] : []),
+    ...(showBase ? [{ id: "base", src: "/networks/base.svg", alt: "Base", cls: "h-[85%] w-auto" }] : []),
+    ...(showArc ? [{ id: "arc", src: "/networks/arc.svg", alt: "Arc", cls: "h-full w-auto" }] : []),
+  ];
   return (
     <span className={`inline-flex items-center ${/\bgap-/.test(className) ? "" : "gap-4"} ${className}`}>
-      {showBase ? (
-        <>
+      {shown.map((item, idx) => (
+        <span key={item.id} className="inline-flex h-full items-center gap-4">
+          {idx > 0 ? <span aria-hidden className="h-[60%] w-px bg-line" /> : null}
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVGs, no optimisation to gain */}
-          <img src="/networks/base.svg" alt="Base" className="h-[85%] w-auto" />
-          {showArc ? <span aria-hidden className="h-[60%] w-px bg-line" /> : null}
-        </>
-      ) : null}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {showArc ? <img src="/networks/arc.svg" alt="Arc" className="h-full w-auto" /> : null}
+          <img src={item.src} alt={item.alt} className={item.cls} />
+        </span>
+      ))}
     </span>
   );
 }
 
-const CHAIN_ICON = { base: "/networks/base-icon.svg", arc: "/networks/arc-icon.svg" } as const;
-const CHAIN_LABEL = { base: "Base", arc: "Arc" } as const;
+const CHAIN_ICON: Record<MarketChainId, string> = {
+  bsc: "/networks/bsc-icon.svg",
+  base: "/networks/base-icon.svg",
+  arc: "/networks/arc-icon.svg",
+};
+const CHAIN_LABEL: Record<MarketChainId, string> = {
+  bsc: "BNB Chain",
+  base: "Base",
+  arc: "Arc",
+};
 
 /** A market's network: the chain's icon and name, small, for cards, feeds, the market page and positions. */
-export function ChainBadge({ chain, className = "", withLabel = true }: { chain: "base" | "arc"; className?: string; withLabel?: boolean }) {
+export function ChainBadge({ chain, className = "", withLabel = true }: { chain: MarketChainId; className?: string; withLabel?: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full bg-panel-raised px-2 py-0.5 text-[11px] text-muted ${className}`} title={`On ${CHAIN_LABEL[chain]}`}>
       {/* eslint-disable-next-line @next/next/no-img-element -- tiny static SVG */}
@@ -36,17 +47,17 @@ export function ChainBadge({ chain, className = "", withLabel = true }: { chain:
   );
 }
 
-/** Pick a market chain (the create form): one button per enabled chain, the primary (Base) first. */
+/** Pick a market chain (the create form): one button per enabled chain. */
 export function ChainPicker({
   chains,
   value,
   onChange,
   hint,
 }: {
-  chains: readonly ("base" | "arc")[];
-  value: "base" | "arc";
-  onChange: (c: "base" | "arc") => void;
-  hint?: (c: "base" | "arc") => string;
+  chains: readonly MarketChainId[];
+  value: MarketChainId;
+  onChange: (c: MarketChainId) => void;
+  hint?: (c: MarketChainId) => string;
 }) {
   return (
     <div role="radiogroup" aria-label="Network" className="grid grid-cols-2 gap-2">

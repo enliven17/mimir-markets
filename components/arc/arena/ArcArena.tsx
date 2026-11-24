@@ -117,7 +117,7 @@ export default function ArcArena() {
                 onClick={() => setChain(c)}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${chain === c ? "bg-panel-raised text-cream" : "text-muted"}`}
               >
-                {c === "all" ? "All networks" : c === "base" ? "Base" : "Arc"}
+                {c === "all" ? "All networks" : c === "bsc" ? "BNB Chain" : c === "base" ? "Base" : "Arc"}
               </button>
             ))}
           </div>

@@ -9,7 +9,7 @@ import { marketPath } from "../chains/links";
 
 export interface ArcIndexMarket {
   /** Absent on rows indexed before Base: Arc. */
-  chain?: "arc" | "base";
+  chain?: "arc" | "base" | "bsc";
   kind: "vs" | "pool";
   marketId: number;
   question: string;
@@ -31,9 +31,9 @@ const units = (wei: string) => (BigInt(wei) / 1_000_000_000_000n).toString();
 export function arcLandingClaim(m: ArcIndexMarket): LandingClaim {
   return {
     // Unique across both contracts for React keys; the link uses `href`.
-    id: (m.chain === "base" ? 2_000_000 : 0) + (m.kind === "vs" ? m.marketId : 1_000_000 + m.marketId),
+    id: (m.chain === "bsc" ? 4_000_000 : m.chain === "base" ? 2_000_000 : 0) + (m.kind === "vs" ? m.marketId : 1_000_000 + m.marketId),
     href: marketPath(m.chain, m.kind, m.marketId),
-    label: `${m.chain === "base" ? "Base " : ""}${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}`,
+    label: `${m.chain === "bsc" ? "BNB Chain " : m.chain === "base" ? "Base " : ""}${m.kind === "vs" ? "VS" : "Pool"} #${m.marketId}`,
     question: m.question,
     category: m.category,
     creatorPosition: m.labelA,

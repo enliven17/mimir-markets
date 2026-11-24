@@ -94,7 +94,7 @@ function LaunchToken({ slug, ticker, owner, signMessage }: { slug: string; ticke
         </p>
       </div>
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Launchpad">
-        {MARKET_CHAINS.enabled.filter((c) => MARKET_CHAINS.chains[c].network === "mainnet").map((c) => (
+        {MARKET_CHAINS.enabled.filter((c): c is "arc" | "base" => (c === "arc" || c === "base") && MARKET_CHAINS.chains[c].network === "mainnet").map((c) => (
           <button key={c} type="button" role="radio" aria-checked={chain === c} onClick={() => setChain(c)} className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-[13px] ${chain === c ? "bg-cream text-ink" : "bg-cream/[0.06] text-muted hover:text-cream"}`}>
             {/* eslint-disable-next-line @next/next/no-img-element -- a small static logo */}
             <img src={c === "arc" ? "/launch/argus.jpg" : "/launch/clanker.svg"} alt="" width={24} height={24} className="h-6 w-6 rounded-full bg-white object-cover" />

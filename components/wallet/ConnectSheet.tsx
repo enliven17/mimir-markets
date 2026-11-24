@@ -27,14 +27,15 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
   const pick = (intent: EvmChainIntent) => {
     onClose();
     connectEvm(intent).then(
-      () => toast.success(t(intent === "arc" ? "arcConnected" : "baseConnected")),
+      () => toast.success(t(intent === "bsc" ? "bscConnected" : intent === "arc" ? "arcConnected" : "baseConnected")),
       (e: unknown) => {
-        if (!cancelled(e)) toast.error(t(intent === "arc" ? "arcFailed" : "baseFailed"));
+        if (!cancelled(e)) toast.error(t(intent === "bsc" ? "bscFailed" : intent === "arc" ? "arcFailed" : "baseFailed"));
       },
     );
   };
 
   const rows = [
+    ["bsc", "/networks/bsc-icon.svg", t("pickBsc"), t("pickBscHint")],
     ["base", "/networks/base-icon.svg", t("pickBase"), t("pickBaseHint")],
     ["arc", "/networks/arc-icon.svg", t("pickArc"), t("pickArcHint")],
   ] as const;
@@ -58,7 +59,9 @@ export default function ConnectSheet({ open, onClose }: { open: boolean; onClose
       </ul>
       <p className="mt-6 flex items-center gap-2 text-[12px] text-muted">
         <span aria-hidden className="h-[5px] w-[5px] rounded-full bg-coral" />
-        {MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain].network === "testnet" ? "Testnet: test USDC and ETH. Connecting moves no funds." : t("footnote")}
+        {MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain].network === "testnet"
+          ? `Testnet: test USDC and ${MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain].gas.symbol}. Connecting moves no funds.`
+          : t("footnote")}
       </p>
     </Modal>
   );

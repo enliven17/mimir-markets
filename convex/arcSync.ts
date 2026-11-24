@@ -22,10 +22,15 @@ import { readPool, readVs } from "../lib/chains/snapshot";
 // The public Arc RPC refuses eth_getLogs ranges of a few hundred blocks ("requested range too large"); ~0.5 s blocks,
 // so 30 s of cron is ~60 blocks. Base: 2 s blocks; sepolia.base.org limits eth_getLogs to 200 blocks.
 // ponytail: fixed chunk and per-run cap; a private RPC can take bigger ranges.
-const CHUNK: Record<MarketChainId, bigint> = { arc: 250n, base: 200n };
+const CHUNK: Record<MarketChainId, bigint> = { arc: 250n, base: 200n, bsc: 200n };
 const MAX_CHUNKS = 40;
-/** Blocks the Base indexer stays behind its head (reorg margin). */
-const confirmations = (chain: MarketChainId) => (chain === "base" ? BigInt(Number(process.env.BASE_CONFIRMATIONS ?? 6) || 0) : 0n);
+/** Blocks the Base/BSC indexer stays behind its head (reorg margin). */
+const confirmations = (chain: MarketChainId) =>
+  chain === "base"
+    ? BigInt(Number(process.env.BASE_CONFIRMATIONS ?? 6) || 0)
+    : chain === "bsc"
+      ? BigInt(Number(process.env.BSC_CONFIRMATIONS ?? 6) || 0)
+      : 0n;
 export const sync = internalAction({
   args: { chain: v.optional(vChain) },
   handler: async (ctx, args) => {

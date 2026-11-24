@@ -19,7 +19,7 @@ export function marketShareText(question: string, fresh: boolean, isPrivate = fa
   return fresh ? `I just opened a market on Mimir: ${q} Take the other side 👇` : `${q} Pick a side on Mimir 👇`;
 }
 
-export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false, isPrivate = false }: { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean; isPrivate?: boolean }) {
+export default function ShareMarket({ chain = "arc", kind, marketId, question, fresh = false, isPrivate = false }: { chain?: "arc" | "base" | "bsc"; kind: "vs" | "pool"; marketId: number; question: string; fresh?: boolean; isPrivate?: boolean }) {
   const url = `${SITE_URL}/${useLocale()}${marketPath(chain, kind, marketId)}`;
   const text = marketShareText(question, fresh, isPrivate);
   const [copied, setCopied] = useState(false);

@@ -10,8 +10,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectKitProvider, getDefaultConfig, getDefaultConnectors, useModal } from "connectkit";
 import { useEffect, useRef } from "react";
-import { getAddress, type Address } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { getAddress, type Address, type Chain } from "viem";
+import { base, baseSepolia, bsc, bscTestnet } from "viem/chains";
 import { createConfig, http, injected, useConfig, WagmiProvider } from "wagmi";
 import { disconnect, getAccount, switchChain, watchAccount, type GetAccountReturnType } from "wagmi/actions";
 
@@ -24,9 +24,31 @@ import { evmAccountChanged, registerEvmBridge, reportEvmAccount, type Eip1193 } 
 
 const arc = arcChain();
 const baseChain = { ...base, rpcUrls: { default: { http: [BASE_CHAIN.rpcUrl] } } } as typeof base;
-// Base markets on testnet live on Base Sepolia: the wallet must know it too (agent tokens stay on Base mainnet).
 const baseMarkets = MARKET_CHAINS.chains.base;
 const sepolia = baseMarkets.network === "testnet" ? ({ ...baseSepolia, rpcUrls: { default: { http: baseMarkets.rpcUrls } } } as unknown as typeof baseSepolia) : null;
+const bscMarkets = MARKET_CHAINS.chains.bsc;
+const bscChain = (
+  bscMarkets.network === "mainnet"
+    ? { ...bsc, rpcUrls: { default: { http: bscMarkets.rpcUrls } } }
+    : { ...bscTestnet, rpcUrls: { default: { http: bscMarkets.rpcUrls } } }
+) as unknown as Chain;
+
+const wagmiChains: [Chain, ...Chain[]] = MARKET_CHAINS.chains.bsc.enabled
+  ? [
+      bscChain,
+      ...(MARKET_CHAINS.chains.base.enabled ? (sepolia ? [sepolia, baseChain] : [baseChain]) : []),
+      ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : []),
+    ]
+  : sepolia
+    ? [sepolia, baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])]
+    : [baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])];
+
+const wagmiTransports = Object.fromEntries([
+  ...(MARKET_CHAINS.chains.bsc.enabled ? [[bscChain.id, http(bscMarkets.rpcUrl)]] : []),
+  [baseChain.id, http(BASE_CHAIN.rpcUrl)],
+  ...(sepolia ? [[sepolia.id, http(baseMarkets.rpcUrl)]] : []),
+  ...(MARKET_CHAINS.chains.arc.enabled ? [[arc.id, http(ARC.chain.rpcUrl)]] : []),
+]) as Record<number, ReturnType<typeof http>>;
 
 const app = {
   name: "Mimir",
@@ -47,15 +69,8 @@ const inWalletBrowser =
 
 const config = createConfig(
   getDefaultConfig({
-    // Base first: the most wallets know it, so a WalletConnect session opens there. Every chain stays optional.
-    chains: sepolia
-      ? [sepolia, baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])]
-      : [baseChain, ...(MARKET_CHAINS.chains.arc.enabled ? [arc] : [])],
-    transports: Object.fromEntries([
-      [baseChain.id, http(BASE_CHAIN.rpcUrl)],
-      ...(sepolia ? [[sepolia.id, http(baseMarkets.rpcUrl)]] : []),
-      ...(MARKET_CHAINS.chains.arc.enabled ? [[arc.id, http(ARC.chain.rpcUrl)]] : []),
-    ]) as Record<number, ReturnType<typeof http>>,
+    chains: wagmiChains,
+    transports: wagmiTransports,
     connectors: [
       ...(inWalletBrowser ? [injected({ shimDisconnect: true })] : []),
       // No Aave Account: its social-login popup is not a wallet anyone here asked for.

@@ -62,7 +62,7 @@ export const arcSubs = internalQuery({
   handler: async (ctx, { agent, chain = "arc" }) =>
     {
     await assertMarketDeployment(ctx);
-    return (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && s[chain]?.on).map((s) => ({ id: s._id as string }));
+    return (await ctx.db.query("launchCopies").withIndex("by_agent", (q) => q.eq("agent", agent)).collect()).filter((s) => s.active && (chain === "arc" ? s.arc?.on : chain === "base" ? s.base?.on : false)).map((s) => ({ id: s._id as string }));
   },
 });
 
@@ -74,7 +74,7 @@ export const arcSub = internalQuery({
   handler: async (ctx, { sub: id, chain = "arc" }) => {
     await assertMarketDeployment(ctx);
     const s = await ctx.db.get(id);
-    const w = s?.[chain];
+    const w = chain === "arc" ? s?.arc : chain === "base" ? s?.base : undefined;
     return s && w ? { id: s._id as string, follower: s.follower, walletId: w.walletId, wallet: w.address, maxPerStakeUsdc: w.maxPerStakeUsdc, active: s.active, on: w.on } : null;
   },
 });

@@ -162,7 +162,7 @@ export default function ArcCreateForm() {
               chains={MARKET_CHAINS.enabled}
               value={chain}
               onChange={setChain}
-              hint={(c) => (c === "base" ? "USDC on Base, gas in ETH" : "USDC on Arc, gas in USDC")}
+              hint={(c) => (c === "bsc" ? "USDC on BNB Chain, gas in BNB (.ai Agent ID pays 0% fee)" : c === "base" ? "USDC on Base, gas in ETH" : "USDC on Arc, gas in USDC")}
             />
             <span className="text-[12px] text-dim">
               {kind === "pool"

@@ -12,6 +12,7 @@ import type { Address } from "viem";
 import { useMimirWallet } from "@/hooks/useMimirWallet";
 import { ENTRY_FEE_BPS } from "@/lib/arc/fees";
 import { MIMIR_FEES_ABI } from "@/lib/arc/markets";
+import { hasBscAgentId } from "@/lib/bsc/agent-id";
 import type { MarketAction } from "@/lib/chains/calls";
 import { chainPublicClient, ERC20_ABI, gasBalanceWei, usdcAllowanceWei, usdcBalanceWei } from "@/lib/chains/client";
 import { MARKET_CHAINS, marketChain, type MarketChainId } from "@/lib/chains/registry";
@@ -38,31 +39,35 @@ export function useArcAccount(chain: MarketChainId = MARKET_CHAINS.defaultChain)
   const [balance, setBalance] = useState<bigint | null>(null);
   const [gas, setGas] = useState<bigint | null>(null);
   const [onchainBps, setOnchainBps] = useState<number | null>(null);
+  const [hasAgentId, setHasAgentId] = useState<boolean>(false);
 
   const reload = useCallback(async () => {
     if (!address || !cfg.enabled) {
       setBalance(null);
       setGas(null);
       setOnchainBps(null);
+      setHasAgentId(false);
       return;
     }
     const fees = cfg.contracts.mimirFees;
     const client = chainPublicClient(cfg);
-    const [wei, gasWei, bps] = await Promise.all([
+    const [wei, gasWei, bps, agentId] = await Promise.all([
       usdcBalanceWei(cfg, address, client).catch(() => null),
-      cfg.gas.symbol === "ETH" ? gasBalanceWei(cfg, address, client).catch(() => null) : Promise.resolve(null),
+      cfg.gas.symbol !== "USDC" ? gasBalanceWei(cfg, address, client).catch(() => null) : Promise.resolve(null),
       fees
         ? client
             .readContract({ address: fees, abi: MIMIR_FEES_ABI, functionName: "entryBps", args: [address] })
             .then(Number)
             .catch(() => null)
         : Promise.resolve(null),
+      chain === "bsc" ? hasBscAgentId(address, { chain: cfg, client }).catch(() => false) : Promise.resolve(false),
     ]);
     // A failed read stays unknown rather than zero.
     setBalance(wei);
     setGas(gasWei);
     setOnchainBps(bps);
-  }, [address, cfg]);
+    setHasAgentId(agentId);
+  }, [address, cfg, chain]);
 
   useEffect(() => {
     void reload();
@@ -78,14 +83,14 @@ export function useArcAccount(chain: MarketChainId = MARKET_CHAINS.defaultChain)
       if (!session || !address) throw new Error("Connect your wallet first.");
       return sendMarketAction(cfg, session, action, {
         allowance: (owner, spender) => usdcAllowanceWei(cfg, owner, spender),
-        gasBalance: cfg.gas.symbol === "ETH" ? (owner) => gasBalanceWei(cfg, owner) : undefined,
-        permitInfo: (owner) => permitInfo(chain, owner),
-        signTypedData: (typed) => signTypedDataWithEvm(chain, address, typed as never),
+        gasBalance: cfg.gas.symbol !== "USDC" ? (owner) => gasBalanceWei(cfg, owner) : undefined,
+        permitInfo: cfg.usdc.permit ? (owner) => permitInfo(chain, owner) : undefined,
+        signTypedData: cfg.usdc.permit ? (typed) => signTypedDataWithEvm(chain, address, typed as never) : undefined,
         simulate: async ({ from, to, data }) => { await chainPublicClient(cfg).call({ account: from, to, data }); },
       });
     },
     [session, address, cfg, chain],
   );
 
-  return { wallet, chain, chainConfig: cfg, session, address, balance, gas, reload, entryBps, sendAction };
+  return { wallet, chain, chainConfig: cfg, session, address, balance, gas, reload, entryBps, hasAgentId, sendAction };
 }

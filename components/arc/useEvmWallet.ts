@@ -27,7 +27,7 @@ export interface EvmBridge {
   disconnect(): Promise<void>;
 }
 
-export type EvmChainIntent = "arc" | "base";
+export type EvmChainIntent = "arc" | "base" | "bsc";
 
 /** The live wagmi account: the same address on Arc and Base. */
 export interface EvmAccount {
@@ -79,7 +79,7 @@ const accountListeners = new Set<() => void>();
 
 // The network the wallet is used on (picked in the connect sheet, then the chain of the last send), so labels name it.
 const INTENT_KEY = "mimir:evm-intent";
-const INTENTS: readonly EvmChainIntent[] = ["arc", "base"];
+const INTENTS: readonly EvmChainIntent[] = ["bsc", "base", "arc"];
 
 function setAccount(next: Partial<EvmAccount>) {
   account = { ...account, ...next };
@@ -95,10 +95,17 @@ function setAccount(next: Partial<EvmAccount>) {
 }
 
 /** The network name for a wallet label, or null when not known. */
-export const evmNetworkName = (intent: EvmChainIntent | null) => (intent === "arc" ? "Arc" : intent === "base" ? "Base" : null);
+export const evmNetworkName = (intent: EvmChainIntent | null) =>
+  intent === "bsc" ? "BNB Chain" : intent === "arc" ? "Arc" : intent === "base" ? "Base" : null;
 
 const intentOfChain = (chainId: number): EvmChainIntent | null =>
-  chainId === MARKET_CHAINS.chains.arc.chainId ? "arc" : chainId === MARKET_CHAINS.chains.base.chainId || chainId === BASE_CHAIN.id ? "base" : null;
+  chainId === MARKET_CHAINS.chains.bsc.chainId
+    ? "bsc"
+    : chainId === MARKET_CHAINS.chains.arc.chainId
+      ? "arc"
+      : chainId === MARKET_CHAINS.chains.base.chainId || chainId === BASE_CHAIN.id
+        ? "base"
+        : null;
 
 /** EvmConnect reports the wagmi account here (address null once disconnected). */
 export function reportEvmAccount(address: Address | null, via: EvmAccount["via"]) {

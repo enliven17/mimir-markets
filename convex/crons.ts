@@ -7,6 +7,7 @@ const crons = cronJobs();
 crons.interval("discovery cleanup", { hours: 1 }, internal.discovery.sweep, {});
 // One indexer per market chain (lib/chains/registry.ts); a chain without contracts in the env returns at once.
 // ~86k runs a month each, well inside the free 1M calls.
+crons.interval("bsc indexer", { seconds: 30 }, internal.arcSync.sync, { chain: "bsc" });
 crons.interval("base indexer", { seconds: 30 }, internal.arcSync.sync, { chain: "base" });
 crons.interval("arc indexer", { seconds: 30 }, internal.arcSync.sync, { chain: "arc" });
 // Settles, finalizes, refunds and pays on every enabled chain (convex/arcOracle.ts); a run that overlaps the next tick is skipped by Convex.

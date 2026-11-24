@@ -3,7 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { MARKET_SERIES, nextSeriesDeadline, seriesForMarket } from "@/lib/market-series";
 import FollowButton from "@/components/discovery/FollowButton";
 import { marketPath } from "@/lib/chains/links";
-type Market = { chain?: "arc" | "base"; kind: "vs" | "pool"; marketId: number; question: string; resolutionUrl: string; deadline: number; labelA: string; labelB: string; category: string; status: string };
+type Market = { chain?: "arc" | "base" | "bsc"; kind: "vs" | "pool"; marketId: number; question: string; resolutionUrl: string; deadline: number; labelA: string; labelB: string; category: string; status: string };
 export default function MarketSeries({ markets }: { markets: readonly Market[] }) {
   const deadline = nextSeriesDeadline(Date.now());
   return <section className="grid gap-3" aria-label="Daily market series"><div className="grid gap-1"><h2 className="m-0 font-display text-[1.5rem] text-cream">Daily checkpoints</h2><p className="m-0 text-[13px] text-muted">Two recurring templates. Same source and rule, a new date. Join an existing pool before opening another.</p></div>

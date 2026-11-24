@@ -183,6 +183,11 @@ function ChainBalance({ chain, address }: { chain: MarketChainId; address: Addre
         <div className="min-w-0">
           <p className="m-0 flex items-center gap-2 text-[13px] text-muted">
             <ChainBadge chain={chain} /> {cfg.name}
+            {account.hasAgentId ? (
+              <span className="rounded-full bg-[#F0B90B]/15 px-2 py-0.5 text-[11px] font-medium text-[#F0B90B]">
+                Agent ID (.ai) · 0% fee
+              </span>
+            ) : null}
           </p>
           <p className="m-0 mt-2 flex h-[clamp(2.6rem,11vw,3.6rem)] items-center font-mono text-[clamp(2.3rem,10vw,3.4rem)] leading-none tabular-nums text-cream">
             {account.balance === null ? (
@@ -195,8 +200,8 @@ function ChainBalance({ chain, address }: { chain: MarketChainId; address: Addre
             )}
           </p>
           <p className="m-0 mt-2 text-[13px] text-muted">
-            {cfg.gas.symbol === "ETH"
-              ? `USDC in your wallet on ${cfg.label}. Gas is paid in ETH: ${account.gas === null ? "-" : `${(Number(account.gas) / 1e18).toFixed(5)} ETH`}${account.gas === 0n ? " (add a little ETH to stake here)" : ""}.`
+            {cfg.gas.symbol !== "USDC"
+              ? `USDC in your wallet on ${cfg.label}. Gas is paid in ${cfg.gas.symbol}: ${account.gas === null ? "-" : `${(Number(account.gas) / 1e18).toFixed(5)} ${cfg.gas.symbol}`}${account.gas === 0n ? ` (add a little ${cfg.gas.symbol} to stake here)` : ""}.`
               : `USDC in your wallet on ${cfg.label}. Stakes and gas are paid from it in USDC.`}
           </p>
         </div>

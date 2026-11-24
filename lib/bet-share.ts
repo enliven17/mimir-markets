@@ -7,14 +7,14 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimirmarkets.xyz").replace(/\/$/, "");
 
 export type BetKind = "vs" | "pool";
-export type BetChain = "arc" | "base";
+export type BetChain = "arc" | "base" | "bsc";
 /** Bump when the card design changes, so X fetches the new image. */
 export const BET_CARD_VERSION = 1;
 
 export const betRef = (kind: BetKind, id: number, chain: BetChain = "arc") => `${chain === "arc" ? "" : `${chain}-`}${kind}-${id}`;
 
 export function parseBetRef(ref: string, side: string | null): { chain: BetChain; kind: BetKind; id: number; side: 1 | 2 } | null {
-  const m = /^(?:(arc|base)-)?(vs|pool)-(\d{1,9})$/.exec(ref);
+  const m = /^(?:(arc|base|bsc)-)?(vs|pool)-(\d{1,9})$/.exec(ref);
   const s = Number(side);
   if (!m || (s !== 1 && s !== 2)) return null;
   return { chain: (m[1] as BetChain | undefined) ?? "arc", kind: m[2] as BetKind, id: Number(m[3]), side: s as 1 | 2 };
