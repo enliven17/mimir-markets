@@ -22,6 +22,7 @@ import {
   getAddress,
   http,
   isAddress,
+  parseAbi,
   parseUnits,
   zeroAddress,
   type Abi,
@@ -98,6 +99,33 @@ const pub = createPublicClient({ chain, transport });
 const wallet = createWalletClient({ account, chain, transport });
 
 if ((await pub.getChainId()) !== chain.id) throw new Error(`RPC is not ${chain.name} (${chain.id})`);
+
+if (mainnet || e.BSC_STRICT_ROLES === "1") {
+  const roles = { owner, arbiter, oracle, feeTo, feeSigner };
+  for (const [name, a] of Object.entries(roles)) {
+    if (a === account.address) throw new Error(`strict roles: ${name} may not be the deployer key`);
+  }
+  const distinct: Address[] = [oracle, feeSigner, owner];
+  if (e.BSC_ARBITER_IS_OWNER !== "1") distinct.push(arbiter);
+  else if (arbiter !== owner) throw new Error("BSC_ARBITER_IS_OWNER=1 but the arbiter differs from the owner");
+  if (e.BSC_FEE_TO_IS_OWNER !== "1") distinct.push(feeTo);
+  else if (feeTo !== owner) throw new Error("BSC_FEE_TO_IS_OWNER=1 but the fee recipient differs from the owner");
+  if (new Set(distinct).size !== distinct.length) {
+    throw new Error("strict roles: owner, arbiter, oracle, fee recipient and fee signer must all differ");
+  }
+  const safeAbi = parseAbi(["function getOwners() view returns (address[])", "function getThreshold() view returns (uint256)"]);
+  for (const [name, a] of [["owner", owner], ["arbiter", arbiter]] as const) {
+    const code = await pub.getCode({ address: a });
+    if (!code || code === "0x") throw new Error(`strict roles: the ${name} ${a} has no code; deploy the Safe first`);
+    const [owners, threshold] = await Promise.all([
+      pub.readContract({ address: a, abi: safeAbi, functionName: "getOwners" }),
+      pub.readContract({ address: a, abi: safeAbi, functionName: "getThreshold" }),
+    ]);
+    if (owners.length < 3 || threshold < 2n || threshold > BigInt(owners.length)) {
+      throw new Error(`strict roles: ${name} must be a Safe with at least three owners and a threshold of at least two`);
+    }
+  }
+}
 
 type Artifact = { abi: Abi; bytecode: { object: Hex } };
 const art = (solFile: string, name = solFile): Artifact =>
@@ -238,6 +266,11 @@ const marketArgs = encodeAbiParameters(
   ],
   [owner, arbiter, oracle, feeTo, fees.address, window, minStake, usdc],
 );
+
+console.log("\n=== Guarded launch caps (recommended before opening to public) ===");
+console.log(`# Example: 500 USDC max per market, 50 USDC max per account (18 decimals)`);
+console.log(`cast send ${pool.address} "setCaps(uint256,uint256)" 500000000000000000000 50000000000000000000 --rpc-url ${rpcUrl}`);
+console.log(`cast send ${v3.address} "setCaps(uint256,uint256)" 500000000000000000000 50000000000000000000 --rpc-url ${rpcUrl}`);
 
 console.log("\n=== BscScan verification commands ===");
 console.log(`forge verify-contract --chain-id ${chain.id} --constructor-args ${feesArgs} ${fees.address} contracts/MimirBscFees.sol:MimirBscFees --etherscan-api-key $BSCSCAN_API_KEY`);

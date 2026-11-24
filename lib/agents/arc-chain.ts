@@ -16,7 +16,7 @@
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 
 import { AgentEnvelopeError } from "./api";
-import { readStakeLimits, stakeLimitBlocker, type ArcMarketKind } from "@/lib/arc/markets";
+import { MIMIR_FEES_ABI, readStakeLimits, stakeLimitBlocker, type ArcMarketKind } from "@/lib/arc/markets";
 import { toIndexUnits } from "@/lib/chains/amounts";
 import { actionCalls, actionContract, pullOf, type MarketAction } from "@/lib/chains/calls";
 import { chainPublicClient, gasBalanceWei, usdcAllowanceWei, usdcBalanceWei } from "@/lib/chains/client";
@@ -40,7 +40,7 @@ const units6ToWei = (units: bigint) => units * 1_000_000_000_000n;
 /** The chain a request names (`chain`), else the default one; refused when it is not enabled here. */
 export function chainOf(body: Record<string, unknown>): MarketChain {
   const raw = body.chain;
-  if (raw !== undefined && !isMarketChainId(raw)) throw new AgentEnvelopeError('chain must be "base" or "arc"', 400, "bad_params");
+  if (raw !== undefined && !isMarketChainId(raw)) throw new AgentEnvelopeError('chain must be "bsc", "base", or "arc"', 400, "bad_params");
   const c = MARKET_CHAINS.chains[raw ?? MARKET_CHAINS.defaultChain];
   if (!c.enabled) throw new AgentEnvelopeError(`${c.label} markets are not configured on this deployment`, 503, "chain_unavailable");
   return c;
@@ -141,7 +141,7 @@ export async function prepareChainWrite(write: { action: string; params: Record<
 /** The operator's USDC on the chain (index units, 18 dp) and, on Base, its ETH for gas (wei). */
 export async function arcOperatorBalance(operator: Address, body: Record<string, unknown> = {}): Promise<{ chain: string; usdcWei: string; gasWei?: string }> {
   const chain = chainOf(body);
-  const [usdc, gas] = await Promise.all([usdcBalanceWei(chain, operator), chain.gas.symbol === "ETH" ? gasBalanceWei(chain, operator) : Promise.resolve(null)]);
+  const [usdc, gas] = await Promise.all([usdcBalanceWei(chain, operator), chain.gas.symbol !== "USDC" ? gasBalanceWei(chain, operator) : Promise.resolve(null)]);
   return { chain: chain.id, usdcWei: usdc.toString(), ...(gas !== null ? { gasWei: gas.toString() } : {}) };
 }
 
@@ -162,8 +162,17 @@ export async function assertArcStakeAllowed(
   const contract = kind === "vs" ? chain.contracts.mimirV3 : chain.contracts.mimirPool;
   if (!contract) throw new AgentEnvelopeError(`${chain.label} contracts are not configured`, 503, "chain_unavailable");
   const id = write.action === "challenge" ? Number(write.params.claimId) : 0;
-  const raw = await readStakeLimits(chainPublicClient(chain), contract, id);
-  // Caps are in the contract's own units (6 dp on Base): scale to index units like every amount here.
+  const client = chainPublicClient(chain);
+  const [raw, entryBps] = await Promise.all([
+    readStakeLimits(client, contract, id),
+    chain.contracts.mimirFees
+      ? client
+          .readContract({ address: chain.contracts.mimirFees, abi: MIMIR_FEES_ABI, functionName: "entryBps", args: [operator] })
+          .then(Number)
+          .catch(() => 50)
+      : Promise.resolve(50),
+  ]);
+  // Caps are in the contract's own units (6 dp on Base, 18 dp on BSC): scale to index units like every amount here.
   const limits = { ...raw, maxMarket: toIndexUnits(chain, raw.maxMarket), maxAccount: toIndexUnits(chain, raw.maxAccount) };
   let total = 0n;
   let mine = 0n;
@@ -175,7 +184,7 @@ export async function assertArcStakeAllowed(
       mine = legs.filter((p) => (p.chain ?? "arc") === chain.id && p.kind === "pool" && p.marketId === id).reduce((a, p) => a + BigInt(p.amount), 0n);
     }
   } else limits.lockAt = 0;
-  const blocker = stakeLimitBlocker(limits, { kind, gross, entryBps: 50, mine, total, now: Math.floor(Date.now() / 1000) }, (wei) => `${Number(wei / 10n ** 12n) / 1e6} USDC`);
+  const blocker = stakeLimitBlocker(limits, { kind, gross, entryBps, mine, total, now: Math.floor(Date.now() / 1000) }, (wei) => `${Number(wei / 10n ** 12n) / 1e6} USDC`);
   if (blocker) throw new AgentEnvelopeError(blocker, 409, "stake_limit");
 }
 
