@@ -15,6 +15,8 @@
 // Env: ARC_CREATOR_WALLET / BASE_CREATOR_WALLET ({"id","address"}; the Base one needs ETH for gas and USDC), CIRCLE_API_KEY,
 //      CIRCLE_ENTITY_SECRET, the CREATOR_* knobs of the old worker, MIMIR_PAUSE_CREATE_MARKET=1, MARKET_CREATOR_DRY_RUN=1.
 
+import { createWalletClient, zeroAddress, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
@@ -25,11 +27,62 @@ import { draftSportsClaims } from "../agents/market-creator/sports";
 import { draftStockClaims } from "../agents/market-creator/stocks";
 import { fetchPolymarketCandidates, isPolymarketEnabled, polymarketDraft } from "../agents/market-creator/polymarket";
 import { filterDuplicates, signatureOf } from "../agents/market-creator/dedupe";
-import { usdToIndex } from "../lib/chains/amounts";
+import { toChainUnits, usdToIndex } from "../lib/chains/amounts";
+import { ERC20_POOL_ABI } from "../lib/chains/calls";
+import { chainPublicClient, chainTransport, ERC20_ABI, usdcAllowanceWei, viemChainOf } from "../lib/chains/client";
 import { houseCreatorWallet, type CircleWallet } from "../lib/chains/house";
 import { pairKeyOf } from "../lib/chains/linked";
 import { serverMarketChains, type MarketChain, type MarketChainId } from "../lib/chains/registry";
 import { circleCancelVs, circleCreatePool, createdMarketId, walletGasWei, walletUsdcWei } from "../lib/server/chain-circle";
+
+type CreatorWallet = (CircleWallet & { eoaKey?: undefined }) | { id: "eoa"; address: `0x${string}`; eoaKey: Hex };
+
+function creatorWalletFor(id: MarketChainId, e: Record<string, string | undefined>): CreatorWallet | null {
+  const circle = houseCreatorWallet(id, e);
+  if (circle) return circle;
+  if (id === "bsc") {
+    const raw = e.BSC_CREATOR_KEY?.trim() ?? "";
+    if (/^0x[0-9a-fA-F]{64}$/.test(raw)) {
+      const acc = privateKeyToAccount(raw as Hex);
+      return { id: "eoa", address: acc.address.toLowerCase() as `0x${string}`, eoaKey: raw as Hex };
+    }
+  }
+  return null;
+}
+
+async function eoaCreatePool(
+  cfg: MarketChain,
+  key: Hex,
+  d: { question: string; labelA: string; labelB: string; resolutionUrl: string; category: string; deadline: number; side: 1 | 2 },
+  seedWei: bigint,
+): Promise<Hex> {
+  const pool = cfg.contracts.mimirPool;
+  if (!pool) throw new Error(`${cfg.label} pool contract not configured`);
+  const account = privateKeyToAccount(key);
+  const pub = chainPublicClient(cfg);
+  const wallet = createWalletClient({ account, chain: viemChainOf(cfg), transport: chainTransport(cfg) });
+  const rawAmount = toChainUnits(cfg, seedWei);
+  const allowance = await usdcAllowanceWei(cfg, account.address, pool, pub);
+  if (allowance < seedWei) {
+    const appHash = await wallet.writeContract({
+      address: cfg.usdc.address,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [pool, rawAmount],
+    });
+    const appRc = await pub.waitForTransactionReceipt({ hash: appHash });
+    if (appRc.status !== "success") throw new Error(`approve failed ${appHash}`);
+  }
+  const hash = await wallet.writeContract({
+    address: pool,
+    abi: ERC20_POOL_ABI,
+    functionName: "createMarket",
+    args: [d.question, d.labelA, d.labelB, d.resolutionUrl, d.category, BigInt(d.deadline), d.side, zeroAddress, rawAmount],
+  });
+  const rc = await pub.waitForTransactionReceipt({ hash });
+  if (rc.status !== "success") throw new Error(`createMarket failed ${hash}`);
+  return hash;
+}
 
 const envNum = (name: string, fallback: number) => {
   const n = Number(process.env[name]);
@@ -93,10 +146,10 @@ export const tick = internalAction({
     await ctx.runMutation(internal.arcAdmin.beat, { name: "arc-creator" });
     const e = process.env;
     const registry = serverMarketChains(e);
-    // Each enabled chain where the house has a wallet, Base first (the registry's order).
-    const sides: Array<{ cfg: MarketChain; wallet: CircleWallet; own: Array<Doc<"arcMarkets"> & { chain: MarketChainId }> }> = [];
+    // Each enabled chain where the house has a wallet (Circle or BSC_CREATOR_KEY EOA).
+    const sides: Array<{ cfg: MarketChain; wallet: CreatorWallet; own: Array<Doc<"arcMarkets"> & { chain: MarketChainId }> }> = [];
     for (const id of registry.enabled) {
-      const wallet = houseCreatorWallet(id, e);
+      const wallet = creatorWalletFor(id, e);
       if (!wallet) continue;
       sides.push({ cfg: registry.chains[id], wallet, own: await ctx.runQuery(internal.arc.marketsBy, { creator: wallet.address, chain: id }) });
     }
@@ -106,6 +159,7 @@ export const tick = internalAction({
 
     // 1. Its own VS claims that closed with nobody on the other side: cancel, the stake comes back.
     for (const { cfg, wallet, own } of sides) {
+      if (wallet.eoaKey) continue;
       for (const m of own.filter((m) => m.kind === "vs" && m.status === "open" && m.deadline <= now)) {
         if (dryRun) continue;
         try {
@@ -155,8 +209,8 @@ export const tick = internalAction({
           console.warn(`[creator] ${cfg.id}: not enough USDC on ${wallet.address} for ${n} markets; top it up`);
           n = Number(usdc / seed);
         }
-        if (cfg.gas.symbol === "ETH" && gas === 0n) {
-          console.warn(`[creator] ${cfg.id}: no ETH for gas on ${wallet.address}; top it up`);
+        if (cfg.gas.symbol !== "USDC" && gas === 0n) {
+          console.warn(`[creator] ${cfg.id}: no ${cfg.gas.symbol} for gas on ${wallet.address}; top it up`);
           n = 0;
         }
       }
@@ -190,9 +244,12 @@ export const tick = internalAction({
           break;
         }
         try {
-          const tx = await circleCreatePool(cfg, { walletId: wallet.id, address: wallet.address }, {
-            question: d.question, labelA: d.creatorPosition, labelB: d.counterPosition, resolutionUrl: d.resolutionUrl, category: d.category, deadline: d.deadline, side: SIDE_A,
-          }, seed);
+          const marketArgs = {
+            question: d.question, labelA: d.creatorPosition, labelB: d.counterPosition, resolutionUrl: d.resolutionUrl, category: d.category, deadline: d.deadline, side: SIDE_A as 1 | 2,
+          };
+          const tx = wallet.eoaKey
+            ? await eoaCreatePool(cfg, wallet.eoaKey, marketArgs, seed)
+            : await circleCreatePool(cfg, { walletId: wallet.id, address: wallet.address }, marketArgs, seed);
           room.set(cfg.id, (room.get(cfg.id) ?? 1) - 1);
           opened.add(cfg.id);
           console.log(`[creator] ${cfg.id}: opened [${d.category}] ${d.label} ${tx}`);

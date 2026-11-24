@@ -31,7 +31,7 @@ const MARKET = parseAbi([
 ]);
 const FEES = parseAbi(["function owner() view returns (address)", "function pendingOwner() view returns (address)", "function pendingSigner() view returns (address)"]);
 // How long a job may be silent before it counts as stopped (its cron interval plus slack).
-const STALE_MS: Record<string, number> = { "arc-sync": 5 * 60_000, "base-sync": 5 * 60_000, "bsc-sync": 5 * 60_000, "arc-oracle": 10 * 60_000, "arc-creator": 3 * HOUR, "arc-twins": HOUR };
+const STALE_MS: Record<string, number> = { "arc-sync": 30 * 60_000, "base-sync": 30 * 60_000, "bsc-sync": 10 * 60_000, "arc-oracle": 20 * 60_000, "arc-creator": 5 * HOUR, "arc-twins": 3 * HOUR };
 /** Low-balance floors for the gas token (USDC on Arc, ETH on Base, BNB on BSC). */
 const LOW_GAS = { arc: { oracle: 0.5, creator: 0.3 }, base: { oracle: 0.003, creator: 0.002 }, bsc: { oracle: 0.01, creator: 0.005 } } as const;
 
