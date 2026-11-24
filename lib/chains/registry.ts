@@ -22,16 +22,16 @@
  */
 import { arcConfig, parseRpcUrls, type ArcConfig } from "../arc/config";
 
-export type MarketChainId = "arc" | "base";
-/** Base first: the primary network, listed first wherever chains are listed. */
-export const MARKET_CHAIN_IDS: readonly MarketChainId[] = ["base", "arc"];
+export type MarketChainId = "arc" | "base" | "bsc";
+/** Enabled chains in display order. */
+export const MARKET_CHAIN_IDS: readonly MarketChainId[] = ["bsc", "base", "arc"];
 export type ChainNetwork = "testnet" | "mainnet";
 
 export interface MarketChain {
   id: MarketChainId;
-  /** Short name for badges and copy: "Base", "Arc". */
+  /** Short name for badges and copy: "BNB Chain", "Base", "Arc". */
   label: string;
-  /** The network's full name: "Base Sepolia", "Arc Testnet". */
+  /** The network's full name: "BNB Smart Chain", "BSC Testnet", "Base Sepolia", "Arc Testnet". */
   name: string;
   network: ChainNetwork;
   chainId: number;
@@ -41,7 +41,7 @@ export interface MarketChain {
   explorer: string;
   explorerName: string;
   /** What gas is paid in. */
-  gas: { symbol: "USDC" | "ETH"; decimals: 18 };
+  gas: { symbol: "USDC" | "ETH" | "BNB"; decimals: 18 };
   usdc: {
     /** native: msg.value (Arc). erc20: approve/permit + transferFrom (Base). */
     kind: "native" | "erc20";
@@ -69,6 +69,14 @@ export const BASE_USDC = {
   mainnet: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   testnet: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 } as const;
+
+/** Binance-Peg USDC on BNB Smart Chain (18 dp, standard ERC-20, no EIP-2612 permit). */
+export const BSC_USDC = {
+  mainnet: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+  testnet: "0x64544969ed7EBf5f083679233325356EbE738930",
+} as const;
+
+export type BscEnv = BaseEnv;
 
 export interface BaseEnv {
   /** "mainnet", or "testnet"/"sepolia" (default). */
@@ -150,21 +158,57 @@ export function baseMarketChain(env: BaseEnv, enabledList: readonly MarketChainI
   };
 }
 
-/** Arc is opt-in: use "base,arc" to re-enable it on the site and backend. */
+/** BNB Smart Chain (Testnet 97 by default, Mainnet 56) as a market chain. 18-dp ERC-20 USDC, gas in BNB. */
+export function bscMarketChain(env: BscEnv = {}, enabledList: readonly MarketChainId[] = MARKET_CHAIN_IDS): MarketChain {
+  const network = parseBaseNetwork(env.network);
+  const mainnet = network === "mainnet";
+  const rpcUrls = parseRpcUrls(env.rpcUrl);
+  if (!rpcUrls.length) {
+    rpcUrls.push(
+      ...(mainnet
+        ? ["https://bsc-dataseed.binance.org", "https://bsc-dataseed1.defibit.io"]
+        : ["https://data-seed-prebsc-1-s1.bnbchain.org:8545", "https://bsc-testnet-rpc.publicnode.com"]),
+    );
+  }
+  const contracts = {
+    mimirV3: addressOrNull(env.mimirV3),
+    mimirPool: addressOrNull(env.mimirPool),
+    mimirFees: addressOrNull(env.mimirFees),
+    fromBlock: blockOf(env.fromBlock),
+    minStakeWei: minStakeIndexUnits(env.minStake, 100_000_000_000_000_000n),
+  };
+  return {
+    id: "bsc",
+    label: "BNB Chain",
+    name: mainnet ? "BNB Smart Chain" : "BSC Testnet",
+    network,
+    chainId: mainnet ? 56 : 97,
+    rpcUrls,
+    rpcUrl: rpcUrls[0],
+    explorer: env.explorer?.trim() || (mainnet ? "https://bscscan.com" : "https://testnet.bscscan.com"),
+    explorerName: "BscScan",
+    gas: { symbol: "BNB", decimals: 18 },
+    usdc: { kind: "erc20", decimals: 18, address: addressOrNull(env.usdc) ?? BSC_USDC[network], permit: false },
+    contracts,
+    enabled: Boolean(contracts.mimirV3 && contracts.mimirPool) && enabledList.includes("bsc"),
+  };
+}
+
+/** Enabled market chains from comma-separated env ("bsc", "base", "arc"). */
 export function parseEnabledChains(value: string | undefined): MarketChainId[] {
   const raw = value?.trim();
   if (!raw) return ["base"];
   const out: MarketChainId[] = [];
   for (const part of raw.split(",")) {
     const id = part.trim().toLowerCase();
-    if ((id === "arc" || id === "base") && !out.includes(id)) out.push(id);
+    if ((id === "arc" || id === "base" || id === "bsc") && !out.includes(id)) out.push(id);
   }
   return out;
 }
 
 export interface MarketChains {
   chains: Record<MarketChainId, MarketChain>;
-  /** Enabled chains (configured and listed), Base first. */
+  /** Enabled chains (configured and listed). */
   enabled: MarketChainId[];
   /** Where a new market goes unless the user picks another. */
   defaultChain: MarketChainId;
@@ -175,6 +219,7 @@ export interface RegistryEnv {
   defaultChain?: string;
   arc: Parameters<typeof arcConfig>[0];
   base: BaseEnv;
+  bsc?: BscEnv;
 }
 
 /** Arc's config throws on mainnet without an RPC; here that only disables Arc. */
@@ -190,13 +235,18 @@ function safeArc(env: RegistryEnv["arc"]): ArcConfig {
 export function marketChains(env: RegistryEnv): MarketChains {
   const listed = parseEnabledChains(env.marketChains);
   const chains: Record<MarketChainId, MarketChain> = {
+    bsc: bscMarketChain(env.bsc, listed),
     base: baseMarketChain(env.base, listed),
     arc: arcMarketChain(safeArc(env.arc), listed),
   };
   const enabled = MARKET_CHAIN_IDS.filter((id) => chains[id].enabled);
   const wanted = env.defaultChain?.trim().toLowerCase();
   const defaultChain: MarketChainId =
-    wanted === "arc" || wanted === "base" ? (enabled.includes(wanted) || !enabled.length ? wanted : enabled[0]) : (enabled[0] ?? "base");
+    wanted === "arc" || wanted === "base" || wanted === "bsc"
+      ? enabled.includes(wanted) || !enabled.length
+        ? wanted
+        : enabled[0]
+      : (enabled[0] ?? (listed[0] ?? "base"));
   return { chains, enabled, defaultChain };
 }
 
@@ -225,6 +275,17 @@ export const MARKET_CHAINS: MarketChains = marketChains({
     fromBlock: process.env.NEXT_PUBLIC_MIMIR_BASE_FROM_BLOCK,
     minStake: process.env.NEXT_PUBLIC_MIMIR_BASE_MIN_STAKE,
   },
+  bsc: {
+    network: process.env.NEXT_PUBLIC_BSC_NETWORK,
+    rpcUrl: process.env.NEXT_PUBLIC_BSC_RPC,
+    explorer: process.env.NEXT_PUBLIC_BSC_EXPLORER,
+    mimirV3: process.env.NEXT_PUBLIC_MIMIR_BSC_V3_ADDRESS,
+    mimirPool: process.env.NEXT_PUBLIC_MIMIR_BSC_POOL_ADDRESS,
+    mimirFees: process.env.NEXT_PUBLIC_MIMIR_BSC_FEES_ADDRESS,
+    usdc: process.env.NEXT_PUBLIC_MIMIR_BSC_USDC_ADDRESS,
+    fromBlock: process.env.NEXT_PUBLIC_MIMIR_BSC_FROM_BLOCK,
+    minStake: process.env.NEXT_PUBLIC_MIMIR_BSC_MIN_STAKE,
+  },
 });
 
 /** The backend's view (Convex jobs, server routes that run there): the same chains from the non-public env names. */
@@ -251,10 +312,20 @@ export function serverMarketChains(e: Record<string, string | undefined> = proce
       fromBlock: e.MIMIR_BASE_FROM_BLOCK,
       minStake: e.MIMIR_BASE_MIN_STAKE,
     },
+    bsc: {
+      network: e.BSC_NETWORK,
+      rpcUrl: e.BSC_RPC,
+      mimirV3: e.MIMIR_BSC_V3_ADDRESS,
+      mimirPool: e.MIMIR_BSC_POOL_ADDRESS,
+      mimirFees: e.MIMIR_BSC_FEES_ADDRESS,
+      usdc: e.MIMIR_BSC_USDC_ADDRESS,
+      fromBlock: e.MIMIR_BSC_FROM_BLOCK,
+      minStake: e.MIMIR_BSC_MIN_STAKE,
+    },
   });
 }
 
-export const isMarketChainId = (v: unknown): v is MarketChainId => v === "arc" || v === "base";
+export const isMarketChainId = (v: unknown): v is MarketChainId => v === "arc" || v === "base" || v === "bsc";
 
 /** The chain's config from the public registry (browser and routes). */
 export const marketChain = (id: MarketChainId): MarketChain => MARKET_CHAINS.chains[id];

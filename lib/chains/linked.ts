@@ -56,8 +56,8 @@ export function siblingDecision(verdicts: readonly LinkedVerdict[], self: Market
   return usable.find((v) => v.stored) ?? usable[0] ?? null;
 }
 
-/** The market chains in display order (Base first), for grouping legs. */
-const ORDER: readonly MarketChainId[] = ["base", "arc"];
+/** The market chains in display order, for grouping legs. */
+const ORDER: readonly MarketChainId[] = ["bsc", "base", "arc"];
 
 /**
  * Rows grouped by link: one group per pairKey (its legs in chain order, Base first), and a group of one for every

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { indexToDecimal6, floorToChain, SubUnitAmountError, toChainUnits, toIndexUnits, unitScale, usdToIndex } from "../../lib/chains/amounts";
-import { BASE_USDC, marketChains, parseEnabledChains, serverMarketChains } from "../../lib/chains/registry";
+import { BASE_USDC, BSC_USDC, marketChains, parseEnabledChains, serverMarketChains } from "../../lib/chains/registry";
 import { circleBlockchain, councilWallets, houseAddresses, houseCreatorWallet, oracleKeyFor } from "../../lib/chains/house";
 import { marketPath, marketRef } from "../../lib/chains/links";
 
@@ -101,7 +101,43 @@ test("house wallets, oracle key and Circle blockchains per chain", () => {
 
 test("links: /arena/<chain>/<kind>/<id>, with Arc refs unchanged from before Base", () => {
   assert.equal(marketPath("base", "pool", 3), "/arena/base/pool/3");
+  assert.equal(marketPath("bsc", "pool", 5), "/arena/bsc/pool/5");
   assert.equal(marketPath(undefined, "vs", 7), "/arena/arc/vs/7");
   assert.equal(marketRef("arc", "vs", 7), "vs-7");
   assert.equal(marketRef("base", "pool", 3), "base-pool-3");
+  assert.equal(marketRef("bsc", "pool", 5), "bsc-pool-5");
+});
+
+test("registry: BSC-only mode disables Base and Arc, uses 18-dp ERC-20 USDC and BNB gas", () => {
+  const r = serverMarketChains({
+    MARKET_CHAINS: "bsc",
+    DEFAULT_MARKET_CHAIN: "bsc",
+    BSC_NETWORK: "testnet",
+    MIMIR_BSC_V3_ADDRESS: A(21),
+    MIMIR_BSC_POOL_ADDRESS: A(22),
+    MIMIR_BSC_FEES_ADDRESS: A(23),
+    MIMIR_BASE_V3_ADDRESS: A(3),
+    MIMIR_BASE_POOL_ADDRESS: A(4),
+  });
+  assert.deepEqual(r.enabled, ["bsc"]);
+  assert.equal(r.defaultChain, "bsc");
+  assert.equal(r.chains.bsc.chainId, 97);
+  assert.equal(r.chains.bsc.gas.symbol, "BNB");
+  assert.equal(r.chains.bsc.usdc.kind, "erc20");
+  assert.equal(r.chains.bsc.usdc.decimals, 18);
+  assert.equal(r.chains.bsc.usdc.permit, false);
+  assert.equal(r.chains.bsc.usdc.address, BSC_USDC.testnet);
+  assert.equal(r.chains.base.enabled, false);
+  assert.equal(r.chains.arc.enabled, false);
+
+  const live = serverMarketChains({
+    MARKET_CHAINS: "bsc",
+    BSC_NETWORK: "mainnet",
+    MIMIR_BSC_V3_ADDRESS: A(21),
+    MIMIR_BSC_POOL_ADDRESS: A(22),
+  });
+  assert.equal(live.chains.bsc.chainId, 56);
+  assert.equal(live.chains.bsc.usdc.address, BSC_USDC.mainnet);
+  assert.equal(live.chains.bsc.explorer, "https://bscscan.com");
+  assert.equal(unitScale(live.chains.bsc), 1n);
 });

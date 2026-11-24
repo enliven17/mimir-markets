@@ -20,7 +20,7 @@ const vBrain = v.union(
   v.object({ kind: v.literal("byok"), provider: v.string(), sealed: v.string(), last4: v.string(), model: v.string() }),
 );
 
-const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "arc" | "base"; tx?: string } = {}) =>
+const log = (ctx: MutationCtx, agent: Doc<"launchAgents">["_id"], kind: string, text: string, extra: { chain?: "arc" | "base" | "bsc"; tx?: string } = {}) =>
   ctx.db.insert("launchEvents", { agent, at: Date.now(), kind, text: text.slice(0, 300), ...extra });
 
 const tokenWhere = (chain: "arc" | "base") => (chain === "arc" ? "Argus (Arc)" : "Clanker (Base)");
@@ -193,7 +193,7 @@ export async function holdings(ctx: QueryCtx | MutationCtx, a: Doc<"launchAgents
   }
   let openUsdc = 0;
   for (const [key, usdc] of out) {
-    const [chain, kind, id] = key.split(":") as ["arc" | "base", "vs" | "pool", string];
+    const [chain, kind, id] = key.split(":") as ["arc" | "base" | "bsc", "vs" | "pool", string];
     const m = await ctx.db.query("arcMarkets").withIndex("by_market", (q) => q.eq("chain", chain).eq("kind", kind).eq("marketId", Number(id))).unique();
     if (!m || !["resolved", "cancelled"].includes(m.status)) openUsdc += usdc;
   }

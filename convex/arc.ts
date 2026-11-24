@@ -12,7 +12,7 @@ import { serverMarketChains } from "../lib/chains/registry";
 // The market index of every chain (convex/arcSync.ts writes it). Every market is keyed (chain, kind, marketId); public
 // queries take `chain` optionally and default to "arc", so links and clients from before Base keep working.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
-type Chain = "arc" | "base";
+type Chain = "arc" | "base" | "bsc";
 const chainArg = v.optional(vChain);
 /** A row without a chain is Arc's (written before Base). */
 const chainOf = (r: { chain?: Chain }): Chain => r.chain ?? "arc";

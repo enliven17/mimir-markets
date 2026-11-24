@@ -11,16 +11,21 @@ export function viemChainOf(c: MarketChain) {
   return defineChain({
     id: c.chainId,
     name: c.name,
-    nativeCurrency: c.gas.symbol === "USDC" ? { name: "USDC", symbol: "USDC", decimals: 18 } : { name: "Ether", symbol: "ETH", decimals: 18 },
+    nativeCurrency:
+      c.gas.symbol === "USDC"
+        ? { name: "USDC", symbol: "USDC", decimals: 18 }
+        : c.gas.symbol === "BNB"
+          ? { name: "BNB", symbol: "BNB", decimals: 18 }
+          : { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: c.rpcUrls } },
     blockExplorers: { default: { name: c.explorerName, url: c.explorer } },
   });
 }
 
-/** Server-only RPC headers per chain (ARC_RPC_HEADERS / BASE_RPC_HEADERS, JSON); never in the browser. */
+/** Server-only RPC headers per chain (ARC_RPC_HEADERS / BASE_RPC_HEADERS / BSC_RPC_HEADERS, JSON); never in the browser. */
 function serverRpcHeaders(c: MarketChain): Record<string, string> | undefined {
   if (typeof window !== "undefined") return undefined;
-  const raw = (c.id === "arc" ? process.env.ARC_RPC_HEADERS : process.env.BASE_RPC_HEADERS)?.trim();
+  const raw = (c.id === "arc" ? process.env.ARC_RPC_HEADERS : c.id === "bsc" ? process.env.BSC_RPC_HEADERS : process.env.BASE_RPC_HEADERS)?.trim();
   if (!raw) return undefined;
   try {
     const h = JSON.parse(raw) as Record<string, unknown>;

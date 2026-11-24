@@ -20,7 +20,7 @@ function json<T>(raw: string | undefined): T | null {
   }
 }
 
-const prefix = (chain: MarketChainId) => (chain === "arc" ? "ARC" : "BASE");
+const prefix = (chain: MarketChainId) => (chain === "arc" ? "ARC" : chain === "bsc" ? "BSC" : "BASE");
 
 export function houseCreatorWallet(chain: MarketChainId, env: Env = process.env): CircleWallet | null {
   const w = json<{ id?: string; address?: string }>(env[`${prefix(chain)}_CREATOR_WALLET`]);
@@ -34,7 +34,7 @@ export function councilWallets(chain: MarketChainId, env: Env = process.env): Re
 /** Every address Mimir's agents stake from on any chain (lowercase): the oracle holds markets they are in to firm verdicts. */
 export function houseAddresses(env: Env = process.env): string[] {
   const out: string[] = [];
-  for (const c of ["arc", "base"] as const) {
+  for (const c of ["arc", "base", "bsc"] as const) {
     const creator = houseCreatorWallet(c, env);
     if (creator) out.push(creator.address);
     for (const w of Object.values(councilWallets(c, env))) if (w?.address) out.push(w.address.toLowerCase());
@@ -44,7 +44,17 @@ export function houseAddresses(env: Env = process.env): string[] {
 
 /** The Circle W3S blockchain name for a market chain (developer wallets, transfers). */
 export const circleBlockchain = (chain: MarketChainId, network: "testnet" | "mainnet"): string =>
-  chain === "arc" ? (network === "mainnet" ? "ARC" : "ARC-TESTNET") : network === "mainnet" ? "BASE" : "BASE-SEPOLIA";
+  chain === "arc"
+    ? network === "mainnet"
+      ? "ARC"
+      : "ARC-TESTNET"
+    : chain === "bsc"
+      ? network === "mainnet"
+        ? "BSC"
+        : "BSC-TESTNET"
+      : network === "mainnet"
+        ? "BASE"
+        : "BASE-SEPOLIA";
 
 /**
  * The oracle EOA's key: ONE key for every market chain (the contracts' `oracle` role is the same address on Base and

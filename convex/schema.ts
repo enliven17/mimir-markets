@@ -8,7 +8,7 @@ import { v } from "convex/values";
 // Amounts are 18-dp index-unit strings on every chain (lib/chains/amounts.ts: Base's 6-dp USDC is scaled by 1e12 on
 // the way in; 18 dp overflows int64 past ~9.2 USDC); the *Usd floats are for sorting and display.
 const kind = v.union(v.literal("vs"), v.literal("pool"));
-export const vChain = v.union(v.literal("arc"), v.literal("base"));
+export const vChain = v.union(v.literal("arc"), v.literal("base"), v.literal("bsc"));
 /** Optional only so pre-Base rows validate until the backfill; every new row sets it. */
 const chain = v.optional(vChain);
 /**
@@ -348,7 +348,7 @@ export default defineSchema({
     at: v.number(),
     kind: v.string(),
     text: v.string(),
-    chain: v.optional(v.union(v.literal("arc"), v.literal("base"))),
+    chain: v.optional(vChain),
     tx: v.optional(v.string()),
   }).index("by_agent", ["agent", "at"]),
 
