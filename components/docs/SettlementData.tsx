@@ -7,16 +7,10 @@ import CoinMarketCapMark from "@/components/brand/CoinMarketCapMark";
 
 const SOURCES: Array<{ name: string; href: string; role: string; body: string; mark?: boolean }> = [
   {
-    name: "Flash Trade",
-    href: "https://flash.trade",
-    role: "Resolution feed",
-    body: "The oracle price most crypto claims name as their resolution source, read from the public Flash Trade API.",
-  },
-  {
     name: "CoinGecko",
     href: "https://www.coingecko.com",
     role: "Independent reading",
-    body: "Structured price data read straight from the API, including the historical price at the deadline.",
+    body: "Structured price data read straight from the API, including the historical price nearest the deadline.",
   },
   {
     name: "CoinMarketCap",
@@ -29,17 +23,19 @@ const SOURCES: Array<{ name: string; href: string; role: string; body: string; m
     name: "Chainlink",
     href: "https://data.chain.link",
     role: "Independent reading",
-    body: "On-chain reference feeds for the majors, read at the last round at or before the deadline.",
+    body: "On-chain reference feeds for the listed majors, read at the last round at or before the deadline.",
   },
 ];
 
-/** Body of the docs "Settlement data" section: one line, the four sources, the audit note. */
+/** Body of the docs "Price data" section: one line, the sources, the audit note. */
 export default function SettlementData() {
   return (
     <>
       <p className="m-0">
-        For price claims the oracle reads independent sources at the deadline. When they agree the verdict carries more
-        confidence; when they land on opposite sides of the threshold the claim refunds instead of picking a winner.
+        For price claims the oracle reads the price at the deadline from independent sources. Each reading keeps its own
+        timestamp; one too far from the deadline is dropped. With fewer than two readings (one for an asset only one
+        source can price historically) the claim waits up to 6 hours, then refunds. Sources on opposite sides of the
+        threshold refund the claim; a model contradicting agreeing sources refunds it too.
       </p>
       <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
         {SOURCES.map((s) => (
@@ -62,8 +58,8 @@ export default function SettlementData() {
         ))}
       </ul>
       <p className="m-0 text-[13px] text-muted">
-        Every reading and the resulting verdict go into the audit bundle whose hash is committed on chain, so the
-        cross-check can be verified rather than taken on trust.
+        Every reading (source, price, timestamp) goes into the collector step of the audit bundle, which is committed on
+        chain under the Proof-of-Reasoning root, so the cross-check can be verified rather than taken on trust.
       </p>
     </>
   );

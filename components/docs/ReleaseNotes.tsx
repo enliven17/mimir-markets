@@ -5,6 +5,28 @@ type Release = { date: string; title: string; intro: string; sections: Array<{ t
 
 const RELEASES: Release[] = [
   {
+    date: "November 2026",
+    title: "BNB Smart Chain, Proof of Reasoning, Agent ID Sentinels",
+    intro: "Mimir now runs on BNB Smart Chain by default. Every verdict commits a Merkle root over its reasoning, and any Binance Agent ID holder can check a proposal and dispute it. Base is wound down; Arc is legacy.",
+    sections: [
+      { title: "BNB Smart Chain", points: [
+        "New MimirV3Erc20 (VS) and MimirPoolErc20 (pool) deployments with Binance-Peg USDC (18 decimals). Gas is BNB.",
+        "No permit on this USDC: a stake is an exact-amount approval, then the call.",
+      ] },
+      { title: "Proof of Reasoning (audit bundle v2)", points: [
+        "The on-chain evidenceHash is now a 4-leaf Merkle root over the spec, collector, auditor and judge steps, instead of one flat sha256.",
+        "Any single step can be proven against the root with two sibling hashes (porProof / verifyPorStep in lib/verdict-bundle.ts).",
+        "The collector step carries a content receipt: the sha256 of the evidence text and when it was fetched. v1 bundles keep their flat sha256.",
+      ] },
+      { title: "Agent ID Sentinels", points: [
+        "Any holder of a Binance Agent ID (.ai) can dispute a proposal on BSC without holding a position, posting the 2 USDC bond. The bond comes back if the arbiter changes the result.",
+        "Agent ID holders pay a 0% entry fee (MimirBscFees).",
+        "agents/sentinel re-verifies every open proposal deterministically and, with --dispute, disputes faulty ones from your own key.",
+        "GET /api/markets/{vs|pool}/{id}?chain=bsc now returns verdict.evidenceHash and verdict.bundle.",
+      ] },
+    ],
+  },
+  {
     date: "November 1, 2026",
     title: "Your EVM wallet, free agents, your own token",
     intro: "Mimir now runs on Arc, with Base next. Connect any EVM wallet. Agents are free to create and only stake on Mimir markets. Solana, Robinhood Chain and the preview are gone; older notes below describe features that no longer exist.",
@@ -89,12 +111,12 @@ const RELEASES: Release[] = [
         "Going live preserves the rules for review. The live brain, execution costs and required funding remain explicit, and virtual balances never become real funds.",
       ] },
       { title: "Council radar and watchlists", points: [
-        "/radar compares each persona's latest explicit direction. Read-only council forecasts run even with betting disabled, share the existing per-tick attempt budget, and never change stake decisions. Personas can share models and sources; counts are not independent probabilities.",
+        "/radar compares each persona's latest explicit direction. Read-only council forecasts run even with council staking disabled, share the existing per-tick attempt budget, and never change stake decisions. Personas can share models and sources; counts are not independent probabilities.",
         "Follow public markets, topics, agent forecasts and checkpoint series with a wallet signature. Your private in-app watchlist shows new forecasts, side changes, changed source evidence, hosted-agent stakes and market state changes. Followed markets receive a closing-soon reminder while the feed is open.",
       ] },
       { title: "Daily checkpoints and a clearer start", points: [
         "SOL and BTC checkpoint templates reuse a machine-readable price rule and a 12:00 UTC deadline. The Arena points to an existing matching pool; a new occurrence always needs a reviewed signature and stake.",
-        "Market pages display opening, betting close, the evidence checkpoint, the oracle proposal, dispute review and final outcome in one timeline. Payout collection remains a separate step.",
+        "Market pages display opening, staking close, the evidence checkpoint, the oracle proposal, dispute review and final outcome in one timeline. Payout collection remains a separate step.",
         "The landing page offers three ways in: virtual funds, agent discovery or a market. Optional product funnel events use the existing analytics integration and distinguish paper from live activity.",
       ] },
     ],
