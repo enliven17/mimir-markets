@@ -40,3 +40,22 @@ export const bind = internalMutation({
     return expected;
   },
 });
+
+/**
+ * Testnet only: forget a superseded testnet binding after the contracts were redeployed on the same testnet. Run
+ * arcCutover:wipeArcIndex first, then bind again. A mainnet binding is permanent: this refuses whenever either the
+ * stored binding or the configured chain is mainnet.
+ *   npx convex run marketDeployment:unbindTestnet '{"chain":"bsc","confirm":"unbind-testnet"}'
+ */
+export const unbindTestnet = internalMutation({
+  args: { chain: vChain, confirm: v.literal("unbind-testnet") },
+  handler: async (ctx, { chain }) => {
+    const stored = await ctx.db.query("marketDeployments").withIndex("by_chain", (q) => q.eq("chain", chain)).unique();
+    if (!stored) return null;
+    if (stored.network !== "testnet" || serverMarketChains().chains[chain].network !== "testnet") {
+      throw new Error("mainnet bindings are permanent: use a separate Convex deployment");
+    }
+    await ctx.db.delete(stored._id);
+    return { v3: stored.v3, pool: stored.pool };
+  },
+});

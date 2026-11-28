@@ -18,6 +18,8 @@ const TABLES = [
   "arcCouncilDecisions",
   "arcMarketTakes",
   "arcTriage",
+  // Council takes are keyed by market id too, and ids restart at 1.
+  "councilOpinions",
 ] as const;
 const BATCH = 500;
 
