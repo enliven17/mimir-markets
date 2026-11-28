@@ -66,7 +66,8 @@ contract PrivateClaimTest {
         require(reserved == 0);
         require(_grant(CREATOR, id, ALICE, true));
         require(_challenge(ALICE, id, "anything"));
-        (address joined, uint256 stake) = vs.getChallenger(id, 0);
+        (address[] memory joinedList, uint256[] memory stakeList) = vs.getChallengerList(id);
+        (address joined, uint256 stake) = (joinedList[0], stakeList[0]);
         require(joined == ALICE && stake == STAKE);
     }
 

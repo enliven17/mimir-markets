@@ -303,4 +303,25 @@ contract BscErc20Test {
         vm.stopPrank();
         require(usdc.balanceOf(sentinel) == 8e18, "vs bond pulled");
     }
+
+    /// The owner cannot swap the dispute judge instantly: a new arbiter waits two days on both contracts.
+    function test_arbiterChangeIsTimelocked() public {
+        address next = address(0xA3B1);
+        vm.prank(owner);
+        pool.setArbiter(next);
+        vm.prank(owner);
+        vs.setArbiter(next);
+        require(pool.arbiter() == arbiter && vs.arbiter() == arbiter, "not yet");
+        vm.expectRevert(MimirPoolErc20.Timelocked.selector);
+        pool.executeArbiter();
+        vm.expectRevert(MimirV3Erc20.Timelocked.selector);
+        vs.executeArbiter();
+        vm.warp(T0 + 2 days);
+        pool.executeArbiter();
+        vs.executeArbiter();
+        require(pool.arbiter() == next && vs.arbiter() == next, "installed");
+        require(pool.pendingArbiterEta() == 0 && vs.pendingArbiterEta() == 0, "cleared");
+        vm.expectRevert(MimirPoolErc20.NothingQueued.selector);
+        pool.executeArbiter();
+    }
 }

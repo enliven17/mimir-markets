@@ -474,7 +474,8 @@ contract MimirV3Erc20Test {
         _invite(id, alice, true);
         _denyChallenge(bob, id, 5 * STAKE, "visible-in-calldata");
         _challenge(alice, id, 5 * STAKE, address(0));
-        (address joined, uint256 stake) = mimir.getChallenger(id, 0);
+        (address[] memory joinedList, uint256[] memory stakeList) = mimir.getChallengerList(id);
+        (address joined, uint256 stake) = (joinedList[0], stakeList[0]);
         assert(joined == alice && stake == 5 * STAKE);
     }
 

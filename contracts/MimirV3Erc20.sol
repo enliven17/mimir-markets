@@ -179,7 +179,7 @@ contract MimirV3Erc20 {
         uint256 maxChallengers;
         bool    isPrivate;
         bytes32 inviteKeyHash;       // legacy ABI field, always zero; access uses invited
-        bytes32 evidenceHash;        // keccak256(evidence content) — verifiable reasoning trace
+        bytes32 evidenceHash;        // Proof-of-Reasoning root of the audit bundle (lib/verdict-bundle.ts)
     }
 
     mapping(uint256 => Claim)   public claims;
@@ -265,6 +265,8 @@ contract MimirV3Erc20 {
     /// Timestamp from which pendingOwner may accept. 0 = nothing queued.
     uint256 public pendingOwnerEta;
     address public oracle; // off-chain AI oracle agent
+    address public pendingArbiter;
+    uint256 public pendingArbiterEta;
     address public pendingOracle;
     /// Timestamp from which pendingOracle may be installed. 0 = nothing queued.
     uint256 public pendingOracleEta;
@@ -331,6 +333,7 @@ contract MimirV3Erc20 {
     event ResolutionDisputed(uint256 indexed id, address indexed disputer, uint256 bond);
     event DisputeResolved(uint256 indexed id, uint8 winnerSide, bool disputerRight);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event ArbiterChangeQueued(address indexed next, uint256 eta);
     event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
@@ -475,12 +478,27 @@ contract MimirV3Erc20 {
         if (next != address(0) && next == auditAgent) revert RoleCollision();
     }
 
+    /// Queue a new arbiter, installable after ORACLE_TIMELOCK_SECONDS (anyone executes): the owner cannot swap the
+    /// dispute judge mid-window. Queuing again replaces the pending one; queuing the current arbiter cancels in effect.
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
         _checkAuditCollision(next);
+        pendingArbiter = next;
+        pendingArbiterEta = block.timestamp + ORACLE_TIMELOCK_SECONDS;
+        emit ArbiterChangeQueued(next, pendingArbiterEta);
+    }
+
+    function executeArbiter() external {
+        address next = pendingArbiter;
+        if (pendingArbiterEta == 0) revert NothingQueued();
+        if (block.timestamp < pendingArbiterEta) revert Timelocked();
+        if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
+        pendingArbiter = address(0);
+        pendingArbiterEta = 0;
     }
 
     /// Guarded launch caps (net USDC, 0 = none). They only gate new positions.
@@ -1269,18 +1287,6 @@ contract MimirV3Erc20 {
     }
 
     /// Entry fees taken on this claim so far, and the creator's referrer.
-    function getClaimFees(uint256 claimId) external view returns (uint256 entryFees, address creatorReferrer) {
-        return (claimEntryFees[claimId], claimReferrer[claimId]);
-    }
-
-    function getChallenger(uint256 claimId, uint256 index) external view returns (
-        address challenger,
-        uint256 stake
-    ) {
-        uint256 key = _chKey(claimId, index);
-        return (challengerAddresses[key], challengerStakes[key]);
-    }
-
     function getChallengerList(uint256 claimId) external view returns (
         address[] memory addrs,
         uint256[] memory stakes
@@ -1295,7 +1301,7 @@ contract MimirV3Erc20 {
         }
     }
 
-    // ponytail: wins/losses/lifetimeFees* are public; getUserStats/getPlatformStats/getFeeStats dropped for EIP-170 room.
+    // ponytail: wins/losses/lifetimeFees* are public; getUserStats/getPlatformStats/getFeeStats/getClaimFees/getChallenger dropped (public mappings cover them) for EIP-170 room.
 
     // ── Internal ──────────────────────────────────────────────────────────────
     function _strEq(string memory a, string memory b) internal pure returns (bool) {

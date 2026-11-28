@@ -175,7 +175,8 @@ roles.
 | Owner | `setPaused` | Immediate | Stops new positions, proposals, finalization, rulings and pool winners' claims. Refunds, cancels, withdrawals and `refundExpired` stay open. |
 | Owner | `revokeOracle` | Immediate | The oracle loses its power; a replacement still waits the timelock. |
 | Owner | `vetoProposal` | Immediate | Only inside the dispute window; sends the proposal to the arbiter, no bond. |
-| Owner | `setArbiter`, `setAuditAgent` | **Immediate** | The arbiter may not be the oracle. The audit agent only gains a bonded dispute right. |
+| Owner | `setAuditAgent` | Immediate | The audit agent only gains a bonded dispute right. |
+| Owner | `setArbiter` → `executeArbiter` | 2 days | Queued, then installed by anyone. The arbiter may not be the oracle. |
 | Owner | `setCaps`, `setLockAt` | Immediate | Caps gate only new positions. A lock only moves earlier and sits at least 60 s before the deadline. |
 | Owner | `queueOracle`, `queueFeeRecipient`, `transferOwnership` | 2 days | Anyone executes the oracle and fee-recipient changes when due; a new owner must accept. |
 | Owner (fee contract) | `revokeSigner` (immediate), `queueSigner`, `transferOwnership` (2 days) | | The fee-ticket signer can only lower a rate below 0.5%. |
@@ -201,9 +202,9 @@ roles.
 
 ### What you trust
 
-An undisputed proposal finalizes on the oracle's word. The owner can veto any proposal inside its window and replace
-the arbiter with no delay (`setArbiter` has no timelock). So the owner multisig and its arbiter have the last word on
-any proposal they challenge in time. Holding a pause for 7 days past a market's latest deadline, proposal or dispute
+An undisputed proposal finalizes on the oracle's word. The owner can veto any proposal inside its window and the
+arbiter rules it, so the owner multisig and its arbiter have the last word on any proposal they challenge in time. The
+arbiter can only be replaced after a public 2-day delay (`setArbiter` queues, `executeArbiter` installs). Holding a pause for 7 days past a market's latest deadline, proposal or dispute
 turns it into a full refund, never into a payout to anyone else.
 
 ## Fees

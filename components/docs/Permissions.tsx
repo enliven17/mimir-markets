@@ -14,7 +14,7 @@ export function RolesTable() {
         [
           "Owner (a Safe multisig on mainnet)",
           <>
-            <C>setPaused</C>, <C>revokeOracle</C>, <C>setArbiter</C>, <C>setAuditAgent</C>, <C>setCaps</C>, <C>vetoProposal</C>,{" "}
+            <C>setPaused</C>, <C>revokeOracle</C>, <C>setAuditAgent</C>, <C>setCaps</C>, <C>vetoProposal</C>,{" "}
             <C>setLockAt</C>
           </>,
           "Immediate",
@@ -23,7 +23,7 @@ export function RolesTable() {
         [
           "Owner",
           <>
-            <C>queueOracle</C>, <C>queueFeeRecipient</C>, <C>transferOwnership</C> (and their cancels); on the fee contract{" "}
+            <C>queueOracle</C>, <C>setArbiter</C> (queues; anyone runs <C>executeArbiter</C>), <C>queueFeeRecipient</C>, <C>transferOwnership</C> (and their cancels); on the fee contract{" "}
             <C>queueSigner</C>, <C>transferOwnership</C>
           </>,
           "2 days",
@@ -109,8 +109,9 @@ export function TrustNote() {
   return (
     <p className="m-0 text-[14px] text-muted">
       What you trust: an undisputed proposal finalizes on the oracle&apos;s word. The owner can veto any proposal inside its window and
-      replace the arbiter with no delay (<C>setArbiter</C> is not timelocked), so the owner multisig and its arbiter have the last word
-      on any proposal they challenge in time. Holding a pause for 7 days past a market&apos;s latest deadline, proposal or dispute turns it
+      the arbiter rules it, so the owner multisig and its arbiter have the last word on any proposal they challenge in time. The
+      arbiter itself can only be replaced after a public 2-day delay (<C>setArbiter</C> queues, <C>executeArbiter</C> installs), so a
+      judge cannot be swapped in for one dispute. Holding a pause for 7 days past a market&apos;s latest deadline, proposal or dispute turns it
       into a full refund (bond returned), never into a payout to anyone else.
     </p>
   );

@@ -187,6 +187,8 @@ contract MimirPoolErc20 {
     address public pendingOwner;
     uint256 public pendingOwnerEta;
     address public oracle;
+    address public pendingArbiter;
+    uint256 public pendingArbiterEta;
     address public pendingOracle;
     uint256 public pendingOracleEta;
     bool    public paused;
@@ -236,6 +238,7 @@ contract MimirPoolErc20 {
     event FeeRecipientChanged(address indexed previous, address indexed next);
     event Paused(bool paused);
     event ArbiterChanged(address indexed previous, address indexed next);
+    event ArbiterChangeQueued(address indexed next, uint256 eta);
     event AuditAgentChanged(address indexed previous, address indexed next);
     event CapsChanged(uint256 maxMarketStake, uint256 maxAccountStake);
     event LockSet(uint256 indexed id, uint256 lockAt);
@@ -396,12 +399,27 @@ contract MimirPoolErc20 {
         if (next != address(0) && next == auditAgent) revert RoleCollision();
     }
 
+    /// Queue a new arbiter, installable after TIMELOCK_SECONDS (anyone executes): the owner cannot swap the
+    /// dispute judge mid-window. Queuing again replaces the pending one; queuing the current arbiter cancels in effect.
     function setArbiter(address next) external onlyOwner {
         if (next == address(0)) revert ZeroAddress();
         if (next == oracle) revert RoleCollision();
         _checkAuditCollision(next);
+        pendingArbiter = next;
+        pendingArbiterEta = block.timestamp + TIMELOCK_SECONDS;
+        emit ArbiterChangeQueued(next, pendingArbiterEta);
+    }
+
+    function executeArbiter() external {
+        address next = pendingArbiter;
+        if (pendingArbiterEta == 0) revert NothingQueued();
+        if (block.timestamp < pendingArbiterEta) revert Timelocked();
+        if (next == oracle) revert RoleCollision();
+        _checkAuditCollision(next);
         emit ArbiterChanged(arbiter, next);
         arbiter = next;
+        pendingArbiter = address(0);
+        pendingArbiterEta = 0;
     }
 
     /// Guarded launch caps (net USDC, 0 = none). They only gate new stakes.
