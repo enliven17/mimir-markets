@@ -8,7 +8,7 @@
  * the final verdict. The claim's on-chain `evidence_hash` ([u8; 32]) is the
  * SHA-256 of the bundle's canonical JSON, so anyone holding the bundle can
  * check that it is exactly what the oracle committed to, and nothing was
- * added afterwards (`sha256sum bundle.json`).
+ * added afterwards (v1: sha256 of the canonical JSON; v2: the PoR root below).
  *
  * Version 2 (Proof of Reasoning): the committed hash is a Merkle root over
  * four fixed steps instead of one flat sha256, so a Sentinel can prove which

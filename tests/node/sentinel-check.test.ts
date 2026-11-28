@@ -21,10 +21,15 @@ test("an honest proposal has no faults", () => {
 test("each kind of tampering is caught", () => {
   assert.equal(auditProposal(proposal, null).length, 1);
   assert.match(auditProposal({ ...proposal, side: 2 }, bundle).join(), /judge decided/);
-  assert.match(auditProposal({ ...proposal, evidenceHash: "0x" + "0".repeat(64) }, bundle).join(), /re-hash/);
+  assert.match(auditProposal({ ...proposal, evidenceHash: "0x" + "1".repeat(64) }, bundle).join(), /re-hash/);
   const swapped = { ...bundle, evidence: { ...bundle.evidence!, text: "BTC 99000" } };
   assert.match(auditProposal({ ...proposal, evidenceHash: "0x" + bundleHash(swapped) }, swapped).join(), /receipt/);
   assert.match(auditProposal({ ...proposal, question: "other" }, bundle).join(), /spec step/);
   const low = [{ source: "coingecko" as const, priceUsd: 98_000, at }, { source: "pyth" as const, priceUsd: 98_100, at }];
   assert.match(auditProposal(proposal, bundle, low).join(), /independent deadline prices say CHALLENGERS_WIN/);
+});
+
+test("a one-sided refund (zero hash, empty bundle) is not a fault", () => {
+  assert.deepEqual(auditProposal({ ...proposal, side: 4, evidenceHash: "0x" + "0".repeat(64) }, {} as VerdictBundle), []);
+  assert.equal(auditProposal(proposal, {} as VerdictBundle).length, 1);
 });

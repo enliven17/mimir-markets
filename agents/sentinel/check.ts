@@ -27,7 +27,9 @@ export interface Proposal {
 }
 
 export function auditProposal(p: Proposal, bundle: VerdictBundle | null, independentPrices: PriceReading[] = []): string[] {
-  if (!bundle) return ["no audit bundle is published for the committed hash"];
+  // A zero hash is the one-sided refund (no bundle, nothing decided): nothing to audit or dispute.
+  if (/^(0x)?0{64}$/i.test(p.evidenceHash)) return [];
+  if (!bundle?.claim || !bundle.finalVerdict) return ["no audit bundle is published for the committed hash"];
   const faults: string[] = [];
   if (bundleHash(bundle) !== p.evidenceHash.replace(/^0x/, "").toLowerCase()) faults.push("bundle does not re-hash to the on-chain evidenceHash");
   const ev = bundle.evidence;

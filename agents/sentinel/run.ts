@@ -70,16 +70,21 @@ async function main() {
 
   for (const o of open) {
     const tag = `${o.kind} #${o.id}`;
-    const p = await proposalOf(ctx, o);
-    const bundle = await bundleOf(api, o);
-    const prices = bundle?.prices ? await fetchPriceReadings(bundle.prices.symbol, p.deadline * 1000).catch(() => []) : [];
-    const faults = auditProposal(p, bundle, prices);
-    if (!faults.length) {
-      console.log(`[sentinel] ${tag}: verified`);
-      continue;
+    try {
+      const p = await proposalOf(ctx, o);
+      const bundle = await bundleOf(api, o);
+      const prices = bundle?.prices ? await fetchPriceReadings(bundle.prices.symbol, p.deadline * 1000).catch(() => []) : [];
+      const faults = auditProposal(p, bundle, prices);
+      if (!faults.length) {
+        console.log(`[sentinel] ${tag}: verified`);
+        continue;
+      }
+      console.log(`[sentinel] ${tag}: FAULT\n  - ${faults.join("\n  - ")}`);
+      if (send) console.log(`[sentinel] ${tag}: disputed in ${await dispute(ctx, key, o)}`);
+    } catch (err) {
+      // One unreadable proposal must not stop the watch over the others.
+      console.warn(`[sentinel] ${tag}: skipped, ${err instanceof Error ? err.message : err}`);
     }
-    console.log(`[sentinel] ${tag}: FAULT\n  - ${faults.join("\n  - ")}`);
-    if (send) console.log(`[sentinel] ${tag}: disputed in ${await dispute(ctx, key, o)}`);
   }
 }
 
