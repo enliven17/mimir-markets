@@ -3,7 +3,8 @@
 /**
  * The two things a participant can do outside staking:
  *   cancel   the VS creator, while nobody has challenged yet: the stake comes back (the entry fee stays earned)
- *   dispute  any participant, while the oracle's proposal is inside its dispute window: a 2 USDC bond escalates it
+ *   dispute  any participant (on BSC also any Agent ID holder, a Sentinel), while the oracle's proposal is inside its
+ *            dispute window: a 2 USDC bond escalates it
  *            to the arbiter; the bond comes back if the verdict changes, and is forfeited if it stands
  */
 import { useState } from "react";
@@ -32,7 +33,9 @@ export default function ArcMarketActions({
   const [confirming, setConfirming] = useState(false);
   const me = account.address?.toLowerCase();
   const canCancel = m.kind === "vs" && m.status === "open" && me === m.creator;
-  const canDispute = m.status === "proposed" && m.disputableUntil > now && mine.length > 0;
+  // On BSC a Binance Agent ID holder may dispute as a Sentinel without a position (contracts _isSentinel).
+  const sentinel = mine.length === 0 && cfg.id === "bsc" && account.hasAgentId;
+  const canDispute = m.status === "proposed" && m.disputableUntil > now && (mine.length > 0 || sentinel);
   if (!account.session || (!canCancel && !canDispute)) return null;
 
   const contract = marketContract(cfg, m.kind);
@@ -59,6 +62,9 @@ export default function ArcMarketActions({
       ) : null}
       {canDispute ? (
         <>
+          {sentinel ? (
+            <p className="m-0 text-[12px] font-medium text-coral">Sentinel: your Agent ID lets you check this verdict and dispute it without a stake.</p>
+          ) : null}
           <p className="m-0 text-[13px] leading-relaxed text-muted">
             Think the oracle got it wrong? Dispute with a {usd(BOND)} bond before the window closes: it comes back if the arbiter changes the result or cutoff, and
             is kept if the result stands.
