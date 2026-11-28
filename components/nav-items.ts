@@ -55,15 +55,12 @@ export const NAV_MORE_GROUPS: readonly NavGroup[] = [
       { href: "/agents/new", key: "agentsNew" },
       // The Mimir CLI (mimir-terminal on npm): /terminal is its install page.
       { href: "/terminal", key: "terminal" },
-      // Mimir Desk, its own app: /desk redirects to desk.mimirmarkets.xyz.
-      { href: "/desk", key: "desk", badge: "new" },
       { href: "/docs", key: "docs" },
     ],
   },
   {
     key: "mimir",
     items: [
-      { href: "/app", key: "app", webOnly: true },
       // The footer is hidden in the app, so the terms live here too.
       { href: "/terms", key: "terms" },
     ],

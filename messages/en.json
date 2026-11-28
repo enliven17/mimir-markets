@@ -1467,10 +1467,6 @@
         "label": "CLI",
         "hint": "Mimir in your own terminal, on your own AI"
       },
-      "desk": {
-        "label": "Desk",
-        "hint": "Research markets and draft claims with an agent"
-      },
       "arena": {
         "label": "Arena",
         "hint": "Open claims and live duels"
@@ -1531,10 +1527,6 @@
       "mainnet": {
         "label": "Mainnet",
         "hint": "Release notes for October 13"
-      },
-      "app": {
-        "label": "Mobile app",
-        "hint": "Mimir on Android, and on your home screen"
       },
       "launch": {
         "label": "Launch",

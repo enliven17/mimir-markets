@@ -8,7 +8,6 @@ import Footer from "@/components/Footer";
 import HtmlLang from "@/components/HtmlLang";
 import PageFrame from "@/components/PageFrame";
 import WalletSheetProvider from "@/components/wallet/WalletSheetProvider";
-import AppBanners from "@/components/app/AppBanners";
 import MobileTabBar from "@/components/app/MobileTabBar";
 import ConsentNotice from "@/components/legal/ConsentNotice";
 import RouteProgress from "@/components/app/RouteProgress";
@@ -76,7 +75,6 @@ export default async function LocaleLayout({ children, params }: Props) {
         <Footer />
         <ProductNotice />
         <ArcLaunchModal />
-        <AppBanners />
         <MobileTabBar />
         <ConsentNotice />
         <RouteProgress />
