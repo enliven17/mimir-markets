@@ -56,7 +56,7 @@ import {
   type PriceReading,
 } from "../../lib/price-consensus";
 import { deadlineReadingsRequired, fetchPriceReadings, hasSecondPriceSource } from "../../lib/server/price-sources";
-import { sealBundle, VERDICT_BUNDLE_VERSION, type VerdictBundle } from "../../lib/verdict-bundle";
+import { hashHex, sealBundle, sha256Bytes, VERDICT_BUNDLE_VERSION, type VerdictBundle } from "../../lib/verdict-bundle";
 import { evaluateClaim, isEventFinal, type OracleVerdict } from "./evaluate";
 import {
   gatherCouncilVerdict,
@@ -253,10 +253,11 @@ const bundlePrices = (p: DeadlinePrices): NonNullable<VerdictBundle["prices"]> =
   readings: p.readings.map((r) => ({ source: r.source, priceUsd: r.priceUsd, at: r.at })),
 });
 
-const bundleEvidence = (e: Evidence): NonNullable<VerdictBundle["evidence"]> => ({
-  fetcher: e.fetcher,
-  text: e.text.slice(0, MAX_CONTENT_CHARS),
-});
+const bundleEvidence = (e: Evidence): NonNullable<VerdictBundle["evidence"]> => {
+  const text = e.text.slice(0, MAX_CONTENT_CHARS);
+  // Content receipt: anyone holding the text checks it is what the oracle read (Collector step).
+  return { fetcher: e.fetcher, text, sha256: hashHex(sha256Bytes(text)), fetchedAt: Date.now() };
+};
 
 /** Seal everything a decision rested on into the audit bundle whose hash goes on chain. */
 export function decisionFor(

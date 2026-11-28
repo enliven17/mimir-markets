@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
-import { bundleHash, canonicalJson, sealBundle, VERDICT_BUNDLE_VERSION, type VerdictBundle } from "../../lib/verdict-bundle";
+import { bundleHash, canonicalJson, porProof, porSteps, sealBundle, verifyPorStep, VERDICT_BUNDLE_VERSION, type VerdictBundle } from "../../lib/verdict-bundle";
 
 const bundle: VerdictBundle = {
   version: VERDICT_BUNDLE_VERSION,
@@ -22,8 +22,8 @@ test("the stored text re-hashes to the committed hash after a JSON round trip", 
   assert.ok(!canonical.includes("model"), "undefined fields are not part of the hashed bytes");
 });
 
-test("the hash is plain sha256 of the file, checkable with sha256sum", () => {
-  const { canonical, hash } = sealBundle(bundle);
+test("a v1 bundle's hash is plain sha256 of the file, checkable with sha256sum", () => {
+  const { canonical, hash } = sealBundle({ ...bundle, version: 1 });
   assert.equal(createHash("sha256").update(canonical, "utf8").digest("hex"), hash);
 });
 
@@ -43,4 +43,17 @@ test("a bundle that cannot be stored blocks the proposal when storage is require
   } finally {
     if (prev !== undefined) process.env.DATABASE_URL = prev;
   }
+});
+
+test("v2 commits a Proof-of-Reasoning root: each step proves alone, any edit breaks it", () => {
+  assert.equal(VERDICT_BUNDLE_VERSION, 2);
+  const { hash } = sealBundle(bundle);
+  const steps = porSteps(bundle);
+  for (const step of ["spec", "collector", "auditor", "judge"] as const) {
+    assert.ok(verifyPorStep(step, steps[step], porProof(bundle, step), hash), `${step} verifies`);
+  }
+  const forged = { ...steps.judge, finalVerdict: { verdict: "CHALLENGERS_WIN", confidence: 90, explanation: "because" } };
+  assert.ok(!verifyPorStep("judge", forged, porProof(bundle, "judge"), hash), "edited judge step fails");
+  assert.ok(!verifyPorStep("spec", steps.judge, porProof(bundle, "spec"), hash), "a step cannot pose as another");
+  assert.notEqual(sealBundle({ ...bundle, adjustments: [] }).hash, hash);
 });
