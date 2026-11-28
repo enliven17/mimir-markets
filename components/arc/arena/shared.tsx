@@ -68,3 +68,7 @@ export function Split({ m, className = "h-[5px]" }: { m: Pick<ArcMarket, "stakeA
     </div>
   );
 }
+
+/** Shown wherever money goes in (contest and common-sense rule): staking can lose the whole stake. */
+export const RISK_NOTE =
+  "Risk: staking on a market can lose your whole stake. Outcomes are uncertain and nothing here is investment advice. Only stake what you can afford to lose.";

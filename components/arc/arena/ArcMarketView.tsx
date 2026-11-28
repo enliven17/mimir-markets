@@ -164,12 +164,12 @@ export default function ArcMarketView({ chain = "arc", kind, marketId }: { chain
             </span>
             {phase === "open" ? (
               m.lockAt && m.lockAt < m.deadline ? (
-                <Countdown until={m.lockAt} format={(t) => `Betting closes early, ${t} left`} className="font-mono" />
+                <Countdown until={m.lockAt} format={(t) => `Staking closes early, ${t} left`} className="font-mono" />
               ) : (
                 <Countdown until={m.deadline} format={(t) => `${t} left`} className="font-mono" />
               )
             ) : m.lockAt && m.lockAt < m.deadline && now < m.deadline ? (
-              <span>Betting closed early {new Date(m.lockAt * 1000).toLocaleString("en-US")} · result after {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
+              <span>Staking closed early {new Date(m.lockAt * 1000).toLocaleString("en-US")} · result after {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
             ) : (
               <span>Closed {new Date(m.deadline * 1000).toLocaleString("en-US")}</span>
             )}

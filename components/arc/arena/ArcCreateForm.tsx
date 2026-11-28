@@ -25,7 +25,7 @@ import { CATEGORIES } from "@/lib/constants";
 import { mentionsPastDay } from "@/lib/past-date";
 import { api } from "@/convex/_generated/api";
 import AccountGate from "./AccountGate";
-import { BTN_PRIMARY, KIND_LABEL, usd, usdFine } from "./shared";
+import { BTN_PRIMARY, KIND_LABEL, RISK_NOTE, usd, usdFine } from "./shared";
 import { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
 import { MARKET_SERIES, seriesDraft, seriesForMarket } from "@/lib/market-series";
@@ -40,7 +40,7 @@ const DEADLINE_HINT: Record<string, string> = {
   crypto: "For a price question, the price is read at the deadline from two independent sources.",
   weather: "Set it before the day or period the question is about begins; the oracle reads the result afterwards.",
   culture: "Set it before the outcome can be known (the announcement, the ceremony, the release).",
-  custom: "Betting closes at the deadline. Set it before the answer can be known.",
+  custom: "Staking closes at the deadline. Set it before the answer can be known.",
 };
 
 // Leave the deadline at least this far out, so the tx and the betting lock both fit.
@@ -262,7 +262,7 @@ export default function ArcCreateForm() {
             <span className="flex gap-2 rounded-xl bg-coral/10 px-3 py-2.5 text-[13px] leading-relaxed text-cream">
               <span aria-hidden className="font-bold text-coral">!</span>
               <span>
-                Set the deadline <strong className="font-medium">before the game starts</strong> (kickoff, tip-off, first pitch). Betting closes at the
+                Set the deadline <strong className="font-medium">before the game starts</strong> (kickoff, tip-off, first pitch). Staking closes at the
                 deadline; deposits at or after the start are refunded without profit. Earlier deposits settle on the result.
               </span>
             </span>
@@ -310,9 +310,10 @@ export default function ArcCreateForm() {
         ) : null}
 
         <p className="m-0 text-[12px] leading-relaxed text-dim">
-          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Betting closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to the winners' wallets on {cfg.label}. A
+          A {account.entryBps / 100}% fee comes off your stake; there is no fee on winnings. Staking closes {LOCK_SECONDS} s before the deadline. The oracle then proposes a result from the source, anyone may dispute it, and payouts go straight to the winners' wallets on {cfg.label}. A
           draw or an unresolvable market refunds everyone.
         </p>
+        <p className="m-0 text-[12px] leading-relaxed text-pending">{RISK_NOTE}</p>
 
         <AccountGate account={account}>
           {problem === "not-enough" ? (

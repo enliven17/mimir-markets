@@ -17,7 +17,7 @@ import { floorToChain, toIndexUnits } from "@/lib/chains/amounts";
 import { chainPublicClient } from "@/lib/chains/client";
 import { explorerUrl, marketContract } from "@/lib/chains/registry";
 import AccountGate from "./AccountGate";
-import { BTN_PRIMARY, usd, usdFine, type ArcMarket } from "./shared";
+import { BTN_PRIMARY, RISK_NOTE, usd, usdFine, type ArcMarket } from "./shared";
 import type { useArcAccount } from "./useArcAccount";
 import { useArcSend } from "./useArcSend";
 import { useClaimInvitation } from "./useClaimInvitation";
@@ -151,9 +151,11 @@ export default function ArcStakePanel({
           </div>
         ) : null}
 
+        <p className="m-0 text-[12px] leading-relaxed text-pending">{RISK_NOTE}</p>
+
         <p className="m-0 text-[12px] text-dim">
-          {cfg.gas.symbol === "ETH"
-            ? `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas in ETH${account.gas === null ? "" : ` (${(Number(account.gas) / 1e18).toFixed(5)} ETH)`}`
+          {cfg.gas.symbol !== "USDC"
+            ? `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas in ${cfg.gas.symbol}${account.gas === null ? "" : ` (${(Number(account.gas) / 1e18).toFixed(5)} ${cfg.gas.symbol})`}`
             : `USDC on ${cfg.label}: ${account.balance === null ? "-" : usd(account.balance)} · gas is paid in USDC`}
         </p>
 
