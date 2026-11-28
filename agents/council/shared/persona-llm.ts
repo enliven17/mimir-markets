@@ -56,6 +56,18 @@ const TAKE_SCHEMA = {
   required: ["verdict", "confidence", "explanation"],
 } as const;
 
+// A forecast has no UNRESOLVABLE: small models read "not played yet" as unresolvable however the rules are worded.
+// Real doubt is a low confidence, which keeps the persona under its stake threshold.
+const FORECAST_SCHEMA = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["CREATOR_WINS", "CHALLENGERS_WIN", "DRAW"] },
+    confidence: { type: "integer" },
+    explanation: { type: "string" },
+  },
+  required: ["verdict", "confidence", "explanation"],
+} as const;
+
 const PERSONA_VERDICT_SCHEMA = {
   type: "object",
   properties: {
@@ -87,7 +99,7 @@ const JUDGE_RULES = "- UNRESOLVABLE only if the evidence is missing, ambiguous, 
 const FORECAST_RULES = `- The outcome is in the future; that is expected. Forecast it from what is known now: the current price against the
   threshold and the time left, form, standings, schedule, base rates. Do not answer UNRESOLVABLE because it has not
   happened yet.
-- UNRESOLVABLE only if the question itself cannot be settled (no usable source, or terms too vague to judge).
+- If the terms are too vague to judge, still pick the likelier side but with confidence 50.
 - confidence is your probability (50-95) that the side you pick wins. Stay under 90 while there is real time or
   uncertainty left; go higher only when the outcome is effectively locked.`;
 
@@ -139,7 +151,7 @@ ${peers}
 ${task}
 
 Return JSON only:
-{ "verdict": "CREATOR_WINS" | "CHALLENGERS_WIN" | "DRAW" | "UNRESOLVABLE", "confidence": <0-100>, "explanation": "<one or two sentences in your voice>" }
+{ "verdict": ${mode === "forecast" ? '"CREATOR_WINS" | "CHALLENGERS_WIN" | "DRAW"' : '"CREATOR_WINS" | "CHALLENGERS_WIN" | "DRAW" | "UNRESOLVABLE"'}, "confidence": <0-100>, "explanation": "<one or two sentences in your voice>" }
 
 ${mode === "judge" ? JUDGE_RULES : mode === "take" ? TAKE_RULES : FORECAST_RULES}
 - Never invent evidence. Cite what you actually saw above.`;
@@ -173,7 +185,7 @@ export async function evaluateClaimAsPersona(
   const text = await llm(buildPersonaPrompt(persona, claim, evidenceText, opts.peerReads, mode), {
     maxTokens: 512,
     jsonOnly: true,
-    jsonSchema: mode === "take" ? TAKE_SCHEMA : PERSONA_VERDICT_SCHEMA,
+    jsonSchema: mode === "take" ? TAKE_SCHEMA : mode === "forecast" ? FORECAST_SCHEMA : PERSONA_VERDICT_SCHEMA,
     model: pickGeminiModel(persona.slug),
     // A juror's vote settles money: no anonymous free-router fallback.
     ...(mode === "judge" ? { noFreeRouter: true, temperature: 0 } : {}),
