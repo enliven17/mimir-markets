@@ -1004,12 +1004,26 @@ contract MimirV3Erc20 {
         _dispute(claimId);
     }
 
+    /// Sentinel: a Binance Agent ID holder may dispute without a position (BSC fee contract exposes
+    /// hasAgentId; on other chains the call fails and this is false). Gas-capped and never reverts.
+    function _isSentinel(address a) private view returns (bool s) {
+        address f = address(fees);
+        assembly ("memory-safe") {
+            // Scratch space only (0x00-0x3f): hasAgentId(address)
+            mstore(0x00, shl(224, 0x4eab3ef2))
+            mstore(0x04, a)
+            if staticcall(100000, f, 0x00, 0x24, 0x00, 0x20) {
+                if eq(returndatasize(), 0x20) { s := iszero(iszero(mload(0x00))) }
+            }
+        }
+    }
+
     function _dispute(uint256 claimId) private {
         Claim storage claim = claims[claimId];
         Proposal storage p = proposals[claimId];
         if (claim.state != ST_PROPOSED) revert NothingToDispute();
         if (block.timestamp >= p.proposedAt + disputeWindow) revert DisputeWindowClosed();
-        if (!(msg.sender == claim.creator || hasChallenged[claimId][msg.sender] || msg.sender == auditAgent || msg.sender == arbiter)) revert NotAParticipant();
+        if (!(msg.sender == claim.creator || hasChallenged[claimId][msg.sender] || msg.sender == auditAgent || msg.sender == arbiter || _isSentinel(msg.sender))) revert NotAParticipant();
         // The bond is not a position: no entry fee.
         _pull(DISPUTE_BOND);
         claim.state  = ST_DISPUTED;
@@ -1281,29 +1295,7 @@ contract MimirV3Erc20 {
         }
     }
 
-    function getUserStats(address user) external view returns (
-        uint256 userWins,
-        uint256 userLosses
-    ) {
-        return (wins[user], losses[user]);
-    }
-
-    function getPlatformStats() external view returns (
-        uint256 totalClaims,
-        uint256 resolved,
-        uint256 balance
-    ) {
-        return (claimCount, totalResolved, _balance());
-    }
-
-    /// Accrued minus claimed must always be covered by the contract balance.
-    function getFeeStats() external view returns (
-        uint256 accrued,
-        uint256 claimed,
-        uint256 outstanding
-    ) {
-        return (lifetimeFeesAccrued, lifetimeFeesClaimed, lifetimeFeesAccrued - lifetimeFeesClaimed);
-    }
+    // ponytail: wins/losses/lifetimeFees* are public; getUserStats/getPlatformStats/getFeeStats dropped for EIP-170 room.
 
     // ── Internal ──────────────────────────────────────────────────────────────
     function _strEq(string memory a, string memory b) internal pure returns (bool) {

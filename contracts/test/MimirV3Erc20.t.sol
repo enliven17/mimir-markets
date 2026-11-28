@@ -143,9 +143,8 @@ contract MimirV3Erc20Test {
 
     /// The contract must always hold at least every parked payout and unclaimed fee.
     function _solvent() internal view {
-        (,, uint256 outstanding) = mimir.getFeeStats();
-        (,, uint256 held) = mimir.getPlatformStats();
-        assert(held == _bal(address(mimir)));
+        uint256 outstanding = mimir.lifetimeFeesAccrued() - mimir.lifetimeFeesClaimed();
+        uint256 held = _bal(address(mimir));
         assert(held >= outstanding);
     }
 

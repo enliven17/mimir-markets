@@ -244,4 +244,63 @@ contract BscErc20Test {
         vs.finalizeResolution(id);
         require(usdc.balanceOf(alice) - before == 9.975e18, "vs alice payout");
     }
+
+    /// Sentinel: an Agent ID holder with no position disputes a wrong proposal and gets the bond back.
+    function test_agentIdSentinelDisputesWithoutPosition() public {
+        address sentinel = address(0x5E47);
+        agentId.grant(sentinel);
+        usdc.mint(sentinel, 10e18);
+        uint256 deadline = T0 + 2 hours;
+
+        vm.startPrank(bob);
+        usdc.approve(address(pool), 10e18);
+        uint256 id = pool.createMarket("Will BNB > $700?", "Yes", "No", "https://example.com", "crypto", deadline, 1, address(0), 5e18);
+        vm.stopPrank();
+        vm.warp(deadline + 1);
+        vm.prank(oracle);
+        pool.resolve(id, 2, "wrong", keccak256("ev1"));
+
+        // A non-holder outsider is refused.
+        address outsider = address(0x0B5);
+        usdc.mint(outsider, 10e18);
+        vm.startPrank(outsider);
+        usdc.approve(address(pool), 2e18);
+        vm.expectRevert(MimirPoolErc20.NotParticipant.selector);
+        pool.dispute(id);
+        vm.stopPrank();
+
+        vm.startPrank(sentinel);
+        usdc.approve(address(pool), 2e18);
+        pool.dispute(id);
+        vm.stopPrank();
+        require(usdc.balanceOf(sentinel) == 8e18, "bond pulled");
+
+        vm.prank(arbiter);
+        pool.resolveDispute(id, 1, "corrected", keccak256("ev2"));
+        require(usdc.balanceOf(sentinel) == 10e18, "bond returned");
+    }
+
+    function test_agentIdSentinelDisputesVsClaim() public {
+        address sentinel = address(0x5E47);
+        agentId.grant(sentinel);
+        usdc.mint(sentinel, 10e18);
+        uint256 deadline = T0 + 2 hours;
+        vm.startPrank(bob);
+        usdc.approve(address(vs), 5e18);
+        uint256 id = vs.createClaim("Q?", "Yes", "No", "https://example.com", deadline, 5e18, "crypto", 0, "binary", "pool", 20_000, "", "", 10, false, "", address(0));
+        vm.stopPrank();
+        vm.startPrank(alice);
+        usdc.approve(address(vs), 5e18);
+        vs.challengeClaim(id, 5e18, "", address(0));
+        vm.stopPrank();
+        vm.warp(deadline + 1);
+        vm.prank(oracle);
+        vs.resolveClaimWithCutoff(id, 1, "Yes", 95, keccak256("ev"), 0);
+
+        vm.startPrank(sentinel);
+        usdc.approve(address(vs), 2e18);
+        vs.disputeResolution(id);
+        vm.stopPrank();
+        require(usdc.balanceOf(sentinel) == 8e18, "vs bond pulled");
+    }
 }

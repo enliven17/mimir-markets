@@ -664,11 +664,25 @@ contract MimirPoolErc20 {
         _dispute(id);
     }
 
+    /// Sentinel: a Binance Agent ID holder may dispute without a position (BSC fee contract exposes
+    /// hasAgentId; on other chains the call fails and this is false). Gas-capped and never reverts.
+    function _isSentinel(address a) private view returns (bool s) {
+        address f = address(fees);
+        assembly ("memory-safe") {
+            // Scratch space only (0x00-0x3f): hasAgentId(address)
+            mstore(0x00, shl(224, 0x4eab3ef2))
+            mstore(0x04, a)
+            if staticcall(100000, f, 0x00, 0x24, 0x00, 0x20) {
+                if eq(returndatasize(), 0x20) { s := iszero(iszero(mload(0x00))) }
+            }
+        }
+    }
+
     function _dispute(uint256 id) private {
         Market storage m = _markets[id];
         if (m.state != ST_PROPOSED || m.creator == address(0)) revert NotProposed();
         if (block.timestamp >= m.proposedAt + disputeWindow) revert WindowClosed();
-        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0 && msg.sender != auditAgent && msg.sender != arbiter) revert NotParticipant();
+        if (stakeA[id][msg.sender] == 0 && stakeB[id][msg.sender] == 0 && msg.sender != auditAgent && msg.sender != arbiter && !_isSentinel(msg.sender)) revert NotParticipant();
         _pull(DISPUTE_BOND);
         m.state = ST_DISPUTED;
         m.disputer = msg.sender;
