@@ -7,8 +7,10 @@
 // Circle developer-controlled wallet (lib/server/circle-w3s.ts); the key stays with Circle. Every decision is recorded
 // (arcCouncilDb) and shown on the market page; a considered no stands for COUNCIL_REEVAL_MS.
 // A persona stakes from its wallet on the market's own chain: ARC_COUNCIL_WALLETS on Arc (gas in USDC),
-// BASE_COUNCIL_WALLETS on Base (approve + stake; gas in ETH that Mimir funds). No wallet on a chain = no stakes there.
-// Env: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (scripts/arc/council-wallets.ts),
+// BASE_COUNCIL_WALLETS on Base (approve + stake; gas in ETH that Mimir funds), BSC_COUNCIL_WALLETS on BNB Chain (Circle
+// signs only there: approve + stake are signed by Circle and broadcast by us, lib/server/circle-sign.ts; gas in BNB that
+// Mimir funds). No wallet on a chain = no stakes there.
+// Env: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, ARC_ / BASE_ / BSC_COUNCIL_WALLETS (scripts/arc/council-wallets.ts),
 //      the LLM keys, MIMIR_PAUSE_COUNCIL=1 to stop, COUNCIL_DRY_RUN=1 to decide without staking.
 
 import { internal } from "./_generated/api";
@@ -23,10 +25,11 @@ import type { ActionCtx } from "./_generated/server";
 import { sizeStakeUnits } from "../agents/council/shared/persona-rules";
 import type { CouncilClaim, EvidenceCacheEntry } from "../agents/council/shared/types";
 import { floorToChain } from "../lib/chains/amounts";
-import { houseAddresses, houseCreatorWallet } from "../lib/chains/house";
+import { circleSignsOnly, houseAddresses, houseCreatorWallet } from "../lib/chains/house";
 import { groupLegs, takeReuse } from "../lib/chains/linked";
 import { serverMarketChains, type MarketChainId } from "../lib/chains/registry";
 import { circleStake, walletGasWei, walletUsdcWei } from "../lib/server/chain-circle";
+import { circleSignedStake } from "../lib/server/circle-sign";
 import { jevEnabled } from "../lib/jev";
 import { skipTake } from "../lib/jev-triage";
 import { ENTRY_FEE_BPS } from "../lib/arc/fees";
@@ -101,7 +104,7 @@ export const tick = internalAction({
     const standing = new Set(await ctx.runQuery(internal.arcCouncilDb.standing, { now: Date.now() }));
     const evidenceCache = new Map<string, EvidenceCacheEntry>();
     const throttle = createThrottle(Number(e.COUNCIL_LLM_THROTTLE_MS ?? 4500));
-    // Per chain and wallet: USDC (index units) and, on Base, whether it has ETH for gas.
+    // Per chain and wallet: USDC (index units) and, where gas is not USDC (ETH on Base, BNB on BNB Chain), whether it has any.
     const balances = new Map<string, bigint>();
     const hasGas = new Map<string, boolean>();
 
@@ -144,9 +147,9 @@ export const tick = internalAction({
           }
           const bal = `${m.chain}:${me}`;
           if (!balances.has(bal)) balances.set(bal, await walletUsdcWei(cfg, wallet.address));
-          if (cfg.gas.symbol === "ETH" && !hasGas.has(bal)) hasGas.set(bal, (await walletGasWei(cfg, wallet.address)) > 0n);
+          if (cfg.gas.symbol !== "USDC" && !hasGas.has(bal)) hasGas.set(bal, (await walletGasWei(cfg, wallet.address)) > 0n);
           if (hasGas.get(bal) === false) {
-            await record({ outcome: "abstained", rationale: `${persona.displayName} has no ETH for gas on ${cfg.label}.`, confidence: decision.confidence, until: Date.now() + REEVAL_MS });
+            await record({ outcome: "abstained", rationale: `${persona.displayName} has no ${cfg.gas.symbol} for gas on ${cfg.label}.`, confidence: decision.confidence, until: Date.now() + REEVAL_MS });
             continue;
           }
           const bankroll = units(balances.get(bal)!);
@@ -170,7 +173,10 @@ export const tick = internalAction({
             continue;
           }
           const wei = floorToChain(cfg, unitsToWei(stake));
-          const txHash = await circleStake(cfg, { walletId: wallet.id, address: wallet.address }, { kind: m.kind, marketId: m.marketId, side: 2, wei });
+          const from = { walletId: wallet.id, address: wallet.address };
+          const txHash = circleSignsOnly(cfg.id, cfg.network)
+            ? await circleSignedStake(cfg, from, { kind: m.kind, marketId: m.marketId, side: 2, wei })
+            : await circleStake(cfg, from, { kind: m.kind, marketId: m.marketId, side: 2, wei });
           balances.set(bal, balances.get(bal)! - wei);
           inMarket.add(me);
           staked.add(m.chain);

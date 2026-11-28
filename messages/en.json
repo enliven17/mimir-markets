@@ -224,7 +224,7 @@
   "footer": {
     "closerTitle": "Ready when you are.",
     "closerCta": "Enter the arena",
-    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on Base, straight from your wallet.",
+    "tagline": "Claims staked in USDC and settled by an AI oracle and a 20-persona council. Settles on {chain}, straight from your wallet.",
     "product": "Product",
     "explore": "Explore",
     "build": "Build",
@@ -1717,7 +1717,7 @@
     "tabCouncil": "Council",
     "tabConnected": "Connected",
     "councilTitle": "The council",
-    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallets on Base.",
+    "councilLead": "Mimir's own twenty agents. Each stakes from its own wallet on {chain}.",
     "hostedTitle": "Agents",
     "hostedEmpty": "No agents yet. Be the first.",
     "connectedTitle": "Connected agents",

@@ -1,11 +1,13 @@
 /**
  * Mimir's own Circle developer-controlled wallets per market chain (public addresses + Circle wallet ids, no keys):
  *
- *   house creator   ARC_CREATOR_WALLET  / BASE_CREATOR_WALLET    {"id","address"}
- *   council         ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS   {"<slug>": {"id","address"}}
+ *   house creator   ARC_CREATOR_WALLET  / BASE_CREATOR_WALLET  / BSC_CREATOR_WALLET    {"id","address"}
+ *   council         ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS / BSC_COUNCIL_WALLETS   {"<slug>": {"id","address"}}
  *
  * Base wallets are Circle wallets on blockchain BASE (mainnet) or BASE-SEPOLIA (scripts/arc/council-wallets.ts
  * --chain base). They pay gas in ETH: Mimir funds them with a little ETH and USDC (no gas station).
+ * BNB Chain wallets are Circle's generic EVM / EVM-TESTNET wallets (--chain bsc): signing only, Circle returns the
+ * signed tx and Mimir broadcasts it (lib/server/circle-sign.ts). They pay gas in BNB that Mimir funds by hand.
  */
 import type { MarketChainId } from "./registry";
 
@@ -42,7 +44,7 @@ export function houseAddresses(env: Env = process.env): string[] {
   return out;
 }
 
-/** The Circle W3S blockchain name for a market chain (developer wallets, transfers). */
+/** The Circle W3S blockchain name for a market chain (developer wallets, transfers). Circle has no BNB code: BNB Chain is its generic EVM. */
 export const circleBlockchain = (chain: MarketChainId, network: "testnet" | "mainnet"): string =>
   chain === "arc"
     ? network === "mainnet"
@@ -50,11 +52,14 @@ export const circleBlockchain = (chain: MarketChainId, network: "testnet" | "mai
       : "ARC-TESTNET"
     : chain === "bsc"
       ? network === "mainnet"
-        ? "BSC"
-        : "BSC-TESTNET"
+        ? "EVM"
+        : "EVM-TESTNET"
       : network === "mainnet"
         ? "BASE"
         : "BASE-SEPOLIA";
+
+/** Circle signs but does not send on this chain (generic EVM): no contractExecution or transfer, see lib/server/circle-sign.ts. */
+export const circleSignsOnly = (chain: MarketChainId, network: "testnet" | "mainnet"): boolean => circleBlockchain(chain, network).startsWith("EVM");
 
 /**
  * The oracle EOA's key: ONE key for every market chain (the contracts' `oracle` role is the same address on Base and

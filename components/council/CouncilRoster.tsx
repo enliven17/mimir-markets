@@ -31,8 +31,10 @@ export interface RosterPersona {
   track: Track;
   /** The Arc wallet it stakes from (Circle developer-controlled). */
   arcAddress?: string;
-  /** Its Base wallet, once made (not staking yet). */
+  /** Its Base wallet, when Base is enabled. */
   baseAddress?: string;
+  /** Its BNB Chain wallet (Circle signing-only EVM wallet), when BNB Chain is enabled. */
+  bscAddress?: string;
   /** Its agent page ticker, and its token if it has one (lib/launch/council.json). */
   ticker?: string;
   token?: Pick<AgentToken, "chain" | "address"> | null;
@@ -226,7 +228,7 @@ function PersonaCard({
             </ul>
           ) : (
             <p className="m-0 text-[13px] text-muted">
-              {p.bankroll === "0" && p.arcAddress ? t("unfunded") : t("noBets")}
+              {p.bankroll === "0" && (p.arcAddress || p.baseAddress || p.bscAddress) ? t("unfunded") : t("noBets")}
             </p>
           )}
           <div className="grid gap-1">
@@ -236,12 +238,14 @@ function PersonaCard({
                 {short(p.arcAddress)} <ExternalMark />
               </a>
             ) : null}
-            {p.baseAddress ? (
-              <a href={explorerUrl(MARKET_CHAINS.chains.base, "address", p.baseAddress)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
-                <span className="mr-2 text-dim">Base</span>
-                {short(p.baseAddress)} <ExternalMark />
-              </a>
-            ) : null}
+            {([["bsc", p.bscAddress], ["base", p.baseAddress]] as const).map(([id, address]) =>
+              address ? (
+                <a key={id} href={explorerUrl(MARKET_CHAINS.chains[id], "address", address)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
+                  <span className="mr-2 text-dim">{MARKET_CHAINS.chains[id].label}</span>
+                  {short(address)} <ExternalMark />
+                </a>
+              ) : null,
+            )}
             {p.token && p.ticker ? (
               <a href={tokenPage(p.token)} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-muted hover:text-coral">
                 <span className="mr-2 text-dim">${p.ticker}</span>

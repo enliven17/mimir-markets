@@ -139,6 +139,20 @@ export async function circleTxState(id: string): Promise<{ state: "done"; txHash
 /** Waits for a submitted Circle transaction (see waitForTxHash). */
 export const waitForCircleTx = (id: string, timeoutMs?: number) => waitForTxHash(id, timeoutMs);
 
+/**
+ * Signs (does not send) a transaction from a signing-only wallet (blockchain EVM / EVM-TESTNET, e.g. BNB Chain):
+ * POST /developer/sign/transaction with the Ethereum JSON-RPC shaped tx as a JSON string. The caller broadcasts the
+ * returned signedTransaction itself (lib/server/circle-sign.ts).
+ */
+export async function signTransaction(walletId: string, transaction: Record<string, unknown>): Promise<string> {
+  const r = await circleFetch<{ data: { signature: string; signedTransaction: string; txHash?: string } }>("POST", "/developer/sign/transaction", {
+    entitySecretCiphertext: await entitySecretCiphertext(),
+    walletId,
+    transaction: JSON.stringify(transaction),
+  });
+  return r.data.signedTransaction;
+}
+
 /** New EOA wallets in the wallet set, one per name. */
 export async function createWallets(names: string[], blockchain: string, prefix = "mimir-council"): Promise<Array<{ id: string; address: `0x${string}`; refId: string }>> {
   const r = await circleFetch<{ data: { wallets: Array<{ id: string; address: string; refId?: string }> } }>("POST", "/developer/wallets", {
@@ -153,7 +167,7 @@ export async function createWallets(names: string[], blockchain: string, prefix 
   return r.data.wallets.map((w) => ({ id: w.id, address: w.address as `0x${string}`, refId: w.refId ?? "" }));
 }
 
-/** Persona slug → its wallet on a chain, from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (JSON; lib/chains/house.ts). */
+/** Persona slug → its wallet on a chain, from ARC_ / BASE_ / BSC_COUNCIL_WALLETS (JSON; lib/chains/house.ts). */
 export type CouncilWallets = Record<string, { id: string; address: `0x${string}` }>;
 
 export function councilWalletsFromEnv(chain: "arc" | "base" | "bsc" = "arc"): CouncilWallets {

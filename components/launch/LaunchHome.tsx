@@ -13,6 +13,7 @@ import CouncilMark from "@/components/launch/CouncilMark";
 import LaunchedAgents from "@/components/launch/LaunchedAgents";
 import Segmented from "@/components/ui/Segmented";
 import { Link } from "@/i18n/navigation";
+import { MARKET_CHAINS } from "@/lib/chains/registry";
 
 type Tab = "hosted" | "council" | "connected";
 
@@ -68,7 +69,7 @@ export default function LaunchHome() {
                 <h2 id="launch-council" className="m-0 font-display text-[1.4rem] leading-none text-cream">
                   {t("councilTitle")}
                 </h2>
-                <p className="m-0 max-w-[62ch] text-[14px] text-muted">{t("councilLead")}</p>
+                <p className="m-0 max-w-[62ch] text-[14px] text-muted">{t("councilLead", { chain: MARKET_CHAINS.chains[MARKET_CHAINS.defaultChain].label })}</p>
               </div>
             </div>
             <ArcCouncil />

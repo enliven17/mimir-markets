@@ -164,7 +164,7 @@ export default function Footer() {
             <Link href="/" aria-label={tn("home")} className="w-fit rounded-xs">
               <Wordmark />
             </Link>
-            <p className="max-w-[30ch] text-[14px] leading-[1.5] text-muted">{t("tagline")}</p>
+            <p className="max-w-[30ch] text-[14px] leading-[1.5] text-muted">{t("tagline", { chain: primaryChain.label })}</p>
           </div>
 
           <Column title={t("product")}>{PRODUCT.map(navLink)}</Column>

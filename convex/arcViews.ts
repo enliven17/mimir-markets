@@ -1,7 +1,7 @@
 import { assertMarketDeployment } from "./marketDeploymentGuard";
 // Read-only views for the market UI that span tables: the council roster (each persona's wallets, record and recent
-// stakes) and the oracle's totals. Wallet addresses come from ARC_COUNCIL_WALLETS / BASE_COUNCIL_WALLETS (public
-// addresses, no secrets).
+// stakes) and the oracle's totals. Wallet addresses come from ARC_ / BASE_ / BSC_COUNCIL_WALLETS (public addresses, no
+// secrets).
 import { privateKeyToAccount } from "viem/accounts";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
@@ -10,17 +10,22 @@ import { serverMarketChains } from "../lib/chains/registry";
 
 const VERDICT_COUNT_CAP = 5000;
 
-/** Every persona with a wallet on any chain: its Arc address (else Base), record on settled markets, money at risk, last stakes. */
+/**
+ * Every persona with a wallet on any enabled chain: its address on the default chain (else the next enabled chain that
+ * has one), its Base and BNB Chain addresses, record on settled markets, money at risk, last stakes.
+ */
 export const council = query({
   args: {},
   handler: async (ctx) => {
     await assertMarketDeployment(ctx);
     const out = [];
-    const enabled = serverMarketChains().enabled;
-    const arc = enabled.includes("arc") ? councilWallets("arc") : {};
-    const base = enabled.includes("base") ? councilWallets("base") : {};
-    for (const slug of [...new Set([...Object.keys(arc), ...Object.keys(base)])]) {
-      const addresses = [base[slug]?.address, arc[slug]?.address].filter((a): a is `0x${string}` => Boolean(a)).map((a) => a.toLowerCase());
+    const { enabled, defaultChain } = serverMarketChains();
+    // Default chain first: `address` is the wallet the page reads the bankroll of on that chain.
+    const order = [defaultChain, ...enabled.filter((c) => c !== defaultChain)].filter((c) => enabled.includes(c));
+    const walletsOf = order.map((c) => ({ chain: c, wallets: councilWallets(c) }));
+    const on = (chain: "base" | "bsc", slug: string) => walletsOf.find((w) => w.chain === chain)?.wallets[slug]?.address.toLowerCase() ?? null;
+    for (const slug of [...new Set(walletsOf.flatMap((w) => Object.keys(w.wallets)))]) {
+      const addresses = walletsOf.map((w) => w.wallets[slug]?.address).filter((a): a is `0x${string}` => Boolean(a)).map((a) => a.toLowerCase());
       const address = addresses[0];
       const positions = [];
       for (const a of new Set(addresses)) positions.push(...(await ctx.db.query("arcPositions").withIndex("by_user", (q) => q.eq("user", a)).order("desc").take(300)));
@@ -40,7 +45,7 @@ export const council = query({
         bets.push({ chain, kind: p.kind, marketId: p.marketId, amount: p.amount, question: m.question, createdAt: m.createdAt });
       }
       bets.sort((a, b) => b.createdAt - a.createdAt);
-      out.push({ slug, address, base: base[slug]?.address.toLowerCase() ?? null, stakes: positions.length, won, lost, atRisk: atRisk.toString(), recentBets: bets.slice(0, 5) });
+      out.push({ slug, address, base: on("base", slug), bsc: on("bsc", slug), stakes: positions.length, won, lost, atRisk: atRisk.toString(), recentBets: bets.slice(0, 5) });
     }
     return out;
   },

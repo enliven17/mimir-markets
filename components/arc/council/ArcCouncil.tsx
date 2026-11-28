@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * /council on Arc: the totals strip, the oracle, then both juries. Each
- * persona stakes from its own Circle wallet on Arc (a Base wallet joins it
- * once Base markets open). Records and stakes come live from the Convex
- * index (convex/arcViews.ts), bankrolls straight from the Arc RPC.
+ * /council: the totals strip, the oracle, then both juries. Each persona
+ * stakes from its own Circle wallet on every enabled market chain (BNB Chain,
+ * Base, Arc). Records and stakes come live from the Convex index
+ * (convex/arcViews.ts), bankrolls straight from the default chain's RPC.
  */
 import { useEffect, useMemo, useState } from "react";
 import { marketPath } from "@/lib/chains/links";
@@ -51,7 +51,8 @@ export default function ArcCouncil() {
         ticker: agent?.ticker,
         token: agent?.token ?? null,
         arcAddress: MARKET_CHAINS.chains.arc.enabled ? agent?.arc ?? undefined : undefined,
-        baseAddress: c?.base ?? agent?.base?.address,
+        baseAddress: MARKET_CHAINS.chains.base.enabled ? c?.base ?? agent?.base?.address : undefined,
+        bscAddress: c?.bsc ?? undefined,
         categoryFilter: p.categoryFilter,
         bankroll: c ? units(bankrolls.get(c.address) ?? 0n) : "0",
         atRisk: c ? units(c.atRisk) : "0",
@@ -113,7 +114,7 @@ export default function ArcCouncil() {
   );
 }
 
-/** Native USDC (wei) of each address, read once per set of addresses. */
+/** USDC (index units) of each address on the default chain, read once per set of addresses. */
 function useBankrolls(addresses: Address[] | undefined) {
   const [map, setMap] = useState<Map<string, bigint>>(new Map());
   const key = addresses?.join(",") ?? "";

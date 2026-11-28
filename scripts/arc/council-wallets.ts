@@ -1,7 +1,9 @@
 /**
  * The council's wallets on a market chain (Circle developer-controlled, docs/CHAINS.md). Arc by default; with
- * `--chain base` the Base wallets (BASE / BASE-SEPOLIA) and BASE_COUNCIL_WALLETS instead. On Base the script creates
- * and lists the wallets but does not top them up: Mimir funds each with USDC and a little ETH for gas by hand.
+ * `--chain base` the Base wallets (BASE / BASE-SEPOLIA) and BASE_COUNCIL_WALLETS instead; with `--chain bsc` the BNB
+ * Chain wallets (Circle's generic EVM / EVM-TESTNET, signing only: lib/server/circle-sign.ts) and BSC_COUNCIL_WALLETS,
+ * mainnet or testnet from NEXT_PUBLIC_BSC_NETWORK. On Base and BNB Chain the script creates and lists the wallets but
+ * does not top them up: Mimir funds each with USDC and a little gas (ETH / BNB) by hand.
  * On Arc it does:
  *   1. collect the classic ten from CIRCLE_COUNCIL_<SLUG>_WALLET_ID / _ADDRESS
  *   2. create a wallet for every active persona still without one (the philosophers)
@@ -9,7 +11,7 @@
  *   4. write ARC_COUNCIL_WALLETS (slug → {id, address}) to .env.local; set it in Convex with
  *        npx convex env set ARC_COUNCIL_WALLETS "$(grep ^ARC_COUNCIL_WALLETS= .env.local | cut -d= -f2-)"
  * Idempotent: rerun it any time. Prints addresses and balances only.
- *   npx tsx --env-file=.env.local scripts/arc/council-wallets.ts [--chain base]
+ *   npx tsx --env-file=.env.local scripts/arc/council-wallets.ts [--chain base|bsc]
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { formatEther, parseEther } from "viem";
@@ -25,27 +27,30 @@ import { MARKET_CHAINS } from "../../lib/chains/registry";
 
 const MIN_USDC = 5;
 const TOP_UP_USDC = "8";
-const ON_BASE = process.argv.includes("--chain") && process.argv[process.argv.indexOf("--chain") + 1] === "base";
-const BLOCKCHAIN = ON_BASE ? circleBlockchain("base", MARKET_CHAINS.chains.base.network) : ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET";
-const ENV_NAME = ON_BASE ? "BASE_COUNCIL_WALLETS" : "ARC_COUNCIL_WALLETS";
+const chainArg = process.argv.includes("--chain") ? process.argv[process.argv.indexOf("--chain") + 1] : "arc";
+if (chainArg !== "arc" && chainArg !== "base" && chainArg !== "bsc") throw new Error(`--chain must be arc, base or bsc (got ${chainArg})`);
+/** Base or BNB Chain: create + list only (Mimir funds them by hand). */
+const EVM_CHAIN = chainArg === "arc" ? null : MARKET_CHAINS.chains[chainArg];
+const BLOCKCHAIN = EVM_CHAIN ? circleBlockchain(EVM_CHAIN.id, EVM_CHAIN.network) : ARC.network === "mainnet" ? "ARC" : "ARC-TESTNET";
+const ENV_NAME = `${chainArg.toUpperCase()}_COUNCIL_WALLETS`;
 const envKey = (slug: string) => slug.toUpperCase().replace(/-/g, "_");
 
 async function main() {
   const personas = activePersonas();
   const wallets: CouncilWallets = {};
-  if (ON_BASE) {
+  if (EVM_CHAIN) {
     try {
-      Object.assign(wallets, JSON.parse(process.env.BASE_COUNCIL_WALLETS ?? "{}"));
+      Object.assign(wallets, JSON.parse(process.env[ENV_NAME] ?? "{}"));
     } catch {}
     const missing = personas.map((p) => p.slug).filter((s) => !wallets[s]);
     if (missing.length) {
       console.log(`creating ${missing.length} wallets on ${BLOCKCHAIN}: ${missing.join(", ")}`);
       for (const w of await createWallets(missing, BLOCKCHAIN)) wallets[w.refId] = { id: w.id, address: w.address.toLowerCase() as `0x${string}` };
     }
-    const base = MARKET_CHAINS.chains.base;
+    const gasSymbol = EVM_CHAIN.gas.symbol;
     for (const [slug, w] of Object.entries(wallets)) {
-      const [usdc, eth] = await Promise.all([usdcBalanceWei(base, w.address).catch(() => 0n), gasBalanceWei(base, w.address).catch(() => 0n)]);
-      console.log(`${slug.padEnd(16)} ${w.address} ${indexToUsd(usdc).toFixed(2)} USDC ${formatEther(eth)} ETH${eth === 0n ? "  <- needs ETH for gas" : ""}`);
+      const [usdc, gas] = await Promise.all([usdcBalanceWei(EVM_CHAIN, w.address).catch(() => 0n), gasBalanceWei(EVM_CHAIN, w.address).catch(() => 0n)]);
+      console.log(`${slug.padEnd(16)} ${w.address} ${indexToUsd(usdc).toFixed(2)} USDC ${formatEther(gas)} ${gasSymbol}${gas === 0n ? `  <- needs ${gasSymbol} for gas` : ""}`);
     }
     return writeEnv(wallets);
   }
