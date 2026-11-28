@@ -20,6 +20,8 @@
  *
  * Pure and isomorphic (strings only), so the browser, the routes and the Convex jobs share it.
  */
+import { getAddress } from "viem";
+
 import { arcConfig, parseRpcUrls, type ArcConfig } from "../arc/config";
 
 export type MarketChainId = "arc" | "base" | "bsc";
@@ -93,7 +95,8 @@ export interface BaseEnv {
 }
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const addressOrNull = (v: string | undefined) => (v && ADDRESS.test(v.trim()) ? (v.trim() as `0x${string}`) : null);
+// Lowercased then checksummed: a hand-typed address with the wrong mixed case would otherwise make viem refuse every call.
+const addressOrNull = (v: string | undefined) => (v && ADDRESS.test(v.trim()) ? getAddress(v.trim().toLowerCase()) : null);
 const blockOf = (v: string | undefined) => (v && /^\d+$/.test(v.trim()) ? BigInt(v.trim()) : 0n);
 
 /** "0.1" → 18-dp index units; `fallback` when unset or malformed. */

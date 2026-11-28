@@ -3,7 +3,7 @@ import test from "node:test";
 import { auditAction, proposalKey, processAuditProposal, reviewProposal, auditQueue, isAuditReceiptJob, type AuditProposal, type AuditJob, type AuditIO } from "../../agents/audit/review";
 import { auditDisputeCall, loadAuditProposal, auditIO } from "../../agents/audit/chain";
 import { marketChains } from "../../lib/chains/registry";
-import { decodeFunctionData, parseAbi, type PublicClient, type WalletClient } from "viem";
+import { decodeFunctionData, getAddress, parseAbi, type PublicClient, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { spawnSync } from "node:child_process";
 
@@ -19,8 +19,8 @@ test("standalone auditor prints reviewed owner setup transactions without broadc
   }
 });
 
-const account = "0x00000000000000000000000000000000000000a1" as const;
-const other = "0x00000000000000000000000000000000000000b0" as const;
+const account = getAddress("0x00000000000000000000000000000000000000a1");
+const other = getAddress("0x00000000000000000000000000000000000000b0");
 const hash = `0x${"1".repeat(64)}` as const;
 const proposal: AuditProposal = { chainId: 84532, contract: other, kind: "vs", marketId: "7", proposedAt: 100, disputableUntil: 3700, now: 200, live: true, side: 1, evidenceHash: hash, question: "Will the combined score exceed 250?", labelA: "Yes", labelB: "No", resolutionUrl: "https://example.com/game#mimir=json:eq:true:finished", category: "sports", deadline: 99, createdAt: 1, summary: "Original proposal" };
 const review = { side: 2 as const, confidence: 95, explanation: "120 + 115 = 235.", model: "audit/test", evidence: { url: "https://example.com/game", text: "Final: 120–115", fetcher: "direct" }, reviewedAt: 200 };
