@@ -56,4 +56,6 @@ test("v2 commits a Proof-of-Reasoning root: each step proves alone, any edit bre
   assert.ok(!verifyPorStep("judge", forged, porProof(bundle, "judge"), hash), "edited judge step fails");
   assert.ok(!verifyPorStep("spec", steps.judge, porProof(bundle, "spec"), hash), "a step cannot pose as another");
   assert.notEqual(sealBundle({ ...bundle, adjustments: [] }).hash, hash);
+  const extra = { ...bundle, lateDepositPolicy: { cutoff: 1 } } as VerdictBundle;
+  assert.notEqual(sealBundle(extra).hash, hash, "fields outside the typed shape are committed too");
 });

@@ -92,11 +92,14 @@ export type PorStep = (typeof POR_STEPS)[number];
 
 /** The four Proof-of-Reasoning steps of a bundle, in leaf order. */
 export function porSteps(b: VerdictBundle): Record<PorStep, unknown> {
+  const { version, program, claimId, decidedAt, claim, evidence, prices, resolver, council, model, rawVerdict, ...judge } = b;
   return {
-    spec: { version: b.version, program: b.program, claimId: b.claimId, decidedAt: b.decidedAt, claim: b.claim },
-    collector: { evidence: b.evidence, prices: b.prices },
-    auditor: { resolver: b.resolver, council: b.council, model: b.model, rawVerdict: b.rawVerdict },
-    judge: { adjustments: b.adjustments, finalVerdict: b.finalVerdict },
+    spec: { version, program, claimId, decidedAt, claim },
+    collector: { evidence, prices },
+    auditor: { resolver, council, model, rawVerdict },
+    // Everything else (adjustments, finalVerdict, and any field added later such as lateDepositPolicy) is the judge's,
+    // so no key of the bundle is ever left out of the root.
+    judge,
   };
 }
 
