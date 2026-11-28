@@ -52,7 +52,7 @@ test("v2 commits a Proof-of-Reasoning root: each step proves alone, any edit bre
   for (const step of ["spec", "collector", "auditor", "judge"] as const) {
     assert.ok(verifyPorStep(step, steps[step], porProof(bundle, step), hash), `${step} verifies`);
   }
-  const forged = { ...steps.judge, finalVerdict: { verdict: "CHALLENGERS_WIN", confidence: 90, explanation: "because" } };
+  const forged = { ...(steps.judge as object), finalVerdict: { verdict: "CHALLENGERS_WIN", confidence: 90, explanation: "because" } };
   assert.ok(!verifyPorStep("judge", forged, porProof(bundle, "judge"), hash), "edited judge step fails");
   assert.ok(!verifyPorStep("spec", steps.judge, porProof(bundle, "spec"), hash), "a step cannot pose as another");
   assert.notEqual(sealBundle({ ...bundle, adjustments: [] }).hash, hash);
